@@ -24,6 +24,8 @@
 #include "picoPal.h"
 #include "ff.h"
 
+#include "../EmuCalls.h"
+
 using namespace std;
 
 std::string palOpenFileDialog(std::string, std::string, bool, PalWindow*) {
@@ -143,3 +145,364 @@ void palMsgBox(string msg, bool)
 
 
 EmuLog emuLog;
+
+bool PalFile::open(string fileName, string mode) {
+    if (mp_file) close();
+    int m = mode == "r" ? FA_READ : (FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+    mp_file = malloc(sizeof(FIL));
+    bool ok = FR_OK == f_open((FIL*)mp_file, fileName.c_str(), m);
+    if (!ok) { free(mp_file); mp_file = 0; }
+    return ok;
+}
+
+void PalFile::close() {
+    if (!mp_file) return;
+    f_close((FIL*)mp_file);
+    free(mp_file);
+    mp_file = 0;
+}
+
+bool PalFile::isOpen() {
+    return mp_file > 0;
+}
+
+bool PalFile::eof() {
+    if (!mp_file) return true;
+    return f_eof((FIL*)mp_file);
+}
+
+uint8_t PalFile::read8() {
+    if (!mp_file) return 0;
+    UINT br;
+    uint8_t res;
+    if (FR_OK == f_read((FIL*)mp_file, &res, 1, &br))
+        return res;
+    return 0;
+}
+
+uint16_t PalFile::read16() {
+    if (!mp_file) return 0;
+    UINT br;
+    uint16_t res;
+    if (FR_OK == f_read((FIL*)mp_file, &res, 2, &br))
+        return res;
+    return 0;
+}
+
+uint32_t PalFile::read32() {
+    if (!mp_file) return 0;
+    UINT br;
+    uint32_t res;
+    if (FR_OK == f_read((FIL*)mp_file, &res, 4, &br))
+        return res;
+    return 0;
+}
+
+void PalFile::write8(uint8_t c) {
+    if (!mp_file) return;
+    UINT bw;
+    f_write((FIL*)mp_file, &c, 1, &bw);
+}
+
+void PalFile::write16(uint16_t c) {
+    if (!mp_file) return;
+    UINT bw;
+    f_write((FIL*)mp_file, &c, 2, &bw);
+}
+
+void PalFile::write32(uint32_t c) {
+    if (!mp_file) return;
+    UINT bw;
+    f_write((FIL*)mp_file, &c, 4, &bw);
+}
+
+int64_t PalFile::getSize() {
+    if (!mp_file) return 0;
+    return f_size((FIL*)mp_file);
+}
+
+int64_t PalFile::getPos() {
+    if (!mp_file) return 0;
+    return f_tell((FIL*)mp_file); // TODO: ensure
+}
+
+void PalFile::seek(int position) {
+    if (!mp_file) return;
+    f_lseek((FIL*)mp_file, position);
+}
+
+void PalFile::skip(int len) {
+    seek(getPos() + len);
+}
+
+static const string basePath = "\\emu80\\";
+
+string palMakeFullFileName(string fileName) {
+    if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\' || (fileName.size() > 1 && fileName[1] == ':'))
+        return fileName;
+    string fullFileName(::basePath);
+    fullFileName += fileName;
+    return fullFileName;
+}
+
+uint8_t* palReadFile(const std::string& fileName, int &fileSize, bool useBasePath) {
+    string fullFileName;
+    if (useBasePath)
+        fullFileName = palMakeFullFileName(fileName);
+    else
+        fullFileName = fileName;
+    FIL file;
+    if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
+        fileSize = f_size(&file);
+        if (fileSize < 0) {
+            fileSize = 0;
+            return nullptr;
+        }
+        uint8_t* buf = new uint8_t[fileSize];
+        UINT nBytesRead;
+        f_read(&file, buf, fileSize, &nBytesRead);
+        f_close(&file);
+        fileSize = nBytesRead;
+        return buf;
+    }
+    else
+        return nullptr;
+}
+
+int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath) {
+    string fullFileName;
+    if (useBasePath)
+        fullFileName = palMakeFullFileName(fileName);
+    else
+        fullFileName = fileName;
+    UINT nBytesRead;
+    FIL file;
+    if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
+        f_lseek(&file, offset);
+        f_read(&file, buffer, sizeToRead, &nBytesRead);
+        f_close(&file);
+        return nBytesRead;
+    }
+    else
+        return 0;
+}
+
+void palPlaySample(int16_t sample) {
+    // TODO:
+}
+
+static bool palProcessEvents();
+
+void palExecute() {
+    while (!palProcessEvents())
+        emuEmulationCycle();
+}
+
+#include <pico/time.h>
+
+uint64_t palGetCounter() {
+    return to_us_since_boot(get_absolute_time());
+}
+
+uint64_t palGetCounterFreq() {
+    return 1000000000ul;
+}
+
+void palDelay(uint64_t time) {
+    sleep_ms((uint32_t)time);
+}
+
+static int sampleRate = 48000;
+static bool isRunning = false;
+
+bool palSetSampleRate(int sampleRate) {
+    if (isRunning)
+        return false;
+    ::sampleRate = sampleRate;
+    return true;
+}
+
+int palGetSampleRate() {
+    return ::sampleRate;
+}
+
+// Перенести в palExecute
+void palStart() {
+    /*** TODO: ??
+    SDL_AudioSpec spec;
+    spec.freq = sampleRate;
+    spec.format = AUDIO_S16;
+    spec.channels = 1;
+    spec.samples = 2048;
+    spec.callback = audioCallback;
+
+    audioBufferPos = 1024;
+    audioBufferNumIn = 1;
+    audioBufferNumOut = 0;
+    audioDevId = SDL_OpenAudioDevice(NULL, false, &spec, &spec, 0);
+    SDL_PauseAudioDevice(audioDevId, false);
+
+    SDL_StartTextInput();
+    */
+    isRunning = true;
+}
+
+void palRequestForQuit() { /// TODO: what should we do?
+    ///SDL_Event ev;
+    ///ev.type = SDL_QUIT;
+    ///SDL_PushEvent(&ev);
+}
+
+string palGetDefaultPlatform() {
+    return ""; // May be Радио-86РК
+}
+
+static unsigned unicodeKey = 0;
+
+static bool palProcessEvents() {
+    /*** TODO:
+    palIdle();
+    // workaround for wxWidgets events processing
+    for (int i = 0; i < 10; i++)
+        SDL_PumpEvents();
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        switch (event.type)
+        {
+            case SDL_QUIT:
+                return true;
+
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                {
+                    if (!SDL_GetWindowFromID(event.key.windowID))
+                        break; // могут остаться события, относящиеся к уже уделенному окну
+                    PalKeyCode key = TranslateScanCode(event.key.keysym.scancode);
+                    SysReq sr = TranslateKeyToSysReq(key, event.type == SDL_KEYDOWN, SDL_GetModState() & (KMOD_ALT | KMOD_GUI), SDL_GetModState() & KMOD_SHIFT);
+                    if (sr)
+                        emuSysReq(PalWindow::windowById(event.key.windowID), sr);
+                    else {
+                        if (unicodeKey && event.type == SDL_KEYUP) {
+                            emuKeyboard(PalWindow::windowById(event.text.windowID), PK_NONE, false, unicodeKey);
+                            unicodeKey = 0;
+                        }
+                        emuKeyboard(PalWindow::windowById(event.key.windowID), key, event.type == SDL_KEYDOWN);
+                    }
+                    break;
+                }
+            case SDL_MOUSEBUTTONDOWN:
+                    if (!SDL_GetWindowFromID(event.button.windowID))
+                        break; // могут остаться события, относящиеся к уже уделенному окну
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        PalWindow::windowById(event.button.windowID)->mouseClick(event.button.x, event.button.y,
+                                                                                 event.button.clicks < 2 ? PM_LEFT_CLICK : PM_LEFT_DBLCLICK);
+                        PalWindow::windowById(event.button.windowID)->mouseDrag(event.button.x, event.button.y);
+                    }
+                    break;
+            case SDL_MOUSEMOTION:
+                    if (!SDL_GetWindowFromID(event.button.windowID))
+                        break; // могут остаться события, относящиеся к уже уделенному окну
+                    if (event.motion.state & SDL_BUTTON_LMASK)
+                        PalWindow::windowById(event.button.windowID)->mouseDrag(event.motion.x, event.motion.y);
+                    break;
+            case SDL_MOUSEWHEEL:
+                    if (!SDL_GetWindowFromID(event.wheel.windowID))
+                        break; // могут остаться события, относящиеся к уже уделенному окну
+                    PalWindow::windowById(event.button.windowID)->mouseClick(0, 0, event.wheel.y > 0 ? PM_WHEEL_UP : PM_WHEEL_DOWN);
+                    break;
+            case SDL_TEXTINPUT:
+                {
+                    if (unicodeKey)
+                        break;
+                    unicodeKey = simpleUtfDecode(event.text.text);
+                    emuKeyboard(PalWindow::windowById(event.text.windowID), PK_NONE, true, unicodeKey);
+                    break;
+
+                }
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED && SDL_GetWindowFromID(event.window.windowID))
+                    emuFocusWnd(PalWindow::windowById(event.window.windowID));
+                else if (event.window.event == SDL_WINDOWEVENT_CLOSE  && SDL_GetWindowFromID(event.window.windowID))
+                    emuSysReq(PalWindow::windowById(event.window.windowID), SR_CLOSE);
+                break;
+            case SDL_DROPFILE:
+                if (SDL_GetWindowFromID(event.drop.windowID))
+                    emuDropFile(PalWindow::windowById(event.drop.windowID), event.drop.file);
+                break;
+        }
+    }
+    */
+    return false;
+}
+
+bool palSetFrameRate(int) {
+    // nothing to do in pico version
+    return true;
+}
+
+bool palSetVsync(bool) {
+    // nothing to do in pico version
+    return true;
+}
+
+PalWindow::PalWindow() {
+    m_params.style = /* m_prevParams.style = */PWS_FIXED;
+    m_params.smoothing = /*m_prevParams.smoothing = */ST_SHARP;
+    m_params.width = /*m_prevParams.width = */800;
+    m_params.height = /*m_prevParams.height = */600;
+    m_params.visible = /*m_prevParams.visible = */false;
+    m_params.title = /*m_prevParams.title = */"";
+    //m_lastX = SDL_WINDOWPOS_UNDEFINED;
+    //m_lastY = SDL_WINDOWPOS_UNDEFINED;
+}
+
+PalWindow::~PalWindow() {
+   // if (m_renderer)
+   //     SDL_DestroyRenderer(m_renderer);
+   // if (m_window) {
+   //     PalWindow::m_windowsMap.erase(SDL_GetWindowID(m_window));
+   //     SDL_DestroyWindow(m_window);
+   // }
+}
+
+void PalWindow::getSize(int& width, int& height) {
+    width = m_params.width;
+    height = m_params.height;
+}
+
+void PalWindow::bringToFront() {
+    ///SDL_RaiseWindow(m_window);
+}
+
+void PalWindow::maximize() {
+   /// if (m_params.style == PWS_RESIZABLE)
+   ///     SDL_MaximizeWindow(m_window);
+}
+
+void PalWindow::applyParams() {
+
+}
+
+void PalWindow::drawFill(uint32_t color) {
+    /*** TODO: ??
+    if (m_glAvailable) {
+        drawFillGl(color);
+        return;
+    }
+    uint8_t red = (color & 0xFF0000) >> 16;
+    uint8_t green = (color & 0xFF00) >> 8;
+    uint8_t blue = color & 0xFF;
+    SDL_SetRenderDrawColor(m_renderer, red, green, blue, 0xff);
+    SDL_RenderClear(m_renderer);
+    */
+}
+
+void PalWindow::drawImage(uint32_t* pixels, int imageWidth, int imageHeight, double aspectRatio, bool blend, bool useAlpha) {
+/// TODO:
+}
+
+void PalWindow::drawEnd() {
+
+}

@@ -28,6 +28,7 @@
 
 #include "../EmuTypes.h"
 #include "../PalKeys.h"
+#include "../debug.h"
 
 class PalWindow;
 
@@ -150,8 +151,8 @@ class PalFile
         static bool del(std::string fileName) {return false;}
         static bool mkDir(std::string dirName) {return false;}
         static bool moveRename(std::string src, std::string dst) {return false;}
-
     private:
+        void* mp_file;
 };
 
 #include <string>

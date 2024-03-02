@@ -84,9 +84,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_timer
         hardware_clocks
         hardware_pwm
-        hardware_flash
+#        hardware_flash
 
-        tinyusb_board
+#        tinyusb_board
         tinyusb_device
 )
 
@@ -166,16 +166,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         PWM_PIN0=26
         PWM_PIN1=27
         BEEPER_PIN=28
-        STEREO_SOUND=1
-        CONSOLE_SOUND=1
-        SERIO_SOUND=1
-        VOICEBOX=1
-        SOUND_THIN_API=1
+        SOUND=1
 
-        #MNGR_DEBUG=1
-        #DEBUG2=1
-
-        HAVE_OPENDIR=1
+        MNGR_DEBUG=1
 )
 
 
