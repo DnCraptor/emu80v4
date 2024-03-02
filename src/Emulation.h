@@ -23,6 +23,8 @@
 
 #include <list>
 
+#define dynamic_cast static_cast
+
 #include "PalKeys.h"
 #include "EmuTypes.h"
 #include "EmuObjects.h"

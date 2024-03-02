@@ -285,7 +285,7 @@ EmuObject* Emulation::findObject(string name)
 
 void Emulation::addChild(EmuObject* child)
 {
-    if (Platform* pl = dynamic_cast<Platform*>(child))
+    if (Platform* pl = static_cast<Platform*>(child)) // dynamic_cast
         m_platformList.push_back(pl);
 };
 

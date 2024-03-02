@@ -33,7 +33,7 @@ EmuValue::EmuValue(const string& str)
     m_sValue = str;
 
     m_isInt = true;
-    try {
+///    try {
         if (m_sValue.substr(0,2) == "0x") {
             string sValueHex = m_sValue.substr(2, m_sValue.size());
             istringstream iss(sValueHex);
@@ -42,18 +42,18 @@ EmuValue::EmuValue(const string& str)
             istringstream iss(m_sValue);
             iss >> m_nValue;
         }
-    }
-    catch(...) {
-        m_isInt = false;
-    }
+///    }
+///    catch(...) {
+///        m_isInt = false;
+ ///   }
 
     m_isFloat = true;
-    try {
+///    try {
         istringstream iss(m_sValue);
         iss >> m_fValue;
-    } catch (...) {
-        m_isFloat = false;
-    }
+///    } catch (...) {
+///        m_isFloat = false;
+ ///   }
 }
 
 

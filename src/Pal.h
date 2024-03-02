@@ -34,6 +34,10 @@
 #include "lite/litePal.h"
 #endif // PAL_LITE
 
+#ifdef PICO_PAL
+#include "pico/picoPal.h"
+#endif
+
 #ifdef PAL_QT
     #ifdef __WIN32__
         #define EXE_NAME "Emu80qt.exe"

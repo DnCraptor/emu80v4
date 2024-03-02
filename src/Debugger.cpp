@@ -127,7 +127,7 @@ DebugWindow::DebugWindow(Platform* platform)
 
     m_platform = platform;
     m_cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
-    m_z80cpu = dynamic_cast<CpuZ80*>(m_cpu);
+    m_z80cpu = static_cast<CpuZ80*>(m_cpu); // dynamic_cast
     m_as = m_cpu->getAddrSpace();
 
     m_z80Mode = m_z80cpu != nullptr;

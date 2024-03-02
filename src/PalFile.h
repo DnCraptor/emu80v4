@@ -26,3 +26,7 @@
 #ifdef PAL_SDL
 #include "sdl/sdlPalFile.h"
 #endif // PAL_SDL
+
+#ifdef PICO_PAL
+#include "pico/picoPal.h"
+#endif
