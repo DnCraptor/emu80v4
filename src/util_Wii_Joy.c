@@ -31,11 +31,7 @@ const uint8_t set_lores_cmd[2]={0xFE,0x01};
 
 //const uint8_t init_data[] = { 0xF0, 0x55, 0xFB, 0x00, 0xFE, 0x03 };
 
-#ifdef MNGR_DEBUG
-#define printf(...) { char tmp[80]; snprintf(tmp, 80, __VA_ARGS__); logMsg(tmp); }
-#else
-#define printf(...) {}
-#endif
+#include "debug.h"
 
 bool controller_decode_bytes_uncompressed(uint8_t *buf, size_t len, struct WIIController *tempData){ //mode 3
 	
@@ -154,32 +150,32 @@ bool controller_decode_bytes_nunchuck(uint8_t *buf, size_t len, struct WIIContro
 
 bool Init_Wii_Joystick() {
 	uint8_t result;
-	printf("Init_Wii_Joystick0");
+	lprintf("Init_Wii_Joystick0");
 	i2c_init(WII_PORT, WII_CLOCK);
-	printf("Init_Wii_Joystick1");
+	lprintf("Init_Wii_Joystick1");
 	gpio_set_function(WII_SDA_PIN, GPIO_FUNC_I2C);
-	printf("Init_Wii_Joystick2");
+	lprintf("Init_Wii_Joystick2");
 	gpio_set_function(WII_SCL_PIN, GPIO_FUNC_I2C);
-	printf("Init_Wii_Joystick3");
+	lprintf("Init_Wii_Joystick3");
 	gpio_pull_up(WII_SDA_PIN);
-	printf("Init_Wii_Joystick4");
+	lprintf("Init_Wii_Joystick4");
 	gpio_pull_up(WII_SCL_PIN);
 	
-	printf("Begin Wii Init\n");
+	lprintf("Begin Wii Init\n");
 	
 	//PICO_ERROR_GENERIC
 	result=i2c_write_blocking(WII_PORT, WII_ADDRESS, &init_cmd0[0], 2, false); //Init 0
 	if(result!=2){
-		printf("Wii>Error first init\n");
+		lprintf("Wii>Error first init\n");
 		WII_Init = false;
 		return false;
 	}
 	sleep_us(50);
 	result=i2c_write_blocking(WII_PORT, WII_ADDRESS, &init_cmd1[0], 2, false); //Disable encode
 	if(result==2){
-		printf("Wii>No Code\n");
-		} else {
-		printf("Wii>Error second init\n");
+		lprintf("Wii>No Code\n");
+	} else {
+		lprintf("Wii>Error second init\n");
 		WII_Init = false;
 		return false;
 	}
@@ -189,32 +185,32 @@ bool Init_Wii_Joystick() {
 		sleep_us(50);
 		result=i2c_read_blocking(WII_PORT, WII_ADDRESS, WII_Calibrate, WII_CONFIG_COUNT, false);
 		if (result>WII_CONFIG_COUNT) {
-			printf("Wii>Failed to get controller type:%d\n",result);
+			lprintf("Wii>Failed to get controller type:%d\n",result);
 		} 
 		WII_Data_Format = WII_Calibrate[4];
 		WII_Device_Type = WII_Calibrate[5];
-		printf("Joy type>");
+		lprintf("Joy type>");
 		for(uint8_t i = 0; i < result; i++){
-			printf(" %02X",WII_Calibrate[i]);
+			lprintf(" %02X",WII_Calibrate[i]);
 		}
-		printf("\n");
-		printf("WII_Data_Format> %02X \t WII_Device_Type> %02X \n",WII_Data_Format,WII_Device_Type);
+		lprintf("\n");
+		lprintf("WII_Data_Format> %02X \t WII_Device_Type> %02X \n",WII_Data_Format,WII_Device_Type);
 		memset(&WII_Calibrate,0,6);
 		if (result!= 6) {
 			WII_Data_Format = 3;
 		} 
 		
 		} else {
-		printf("Wii>Error get controller type data\n");
+		lprintf("Wii>Error get controller type data\n");
 		WII_Init = false;
 		return false;		
 	}
 	sleep_us(50);
 	result=i2c_write_blocking(WII_PORT, WII_ADDRESS, &set_hires_cmd[0], 2, false); //Set Hi res
 	if(result==2){
-		printf("Wii>HiRes mode\n");
-		} else {
-		printf("Wii>Error set hires mode\n");
+		lprintf("Wii>HiRes mode\n");
+	} else {
+		lprintf("Wii>Error set hires mode\n");
 		WII_Init = false;
 		return false;
 	}	
@@ -224,19 +220,19 @@ bool Init_Wii_Joystick() {
 	if(result==1){
 		result=i2c_read_blocking(WII_PORT, WII_ADDRESS, WII_Calibrate, 6, false);
 		if (result!= 6) {
-			printf("Wii>Failed to calibrate controller\n");
+			lprintf("Wii>Failed to calibrate controller\n");
 			WII_Init = false;
 			//return false;
 		}
 		
-		printf("Wii>calibrate>");
+		lprintf("Wii>calibrate>");
 		for(uint8_t i = 0; i < 6; i++){
 			printf(" %02X",WII_Calibrate[i]);
 		}
-		printf("\n");
+		lprintf("\n");
 		
 		} else {
-		printf("Wii>Error get calibration data\n");
+		lprintf("Wii>Error get calibration data\n");
 		WII_Init = false;
 		return false;
 	}
@@ -265,12 +261,12 @@ bool Wii_decode_joy2() {
 		if((WII_Data[0]==0xFF)&&(WII_Data[1]==0xFF)&&(WII_Data[2]==0xFF)&&(WII_Data[3]==0xFF)) return false;
 		if(memcmp(&WII_Data[0],&WII_Data_Old[0],WII_BYTE_COUNT)!=0){
 			/*
-				printf("data>");
-				for (uint8_t i = 0; i < 8; i++) {
-				printf(" %02X",WII_Data[i]);
-				}
+			lprintf("data>");
+			for (uint8_t i = 0; i < 8; i++) {
+				lprintf(" %02X",WII_Data[i]);
+			}
 			*/
-			printf("\n");
+			lprintf("\n");
 			switch (WII_Data_Format) {
 				case 0:
 				decode = controller_decode_bytes_nunchuck(WII_Data, result, &Wii_joy);
@@ -323,9 +319,9 @@ void Wii_debug(struct WIIController *tempData){
 	const char zlButtonPrint = tempData->ButtonZL ? 'L' : fillCharacter;
 	const char zrButtonPrint = tempData->ButtonZR ? 'R' : fillCharacter;
 	
-	printf("***");
+	lprintf("***");
 	
-	printf("%c%c%c%c | %c%c%c | %c%c%c%c L:(%3d, %3d) R:(%3d, %3d) | LT:%3d%c RT:%3d%c Z:%c%c\n",
+	lprintf("%c%c%c%c | %c%c%c | %c%c%c%c L:(%3d, %3d) R:(%3d, %3d) | LT:%3d%c RT:%3d%c Z:%c%c\n",
 		dpadLPrint, dpadUPrint, dpadDPrint, dpadRPrint,
 		minusPrint, homePrint, plusPrint,
 		aButtonPrint, bButtonPrint, xButtonPrint, yButtonPrint,

@@ -294,8 +294,9 @@ void palPlaySample(int16_t sample) {
 static bool palProcessEvents();
 
 void palExecute() {
-    while (!palProcessEvents())
+    while (!palProcessEvents()) {
         emuEmulationCycle();
+    }
 }
 
 #include <pico/time.h>
@@ -324,27 +325,6 @@ bool palSetSampleRate(int sampleRate) {
 
 int palGetSampleRate() {
     return ::sampleRate;
-}
-
-// Перенести в palExecute
-void palStart() {
-    /*** TODO: ??
-    SDL_AudioSpec spec;
-    spec.freq = sampleRate;
-    spec.format = AUDIO_S16;
-    spec.channels = 1;
-    spec.samples = 2048;
-    spec.callback = audioCallback;
-
-    audioBufferPos = 1024;
-    audioBufferNumIn = 1;
-    audioBufferNumOut = 0;
-    audioDevId = SDL_OpenAudioDevice(NULL, false, &spec, &spec, 0);
-    SDL_PauseAudioDevice(audioDevId, false);
-
-    SDL_StartTextInput();
-    */
-    isRunning = true;
 }
 
 void palRequestForQuit() { /// TODO: what should we do?
@@ -505,4 +485,183 @@ void PalWindow::drawImage(uint32_t* pixels, int imageWidth, int imageHeight, dou
 
 void PalWindow::drawEnd() {
 
+}
+
+
+#include <hardware/structs/vreg_and_chip_reset.h>
+#include <hardware/clocks.h>
+#include <hardware/pwm.h>
+#include <pico/multicore.h>
+#include <pico/bootrom.h>
+#include <pico/stdlib.h>
+#include "psram_spi.h"
+#include "graphics.h"
+#include "ff.h"
+
+extern "C" {
+    #include "ps2.h"
+    #include "util_Wii_Joy.h"
+    #include "nespad.h"
+}
+
+static FATFS fs;
+semaphore vga_start_semaphore;
+
+pwm_config config = pwm_get_default_config();
+void PWM_init_pin(uint8_t pinN, uint16_t max_lvl) {
+    gpio_set_function(pinN, GPIO_FUNC_PWM);
+    pwm_config_set_clkdiv(&config, 1.0);
+    pwm_config_set_wrap(&config, max_lvl); // MAX PWM value
+    pwm_init(pwm_gpio_to_slice_num(pinN), &config, true);
+}
+
+void inInit(uint gpio) {
+    gpio_init(gpio);
+    gpio_set_dir(gpio, GPIO_IN);
+    gpio_pull_up(gpio);
+}
+
+extern "C" bool __time_critical_func(handleScancode)(const uint32_t ps2scancode) {
+    return true;
+}
+
+void nespad_update() {
+    // TODO:
+}
+
+#define Screen_WIDTH 800
+#define Screen_HEIGHT 600
+///static uint8_t __screen[Screen_WIDTH * Screen_HEIGHT] = { 0 };
+
+void __time_critical_func(render_core)() {
+    uint8_t* buffer = 0;// __screen;
+    graphics_set_buffer(buffer, Screen_WIDTH, Screen_HEIGHT);
+    multicore_lockout_victim_init();
+    graphics_init();
+    graphics_set_textbuffer(buffer);
+    graphics_set_bgcolor(0x000000);
+    graphics_set_offset(0, 0);
+    graphics_set_flashmode(false, false);
+    sem_acquire_blocking(&vga_start_semaphore);
+    // 60 FPS loop
+#define frame_tick (16666)
+    uint64_t tick = time_us_64();
+#ifdef TFT
+    uint64_t last_renderer_tick = tick;
+#endif
+    uint64_t last_input_tick = tick;
+    while (true) {
+#ifdef TFT
+        if (tick >= last_renderer_tick + frame_tick) {
+            refresh_lcd();
+            last_renderer_tick = tick;
+        }
+#endif
+        // Every 5th frame
+        if (tick >= last_input_tick + frame_tick * 5) {
+            nespad_read();
+            last_input_tick = tick;
+            nespad_update();
+        }
+        tick = time_us_64();
+        tight_loop_contents();
+    }
+    __unreachable();
+}
+
+#ifdef SOUND
+static repeating_timer_t timer;
+static int snd_channels = 2;
+static bool __not_in_flash_func(snd_timer_callback)(repeating_timer_t *rt) {
+    static uint16_t outL = 0;  
+    static uint16_t outR = 0;
+
+    pwm_set_gpio_level(PWM_PIN0, outR); // Право
+    pwm_set_gpio_level(PWM_PIN1, outL); // Лево
+    outL = outR = 0;
+
+    pwm_set_gpio_level(BEEPER_PIN, 0);
+    return true;
+}
+#endif
+
+#include "f_util.h"
+static FATFS fatfs;
+bool SD_CARD_AVAILABLE = false;
+static void init_fs() {
+    FRESULT result = f_mount(&fatfs, "", 1);
+    if (FR_OK != result) {
+        lprintf("Unable to mount SD-card: %s (%d)", FRESULT_str(result), result);
+    } else {
+        SD_CARD_AVAILABLE = true;
+    }
+}
+
+inline static void init_wii() {
+    if (Init_Wii_Joystick()) {
+        Wii_decode_joy();
+        lprintf("Found WII joystick");
+    }
+}
+
+// Перенести в palExecute
+void palStart() {
+}
+
+void palPicoInit() {
+    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
+    sleep_ms(10);
+    set_sys_clock_khz(378 * KHZ, true);
+    stdio_init_all();
+    keyboard_init();
+    keyboard_send(0xFF);
+    nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
+
+    nespad_read();
+    sleep_ms(50);
+
+    // F12 Boot to USB FIRMWARE UPDATE mode
+    if (nespad_state & DPAD_START /*|| input_map.keycode == 0x58*/) { // F12
+        lprintf("reset_usb_boot");
+        reset_usb_boot(0, 0);
+    }
+
+    init_fs(); // TODO: psram replacement (pagefile)
+    init_psram();
+
+    sem_init(&vga_start_semaphore, 0, 1);
+    multicore_launch_core1(render_core);
+    sem_release(&vga_start_semaphore);
+
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    for (int i = 0; i < 6; i++) {
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
+
+#ifdef SOUND
+    PWM_init_pin(BEEPER_PIN, (1 << 8) - 1);
+    PWM_init_pin(PWM_PIN0, (1 << 8) - 1);
+    PWM_init_pin(PWM_PIN1, (1 << 8) - 1);
+#endif
+#if LOAD_WAV_PIO
+    //пин ввода звука
+    inInit(LOAD_WAV_PIO);
+#endif
+
+#ifdef SOUND
+    int hz = 48000; // TODO:
+    snd_channels = 1; // TODO:
+    // negative timeout means exact delay (rather than delay between callbacks)
+    if (!add_repeating_timer_us(-1000000 / hz, snd_timer_callback, NULL, &timer)) {
+        lprintf("Failed to add timer");
+    } else {
+        lprintf("snd_timer_callback timer is registered");
+    }
+#endif
+
+    isRunning = true;
 }

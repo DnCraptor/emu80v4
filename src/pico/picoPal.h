@@ -30,6 +30,8 @@
 #include "../PalKeys.h"
 #include "../debug.h"
 
+void palPicoInit();
+
 class PalWindow;
 
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window = nullptr);

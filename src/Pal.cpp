@@ -39,6 +39,10 @@ bool palInit(int& argc, char** argv)
         return false;
 #endif
 
+#ifdef PICO_PAL
+    palPicoInit();
+#endif
+
     return true;
 }
 
