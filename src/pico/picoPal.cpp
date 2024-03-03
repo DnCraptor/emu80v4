@@ -42,6 +42,12 @@ extern "C" {
 
 #include "../EmuCalls.h"
 
+static volatile bool upPressed = false;
+static volatile bool downPressed = false;
+static volatile bool pageUpPressed = false;
+static volatile bool pageDownPressed = false;
+static volatile bool enterPressed = false;
+
 using namespace std;
 
 std::string palOpenFileDialog(std::string, std::string, bool, PalWindow*) {
@@ -101,26 +107,46 @@ inline static unsigned char to_cp866(wchar_t c) {
 #include <locale>
 #include <codecvt>
 
-bool palChoosePlatform(std::vector<PlatformInfo>& pi, int&, bool&, bool, PalWindow*) {
+bool palChoosePlatform(std::vector<PlatformInfo>& pi, int& pos, bool&, bool, PalWindow*) {
     lprintf("palChoosePlatform");
     clrScr(1);
     draw_window("Select platform", 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS);
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> convert;
-    int selected = 1;
-    int highlighted = 0;
+    int selected = 0;
+    int shift = 0;
     while(1) {
-        int y = 1;
-        for (auto it = pi.begin(); it != pi.end(); it++) {
-            std::wstring wstr = convert.from_bytes((*it).platformName);
+        int selectedYline = 1;
+        for (int i = 0; i < TEXTMODE_ROWS - 2; ++i) { 
+            int idx = i + shift;
+            if (idx >= pi.size()) {
+                draw_label(1, i + 1, TEXTMODE_COLS - 2, " ", false, false);
+                continue;
+            }
+            std::wstring wstr = convert.from_bytes(pi[idx].platformName);
             const wchar_t *utf16 = wstr.c_str();
             string str;
             while(*utf16) {
                 str += to_cp866(*utf16++);
             }
-            draw_label(1, y++, TEXTMODE_COLS - 2, str.c_str(), y == selected, y == highlighted);
-            if (y == TEXTMODE_ROWS) break;
+            bool bSelected = idx == selected;
+            draw_label(1, i + 1, TEXTMODE_COLS - 2, str.c_str(), bSelected, false);
+            if (bSelected) {
+                selectedYline = i + 1;
+            }
+        }
+        if (enterPressed) {
+            pos = selected;
+            return true;
         }
         sleep_ms(100);
+        if (upPressed) {
+            if (selectedYline > 1) { if(selected > 0) selected--; }
+            else if (shift > 0) shift--;
+        }
+        if (downPressed) {
+            if (selectedYline < TEXTMODE_ROWS - 2) { if(selected < pi.size() - 1) selected++; }
+            else shift++;
+        }
     }
     return false;
 }
@@ -574,6 +600,38 @@ void inInit(uint gpio) {
 }
 
 extern "C" bool __time_critical_func(handleScancode)(const uint32_t ps2scancode) {
+    switch((uint8_t)ps2scancode & 0xFF) {
+        case 0x48:
+            upPressed = true;
+            break;
+        case 0xC8:
+            upPressed = false;
+            break;
+        case 0x50:
+            downPressed = true;
+            break;
+        case 0xD0:
+            downPressed = false;
+            break;
+        case 0x49:
+            pageUpPressed = true;
+            break;
+        case 0xC9:
+            pageUpPressed = false;
+            break;
+        case 0x51:
+            pageDownPressed = true;
+            break;
+        case 0xD1:
+            pageDownPressed = false;
+            break;
+        case 0x1C:
+            enterPressed = true;
+            break;
+        case 0x9C:
+            enterPressed = false;
+            break;
+    }
     return true;
 }
 
