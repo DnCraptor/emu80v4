@@ -33,8 +33,6 @@ class Fdc1793;
 class GeneralSoundSource;
 class Pk8000CpuWaits;
 
-#define dynamic_cast static_cast
-
 class Pk8000Renderer : public CrtRenderer, public IActive
 {
     public:

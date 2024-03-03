@@ -110,7 +110,8 @@ class DebugWindow : private EmuWindow
     public:
         DebugWindow(Platform* platform);
         ~DebugWindow();
-
+        static const emu_obj_t obj_type = (1 << DebugWindowV) | EmuWindow::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         void mouseClick(int x, int y, PalMouseKey key) override;
 
         void processKey(PalKeyCode keyCode, bool isPressed) override;

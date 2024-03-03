@@ -30,6 +30,8 @@ class PalWindow;
 class EmuConfig : public EmuObject
 {
     public:
+        static const emu_obj_t obj_type = (1 << EmuConfigV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         void addPlatform(std::string platformName, std::string configFileName, std::string objName, std::string cmdLineOption);
         void addExtention(std::string extention, std::string objName);
 
@@ -51,7 +53,9 @@ class EmuConfig : public EmuObject
 
 class EmuConfigControl : public EmuObject
 {
-
+    public:
+        static const emu_obj_t obj_type = (1 << EmuConfigControlV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 };
 
 
@@ -60,7 +64,8 @@ class EmuConfigRadioSelector : public EmuConfigControl
     public:
         EmuConfigRadioSelector(std::string objName, std::string propName, std::string caption);
         ~EmuConfigRadioSelector();
-
+        static const emu_obj_t obj_type = (1 << EmuConfigRadioSelectorV) | EmuConfigControl::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         void addItem(std::string value, std::string name);
 
         SelectItem* getItems();
@@ -94,6 +99,9 @@ class EmuConfigTab : public EmuObject
     public:
         EmuConfigTab(std::string tabName);
         ~EmuConfigTab();
+        
+        static const emu_obj_t obj_type = (1 << EmuConfigTabV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
         void addControl(int column, EmuConfigControl* control);
         int getTabId() {return m_tabId;}

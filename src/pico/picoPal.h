@@ -27,6 +27,7 @@
 #include <map>
 
 #include "../EmuTypes.h"
+#include "../EmuObjects.h"
 #include "../PalKeys.h"
 #include "../debug.h"
 
@@ -85,6 +86,8 @@ uint8_t* palReadFile(const std::string& fileName, int &fileSize, bool useBasePat
 class PalWindow
 {
     public:
+        static const emu_obj_t obj_type = (1 << PalWindowV);
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
     enum PalWindowStyle {
         PWS_FIXED,

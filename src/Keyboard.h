@@ -27,6 +27,9 @@ class Keyboard : public EmuObject
     public:
         void reset() override {if (m_keysResetAllowed) resetKeys();}
 
+        static const emu_obj_t obj_type = (1 << KeyboardV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
+
         virtual void resetKeys() = 0;
         virtual void processKey(EmuKey key, bool isPressed) = 0;
 

@@ -33,6 +33,8 @@ class CpuZ80 : public Cpu8080Compatible
 {
     public:
         CpuZ80();
+        static const emu_obj_t obj_type = (1 << CpuZ80V) | Cpu8080Compatible::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
         CpuType getType() override {return Cpu::CPU_Z80;}
 

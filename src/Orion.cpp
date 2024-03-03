@@ -409,7 +409,7 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
 
 
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
         if (cpu) {
             g_emulation->exec((uint64_t)cpu->getKDiv() * 3000000, true);
             cpu->setPC(begAddr);

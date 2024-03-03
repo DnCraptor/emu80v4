@@ -863,7 +863,7 @@ bool Pk8000FileLoader::loadFile(const std::string& fileName, bool run)
             m_as->writeByte(0x4000, 0);
             m_as->writeByte(0x4001, 0);
             m_platform->reset();
-            Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+            Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
             if (cpu) {
                 cpu->disableHooks();
                 g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
@@ -915,7 +915,7 @@ bool Pk8000FileLoader::loadFile(const std::string& fileName, bool run)
             return false;
         }
 
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
 
         m_as->writeByte(0x4000, 0);
         m_as->writeByte(0x4001, 0);

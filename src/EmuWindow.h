@@ -58,7 +58,8 @@ class EmuWindow : public EmuObject, public PalWindow
     public:
         EmuWindow();
         virtual ~EmuWindow();
-
+        static const emu_obj_t obj_type = (1 << EmuWindowV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
 

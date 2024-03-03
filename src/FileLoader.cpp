@@ -161,11 +161,11 @@ bool RkFileLoader::loadFile(const std::string& fileName, bool run)
         return false;
     }
 
-    Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu()); // dynamic_cast
+    Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
 
     if (run && cpu) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu()); // dynamic_cast
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
         cpu->disableHooks();
         g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
         afterReset();

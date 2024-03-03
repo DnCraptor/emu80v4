@@ -733,7 +733,7 @@ bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
         if (cpu) {
             g_emulation->exec(int64_t(cpu->getKDiv()) * 2000000, true);
             cpu->setPC(begAddr);
@@ -878,7 +878,7 @@ bool SpecMxFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
         if (!cpu) return false; // на всякий случай
         if (monBegAddr != 0) {
             m_pageMapper->setCurPage(1); // switch to RAM page

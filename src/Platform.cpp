@@ -64,27 +64,27 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект-окно, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_window = dynamic_cast<EmuWindow*>(*it)))
+        if ((m_window = (EmuWindow*)EmuObject::validateAs(EmuWindowV, *it)))
             break;
 
     // ищем объект-прцессор, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_cpu = dynamic_cast<Cpu*>(*it)))
+        if ((m_cpu = (Cpu*)EmuObject::validateAs(CpuV, *it)))
             break;
 
     // ищем объект-ядро, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_core = dynamic_cast<PlatformCore*>(*it)))
+        if ((m_core = (PlatformCore*)EmuObject::validateAs(PlatformCoreV, *it)))
             break;
 
     // ищем объект - раскладку клавиатуры, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_kbdLayout = dynamic_cast<KbdLayout*>(*it)))
+        if ((m_kbdLayout = (KbdLayout*)EmuObject::validateAs(KbdLayoutV, *it)))
             break;
 
     // ищем объекты - рендереры, может быть два
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        auto renderer = dynamic_cast<CrtRenderer*>(*it);
+        auto renderer = (CrtRenderer*)EmuObject::validateAs(CrtRendererV, *it);
         if (renderer) {
             if (!m_renderer)
                 m_renderer = renderer;
@@ -97,7 +97,7 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объекты - образы дисков A и B
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        DiskImage* img = dynamic_cast<DiskImage*>(*it);
+        DiskImage* img = (DiskImage*)EmuObject::validateAs(DiskImageV, *it);
         if (img) {
             if (img->getLabel() == "A")
                 m_diskA = img;
@@ -113,14 +113,14 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - загрузчик, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_loader = dynamic_cast<FileLoader*>(*it)))
+        if ((m_loader = (FileLoader*)EmuObject::validateAs(FileLoaderV, *it)))
             break;
     }
 
     // ищем объекты - RAM-диски
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
         RamDisk* ramDisk;
-        if ((ramDisk = dynamic_cast<RamDisk*>(*it))) {
+        if ((ramDisk = (RamDisk*)EmuObject::validateAs(RamDiskV, *it))) {
             if (ramDisk->getLabel() != "EDD2")
                 m_ramDisk = ramDisk;
             else
@@ -130,7 +130,7 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - закладку в окне конфигурации, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuConfigTab* tab = dynamic_cast<EmuConfigTab*>(*it);
+        EmuConfigTab* tab = (EmuConfigTab*)EmuObject::validateAs(EmuConfigTabV, *it);
         if (tab) {
             m_defConfigTabId = tab->getTabId();
             break;
@@ -139,12 +139,12 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - клавиатуру, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_keyboard = dynamic_cast<Keyboard*>(*it)))
+        if ((m_keyboard = (Keyboard*)EmuObject::validateAs(KeyboardV, *it)))
             break;
 
     // ищем объект - группу tapeGrp
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuObjectGroup* grp = dynamic_cast<EmuObjectGroup*>(*it);
+        EmuObjectGroup* grp = (EmuObjectGroup*)EmuObject::validateAs(EmuObjectGroupV, *it);
         if (grp) {
             name = grp->getName();
             if (name.substr(name.find_last_of(".")) == ".tapeGrp") {
@@ -156,7 +156,7 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - KbdTapper, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_kbdTapper = dynamic_cast<KbdTapper*>(*it)))
+        if ((m_kbdTapper = (KbdTapper*)EmuObject::validateAs(KbdTapperV, *it)))
             break;
 
     Platform::init();

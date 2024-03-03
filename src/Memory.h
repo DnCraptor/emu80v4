@@ -30,6 +30,8 @@ class Ram : public AddressableDevice
         //Ram();
         Ram(unsigned memSize);
         Ram(uint8_t* buf, unsigned memSize);
+        static const emu_obj_t obj_type = (1 << RamV) | AddressableDevice::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         //Ram(int memSize, std::string fileName);
         virtual ~Ram();
         void writeByte(int addr, uint8_t value) override;

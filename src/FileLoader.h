@@ -29,7 +29,6 @@ class FileLoader : public EmuObject
     public:
         //FileLoader();
         //~FileLoader();
-
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
 
@@ -39,6 +38,9 @@ class FileLoader : public EmuObject
         void setFilter(const std::string& filter);
         void attachAddrSpace(AddressableDevice* as);
         void attachTapeRedirector(TapeRedirector* tapeRedirector);
+        
+        static const emu_obj_t obj_type = (1 << FileLoaderV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
     protected:
         AddressableDevice* m_as = nullptr;

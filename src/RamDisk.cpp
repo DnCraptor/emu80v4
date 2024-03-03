@@ -135,7 +135,7 @@ void RamDisk::saveToFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
+        Ram* ram = (Ram*)EmuObject::validateAs(RamV, m_pages[i]);
         if (ram)
             pageSize = ram->getSize();
 
@@ -178,7 +178,7 @@ void RamDisk::loadFromFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
+        Ram* ram = (Ram*)EmuObject::validateAs(RamV, m_pages[i]);
         if (ram)
             pageSize = ram->getSize();
 
@@ -193,7 +193,7 @@ void RamDisk::loadFromFile()
         for (unsigned i = 0; i < m_nPages; i++) {
             unsigned pageSize = m_defPageSize;
 
-            Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
+            Ram* ram = (Ram*)EmuObject::validateAs(RamV, m_pages[i]);
             if (ram)
                 pageSize = ram->getSize();
 

@@ -27,12 +27,47 @@
 
 #include "Parameters.h"
 
+typedef enum EmuObjectType {
+    EmuObjectV,
+    AddressableDeviceV,
+    ActiveDeviceV,
+    ParentObjectV,
+    EmuObjectGroupV,
+    PlatformV,
+    EmuConfigV,
+    EmuConfigControlV,
+    EmuConfigRadioSelectorV,
+    EmuConfigTabV,
+    CpuV, // 10
+    Cpu8080CompatibleV,
+    EmuWindowV,
+    DebugWindowV,
+    PalWindowV,
+    CpuZ80V,
+    PlatformCoreV,
+    KbdLayoutV,
+    CrtRendererV,
+    DiskImageV,
+    FileLoaderV, // 20
+    RamDiskV,
+    KeyboardV,
+    KbdTapperV,
+    RamV,
+} EmuObjectType;
+
+typedef uint32_t emu_obj_t;
 
 class Platform;
 
 class EmuObject
 {
     public:
+        static const emu_obj_t obj_type = (1 << EmuObjectV);
+        static EmuObject* validateAs(EmuObjectType ot, EmuObject* eo) {
+            if (eo == NULL || !eo->isInstanceOf(ot)) return NULL;
+            return eo;
+        }
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         EmuObject();
         virtual ~EmuObject();
 
@@ -44,8 +79,6 @@ class EmuObject
         virtual void setFrequency(int64_t freq); // лучше бы в одном из производных классов, но пусть пока будет здесь
         virtual void init() {}
         virtual void shutdown() {}
-        virtual bool isItPlatform() { return false; }
-
         virtual void reset() {}
 
         virtual void setPlatform(Platform* platform) {m_platform = platform;}
@@ -70,8 +103,10 @@ class EmuObject
 class AddressableDevice : public EmuObject
 {
     public:
+        static const emu_obj_t obj_type = (1 << AddressableDeviceV) | EmuObject::obj_type;
         //AddressableDevice();
         virtual ~AddressableDevice() {} // !!!
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
@@ -117,7 +152,9 @@ class IActive
 
 class ActiveDevice : public EmuObject, public IActive
 {
-
+    public:
+        static const emu_obj_t obj_type = (1 << ActiveDeviceV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 };
 
 
@@ -125,7 +162,8 @@ class ParentObject : public EmuObject
 {
     public:
         virtual void addChild(EmuObject* child) = 0;
-
+        static const emu_obj_t obj_type = (1 << ParentObjectV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 };
 
 
@@ -137,6 +175,9 @@ class EmuObjectGroup : public EmuObject
         void addItem(EmuObject* item);
 
         static EmuObject* create(const EmuValuesList&) {return new EmuObjectGroup();}
+        
+        static const emu_obj_t obj_type = (1 << EmuObjectGroupV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
     private:
         std::list<EmuObject*> m_objectList;

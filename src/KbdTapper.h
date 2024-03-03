@@ -27,6 +27,10 @@ class KbdTapper : public ActiveDevice
 {
     public:
         KbdTapper();
+
+        static const emu_obj_t obj_type = (1 << KbdTapperV) | ActiveDevice::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
+
         void operate() override;
         void reset() override;
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;

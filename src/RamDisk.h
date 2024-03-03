@@ -32,6 +32,9 @@ class RamDisk : public EmuObject
         RamDisk(unsigned nPages, unsigned pageSize = 0);
         ~RamDisk();
 
+        static const emu_obj_t obj_type = (1 << RamDiskV) | EmuObject::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
+
         void attachPage(unsigned pageNo, AddressableDevice* as);
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;

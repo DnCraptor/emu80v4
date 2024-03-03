@@ -38,7 +38,8 @@ class Cpu : public ActiveDevice
             CPU_8080,
             CPU_Z80
         };
-
+        static const emu_obj_t obj_type = (1 << CpuV) | ActiveDevice::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
         Cpu();
         virtual ~Cpu();
 
@@ -94,6 +95,8 @@ class Cpu8080Compatible : public Cpu
 {
     public:
         Cpu8080Compatible();
+        static const emu_obj_t obj_type = (1 << Cpu8080CompatibleV) | Cpu::obj_type;
+        virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
 
         void addHook(CpuHook* hook) override;
         void removeHook(CpuHook* hook) override;

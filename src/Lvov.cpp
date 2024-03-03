@@ -631,7 +631,7 @@ bool LvovFileLoader::loadBinary(bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu()); // dynamic_cast
+        Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
         if (cpu) {
             cpu->disableHooks();
             g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
@@ -712,7 +712,7 @@ bool LvovFileLoader::loadBasic(bool run)
 void LvovFileLoader::loadDump(bool run)
 {
     m_platform->reset();
-    Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu()); // dynamic_cast
+    Cpu8080Compatible* cpu = (Cpu8080Compatible*)EmuObject::validateAs(Cpu8080CompatibleV, m_platform->getCpu()); // dynamic_cast
     if (cpu) {
         cpu->disableHooks();
         g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
