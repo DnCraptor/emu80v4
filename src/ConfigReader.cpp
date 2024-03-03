@@ -38,8 +38,8 @@
 
 using namespace std;
 
-ConfigReader::ConfigReader(string configFileName, string platformName)
-{
+ConfigReader::ConfigReader(string configFileName, string platformName) {
+    lprintf("ConfigReader::ConfigReader(configFileName: '%s', platformName: '%s')", configFileName.c_str(), platformName.c_str());
     if (platformName == "")
         m_prefix = platformName;
     else
@@ -467,6 +467,7 @@ bool ConfigReader::getNextLine(string& typeName, string& objName, string& propNa
 
 EmuObject* ConfigReader::createObject(string typeName, string objName, const EmuValuesList& parameters)
 {
+    lprintf("ConfigReader::createObject(%s, %s, ...)", typeName.c_str(), objName.c_str());
     EmuObject* obj = nullptr;
     obj = ObjectFactory::get()->createObject(typeName, parameters);
     if (obj)

@@ -110,7 +110,11 @@ void palWxProcessMessages() {
 }
 
 void palLog(std::string s) {
+#ifndef PICO_PAL
     cout << s << endl;
+#else
+    lprintf(s.c_str());
+#endif
 }
 
 EmuLog& EmuLog::operator<<(string s)
@@ -246,6 +250,7 @@ string palMakeFullFileName(string fileName) {
 }
 
 uint8_t* palReadFile(const std::string& fileName, int &fileSize, bool useBasePath) {
+    lprintf("palReadFile(%s, .. %d)", fileName.c_str(), useBasePath);
     string fullFileName;
     if (useBasePath)
         fullFileName = palMakeFullFileName(fileName);
@@ -256,6 +261,7 @@ uint8_t* palReadFile(const std::string& fileName, int &fileSize, bool useBasePat
         fileSize = f_size(&file);
         if (fileSize < 0) {
             fileSize = 0;
+            lprintf("palReadFile(%s, .. %d) returns null", fileName.c_str(), useBasePath);
             return nullptr;
         }
         uint8_t* buf = new uint8_t[fileSize];
@@ -263,10 +269,13 @@ uint8_t* palReadFile(const std::string& fileName, int &fileSize, bool useBasePat
         f_read(&file, buf, fileSize, &nBytesRead);
         f_close(&file);
         fileSize = nBytesRead;
+        lprintf("palReadFile(%s, .. %d) returns %08Xh (fileSize: %d)", fileName.c_str(), useBasePath, buf, fileSize);
         return buf;
     }
-    else
+    else {
+        lprintf("palReadFile(%s, .. %d) returns null", fileName.c_str(), useBasePath);
         return nullptr;
+    }
 }
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath) {
@@ -502,6 +511,7 @@ extern "C" {
     #include "ps2.h"
     #include "util_Wii_Joy.h"
     #include "nespad.h"
+    #include "vga.h"
 }
 
 static FATFS fs;
@@ -529,16 +539,14 @@ void nespad_update() {
     // TODO:
 }
 
-#define Screen_WIDTH 800
-#define Screen_HEIGHT 600
-///static uint8_t __screen[Screen_WIDTH * Screen_HEIGHT] = { 0 };
+static uint8_t __screen[TEXTMODE_COLS * TEXTMODE_ROWS * 2] = { 0 };
 
 void __time_critical_func(render_core)() {
-    uint8_t* buffer = 0;// __screen;
-    graphics_set_buffer(buffer, Screen_WIDTH, Screen_HEIGHT);
+    uint8_t* buffer = __screen;
+    graphics_set_buffer(0, 320, 200); // TODO
+    graphics_set_textbuffer(buffer);
     multicore_lockout_victim_init();
     graphics_init();
-    graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
     graphics_set_offset(0, 0);
     graphics_set_flashmode(false, false);
@@ -651,6 +659,9 @@ void palPicoInit() {
     //пин ввода звука
     inInit(LOAD_WAV_PIO);
 #endif
+
+    graphics_set_mode(TEXTMODE_DEFAULT);
+    draw_text("LOADING...", 0, 0, 15, 0);
 
 #ifdef SOUND
     int hz = 48000; // TODO:

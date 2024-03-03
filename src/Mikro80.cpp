@@ -34,6 +34,7 @@ using namespace std;
 
 void Mikro80Core::draw()
 {
+    lprintf("void Mikro80Core::draw()");
     m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();

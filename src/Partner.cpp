@@ -94,6 +94,7 @@ void PartnerCore::vrtc(bool isActive)
 
 void PartnerCore::draw()
 {
+    lprintf("void PartnerCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     if (m_mcpgSelector->getMcpgEnabled())
         m_window->drawOverlay(m_crtMcpgRenderer->getPixelData());

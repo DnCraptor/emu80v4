@@ -40,6 +40,7 @@ using namespace std;
 
 Platform::Platform(string configFileName, string name)
 {
+    lprintf("Platform::Platform(configFileName: '%s', name: '%s')", configFileName.c_str(), name.c_str());
     string::size_type slashPos = configFileName.find_last_of("\\/");
     if (slashPos != string::npos)
         m_baseDir = configFileName.substr(0, slashPos) + "/";
@@ -399,6 +400,7 @@ bool Platform::loadFile(string fileName, bool run)
 
 void Platform::draw()
 {
+    lprintf("void Platform::draw()");
     if (m_core)
         m_core->draw();
 

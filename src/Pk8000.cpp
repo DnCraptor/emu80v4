@@ -56,6 +56,7 @@ void Pk8000Core::reset()
 
 void Pk8000Core::draw()
 {
+    lprintf("void Pk8000Core::draw()");
     /*if (g_emulation->isDebuggerActive())
         m_crtRenderer->renderFrame();*/ // not possible with scanline cpu-sync
     m_window->drawFrame(m_crtRenderer->getPixelData());

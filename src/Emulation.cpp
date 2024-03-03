@@ -335,8 +335,10 @@ void Emulation::exec(uint64_t ticks, bool forced)
 void Emulation::draw() {
     lprintf("Emulation::draw()");
     for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
+        lprintf("%s::draw()", (*it)->getBaseDir().c_str());
         (*it)->draw();
     }
+    lprintf("Emulation::draw() done");
 }
 
 void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)

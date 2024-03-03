@@ -78,8 +78,8 @@ class KorvetPpi8255Circuit;
 class KorvetCore : public PlatformCore
 {
     public:
-        //KorvetCore();
-        //virtual ~KorvetCore();
+        KorvetCore() { lprintf("KorvetCore::KorvetCore()"); }
+        virtual ~KorvetCore() { }
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 

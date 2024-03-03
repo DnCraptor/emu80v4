@@ -34,6 +34,7 @@ using namespace std;
 
 void OrionCore::draw()
 {
+    lprintf("void OrionCore::draw()");
     m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();

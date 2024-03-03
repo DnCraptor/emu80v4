@@ -122,6 +122,7 @@ bool KorvetAddrSpaceSelector::setProperty(const string& propertyName, const EmuV
 
 void KorvetCore::draw()
 {
+    lprintf("void KorvetCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

@@ -36,6 +36,7 @@ void PalmiraCore::vrtc(bool isActive)
 
 void PalmiraCore::draw()
 {
+    lprintf("void PalmiraCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

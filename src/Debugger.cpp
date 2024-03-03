@@ -332,6 +332,7 @@ void DebugWindow::preparePixelBuffer()
 
 void DebugWindow::draw()
 {
+    lprintf("void DebugWindow::draw()");
     if (!isVisible())
         return;
 

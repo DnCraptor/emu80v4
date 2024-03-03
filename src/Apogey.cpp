@@ -26,7 +26,7 @@ using namespace std;
 
 ApogeyCore::ApogeyCore()
 {
-    //
+    lprintf("ApogeyCore::ApogeyCore()");
 }
 
 
@@ -48,6 +48,7 @@ void ApogeyCore::vrtc(bool isActive)
 
 void ApogeyCore::draw()
 {
+    lprintf("void ApogeyCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

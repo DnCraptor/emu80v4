@@ -41,6 +41,7 @@ void MikroshaCore::vrtc(bool isActive)
 
 void MikroshaCore::draw()
 {
+    lprintf("void MikroshaCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

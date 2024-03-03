@@ -83,6 +83,7 @@ void Kr04Core::timer(int /*id*/, bool isActive)
 
 void Kr04Core::draw()
 {
+    lprintf("void Kr04Core::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

@@ -35,6 +35,7 @@ using namespace std;
 
 void LvovCore::draw()
 {
+    lprintf("void LvovCore::draw()");
     m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();

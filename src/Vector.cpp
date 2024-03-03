@@ -233,6 +233,7 @@ void VectorCore::reset()
 
 void VectorCore::draw()
 {
+    lprintf("void VectorCore::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

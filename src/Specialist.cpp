@@ -39,6 +39,7 @@ using namespace std;
 
 void SpecCore::draw()
 {
+    lprintf("void SpecCore::draw()");
     m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();

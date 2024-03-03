@@ -35,6 +35,7 @@ void Rk86Core::vrtc(bool isActive)
 
 void Rk86Core::draw()
 {
+    lprintf("void Rk86Core::draw()");
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }

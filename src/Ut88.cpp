@@ -30,6 +30,7 @@ using namespace std;
 
 void Ut88Core::draw()
 {
+    lprintf("void Ut88Core::draw()");
     m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
