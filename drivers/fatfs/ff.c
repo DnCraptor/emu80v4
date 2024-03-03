@@ -3657,7 +3657,7 @@ FRESULT f_open (
 )
 {
 	#ifdef MNGR_DEBUG
-	if (strcmp(path, "\\atari.log") != 0) printf("f_open(%s, %02Xh)", path, mode);
+	if (strcmp(path, LOG_FILE_NAME) != 0) lprintf("f_open(%s, %02Xh)", path, mode);
 	#endif
 	FRESULT res;
 	DIR dj;

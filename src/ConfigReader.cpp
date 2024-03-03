@@ -493,7 +493,8 @@ void ConfigReader::processConfigFile(ParentObject* parent)
                 logPrefix();
                 emuLog << "Object " << o << " already exists!" << "\n";
             } else if (EmuObject* obj = createObject(t, m_prefix + o, v)) {
-                obj->setPlatform(static_cast<Platform*>(parent)); // dynamic_cast
+                if (parent->isItPlatform())
+                    obj->setPlatform(static_cast<Platform*>(parent)); // dynamic_cast
                 parent->addChild(obj);
             } else {
                 logPrefix();

@@ -7,7 +7,7 @@
 static FIL f;
 void logMsg(char* msg) {
     gpio_put(PICO_DEFAULT_LED_PIN, true);
-    FRESULT fr = f_open(&f, "\\emu80.log", FA_WRITE | FA_OPEN_APPEND | FA_OPEN_ALWAYS);
+    FRESULT fr = f_open(&f, LOG_FILE_NAME, FA_WRITE | FA_OPEN_APPEND | FA_OPEN_ALWAYS);
     if (fr != FR_OK) return;
     UINT bw;
     f_write(&f, msg, strlen(msg), &bw);

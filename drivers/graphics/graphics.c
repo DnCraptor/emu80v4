@@ -38,3 +38,24 @@ void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, ui
     snprintf(line, width - 1, " %s ", title);
     draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
 }
+
+void draw_label(int left, int top, int width, const char* txt, bool selected, bool highlighted) {
+    char line[TEXTMODE_COLS + 2];
+    bool fin = false;
+    for (int i = 0; i < width; ++i) {
+        if (!fin) {
+            if (!txt[i]) {
+                fin = true;
+                line[i] = ' ';
+            } else {
+                line[i] = txt[i];
+            }
+        } else {
+            line[i] = ' ';
+        }
+    }
+    line[width] = 0;
+    int fgc = selected ? 13 : highlighted ? 15 : 11;
+    int bgc = selected ? 3 : 1;
+    draw_text(line, left, top, fgc, bgc);
+}

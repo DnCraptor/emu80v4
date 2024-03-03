@@ -20,6 +20,22 @@
 #include <iostream>
 
 #include <time.h>
+#include <pico/time.h>
+#include <hardware/structs/vreg_and_chip_reset.h>
+#include <hardware/clocks.h>
+#include <hardware/pwm.h>
+#include <pico/multicore.h>
+#include <pico/bootrom.h>
+#include <pico/stdlib.h>
+#include "psram_spi.h"
+
+extern "C" {
+    #include "ps2.h"
+    #include "util_Wii_Joy.h"
+    #include "nespad.h"
+    #include "vga.h"
+    #include "graphics.h"
+}
 
 #include "picoPal.h"
 #include "ff.h"
@@ -62,8 +78,50 @@ void palGetDirContent(const string& dir, list<PalFileInfo*>& fileList) {
         }
     }
 }
+/***
+const static unsigned char cp12512koi8r[0x80] = { // not in use
+   0xB1, 0xB2, 0x82, 0xA2, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F,
+   0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F,
+   0xA0, 0xA1, 0x83, 0xB8, 0xA4, 0xA5, 0xA6, 0xA7, 0xB3, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
+   0xB0, 0x80, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xA3, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF,
+   0xE1, 0xE2, 0xF7, 0xE7, 0xE4, 0xE5, 0xF6, 0xFA, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF, 0xF0,
+   0xF2, 0xF3, 0xF4, 0xF5, 0xE6, 0xE8, 0xE3, 0xFE, 0xFB, 0xFD, 0xFF, 0xF9, 0xF8, 0xFC, 0xE0, 0xF1,
+   0xC1, 0xC2, 0xD7, 0xC7, 0xC4, 0xC5, 0xD6, 0xDA, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0xD0,
+   0xD2, 0xD3, 0xD4, 0xD5, 0xC6, 0xC8, 0xC3, 0xDE, 0xDB, 0xDD, 0xDF, 0xD9, 0xD8, 0xDC, 0xC0, 0xD1
+};
+*/
+inline static unsigned char to_cp866(wchar_t c) {
+    if (c < 0x0080) return (u_char)c & 127;
+    c = c - 0x0410 /* A == 0 */ + 0x0080 /* A == 0x80*/;
+    if (c < 0x00B0) return (u_char)c & 0xFF;
+    c += 0x0030;
+    return (u_char)c & 0xFF;
+}
 
-bool palChoosePlatform(std::vector<PlatformInfo>&, int&, bool&, bool, PalWindow*) {
+#include <locale>
+#include <codecvt>
+
+bool palChoosePlatform(std::vector<PlatformInfo>& pi, int&, bool&, bool, PalWindow*) {
+    lprintf("palChoosePlatform");
+    clrScr(1);
+    draw_window("Select platform", 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> convert;
+    int selected = 1;
+    int highlighted = 0;
+    while(1) {
+        int y = 1;
+        for (auto it = pi.begin(); it != pi.end(); it++) {
+            std::wstring wstr = convert.from_bytes((*it).platformName);
+            const wchar_t *utf16 = wstr.c_str();
+            string str;
+            while(*utf16) {
+                str += to_cp866(*utf16++);
+            }
+            draw_label(1, y++, TEXTMODE_COLS - 2, str.c_str(), y == selected, y == highlighted);
+            if (y == TEXTMODE_ROWS) break;
+        }
+        sleep_ms(100);
+    }
     return false;
 }
 
@@ -144,6 +202,7 @@ EmuLog& EmuLog::operator<<(int n)
 
 void palMsgBox(string msg, bool)
 {
+    lprintf("palMsgBox(%s)", msg.c_str());
     cout << msg << endl;
 }
 
@@ -337,6 +396,7 @@ int palGetSampleRate() {
 }
 
 void palRequestForQuit() { /// TODO: what should we do?
+    lprintf("palRequestForQuit()");
     ///SDL_Event ev;
     ///ev.type = SDL_QUIT;
     ///SDL_PushEvent(&ev);
@@ -494,24 +554,6 @@ void PalWindow::drawImage(uint32_t* pixels, int imageWidth, int imageHeight, dou
 
 void PalWindow::drawEnd() {
 
-}
-
-
-#include <hardware/structs/vreg_and_chip_reset.h>
-#include <hardware/clocks.h>
-#include <hardware/pwm.h>
-#include <pico/multicore.h>
-#include <pico/bootrom.h>
-#include <pico/stdlib.h>
-#include "psram_spi.h"
-#include "graphics.h"
-#include "ff.h"
-
-extern "C" {
-    #include "ps2.h"
-    #include "util_Wii_Joy.h"
-    #include "nespad.h"
-    #include "vga.h"
 }
 
 static FATFS fs;

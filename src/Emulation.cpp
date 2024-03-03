@@ -40,6 +40,7 @@ using namespace std;
 
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
+    lprintf("Emulation::Emulation");
     m_frameRate = 100;
     m_vsync = true;
     m_sampleRate = 48000;
@@ -66,10 +67,12 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     getConfig()->updateConfig();
 
     if (m_platformList.empty()) {
+        lprintf("m_platformList.empty()");
         string defPlatformName = palGetDefaultPlatform();
-        if (defPlatformName != "")
+        if (defPlatformName != "") {
+            lprintf("defPlatformName: '%s'", defPlatformName.c_str());
             runPlatform(defPlatformName);
-        else {
+        } else {
             PlatformInfo pi;
             bool newWnd;
             if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
@@ -80,6 +83,13 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
             } else
                 palRequestForQuit();
         }
+#ifdef MNGR_DEBUG
+    } else {
+        int i = 0;
+        for (auto it = m_platformList.begin(); it != m_platformList.end(); ++i, it++) {
+            lprintf(" m_platformList[%d]: '%s'", i, (*it)->getName().c_str());
+        }
+#endif
     }
 
     checkPlatforms();
@@ -107,6 +117,7 @@ Emulation::~Emulation()
 
 void Emulation::checkPlatforms()
 {
+    lprintf("Emulation::checkPlatforms()");
     // Delete platforms without windows (missing conf files)
     // and request for quit if no platform left
     for (auto it = m_platformList.begin(); it != m_platformList.end();)
@@ -285,8 +296,9 @@ EmuObject* Emulation::findObject(string name)
 
 void Emulation::addChild(EmuObject* child)
 {
-    if (Platform* pl = static_cast<Platform*>(child)) // dynamic_cast
-        m_platformList.push_back(pl);
+    lprintf("Emulation::addChild(%s)", child->getName().c_str());
+    if (child->isItPlatform()) // dynamic_cast
+        m_platformList.push_back(static_cast<Platform*>(child));
 };
 
 
@@ -335,7 +347,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
 void Emulation::draw() {
     lprintf("Emulation::draw()");
     for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
-        lprintf("%s::draw()", (*it)->getBaseDir().c_str());
+        lprintf("%s::draw()", (*it)->getName().c_str());
         (*it)->draw();
     }
     lprintf("Emulation::draw() done");

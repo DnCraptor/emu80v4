@@ -44,6 +44,7 @@ void EmuConfig::addExtention(std::string extention, std::string objName)
 
 bool EmuConfig::choosePlatform(PlatformInfo& pi, string curPlatformName, bool& newWnd, bool setDefault, PalWindow* wnd)
 {
+    lprintf("EmuConfig::choosePlatform(%s)", curPlatformName.c_str());
     int pos = 0;
     for (unsigned i = 0; i < m_platformVector.size(); i++)
     if (m_platformVector[i].objName == curPlatformName) {

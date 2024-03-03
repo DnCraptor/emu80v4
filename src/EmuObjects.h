@@ -44,6 +44,7 @@ class EmuObject
         virtual void setFrequency(int64_t freq); // лучше бы в одном из производных классов, но пусть пока будет здесь
         virtual void init() {}
         virtual void shutdown() {}
+        virtual bool isItPlatform() { return false; }
 
         virtual void reset() {}
 

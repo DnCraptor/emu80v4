@@ -1,9 +1,8 @@
 #pragma once
 
-//#include "_ansi.h"
-//int	snprintf (char *__restrict, unsigned int size, const char *__restrict, ...) _ATTRIBUTE ((__format__ (__printf__, 3, 4)));
-
 #ifdef MNGR_DEBUG
+
+#define LOG_FILE_NAME "\\emu80.log"
 
 #ifdef __cplusplus
 extern "C" {
