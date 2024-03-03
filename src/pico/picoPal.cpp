@@ -539,17 +539,20 @@ void nespad_update() {
     // TODO:
 }
 
-static uint8_t __screen[TEXTMODE_COLS * TEXTMODE_ROWS * 2] = { 0 };
+static uint16_t SCREEN[TEXTMODE_COLS][TEXTMODE_ROWS] = { 0 };
 
 void __time_critical_func(render_core)() {
-    uint8_t* buffer = __screen;
-    graphics_set_buffer(0, 320, 200); // TODO
-    graphics_set_textbuffer(buffer);
     multicore_lockout_victim_init();
     graphics_init();
+
+    const auto buffer = (uint8_t *)SCREEN;
+    graphics_set_buffer(buffer, TEXTMODE_COLS, TEXTMODE_ROWS);
+    graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
     graphics_set_offset(0, 0);
-    graphics_set_flashmode(false, false);
+    graphics_set_mode(TEXTMODE_DEFAULT);
+    clrScr(1);
+
     sem_acquire_blocking(&vga_start_semaphore);
     // 60 FPS loop
 #define frame_tick (16666)
@@ -660,7 +663,6 @@ void palPicoInit() {
     inInit(LOAD_WAV_PIO);
 #endif
 
-    graphics_set_mode(TEXTMODE_DEFAULT);
     draw_text("LOADING...", 0, 0, 15, 0);
 
 #ifdef SOUND
