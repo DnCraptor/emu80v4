@@ -43,6 +43,7 @@ using namespace std;
 
 Crt8275::Crt8275()
 {
+    lprintf("Crt8275::Crt8275()");
     m_raster = new Crt8275Raster;
     m_raster->m_crt = this;
 }

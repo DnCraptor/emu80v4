@@ -20,11 +20,14 @@
 #define GLOBALS_H
 
 #include "Version.h"
+#include "debug.h"
 
 #ifdef PAL_QT
     #define TARGET "/qt"
 #elif defined PAL_WX
     #define TARGET ""
+#elif PICO_PAL
+    #define TARGET "\\pico"
 #else
     #define TARGET "/lite"
 #endif

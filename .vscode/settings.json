@@ -55,6 +55,7 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "debug.h": "c",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "chrono": "cpp"
     }
 }

@@ -291,7 +291,10 @@ EmuObject* ObjectFactory::createObject(const string& objectClassName, const EmuV
     for(int i = 0; i < parameters.size(); ++i) { lprintf("ObjectFactory::createObject parameters[%d]=%s", i, parameters[i].asString().c_str()); }
     #endif
     auto it = m_objectMap.find(objectClassName);
-    if (it != m_objectMap.end())
+    if (it != m_objectMap.end()) {
+        lprintf("ObjectFactory::createObject %s found. Let create...", objectClassName.c_str());
         return it->second(parameters);
+    }
+    lprintf("ObjectFactory::createObject %s not found", objectClassName.c_str());
     return nullptr;
 }
