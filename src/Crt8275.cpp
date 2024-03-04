@@ -44,6 +44,7 @@ using namespace std;
 Crt8275::Crt8275()
 {
     lprintf("Crt8275::Crt8275()");
+    mp_frame = new Frame();
     m_raster = new Crt8275Raster;
     m_raster->m_crt = this;
 }
@@ -52,6 +53,7 @@ Crt8275::Crt8275()
 Crt8275::~Crt8275()
 {
     delete m_raster;
+    delete mp_frame;
 }
 
 
@@ -134,24 +136,24 @@ void Crt8275::prepareFrame()
     m_frameCount++;
 
     // alt renderer fields
-    m_frame.cursorRow = m_cursorRow;
-    m_frame.cursorPos = m_cursorPos;
-    m_frame.frameCount = m_frameCount;
-    m_frame.cursorBlinking = m_cursorBlinking;
-    m_frame.cursorUnderline = m_cursorUnderline;
+    mp_frame->cursorRow = m_cursorRow;
+    mp_frame->cursorPos = m_cursorPos;
+    mp_frame->frameCount = m_frameCount;
+    mp_frame->cursorBlinking = m_cursorBlinking;
+    mp_frame->cursorUnderline = m_cursorUnderline;
 }
 
 
 void Crt8275::displayBuffer()
 {
-    m_frame.nRows = m_nRows;
-    m_frame.nLines = m_nLines;
-    m_frame.nCharsPerRow = m_nCharsPerRow;
-    m_frame.isOffsetLineMode = m_isOffsetLine;
+    mp_frame->nRows = m_nRows;
+    mp_frame->nLines = m_nLines;
+    mp_frame->nCharsPerRow = m_nCharsPerRow;
+    mp_frame->isOffsetLineMode = m_isOffsetLine;
 
     // ffame format check fields
-    m_frame.nHrChars = m_nHrChars;
-    m_frame.nVrRows = m_nVrRows;
+    mp_frame->nHrChars = m_nHrChars;
+    mp_frame->nVrRows = m_nVrRows;
 
     bool isBlankedToTheEndOfRow = false;
 
@@ -176,7 +178,7 @@ void Crt8275::displayBuffer()
         if (m_wasDmaUnderrun)
             chr = 0;
 
-        m_frame.symbols[m_curRow][i].chr = chr & 0x7F;
+        mp_frame->symbols[m_curRow][i].chr = chr & 0x7F;
 
 //         if (m_isDmaStoppedForRow || m_isDmaStoppedForFrame) {
 //             m_frame.symbols[m_curRow][i].chr = 0x41;
@@ -186,32 +188,33 @@ void Crt8275::displayBuffer()
 //             }
 //         } else
 
+        Symbol& si = mp_frame->symbols[m_curRow][i];
+        SymbolAttributes& sai = si.symbolAttributes;
         if (!m_isDisplayStarted || isBlankedToTheEndOfRow || m_isBlankedToTheEndOfScreen || m_wasDmaUnderrun) {
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = false;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = false; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = false; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = false; // ?
+            sai.rvv  = false;
+            sai.hglt = false; // ?
+            sai.gpa0 = false; // ?
+            sai.gpa1 = false; // ?
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                si.symbolLineAttributes[j].vsp  = true;
+                si.symbolLineAttributes[j].lten = false;
             }
         } else if (chr < 0x80) {
             // Ordinary symbol
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
+            sai.rvv  = m_curReverse;
+            sai.hglt = m_curHighlight;
+            sai.gpa0 = m_curGpa0;
+            sai.gpa1 = m_curGpa1;
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = m_curBlink && (m_frameCount & 0x10);
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
-
+                si.symbolLineAttributes[j].vsp  = m_curBlink && (m_frameCount & 0x10);
+                si.symbolLineAttributes[j].lten = false;
                 if ((m_undLine > 7) && ((j == 0) || (j == m_nLines - 1)))
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = true;
+                    si.symbolLineAttributes[j].vsp = true;
             }
             if (m_curUnderline) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = true;
+                si.symbolLineAttributes[m_undLine].lten = true;
                 if (m_curBlink)
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = !(m_frameCount & 0x10);
+                    si.symbolLineAttributes[m_undLine].lten = !(m_frameCount & 0x10);
                 //_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].vsp = false;
             }
         } else if ((chr & 0xC0) == 0x80) {
@@ -224,13 +227,13 @@ void Crt8275::displayBuffer()
             m_curGpa1 = chr & 0x08;
 
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                si.symbolLineAttributes[j].vsp  = true;
+                si.symbolLineAttributes[j].lten = false;
             }
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = false;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0; //?? уточнить!!!
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1; //?? уточнить!!!
+            sai.rvv  = false;
+            sai.hglt = m_curHighlight; // ?
+            sai.gpa0 = m_curGpa0; //?? уточнить!!!
+            sai.gpa1 = m_curGpa1; //?? уточнить!!!
 
         } else if ((chr & 0xC0) == 0xC0 && (chr & 0x30) != 0x30) {
             // Character Attribute
@@ -238,24 +241,24 @@ void Crt8275::displayBuffer()
 
             for (int j = 0; j < m_nLines; j++) {
                 if (j < m_undLine) {
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10));
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][0];
+                    si.symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10));
+                    si.symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][0];
                 } else if (j > m_undLine) {
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10));
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][2];
+                    si.symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10));
+                    si.symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][2];
                 } else {// j == _undLine
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = (chr & 0x02) && (m_frameCount & 0x10);
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10));
+                    si.symbolLineAttributes[j].vsp = (chr & 0x02) && (m_frameCount & 0x10);
+                    si.symbolLineAttributes[j].lten = m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10));
                 }
             }
 
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = chr & 0x01;
+            sai.hglt = chr & 0x01;
 //            _frame.symbols[m_curRow][i].symbolAttributes.gpa0 = chr & 0x04;
 //            _frame.symbols[m_curRow][i].symbolAttributes.gpa1 = chr & 0x08;
 
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
+            sai.rvv  = m_curReverse;
+            sai.gpa0 = m_curGpa0;
+            sai.gpa1 = m_curGpa1;
 
         } else {
             // Special Control Characters
@@ -266,24 +269,26 @@ void Crt8275::displayBuffer()
                 // End of Row (stop or not stop DMA)
                 isBlankedToTheEndOfRow = true;
             }
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
+            sai.rvv  = m_curReverse;
+            sai.hglt = m_curHighlight;
+            sai.gpa0 = m_curGpa0;
+            sai.gpa1 = m_curGpa1;
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                si.symbolLineAttributes[j].vsp  = true;
+                si.symbolLineAttributes[j].lten = false;
             }
             if (m_curUnderline)
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = true;
+                si.symbolLineAttributes[m_undLine].lten = true;
         }
     }
     if (m_isDisplayStarted && (m_curRow == m_cursorRow) && (m_cursorPos < 80)) {
         if (m_cursorUnderline) {
-            m_frame.symbols[m_cursorRow][m_cursorPos].symbolLineAttributes[m_undLine].lten = !m_cursorBlinking || (m_frameCount & 0x08);
+            mp_frame->symbols[m_cursorRow][m_cursorPos].symbolLineAttributes[m_undLine].lten = !m_cursorBlinking || (m_frameCount & 0x08);
         } else {
-            if (!m_cursorBlinking || (m_frameCount & 0x08))
-                m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv = !(m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv);
+            if (!m_cursorBlinking || (m_frameCount & 0x08)) {
+                SymbolAttributes& sai = mp_frame->symbols[m_cursorRow][m_cursorPos].symbolAttributes;
+                sai.rvv = !(sai.rvv);
+            }
         }
     }
 }
@@ -832,4 +837,38 @@ string Crt8275::getDebugInfo()
           ss << "VRTC";
     ss << "\n";
     return ss.str();
+}
+
+extern "C" {
+    #include "psram_spi.h"
+}
+
+SymbolRef::SymbolRef(size_t psarm_offset) { // load from PSRAM
+    for (size_t i = 0; i < sizeof(SymbolRef); i += 4) {
+        *(uint32_t*)((uint8_t*)this + i) = read32psram(psarm_offset + i);
+    }
+    this->m_psarm_offset = psarm_offset;
+}
+
+SymbolRef::~SymbolRef() { // save to PSRAM
+    for (size_t i = 0; i < sizeof(SymbolRef); i += 4) {
+        write32psram(m_psarm_offset + i, *(uint32_t*)((uint8_t*)this + i));
+    }
+}
+
+static size_t psram_offset = 0; // TODO: list of allocated chunks
+
+Symbols::Symbols() { // allocate space in PSRAM
+    m_psarm_offset = psram_offset;
+    psram_offset += sizeof(SymbolRef) * 64 * 128;
+    lprintf("Symbols::Symbols() shifted psram_offset to %08Xh", psram_offset);
+    for (size_t i = 0; i < sizeof(SymbolRef) * 64 * 128; i += 4) {
+        write32psram(m_psarm_offset + i, 0);
+    }
+}
+
+Symbols::~Symbols() { // deallocate space in PSRAM
+    // TODO: list of allocated chunks
+    psram_offset = m_psarm_offset;
+    lprintf("Symbols::~Symbols() shifted psram_offset back to %08Xh", psram_offset);
 }

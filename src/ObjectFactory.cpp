@@ -286,14 +286,16 @@ void ObjectFactory::reg(const string& objectClassName, CreateObjectFunc pfnCreat
 
 EmuObject* ObjectFactory::createObject(const string& objectClassName, const EmuValuesList& parameters)
 {
-    lprintf("ObjectFactory::createObject(%s, ...)", objectClassName.c_str());
+    lprintf("ObjectFactory::createObject(%s)", objectClassName.c_str());
     #ifdef MNGR_DEBUG
     for(int i = 0; i < parameters.size(); ++i) { lprintf("ObjectFactory::createObject parameters[%d]=%s", i, parameters[i].asString().c_str()); }
     #endif
     auto it = m_objectMap.find(objectClassName);
     if (it != m_objectMap.end()) {
-        lprintf("ObjectFactory::createObject %s found. Let create...", objectClassName.c_str());
-        return it->second(parameters);
+        lprintf("ObjectFactory::createObject(%s) found. Let create...", objectClassName.c_str());
+        EmuObject* res = it->second(parameters);
+        lprintf("ObjectFactory::createObject(%s). Allocated at %08Xh", objectClassName.c_str(), res);
+        return res;
     }
     lprintf("ObjectFactory::createObject %s not found", objectClassName.c_str());
     return nullptr;

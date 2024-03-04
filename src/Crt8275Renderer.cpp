@@ -212,8 +212,9 @@ void Crt8275Renderer::primaryRenderFrame()
         uint32_t* chrPtr = rowPtr;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
+        SymbolsLine sl = frame->symbols[row];
         for (int chr = 0; chr < nChars; chr++) {
-            Symbol symbol = frame->symbols[row][chr];
+            SymbolRef symbol = sl[chr];
             uint32_t* linePtr = chrPtr;
 
             bool hglt;

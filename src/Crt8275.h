@@ -26,26 +26,12 @@
 class Dma8257;
 class PlatformCore;
 
-
-/*enum CursorFormat
-{
-    CF_BLINKINGBLOCK = 0,
-    CF_BLINKINGUNDERLINE = 1,
-    CF_BLOCK = 2,
-    CF_UNDERLINE = 3
-};*/
-
-
-
 struct SymbolAttributes {
-    //bool vsp;    // video suppression (per symbol)
     bool rvv;    // reverse video
     bool hglt;   // highlight
     bool gpa0;   // general purpose 1
     bool gpa1;   // general purpose 2
 };
-
-
 
 struct SymbolLineAttributes {
     int lc;      // line counter
@@ -53,21 +39,51 @@ struct SymbolLineAttributes {
     bool lten;   // light enable
 };
 
-
-
 struct Symbol {
     uint8_t chr;
     SymbolAttributes symbolAttributes;
     SymbolLineAttributes symbolLineAttributes[16];
 };
 
+// wrapper for Symbol (to store it in PSRAM)
+class SymbolRef : public Symbol {
+    size_t m_psarm_offset;
+public:
+    SymbolRef(size_t m_psarm_offset); // load from PSRAM
+    ~SymbolRef(); // save to PSRAM
+};
+
+// wrapper for
+// Symbol symbols[128]; // array of symbols
+class SymbolsLine {
+    size_t m_psarm_offset;
+public:
+    SymbolsLine(size_t psarm_offset): m_psarm_offset(psarm_offset) {}
+    SymbolRef& operator[](size_t one_of_128) {
+        auto r = SymbolRef(m_psarm_offset + one_of_128 * sizeof(Symbol));
+        return r;
+    }
+};
+
+// wrapper for
+// Symbol symbols[64][128]; // array of symbols
+class Symbols {
+    size_t m_psarm_offset;
+public:
+    Symbols(); // allocate space in PSRAM
+    ~Symbols(); // deallocate space in PSRAM
+    SymbolsLine operator[](size_t one_of_64) const {
+        return SymbolsLine(m_psarm_offset + one_of_64 * 128 * sizeof(Symbol));
+    }
+};
 
 struct Frame {
     int nRows;          // line number from top
     int nCharsPerRow;
     int nLines;
     bool isOffsetLineMode;
-    Symbol symbols[64][128]; // array of symbols
+    //Symbol symbols[64][128]; // array of symbols
+    Symbols symbols;
 
     // data for alternavive renderer
     int cursorRow;
@@ -131,7 +147,7 @@ class Crt8275 : public AddressableDevice, public IActive
         void attachCore(PlatformCore* core);
         void attachDMA(Dma8257* dma, int channel);
 
-        const Frame* getFrame() {return &m_frame;}
+        const Frame* getFrame() {return mp_frame;}
         bool getRasterStarted() {return m_isRasterStarted;}
         bool getVsyncOccured();
         int getNRows() {return m_nRows;}
@@ -144,7 +160,10 @@ class Crt8275 : public AddressableDevice, public IActive
 
         void setLpenPosition(int x, int y);
 
-        static EmuObject* create(const EmuValuesList&) {return new Crt8275();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("create new Crt8275() %d", sizeof(Crt8275));
+            return new Crt8275();
+        }
 
         friend Crt8275Raster;
 
@@ -183,7 +202,7 @@ class Crt8275 : public AddressableDevice, public IActive
         uint8_t m_rowBuf[80];        // char buffer
         uint8_t m_fifo[16];          // FIFO buffer
 
-        Frame m_frame;               // output frame
+        Frame* mp_frame;               // output frame
 
         CrtCommand m_crtCmd;         // current CRT command
         int m_parameterNum;
