@@ -2543,14 +2543,14 @@ CpuZ80::CpuZ80()
         simz80();
 }*/
 
-
 void CpuZ80::operate()
 {
     if (!m_hooksDisabled) {
         bool retFlag = false;
-        list<CpuHook*>* hookList = m_hookArray[PC];
-        if (hookList) {
-            for (auto it = hookList->begin(); it != hookList->end(); it++)
+        auto hli = m_hooks.find(PC);
+        if (hli != m_hooks.end()) {
+            auto &list = hli->second;
+            for (auto it = list.begin(); it != list.end(); it++)
                 retFlag = retFlag || (*it)->hookProc();
         }
         if (retFlag)

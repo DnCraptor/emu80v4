@@ -35,13 +35,7 @@ Cpu::Cpu()
 }
 
 
-Cpu::~Cpu()
-{
-    for (auto it = m_hookVector.begin(); it != m_hookVector.end(); it++) {
-        (*it)->setCpu(nullptr);
-        if ((*it)->getName() == "") // breakponts
-            delete (*it);
-    }
+Cpu::~Cpu() {
 }
 
 
@@ -65,18 +59,14 @@ void Cpu::attachCore(PlatformCore* core)
 }
 
 
-void Cpu::addHook(CpuHook* hook)
-{
-    m_hookVector.push_back(hook);
-    m_nHooks++;
+void Cpu::addHook(CpuHook* hook) {
+    lprintf("Cpu::addHook(%s)", hook->getName());
     hook->setCpu(this);
 }
 
 
-void Cpu::removeHook(CpuHook* hook)
-{
-    m_hookVector.erase(remove(m_hookVector.begin(), m_hookVector.end(), hook), m_hookVector.end());
-    m_nHooks--; // добавить проверку на существование!
+void Cpu::removeHook(CpuHook* hook) {
+    hook->setCpu(nullptr);
 }
 
 
@@ -172,19 +162,16 @@ std::string Cpu::getPropertyStringValue(const std::string& propertyName)
 }*/
 
 
-Cpu8080Compatible::Cpu8080Compatible()
-{
-    memset(m_hookArray, 0, 65536 * sizeof(CpuHook*));
+Cpu8080Compatible::Cpu8080Compatible() {
 }
 
 
-void Cpu8080Compatible::addHook(CpuHook* hook)
-{
+void Cpu8080Compatible::addHook(CpuHook* hook) {
     Cpu::addHook(hook);
     uint16_t addr = hook->getHookAddr();
-    if (!m_hookArray[addr])
-        m_hookArray[addr] = new list<CpuHook*>;
-    m_hookArray[addr]->push_back(hook);
+    if (m_hooks.find(addr) == m_hooks.end())
+        m_hooks[addr] = list<CpuHook*>();
+    m_hooks[addr].push_back(hook);
 }
 
 
@@ -192,12 +179,10 @@ void Cpu8080Compatible::removeHook(CpuHook* hook)
 {
     Cpu::removeHook(hook);
     uint16_t addr = hook->getHookAddr();
-    list<CpuHook*>* hookList = m_hookArray[addr];
-    if (hookList) {
-        hookList->remove(hook);
-        if (hookList->empty()) {
-            delete hookList;
-            m_hookArray[addr] = nullptr;
+    if (m_hooks.find(addr) != m_hooks.end()) {
+        m_hooks[addr].remove(hook);
+        if (m_hooks[addr].empty()) {
+            m_hooks.erase(addr);
         }
     }
 }

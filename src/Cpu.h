@@ -19,11 +19,9 @@
 #ifndef CPU_H
 #define CPU_H
 
-//#include <vector>
-#include <list>
+#include <map>
 
 #include "EmuObjects.h"
-
 
 class CpuHook;
 class CpuWaits;
@@ -77,8 +75,6 @@ class Cpu : public ActiveDevice
         PlatformCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
-        std::vector<CpuHook*> m_hookVector;
-        int m_nHooks = 0;
         bool m_hooksDisabled = false;
 
         bool m_stepReq = false;
@@ -114,14 +110,6 @@ class Cpu8080Compatible : public Cpu
         virtual uint16_t getSP() = 0;
         virtual uint16_t getAF() = 0;
 
-        /*virtual int getA() = 0;
-        virtual int getB() = 0;
-        virtual int getC() = 0;
-        virtual int getD() = 0;
-        virtual int getE() = 0;
-        virtual int getH() = 0;
-        virtual int getL() = 0;*/
-
         virtual void setBC(uint16_t value) = 0;
         virtual void setDE(uint16_t value) = 0;
         virtual void setHL(uint16_t value) = 0;
@@ -129,7 +117,6 @@ class Cpu8080Compatible : public Cpu
         virtual void setPC(uint16_t value) = 0;
         virtual void setAF(uint16_t value) = 0;
         virtual void setIFF(bool iff) = 0;
-        //virtual void exec(int nCmds) = 0;
 
         virtual bool getInte() = 0;
         virtual bool checkForStackOperation() = 0;
@@ -138,7 +125,7 @@ class Cpu8080Compatible : public Cpu
         int io_input(int port);
         void io_output(int port, int value);
 
-        std::list<CpuHook*>* m_hookArray[65536];
+        std::map<int16_t, std::list<CpuHook*>> m_hooks;
 };
 
 #endif // CPU_H
