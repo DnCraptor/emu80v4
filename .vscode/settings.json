@@ -56,6 +56,11 @@
         "typeinfo": "cpp",
         "debug.h": "c",
         "codecvt": "cpp",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "xmemory": "cpp",
+        "xstring": "cpp",
+        "xtr1common": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp"
     }
 }

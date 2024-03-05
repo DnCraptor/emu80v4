@@ -24,7 +24,7 @@
 #include <list>
 
 #include "EmuObjects.h"
-
+#include "debug.h"
 
 class SoundMixer;
 
@@ -65,7 +65,10 @@ class GeneralSoundSource : public SoundSource
         // Установка текущего значения источника звука
         void setValue(int value);
 
-        static EmuObject* create(const EmuValuesList&) {return new GeneralSoundSource();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("GeneralSoundSource::create to allocate %d", sizeof(GeneralSoundSource));
+            return new GeneralSoundSource();
+        }
 
     private:
         int m_curValue = 0;

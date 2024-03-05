@@ -40,6 +40,7 @@ DiskImage::~DiskImage()
 
 bool DiskImage::assignFileName(string fileName)
 {
+    lprintf("void DiskImage::assignFileName(%s)", fileName.c_str());
     if (m_file.isOpen() && fileName == m_fileName)
         return true;
 
@@ -91,16 +92,20 @@ int64_t DiskImage::getSize()
 void DiskImage::setWriteProtection(bool isWriteProtected)
 {
     bool reopen = m_file.isOpen() && (m_isWriteProtected != isWriteProtected);
-
+    lprintf("void DiskImage::setWriteProtection(bool isWriteProtected: %d) reopen: %d", isWriteProtected, reopen);
     m_isWriteProtected = isWriteProtected;
 
     if (reopen) {
         int pos = m_file.getPos();
+        lprintf("void DiskImage::setWriteProtection(bool isWriteProtected: %d) pos: %d", isWriteProtected, pos);
         m_file.close();
         assignFileName(m_fileName);
-        if (m_file.isOpen())
+        if (m_file.isOpen()) {
+            lprintf("void DiskImage::setWriteProtection(bool isWriteProtected: %d) m_file.seek: %d", isWriteProtected, pos);
             m_file.seek(pos);
+        }
     }
+    lprintf("void DiskImage::setWriteProtection(bool isWriteProtected: %d) DONE", isWriteProtected);
 }
 
 
@@ -146,9 +151,11 @@ uint8_t DiskImage::read8()
 
 bool DiskImage::setProperty(const string& propertyName, const EmuValuesList& values)
 {
+    lprintf("DiskImage::setProperty([%s], values size: %d)", propertyName.c_str(), values.size());
     if (EmuObject::setProperty(propertyName, values))
         return true;
-
+    if (values.size() > 0)
+        lprintf("DiskImage::setProperty([%s], values[0]: [%s])", propertyName.c_str(), values[0].asString().c_str());
     if (propertyName == "fileName") {
         bool res = assignFileName(values[0].asString());
         if (m_autoMount)
@@ -208,6 +215,7 @@ string DiskImage::getPropertyStringValue(const string& propertyName)
 
 FdImage::FdImage(int nTracks, int nHeads, int nSectors, int sectorSize)
 {
+    lprintf("FdImage::FdImage(nTracks: %d, nHeads: %d, nSectors: %d, sectorSize: %d)", nTracks, nHeads, nSectors, sectorSize)
     m_nTracks = nTracks;
     m_nHeads = nHeads;
     m_nSectors = nSectors;

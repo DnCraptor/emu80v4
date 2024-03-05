@@ -32,18 +32,16 @@ using namespace std;
 
 // Ram implementation
 
-Ram::Ram(unsigned memSize)
-{
+Ram::Ram(unsigned memSize) {
     m_supportsTags = true;
-    m_buf = new uint8_t [memSize];
-    memset(m_buf, 0, memSize);
+    m_off = psram_alloc(memSize);
     m_size = memSize;
 }
 
 
-Ram::~Ram()
-{
-    delete[] m_buf;
+Ram::~Ram() {
+    if (m_off != -1)
+        psram_free(m_off);
 }
 
 
@@ -52,19 +50,16 @@ void Ram::writeByte(int addr, uint8_t value)
     m_lastTag = m_tag;
     if (m_addrMask)
         addr &= m_addrMask;
-    if (m_buf && addr < m_size)
-        m_buf[addr] = value;
+    if (m_off != -1 && addr < m_size)
+        write8psram(addr, value);
 }
 
-
-
-uint8_t Ram::readByte(int addr)
-{
+uint8_t Ram::readByte(int addr) {
     m_lastTag = m_tag;
     if (m_addrMask)
         addr &= m_addrMask;
-    if (m_buf && addr < m_size)
-        return m_buf[addr];
+    if (m_off != -1 && addr < m_size)
+        return read8psram(addr);
     else
         return 0xFF;
 }
@@ -113,7 +108,7 @@ Rom::~Rom() {
 uint8_t Rom::readByte(int addr) {
     if (m_addrMask)
         addr &= m_addrMask;
-    if (m_off && addr < m_size)
+    if (m_off != -1 && addr < m_size)
         return read8psram(addr);
     else
         return 0xFF;

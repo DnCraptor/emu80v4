@@ -116,7 +116,10 @@ class Cpu8080 : public Cpu8080Compatible
 
         uint8_t getStatusWord() {return m_statusWord;}
 
-        static EmuObject* create(const EmuValuesList&) {return new Cpu8080();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("Cpu8080::create to allocate %d", sizeof(Cpu8080));
+            return new Cpu8080();
+        }
 
 private:
         struct i8080 cpu;

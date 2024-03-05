@@ -45,7 +45,10 @@ class RkPpi8255Circuit : public Ppi8255Circuit
         // Подключение объекта - клавиатуры типа РК86
         /*virtual */void attachRkKeyboard(RkKeyboard* kbd);
 
-        static EmuObject* create(const EmuValuesList&) {return new RkPpi8255Circuit();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("RkPpi8255Circuit::create to allocate %d", sizeof(RkPpi8255Circuit));
+            return new RkPpi8255Circuit();
+        }
 
     protected:
         // Источник звука - вывод на магнитофон

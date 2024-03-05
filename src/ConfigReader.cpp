@@ -465,61 +465,64 @@ bool ConfigReader::getNextLine(string& typeName, string& objName, string& propNa
 }
 
 
-EmuObject* ConfigReader::createObject(string typeName, string objName, const EmuValuesList& parameters)
-{
-    lprintf("ConfigReader::createObject(%s, %s, ...)", typeName.c_str(), objName.c_str());
-    EmuObject* obj = nullptr;
-    obj = ObjectFactory::get()->createObject(typeName, parameters);
+EmuObject* ConfigReader::createObject(string typeName, string objName, const EmuValuesList& parameters) {
+    EmuObject* obj = ObjectFactory::get()->createObject(typeName, parameters);
     if (obj)
         obj->setName(objName);
     return obj;
 }
 
 
-void ConfigReader::logPrefix()
-{
-    emuLog << "File " << m_configFileName << ", line " << m_curLine << " : ";
+void ConfigReader::logPrefix() {
+    lprintf("logPrefix: File [%s]:%d", m_configFileName.c_str(), m_curLine);
 }
 
 void ConfigReader::processConfigFile(ParentObject* parent)
 {
-    string t,o,p;
+    string t, o, p;
     EmuValuesList v;
-    bool res = getNextLine(t,o,p,&v);
+    bool res = getNextLine(t, o, p, &v);
     while (res) {
-        //cout << t << " " << o << " " << p << endl;
+        lprintf("[%s] [%s] [%s]", t.c_str(), o.c_str(), p.c_str());
         if (t != "" && o != "" && p == "") {
             if (g_emulation->findObject(m_prefix + o)) {
                 logPrefix();
-                emuLog << "Object " << o << " already exists!" << "\n";
+                lprintf("Object [%s][%s] already exists!", m_prefix.c_str(), o.c_str());
             } else if (EmuObject* obj = createObject(t, m_prefix + o, v)) {
-                obj->setPlatform((Platform*)EmuObject::validateAs(PlatformV, parent)); // dynamic_cast
+                lprintf("[%s][%s] created", m_prefix.c_str(), o.c_str());
+                Platform* p = (Platform*)EmuObject::validateAs(PlatformV, parent); // dynamic_cast
+                if (p) {
+                    obj->setPlatform(p);
+                }
                 parent->addChild(obj);
             } else {
                 logPrefix();
-                emuLog << "Can't create object " << t << " " << o << "\n";
-                //break;
+                lprintf("Can't create object [%s] [%s]", t.c_str(), o.c_str());
             }
         }
         else if (t == "" && o != "" && p != "") {
             EmuObject* obj = nullptr;
-            if (m_prefix != "" && o == "platform") // подставляем вместо "platform" конкретное имя текущей платформы
+            if (m_prefix != "" && o == "platform") { // подставляем вместо "platform" конкретное имя текущей платформы
                 o = m_prefix.substr(0, m_prefix.size() - 1); // убираем "."
-            else
+            } else {
                 o = m_prefix + o;
+            }
             obj = g_emulation->findObject(o);
-            if (!obj)
+            if (!obj) {
                 obj = g_emulation->findObject(o);
+            }
             if (!obj) {
                 logPrefix();
-                emuLog << "Object " << o << " not found" << "\n";
+                lprintf("Object [%s] not found!", o.c_str());
             } else if (!obj->setProperty(p, v)) {
                 logPrefix();
-                emuLog << "Set property " << o << "." << p <<  " failed\n";
+                lprintf("Object [%s][%p] failed!", o.c_str(), p.c_str());
+            } else {
+                lprintf("Object [%s][%p] PASSED", o.c_str(), p.c_str());
             }
         }
         v.clearList();
-        res = getNextLine(t,o,p,&v);
+        res = getNextLine(t, o, p, &v);
     }
-
+    lprintf("ConfigReader::processConfigFile DONE")
 }

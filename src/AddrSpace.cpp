@@ -27,14 +27,6 @@ AddrSpace::AddrSpace(uint8_t nullByte)
     lprintf("AddrSpace::AddrSpace(%02Xh) [%d]", nullByte, sizeof(AddrSpace));
     m_nullByte = nullByte;
     m_itemCountR = m_itemCountW = 0;
-    /*m_firstAddressesR = new int [m_maxAsItems];
-    m_firstAddressesW = new int [m_maxAsItems];
-    m_itemSizesR = new int [m_maxAsItems];
-    m_itemSizesW = new int [m_maxAsItems];
-    m_devFirstAddressesR = new int [m_maxAsItems];
-    m_devFirstAddressesW = new int [m_maxAsItems];
-    m_addrDevicesR = new AddressableDevice* [m_maxAsItems];
-    m_addrDevicesW = new AddressableDevice* [m_maxAsItems];*/
 }
 
 

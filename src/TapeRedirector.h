@@ -26,7 +26,7 @@
 
 class ElapsedTimer;
 
-// Файловый редиректор. Обеспечивает перенаправление ф файл или из файла различных обращений эмулируемой платформы
+// Файловый редиректор. Обеспечивает перенаправление в файл или из файла различных обращений эмулируемой платформы
 class TapeRedirector : public EmuObject
 {
     public:
@@ -55,7 +55,10 @@ class TapeRedirector : public EmuObject
         bool isLvt();
         void switchToNextLvt();
 
-        static EmuObject* create(const EmuValuesList&) {return new TapeRedirector();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("TapeRedirector::create to allocate %d", sizeof(TapeRedirector));
+            return new TapeRedirector();
+        }
 
     private:
         std::string m_fileName;

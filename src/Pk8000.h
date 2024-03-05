@@ -459,7 +459,10 @@ public:
     uint8_t readByte(int addr) override;
     void setPage(int page);
 
-    static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new Pk8000RomDisk(parameters[1].asInt(), parameters[0].asString()) : nullptr;}
+    static EmuObject* create(const EmuValuesList& parameters) {
+        lprintf("Pk8000RomDisk::create to allocate %d", sizeof(Pk8000RomDisk));
+        return parameters[1].isInt() ? new Pk8000RomDisk(parameters[1].asInt(), parameters[0].asString()) : nullptr;
+    }
 
 private:
     int m_curPage = 0;

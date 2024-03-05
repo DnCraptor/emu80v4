@@ -20,7 +20,7 @@
 #define RKKEYBOARD_H
 
 #include "Keyboard.h"
-
+#include "debug.h"
 
 class RkKeyboard : public Keyboard
 {
@@ -36,7 +36,10 @@ class RkKeyboard : public Keyboard
         uint8_t getMatrixData();
         uint8_t getCtrlKeys();
 
-        static EmuObject* create(const EmuValuesList&) {return new RkKeyboard();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("RkKeyboard::create to allocate %d", sizeof(RkKeyboard));
+            return new RkKeyboard();
+        }
 
     private:
 

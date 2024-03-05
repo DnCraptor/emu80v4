@@ -66,6 +66,7 @@ Platform::Platform(string configFileName, string name)
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
         if ((m_window = (EmuWindow*)EmuObject::validateAs(EmuWindowV, *it)))
             break;
+    lprintf("m_window: %08Xh", m_window);
 
     // ищем объект-прцессор, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)

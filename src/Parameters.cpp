@@ -28,32 +28,34 @@ EmuValue::EmuValue()
     m_sValue = "";
 }
 
+#include "string.h"
+
 EmuValue::EmuValue(const string& str)
 {
     m_sValue = str;
-
     m_isInt = true;
-///    try {
-        if (m_sValue.substr(0,2) == "0x") {
-            string sValueHex = m_sValue.substr(2, m_sValue.size());
-            istringstream iss(sValueHex);
-            iss >> hex >> m_nValue;
-        } else {
-            istringstream iss(m_sValue);
-            iss >> m_nValue;
-        }
-///    }
-///    catch(...) {
-///        m_isInt = false;
- ///   }
-
-    m_isFloat = true;
-///    try {
+    if (m_sValue.substr(0,2) == "0x") {
+        string sValueHex = m_sValue.substr(2, m_sValue.size());
+        istringstream iss(sValueHex);
+        iss >> hex >> m_nValue;
+    } else {
         istringstream iss(m_sValue);
-        iss >> m_fValue;
-///    } catch (...) {
-///        m_isFloat = false;
- ///   }
+        iss >> m_nValue;
+        char buf[20];
+        snprintf(buf, 20, "%d", m_nValue);
+        if (strncmp(str.c_str(), buf, 20) != 0) {
+            m_nValue = -1;
+            m_isInt = false;
+        }
+    }
+    m_isFloat = true;
+    istringstream iss(m_sValue);
+    iss >> m_fValue;
+    if (m_fValue == 0.0 && m_nValue != 0) {
+        m_isFloat = false;
+    } else if (m_isInt && m_fValue != 0.0 && m_fValue != 0.0 + m_nValue) {
+        m_isInt = false;
+    }
 }
 
 

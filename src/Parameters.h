@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 
+#include "debug.h"
 
 class EmuValue {
     public:

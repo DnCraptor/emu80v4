@@ -37,7 +37,10 @@ class Rk86Core : public PlatformCore
 
         void attachCrtRenderer(Crt8275Renderer* crtRenderer);
 
-        static EmuObject* create(const EmuValuesList&) {return new Rk86Core();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("Rk86Core::create to allocate %d", sizeof(Rk86Core));
+            return new Rk86Core();
+        }
 
     private:
         Crt8275Renderer* m_crtRenderer = nullptr;
@@ -55,7 +58,10 @@ class Rk86Renderer : public Crt8275Renderer
 
         void toggleColorMode() override;
 
-        static EmuObject* create(const EmuValuesList&) {return new Rk86Renderer();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("Rk86Renderer::create to allocate %d", sizeof(Rk86Renderer));
+            return new Rk86Renderer();
+        }
 
     protected:
         enum Rk86ColorMode {

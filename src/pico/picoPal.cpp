@@ -236,7 +236,8 @@ void palMsgBox(string msg, bool)
 EmuLog emuLog;
 
 bool PalFile::open(string fileName, string mode) {
-    if (mp_file) close();
+    lprintf("bool PalFile::open(string fileName: [%s], string mode: [%s])", fileName.c_str(), mode.c_str());
+    if (isOpen()) close();
     int m = mode == "r" ? FA_READ : (FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
     mp_file = malloc(sizeof(FIL));
     bool ok = FR_OK == f_open((FIL*)mp_file, fileName.c_str(), m);
@@ -245,23 +246,23 @@ bool PalFile::open(string fileName, string mode) {
 }
 
 void PalFile::close() {
-    if (!mp_file) return;
+    if (mp_file == nullptr) return;
     f_close((FIL*)mp_file);
     free(mp_file);
-    mp_file = 0;
+    mp_file = nullptr;
 }
 
 bool PalFile::isOpen() {
-    return mp_file > 0;
+    return mp_file != nullptr && ((FIL*)mp_file)->obj.fs;
 }
 
 bool PalFile::eof() {
-    if (!mp_file) return true;
+    if (mp_file == nullptr) return true;
     return f_eof((FIL*)mp_file);
 }
 
 uint8_t PalFile::read8() {
-    if (!mp_file) return 0;
+    if (mp_file == nullptr) return 0;
     UINT br;
     uint8_t res;
     if (FR_OK == f_read((FIL*)mp_file, &res, 1, &br))
@@ -270,7 +271,7 @@ uint8_t PalFile::read8() {
 }
 
 uint16_t PalFile::read16() {
-    if (!mp_file) return 0;
+    if (mp_file == nullptr) return 0;
     UINT br;
     uint16_t res;
     if (FR_OK == f_read((FIL*)mp_file, &res, 2, &br))
@@ -279,7 +280,7 @@ uint16_t PalFile::read16() {
 }
 
 uint32_t PalFile::read32() {
-    if (!mp_file) return 0;
+    if (mp_file == nullptr) return 0;
     UINT br;
     uint32_t res;
     if (FR_OK == f_read((FIL*)mp_file, &res, 4, &br))
@@ -288,35 +289,38 @@ uint32_t PalFile::read32() {
 }
 
 void PalFile::write8(uint8_t c) {
-    if (!mp_file) return;
+    if (mp_file == nullptr) return;
     UINT bw;
     f_write((FIL*)mp_file, &c, 1, &bw);
 }
 
 void PalFile::write16(uint16_t c) {
-    if (!mp_file) return;
+    if (mp_file == nullptr) return;
     UINT bw;
     f_write((FIL*)mp_file, &c, 2, &bw);
 }
 
 void PalFile::write32(uint32_t c) {
-    if (!mp_file) return;
+    if (mp_file == nullptr) return;
     UINT bw;
     f_write((FIL*)mp_file, &c, 4, &bw);
 }
 
 int64_t PalFile::getSize() {
-    if (!mp_file) return 0;
+    if (mp_file == nullptr) return 0;
     return f_size((FIL*)mp_file);
 }
 
 int64_t PalFile::getPos() {
-    if (!mp_file) return 0;
-    return f_tell((FIL*)mp_file); // TODO: ensure
+    lprintf("PalFile::getPos() mp_file: %08Xh", mp_file);
+    if (mp_file == nullptr) return 0;
+    int64_t res = f_tell((FIL*)mp_file); // TODO: ensure
+    lprintf("PalFile::getPos() res: %d", res);
+    return res;
 }
 
 void PalFile::seek(int position) {
-    if (!mp_file) return;
+    if (mp_file == nullptr) return;
     f_lseek((FIL*)mp_file, position);
 }
 

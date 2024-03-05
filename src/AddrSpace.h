@@ -45,7 +45,10 @@ class AddrSpace : public AddressableDevice
         virtual void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
         virtual void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
 
-        static EmuObject* create(const EmuValuesList&) {return new AddrSpace();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("AddrSpace::create to allocate %d", sizeof(AddrSpace));
+            return new AddrSpace();
+        }
 
 private:
         uint8_t m_nullByte;          // байт, считываемый из нераспределенного пространства

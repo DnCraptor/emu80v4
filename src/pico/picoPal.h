@@ -137,6 +137,7 @@ class PalWindow
 class PalFile
 {
     public:
+        PalFile(): mp_file(nullptr) { }
         bool open(std::string fileName, std::string mode = "r");
         void close();
         bool isOpen();

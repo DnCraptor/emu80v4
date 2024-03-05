@@ -34,16 +34,20 @@ class Ram : public AddressableDevice {
         virtual ~Ram();
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
-        /*const*/ uint8_t* getDataPtr() { return m_buf; }
+        uint8_t* getDataPtr() {
+            lprintf("ERROR: TODO: RAM screen page");
+            return 0;
+        }
         int getSize() {return m_size;}
 
         static EmuObject* create(const EmuValuesList& parameters) {
+            lprintf("Ram::create to allocate %d", sizeof(Ram));
             return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;
         }
 
     private:
         int m_size;
-        uint8_t* m_buf = nullptr;
+        int m_off = -1;
 };
 
 class Rom : public AddressableDevice {
@@ -54,7 +58,10 @@ class Rom : public AddressableDevice {
         uint8_t readByte(int addr) override;
         int getSize() {return m_size;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;}
+        static EmuObject* create(const EmuValuesList& parameters) {
+            lprintf("Rom::create to allocate %d", sizeof(Rom));
+            return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;
+        }
 
     protected:
         int m_size;

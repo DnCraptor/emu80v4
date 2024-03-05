@@ -31,7 +31,10 @@ class RkFddRegister : public AddressableDevice
         uint8_t readByte(int addr) override;
         void writeByte(int, uint8_t) override {}
 
-        static EmuObject* create(const EmuValuesList&) {return new RkFddRegister();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("RkFddRegister::create to allocate %d", sizeof(RkFddRegister));
+            return new RkFddRegister();
+        }
 
         friend RkFddController;
 
@@ -64,7 +67,10 @@ class RkFddController : public Ppi8255Circuit
         // Подключение образа диска
         void attachFdImage(int driveNum, FdImage* image);
 
-        static EmuObject* create(const EmuValuesList&) {return new RkFddController();}
+        static EmuObject* create(const EmuValuesList&) {
+            lprintf("RkFddController::create to allocate %d", sizeof(RkFddController));
+            return new RkFddController();
+        }
 
         friend RkFddRegister;
 
