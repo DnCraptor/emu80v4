@@ -856,19 +856,14 @@ SymbolRef::~SymbolRef() { // save to PSRAM
     }
 }
 
-static size_t psram_offset = 0; // TODO: list of allocated chunks
+#include "Memory.h"
 
 Symbols::Symbols() { // allocate space in PSRAM
-    m_psarm_offset = psram_offset;
-    psram_offset += sizeof(SymbolRef) * 64 * 128;
-    lprintf("Symbols::Symbols() shifted psram_offset to %08Xh", psram_offset);
-    for (size_t i = 0; i < sizeof(SymbolRef) * 64 * 128; i += 4) {
-        write32psram(m_psarm_offset + i, 0);
-    }
+    m_psarm_offset = psram_alloc(sizeof(SymbolRef) * 64 * 128);
+    lprintf("Symbols::Symbols() allocated in psram_offset at %08Xh", m_psarm_offset);
 }
 
 Symbols::~Symbols() { // deallocate space in PSRAM
-    // TODO: list of allocated chunks
-    psram_offset = m_psarm_offset;
-    lprintf("Symbols::~Symbols() shifted psram_offset back to %08Xh", psram_offset);
+    psram_free(m_psarm_offset);
+    lprintf("Symbols::~Symbols() deallocated psram at %08Xh", m_psarm_offset);
 }

@@ -456,11 +456,7 @@ class Pk8000RomDisk : public Rom
 {
 public:
     Pk8000RomDisk(unsigned memSize, std::string fileName) : Rom(memSize, fileName) {}
-
     uint8_t readByte(int addr) override;
-    const uint8_t* getDataPtr() override;
-    virtual const uint8_t& operator[](int nAddr) override;
-
     void setPage(int page);
 
     static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new Pk8000RomDisk(parameters[1].asInt(), parameters[0].asString()) : nullptr;}

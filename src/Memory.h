@@ -23,66 +23,51 @@
 
 #include "EmuObjects.h"
 
+size_t psram_alloc(size_t sz, uint32_t init_val = 0);
+void psram_free(size_t off);
 
-class Ram : public AddressableDevice
-{
+class Ram : public AddressableDevice {
     public:
-        //Ram();
         Ram(unsigned memSize);
-        Ram(uint8_t* buf, unsigned memSize);
         static const emu_obj_t obj_type = (1 << RamV) | AddressableDevice::obj_type;
         virtual bool isInstanceOf(EmuObjectType ot) { return !!((1 << ot) & obj_type); }
-        //Ram(int memSize, std::string fileName);
         virtual ~Ram();
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
-        /*const*/ uint8_t* getDataPtr() {return m_buf ? m_buf : m_extBuf;}
-        uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
+        /*const*/ uint8_t* getDataPtr() { return m_buf; }
         int getSize() {return m_size;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;}
-
-    protected:
+        static EmuObject* create(const EmuValuesList& parameters) {
+            return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;
+        }
 
     private:
         int m_size;
         uint8_t* m_buf = nullptr;
-        uint8_t* m_extBuf = nullptr;
 };
 
-
-
-class Rom : public AddressableDevice
-{
+class Rom : public AddressableDevice {
     public:
-        Rom();
         Rom(unsigned memSize, std::string fileName);
         virtual ~Rom();
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int addr) override;
         int getSize() {return m_size;}
-        virtual const uint8_t* getDataPtr() {return m_buf;}
-        virtual const uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
 
         static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;}
 
     protected:
         int m_size;
-        uint8_t* m_buf = nullptr;
+        int m_off = -1;
 };
 
-
-
-class NullSpace : public AddressableDevice
-{
+class NullSpace : public AddressableDevice {
     public:
         NullSpace(uint8_t nullByte = 0xFF) {m_nullByte = nullByte;}
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int)  override {return m_nullByte;}
 
         static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new NullSpace(parameters[0].asInt()) : nullptr;}
-
-    protected:
 
     private:
         uint8_t m_nullByte = 0xFF;

@@ -24,6 +24,7 @@ using namespace std;
 
 AddrSpace::AddrSpace(uint8_t nullByte)
 {
+    lprintf("AddrSpace::AddrSpace(%02Xh) [%d]", nullByte, sizeof(AddrSpace));
     m_nullByte = nullByte;
     m_itemCountR = m_itemCountW = 0;
     /*m_firstAddressesR = new int [m_maxAsItems];
@@ -39,6 +40,7 @@ AddrSpace::AddrSpace(uint8_t nullByte)
 
 void AddrSpace::addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
 {
+    lprintf("AddrSpace::addRange(%08Xh, %08Xh, %08Xh, %08Xh) [%d]", firstAddr, lastAddr, addrDevice, devFirstAddr, lastAddr - firstAddr + 1);
     addReadRange(firstAddr, lastAddr, addrDevice, devFirstAddr);
     addWriteRange(firstAddr, lastAddr, addrDevice, devFirstAddr);
 }

@@ -153,6 +153,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         WII_SCL_PIN=15
 
         PSRAM
+        MAX_PSRAM_MB=8
         # PSRAM_MUTEX=1
         PSRAM_SPINLOCK=1
         PSRAM_ASYNC=1

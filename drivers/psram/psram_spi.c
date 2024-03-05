@@ -1,3 +1,4 @@
+#include "debug.h"
 #include "psram_spi.h"
 
 static psram_spi_inst_t psram_spi;
@@ -7,10 +8,11 @@ void init_psram() {
     psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
     psram_write32(&psram_spi, 0x313373, 0xDEADBEEF);
     PSRAM_AVAILABLE = 0xDEADBEEF == psram_read32(&psram_spi, 0x313373);
+    lprintf("PSRAM_AVAILABLE: %d", PSRAM_AVAILABLE);
 }
 
 void psram_cleanup() {
-    logMsg("PSRAM cleanup"); // TODO: block mode, ensure diapason
+    lprintf("PSRAM cleanup"); // TODO: block mode, ensure diapason
     for (uint32_t addr32 = (1ul << 20); addr32 < (2ul << 20); addr32 += 4) {
         psram_write32(&psram_spi, addr32, 0);
     }
@@ -170,13 +172,13 @@ void psram_spi_uninit(psram_spi_inst_t spi, bool fudge) {
 }
 
 int test_psram(psram_spi_inst_t* psram_spi, int increment) {
-    puts("Writing PSRAM...");
+    lprintf("Writing PSRAM...");
     uint8_t deadbeef[8] = {0xd, 0xe, 0xa, 0xd, 0xb, 0xe, 0xe, 0xf};
     for (uint32_t addr = 0; addr < (1024 * 1024); addr += increment) {
         psram_write8(psram_spi, addr, (addr & 0xFF));
         // psram_write8_async(psram_spi, addr, (addr & 0xFF));
     }
-    puts("Reading PSRAM...");
+    lprintf("Reading PSRAM...");
     uint32_t psram_begin = time_us_32();
     for (uint32_t addr = 0; addr < (1024 * 1024); addr += increment) {
         uint8_t result = psram_read8(psram_spi, addr);

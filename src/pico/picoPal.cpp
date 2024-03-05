@@ -733,16 +733,14 @@ void palPicoInit() {
 
     // F12 Boot to USB FIRMWARE UPDATE mode
     if (nespad_state & DPAD_START /*|| input_map.keycode == 0x58*/) { // F12
-        lprintf("reset_usb_boot");
         reset_usb_boot(0, 0);
     }
-
-    init_fs(); // TODO: psram replacement (pagefile)
-    init_psram();
 
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
+
+    draw_text("LOADING...", 0, 0, 15, 0);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -753,6 +751,9 @@ void palPicoInit() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
+    init_fs(); // TODO: psram replacement (pagefile)
+    init_psram();
+    
 #ifdef SOUND
     PWM_init_pin(BEEPER_PIN, (1 << 8) - 1);
     PWM_init_pin(PWM_PIN0, (1 << 8) - 1);
@@ -762,8 +763,6 @@ void palPicoInit() {
     //пин ввода звука
     inInit(LOAD_WAV_PIO);
 #endif
-
-    draw_text("LOADING...", 0, 0, 15, 0);
 
 #ifdef SOUND
     int hz = 48000; // TODO:

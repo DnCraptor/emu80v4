@@ -54,7 +54,7 @@ private:
         std::vector<AddressableDevice*> m_devicesRVector; // вектор устройств для чтения
         std::vector<int> m_firstAddressesRVector;         // вектор начальных адресов устройств для чтения
         std::vector<int> m_itemSizesRVector;              // вектор размеров устройств для чтения в байтах
-        std::vector<int> m_devFirstAddressesRVector;      // венктор смещений в области памяти устройств для чтения
+        std::vector<int> m_devFirstAddressesRVector;      // вектор смещений в области памяти устройств для чтения
         // указатели на области данных вышеуказанных векторов
         AddressableDevice** m_devicesR = nullptr;         // массив устройств для чтения
         int* m_firstAddressesR = nullptr;                 // массив начальных адресов устройств для чтения
