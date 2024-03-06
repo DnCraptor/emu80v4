@@ -63,6 +63,7 @@ void emuDropFile(PalWindow* wnd, const char* fileName)
 
 // Main emulation procedure
 void emuEmulationCycle() {
+    lprintf("void emuEmulationCycle()");
     g_emulation->mainLoopCycle();
 }
 

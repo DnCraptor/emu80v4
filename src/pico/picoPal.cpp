@@ -392,6 +392,7 @@ void palPlaySample(int16_t sample) {
 static bool palProcessEvents();
 
 void palExecute() {
+    lprintf("void palExecute()");
     while (!palProcessEvents()) {
         emuEmulationCycle();
     }
@@ -404,7 +405,7 @@ uint64_t palGetCounter() {
 }
 
 uint64_t palGetCounterFreq() {
-    return 1000000000ul;
+    return 1000000ul;
 }
 
 void palDelay(uint64_t time) {
@@ -439,6 +440,7 @@ string palGetDefaultPlatform() {
 static unsigned unicodeKey = 0;
 
 static bool palProcessEvents() {
+    lprintf("void palProcessEvents()");
     /*** TODO:
     palIdle();
     // workaround for wxWidgets events processing

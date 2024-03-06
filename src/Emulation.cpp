@@ -304,20 +304,28 @@ void Emulation::addChild(EmuObject* child)
 
 void Emulation::exec(uint64_t ticks, bool forced)
 {
+    lprintf("void Emulation::exec(uint64_t ticks: %08X%08Xh, bool forced: %d)",
+            (uint32_t)(ticks >> 32), (uint32_t)ticks & 0xFFFFFFFF,
+            forced
+    );
     if (m_isPaused)
         return;
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
-
+    lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) toTime: %08X%08Xh m_curClock: %08X%08Xh",
+             forced,
+             (uint32_t)(toTime >> 32), (uint32_t)toTime & 0xFFFFFFFF,
+             (uint32_t)(m_curClock >> 32), (uint32_t)m_curClock & 0xFFFFFFFF
+    );
     while (m_curClock < toTime && (!m_debugReqCpu || forced)) {
         uint64_t time = -1;
         IActive* curDev = nullptr;
-
         inCycle = true;
         IActive* device;
         uint64_t tm;
         for (int i = 0; i < nDevices && inCycle; i++) {
             device = m_activeDevices[i];
+            lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) device%d: [%08Xh]", forced, i, device);
             if (!device->isPaused()) {
                 tm = device->getClock();
                 if (tm < time) {
@@ -326,9 +334,14 @@ void Emulation::exec(uint64_t ticks, bool forced)
                 }
             }
         }
-
         m_curClock = time;
+        lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) curDev: [%08Xh]", forced, curDev);
         curDev->operate();
+        lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) toTime: %08X%08Xh m_curClock: %08X%08Xh",
+             forced,
+             (uint32_t)(toTime >> 32), (uint32_t)toTime & 0xFFFFFFFF,
+             (uint32_t)(m_curClock >> 32), (uint32_t)m_curClock & 0xFFFFFFFF
+        );
     }
     m_clockOffset = m_curClock - toTime;
 
@@ -341,7 +354,6 @@ void Emulation::exec(uint64_t ticks, bool forced)
             break;
         }
     }
-
 }
 
 void Emulation::draw() {
@@ -499,22 +511,36 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 
 void Emulation::mainLoopCycle()
 {
-    if (m_prevSysClock == 0) // first run
-        m_prevSysClock = palGetCounter() - palGetCounterFreq() / 60;
+    lprintf("void Emulation::mainLoopCycle()");
+    const uint64_t cf = palGetCounterFreq();
+    if (m_prevSysClock == 0) { // first run
+        uint64_t pc = palGetCounter();
+        if (pc < cf / 60) {
+            m_prevSysClock = pc; // TODO: what is it?
+        } else {
+            m_prevSysClock = pc - cf / 60;
+        }
+    }
 
     draw();
+
     if (m_frameRate > 0) {
-        int64_t delay = palGetCounterFreq() / m_frameRate - (palGetCounter() - m_prevSysClock);
-        if (delay > 0)
+        uint64_t pc = palGetCounter();
+        int32_t delay = (int32_t)(cf / m_frameRate > (pc - m_prevSysClock) ? cf / m_frameRate - (pc - m_prevSysClock) : 0);
+        if (delay > 0) {
+            lprintf("delay: %d", delay);
             palDelay(delay);
+        }
     }
 
     m_sysClock = palGetCounter();
-    unsigned dt = m_sysClock - m_prevSysClock;
-    if (dt > palGetCounterFreq() / 10) // 0.1 s
-        dt = palGetCounterFreq() / 10;
-    uint64_t ticks = m_frequency * m_speedUpFactor * dt / palGetCounterFreq();
+    unsigned dt = m_sysClock > m_prevSysClock ? m_sysClock - m_prevSysClock : 0;
+    if (dt > cf / 10) { // 0.1 s
+        dt = cf / 10;
+    }
+    uint64_t ticks = m_frequency * m_speedUpFactor * dt / cf;
     m_prevSysClock = m_sysClock;
+ticks = 16ul; // W/A TODO: fix timings
     exec(ticks);
 }
 
