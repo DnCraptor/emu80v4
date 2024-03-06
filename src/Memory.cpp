@@ -66,6 +66,7 @@ uint8_t Ram::readByte(int addr) {
 
 static int readFromFile(const string& fileName, int offset, int sizeToRead, int psram_off) {
     string fullFileName = palMakeFullFileName(fileName);
+    lprintf("readFromFile([%s], offset: %d, sizeToRead: %d, psram_off: %08Xh)", fullFileName.c_str(), offset, sizeToRead, psram_off);
     UINT nBytesRead = 0;
     FIL file;
     if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
