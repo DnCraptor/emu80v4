@@ -127,7 +127,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
 
     int visibleDataSize = visibleWidth * visibleHeight;
     uint32_t* visibleData = new uint32_t[visibleDataSize];
-    lprintf("void Crt8275Renderer::trimImage(int charWidth, int charHeight): %ph sz: %d", visibleData, visibleDataSize);
+    lprintf("void Crt8275Renderer::trimImage(int charWidth: %d, int charHeight: %d): %ph sz: %d", charWidth, charHeight, visibleData, visibleDataSize);
 
     for (int i = 0; i < visibleDataSize; i++)
         visibleData[i] = 0;

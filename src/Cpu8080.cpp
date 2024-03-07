@@ -1751,13 +1751,13 @@ void Cpu8080::operate() {
         register uint16_t pc = PC++;
         register int oc = RD_BYTE(pc);
         int clocks = i8080_execute(oc);
-        lprintf("pc: %04Xh op: %02Xh", pc, oc);
+    //    lprintf("pc: %04Xh op: %02Xh", pc, oc);
         m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(tag, opcode, clocks));
     } else {
         register uint16_t pc = PC++;
         register int oc = RD_BYTE(pc);
         m_curClock += m_kDiv * i8080_execute(oc);
-        lprintf("pc: %04Xh op: %02Xh", pc, oc);
+    //    lprintf("pc: %04Xh op: %02Xh", pc, oc);
     }
 
     if (m_stepReq) {
