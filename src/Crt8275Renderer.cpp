@@ -200,8 +200,12 @@ void Crt8275Renderer::primaryRenderFrame()
 
     m_dataSize = nRows * nLines * nChars * m_fntCharWidth;
     if (m_dataSize > m_bufSize) {
-        if (m_pixelData)
+        if (m_pixelData) {
+            lprintf("Crt8275Renderer::primaryRenderFrame(): free %ph sz: %d", m_pixelData, m_bufSize);
             delete[] m_pixelData;
+        }
+        lprintf("Crt8275Renderer::primaryRenderFrame(): %dx%dx%dx%d = %d",
+                 nRows, nLines, nChars, m_fntCharWidth, m_dataSize);
         m_pixelData = new uint32_t [m_dataSize];
         lprintf("Crt8275Renderer::primaryRenderFrame(): %ph sz: %d", m_pixelData, m_dataSize);
         m_bufSize = m_dataSize;
