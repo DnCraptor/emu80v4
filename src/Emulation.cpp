@@ -304,19 +304,10 @@ void Emulation::addChild(EmuObject* child)
 
 void Emulation::exec(uint64_t ticks, bool forced)
 {
-    lprintf("void Emulation::exec(uint64_t ticks: %08X%08Xh, bool forced: %d)",
-            (uint32_t)(ticks >> 32), (uint32_t)ticks & 0xFFFFFFFF,
-            forced
-    );
     if (m_isPaused)
         return;
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
-    lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) toTime: %08X%08Xh m_curClock: %08X%08Xh",
-             forced,
-             (uint32_t)(toTime >> 32), (uint32_t)toTime & 0xFFFFFFFF,
-             (uint32_t)(m_curClock >> 32), (uint32_t)m_curClock & 0xFFFFFFFF
-    );
     while (m_curClock < toTime && (!m_debugReqCpu || forced)) {
         uint64_t time = -1;
         IActive* curDev = nullptr;
@@ -325,7 +316,6 @@ void Emulation::exec(uint64_t ticks, bool forced)
         uint64_t tm;
         for (int i = 0; i < nDevices && inCycle; i++) {
             device = m_activeDevices[i];
-            lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) device%d: [%08Xh]", forced, i, device);
             if (!device->isPaused()) {
                 tm = device->getClock();
                 if (tm < time) {
@@ -335,13 +325,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
             }
         }
         m_curClock = time;
-        lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) curDev: [%08Xh]", forced, curDev);
         curDev->operate();
-        lprintf("void Emulation::exec(uint64_t ticks, bool forced: %d) toTime: %08X%08Xh m_curClock: %08X%08Xh",
-             forced,
-             (uint32_t)(toTime >> 32), (uint32_t)toTime & 0xFFFFFFFF,
-             (uint32_t)(m_curClock >> 32), (uint32_t)m_curClock & 0xFFFFFFFF
-        );
     }
     m_clockOffset = m_curClock - toTime;
 
@@ -357,12 +341,9 @@ void Emulation::exec(uint64_t ticks, bool forced)
 }
 
 void Emulation::draw() {
-    lprintf("Emulation::draw()");
     for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
-        lprintf("%s::draw()", (*it)->getName().c_str());
         (*it)->draw();
     }
-    lprintf("Emulation::draw() done");
 }
 
 void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)

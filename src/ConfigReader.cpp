@@ -49,14 +49,18 @@ ConfigReader::ConfigReader(string configFileName, string platformName) {
 
     list<string> palDefines;
     palGetPalDefines(palDefines);
-    for (auto it = palDefines.begin(); it != palDefines.end(); it++)
+    for (auto it = palDefines.begin(); it != palDefines.end(); it++) {
         m_varMap[*it] = "";
+        lprintf("\t[%s] = []", it->c_str());
+    }
 
     if (platformName != "") {
         map<string, string> platformDefines;
         palGetPlatformDefines(platformName, platformDefines);
-        for (auto it = platformDefines.begin(); it != platformDefines.end(); it++)
+        for (auto it = platformDefines.begin(); it != platformDefines.end(); it++) {
             m_varMap[it->first] = it->second;
+            lprintf("\t[%s] = [%s]", it->first.c_str(), it->second.c_str());
+        }
     }
 
     openFile();
@@ -483,13 +487,12 @@ void ConfigReader::processConfigFile(ParentObject* parent)
     EmuValuesList v;
     bool res = getNextLine(t, o, p, &v);
     while (res) {
-        lprintf("[%s] [%s] [%s]", t.c_str(), o.c_str(), p.c_str());
+        //lprintf("[%s] [%s] [%s]", t.c_str(), o.c_str(), p.c_str());
         if (t != "" && o != "" && p == "") {
             if (g_emulation->findObject(m_prefix + o)) {
                 logPrefix();
                 lprintf("Object [%s][%s] already exists!", m_prefix.c_str(), o.c_str());
             } else if (EmuObject* obj = createObject(t, m_prefix + o, v)) {
-                lprintf("[%s][%s] created", m_prefix.c_str(), o.c_str());
                 Platform* p = (Platform*)EmuObject::validateAs(PlatformV, parent); // dynamic_cast
                 if (p) {
                     obj->setPlatform(p);
@@ -497,7 +500,7 @@ void ConfigReader::processConfigFile(ParentObject* parent)
                 parent->addChild(obj);
             } else {
                 logPrefix();
-                lprintf("Can't create object [%s] [%s]", t.c_str(), o.c_str());
+                lprintf("Can't create object [%s][%s][%s]", t.c_str(), m_prefix.c_str(), o.c_str());
             }
         }
         else if (t == "" && o != "" && p != "") {
@@ -516,9 +519,7 @@ void ConfigReader::processConfigFile(ParentObject* parent)
                 lprintf("Object [%s] not found!", o.c_str());
             } else if (!obj->setProperty(p, v)) {
                 logPrefix();
-                lprintf("Object [%s][%p] failed!", o.c_str(), p.c_str());
-            } else {
-                lprintf("Object [%s][%p] PASSED", o.c_str(), p.c_str());
+                lprintf("Object [%s].setProperty([%s],v0[%s]) failed!", o.c_str(), p.c_str(), v.size() > 0 ? v[0].asString().c_str() : "00");
             }
         }
         v.clearList();

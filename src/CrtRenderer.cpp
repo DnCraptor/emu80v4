@@ -35,8 +35,8 @@ CrtRenderer::~CrtRenderer()
 }
 
 
-void CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer)
-{
+void CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer) {
+    lprintf("CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer: %08Xh)", renderer);
     m_secondaryRenderer = renderer;
 }
 
@@ -47,11 +47,12 @@ EmuPixelData CrtRenderer::getPixelData()
 
     // Проверка "синего экрана"
     if (!isRasterPresent()) {
+        lprintf("!isRasterPresent()");
         pd.pixelData = nullptr;
         pd.prevPixelData = nullptr;
         return pd;
     }
-
+    lprintf("EmuPixelData CrtRenderer::getPixelData()");
 
     pd.width = m_sizeX;
     pd.height = m_sizeY;
@@ -71,6 +72,7 @@ EmuPixelData CrtRenderer::getPixelData()
 
 void CrtRenderer::swapBuffers()
 {
+    lprintf("void CrtRenderer::swapBuffers()");
     // don't update if in debug or paused mode
     if (!reqForSwapBuffers && (g_emulation->getPausedState() || g_emulation->isDebuggerActive()))
         return;
@@ -101,15 +103,17 @@ void CrtRenderer::swapBuffers()
 
 void CrtRenderer::updateScreenOnce()
 {
+    lprintf("void CrtRenderer::updateScreenOnce()");
     if (!g_emulation->getPausedState() && !g_emulation->isDebuggerActive())
         return;
 
-       ++m_frameNo;
+    ++m_frameNo;
 }
 
 
 const char* CrtRenderer::generateTextScreen(wchar_t* wTextArray, int w, int h)
 {
+    lprintf("CrtRenderer::generateTextScreen(...");
     // calculate row lengths for every row without trailing spaces
     int* rowLengths = new int[h];
     for (int y = 0; y < h; y++) {

@@ -36,7 +36,10 @@ void Rk86Core::vrtc(bool isActive)
 void Rk86Core::draw()
 {
     lprintf("void Rk86Core::draw()");
-    m_window->drawFrame(m_crtRenderer->getPixelData());
+    EmuPixelData epd = m_crtRenderer->getPixelData();
+    lprintf("EmuPixelData.aspectRatio: %f; .frameNo: %d; .height: %d; .width: %d; .pixelData: %08Xh",
+             epd.aspectRatio, epd.frameNo, epd.height, epd.width, epd.pixelData);
+    m_window->drawFrame(epd);
     m_window->endDraw();
 }
 

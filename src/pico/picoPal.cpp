@@ -153,44 +153,55 @@ bool palChoosePlatform(std::vector<PlatformInfo>& pi, int& pos, bool&, bool, Pal
 
 
 bool palChooseConfiguration(std::string platformName, PalWindow* wnd) {
+    lprintf("!palChooseConfiguration");
     return false;
 }
 
 
 void palGetPalDefines(std::list<std::string>& defineList)
 {
-    defineList.push_back("SDL");
+    lprintf("palGetPalDefines PICO");
+    defineList.push_back("PICO");
 }
 
 
 void palGetPlatformDefines(std::string platformName, std::map<std::string, std::string>& definesMap)
 {
-
+    lprintf("!palGetPlatformDefines [%s]", platformName.c_str());
 }
 
 
-void palSetRunFileName(std::string) {
+void palSetRunFileName(std::string fileName) {
+    lprintf("!palSetRunFileName [%s]", fileName.c_str());
 }
 
-void palShowConfigWindow(int) {
+void palShowConfigWindow(int d) {
+    lprintf("!palShowConfigWindow [%d]", d);
 }
 
 void palUpdateConfig() {
+    lprintf("!palUpdateConfig");
+    //configWnd->updateConfig();
 }
 
-void palAddTabToConfigWindow(int, std::string) {
+void palAddTabToConfigWindow(int d, std::string s) {
+    lprintf("!palAddTabToConfigWindow %d [%s]", d, s.c_str());
 }
 
-void palRemoveTabFromConfigWindow(int) {
+void palRemoveTabFromConfigWindow(int d) {
+    lprintf("!palRemoveTabFromConfigWindow [%d]", d);
 }
 
-void palAddRadioSelectorToTab(int, int, std::string, std::string, std::string, SelectItem*, int) {
+void palAddRadioSelectorToTab(int d, int i, std::string s1, std::string s2, std::string s3, SelectItem*, int) {
+    lprintf("!palAddRadioSelectorToTab [%d][%s][%s][%s]", d, s1.c_str(), s2.c_str(), s3.c_str());
 }
 
-void palSetTabOptFileName(int, string) {
+void palSetTabOptFileName(int d, string s) {
+    lprintf("!palSetTabOptFileName [%d][%s]", d, s.c_str());
 }
 
 void palWxProcessMessages() {
+    lprintf("!palWxProcessMessages");
 }
 
 void palLog(std::string s) {

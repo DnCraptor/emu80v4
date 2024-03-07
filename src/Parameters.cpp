@@ -41,12 +41,12 @@ EmuValue::EmuValue(const string& str)
     } else {
         istringstream iss(m_sValue);
         iss >> m_nValue;
-        char buf[20];
-        snprintf(buf, 20, "%d", m_nValue);
-        if (strncmp(str.c_str(), buf, 20) != 0) {
-            m_nValue = -1;
-            m_isInt = false;
-        }
+    //    char buf[20];
+    //    snprintf(buf, 20, "%d", m_nValue);
+    //    if (strncmp(str.c_str(), buf, 20) != 0) {
+    //        m_nValue = -1;
+    //        m_isInt = false;
+    //    }
     }
     m_isFloat = true;
     istringstream iss(m_sValue);
@@ -56,6 +56,10 @@ EmuValue::EmuValue(const string& str)
     } else if (m_isInt && m_fValue != 0.0 && m_fValue != 0.0 + m_nValue) {
         m_isInt = false;
     }
+    lprintf("[%s] m_nValue: %d(%s); m_fValue: %f(%s)",
+            str.c_str(),
+            0 + (uint32_t)m_nValue, m_isInt ? "true" : "false",
+            m_fValue, m_isFloat ? "true" : "false");
 }
 
 

@@ -60,7 +60,7 @@ void Cpu::attachCore(PlatformCore* core)
 
 
 void Cpu::addHook(CpuHook* hook) {
-    lprintf("Cpu::addHook(%s)", hook->getName());
+    lprintf("Cpu::addHook(%s)", hook->getName().c_str());
     hook->setCpu(this);
 }
 
