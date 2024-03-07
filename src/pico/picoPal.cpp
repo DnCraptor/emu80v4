@@ -451,7 +451,7 @@ string palGetDefaultPlatform() {
 static unsigned unicodeKey = 0;
 
 static bool palProcessEvents() {
-    lprintf("void palProcessEvents()");
+   // lprintf("void palProcessEvents()");
     /*** TODO:
     palIdle();
     // workaround for wxWidgets events processing

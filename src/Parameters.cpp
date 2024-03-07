@@ -41,6 +41,7 @@ EmuValue::EmuValue(const string& str)
     } else {
         istringstream iss(m_sValue);
         iss >> m_nValue;
+        /// TODO:
     //    char buf[20];
     //    snprintf(buf, 20, "%d", m_nValue);
     //    if (strncmp(str.c_str(), buf, 20) != 0) {

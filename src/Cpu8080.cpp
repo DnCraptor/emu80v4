@@ -289,7 +289,7 @@ int Cpu8080::i8080_execute(int opcode) {
 
     m_statusWord = 0x82;
 
-    switch (opcode) {
+    switch ((uint8_t)opcode & 0xFF) {
         // Undocumented NOP.
         case 0x08:            /* nop */
         case 0x10:            /* nop */
@@ -1748,10 +1748,17 @@ void Cpu8080::operate() {
         //int opcode = m_addrSpace->readByteEx(PC++, tag);
         //int clocks = i8080_execute(opcode);
         int opcode = m_addrSpace->readByteEx(PC, tag);
-        int clocks = i8080_execute(RD_BYTE(PC++));
+        register uint16_t pc = PC++;
+        register int oc = RD_BYTE(pc);
+        int clocks = i8080_execute(oc);
+        lprintf("pc: %04Xh op: %02Xh", pc, oc);
         m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(tag, opcode, clocks));
-    } else
-        m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
+    } else {
+        register uint16_t pc = PC++;
+        register int oc = RD_BYTE(pc);
+        m_curClock += m_kDiv * i8080_execute(oc);
+        lprintf("pc: %04Xh op: %02Xh", pc, oc);
+    }
 
     if (m_stepReq) {
         m_stepReq = false;

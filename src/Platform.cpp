@@ -399,14 +399,14 @@ bool Platform::loadFile(string fileName, bool run)
 }
 
 
-void Platform::draw()
-{
-    lprintf("void Platform::draw()");
-    if (m_core)
+void Platform::draw() {
+    if (m_core) {
         m_core->draw();
-
-    if (m_dbgWindow)
+    }
+    if (m_dbgWindow) {
+        lprintf("void Platform::draw() -> m_dbgWindow->draw();");
         m_dbgWindow->draw();
+    }
 }
 
 

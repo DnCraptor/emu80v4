@@ -75,10 +75,14 @@ static int readFromFile(const string& fileName, int offset, int sizeToRead, int 
         uint8_t buffer[512];
         do {
             UINT rd = sizeToRead > 512 ? 512 : sizeToRead;
-            f_read(&file, buffer, rd, &rdo);
-            if (rd != rdo) break;
-            for (int i = 0; i < rdo; i += 4) {
-                write32psram(psram_off + i, buffer[i]);
+            FRESULT res = f_read(&file, buffer, rd, &rdo);
+            if (rd != rdo || res != FR_OK) {
+                lprintf("!readFromFile([%s]) FAILED not read bytes: %d; rd: %d; rdo: %d; res: %d",
+                         fullFileName.c_str(), sizeToRead, rd, rdo, res);
+                break;
+            }
+            for (int i = 0; i < rdo; ++i) {
+                write8psram(psram_off + i, buffer[i]);
             }
             nBytesRead += rdo;
             sizeToRead -= 512;

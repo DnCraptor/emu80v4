@@ -490,9 +490,7 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 }
 
 
-void Emulation::mainLoopCycle()
-{
-    lprintf("void Emulation::mainLoopCycle()");
+void Emulation::mainLoopCycle() {
     const uint64_t cf = palGetCounterFreq();
     if (m_prevSysClock == 0) { // first run
         uint64_t pc = palGetCounter();
@@ -504,13 +502,12 @@ void Emulation::mainLoopCycle()
     }
 
     draw();
-
     if (m_frameRate > 0) {
         uint64_t pc = palGetCounter();
         int32_t delay = (int32_t)(cf / m_frameRate > (pc - m_prevSysClock) ? cf / m_frameRate - (pc - m_prevSysClock) : 0);
         if (delay > 0) {
-            lprintf("delay: %d", delay);
-            palDelay(delay);
+    ///        lprintf("delay: %d", delay);
+    ///        palDelay(delay);
         }
     }
 
@@ -521,8 +518,9 @@ void Emulation::mainLoopCycle()
     }
     uint64_t ticks = m_frequency * m_speedUpFactor * dt / cf;
     m_prevSysClock = m_sysClock;
-ticks = 16ul; // W/A TODO: fix timings
-    exec(ticks);
+
+    // W/A TODO: fix timings
+    exec(16ull);
 }
 
 

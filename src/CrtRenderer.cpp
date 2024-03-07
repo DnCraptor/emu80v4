@@ -47,7 +47,7 @@ EmuPixelData CrtRenderer::getPixelData()
 
     // Проверка "синего экрана"
     if (!isRasterPresent()) {
-        lprintf("!isRasterPresent()");
+       // lprintf("!isRasterPresent()");
         pd.pixelData = nullptr;
         pd.prevPixelData = nullptr;
         return pd;
@@ -66,6 +66,8 @@ EmuPixelData CrtRenderer::getPixelData()
 
     pd.frameNo = m_frameNo;
 
+    lprintf("EmuPixelData.aspectRatio: %f; .frameNo: %d; .height: %d; .width: %d; .pixelData: %08Xh",
+             pd.aspectRatio, pd.frameNo, pd.height, pd.width, pd.pixelData);
     return pd;
 }
 
