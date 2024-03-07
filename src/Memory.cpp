@@ -51,7 +51,7 @@ void Ram::writeByte(int addr, uint8_t value)
     if (m_addrMask)
         addr &= m_addrMask;
     if (m_off != -1 && addr < m_size)
-        write8psram(addr, value);
+        write8psram(m_off + addr, value);
 }
 
 uint8_t Ram::readByte(int addr) {
@@ -59,7 +59,7 @@ uint8_t Ram::readByte(int addr) {
     if (m_addrMask)
         addr &= m_addrMask;
     if (m_off != -1 && addr < m_size)
-        return read8psram(addr);
+        return read8psram(m_off + addr);
     else
         return 0xFF;
 }
@@ -81,8 +81,8 @@ static int readFromFile(const string& fileName, int offset, int sizeToRead, int 
                          fullFileName.c_str(), sizeToRead, rd, rdo, res);
                 break;
             }
-            for (int i = 0; i < rdo; ++i) {
-                write8psram(psram_off + i, buffer[i]);
+            for (int i = 0; i < rdo; i += 4) {
+                write32psram(psram_off + i, *(uint32_t*)&buffer[i]);
             }
             nBytesRead += rdo;
             sizeToRead -= 512;
@@ -114,7 +114,7 @@ uint8_t Rom::readByte(int addr) {
     if (m_addrMask)
         addr &= m_addrMask;
     if (m_off != -1 && addr < m_size)
-        return read8psram(addr);
+        return read8psram(m_off + addr);
     else
         return 0xFF;
 }
