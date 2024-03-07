@@ -52,7 +52,7 @@ EmuPixelData CrtRenderer::getPixelData()
         pd.prevPixelData = nullptr;
         return pd;
     }
-    lprintf("EmuPixelData CrtRenderer::getPixelData()");
+ //   lprintf("EmuPixelData CrtRenderer::getPixelData()");
 
     pd.width = m_sizeX;
     pd.height = m_sizeY;
@@ -66,15 +66,15 @@ EmuPixelData CrtRenderer::getPixelData()
 
     pd.frameNo = m_frameNo;
 
-    lprintf("EmuPixelData.aspectRatio: %f; .frameNo: %d; .height: %d; .width: %d; .pixelData: %08Xh",
-             pd.aspectRatio, pd.frameNo, pd.height, pd.width, pd.pixelData);
+//    lprintf("EmuPixelData.aspectRatio: %f; .frameNo: %d; .height: %d; .width: %d; .pixelData: %08Xh",
+//             pd.aspectRatio, pd.frameNo, pd.height, pd.width, pd.pixelData);
     return pd;
 }
 
 
 void CrtRenderer::swapBuffers()
 {
-    lprintf("void CrtRenderer::swapBuffers()");
+    lprintf("void CrtRenderer::swapBuffers() m_frameNo: %d", m_frameNo);
     // don't update if in debug or paused mode
     if (!reqForSwapBuffers && (g_emulation->getPausedState() || g_emulation->isDebuggerActive()))
         return;

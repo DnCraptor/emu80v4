@@ -127,6 +127,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
 
     int visibleDataSize = visibleWidth * visibleHeight;
     uint32_t* visibleData = new uint32_t[visibleDataSize];
+    lprintf("void Crt8275Renderer::trimImage(int charWidth, int charHeight): %ph sz: %d", visibleData, visibleDataSize);
 
     for (int i = 0; i < visibleDataSize; i++)
         visibleData[i] = 0;
@@ -202,6 +203,7 @@ void Crt8275Renderer::primaryRenderFrame()
         if (m_pixelData)
             delete[] m_pixelData;
         m_pixelData = new uint32_t [m_dataSize];
+        lprintf("Crt8275Renderer::primaryRenderFrame(): %ph sz: %d", m_pixelData, m_dataSize);
         m_bufSize = m_dataSize;
     }
 
@@ -312,6 +314,7 @@ void Crt8275Renderer::altRenderFrame()
         if (m_pixelData)
             delete[] m_pixelData;
         m_pixelData = new uint32_t [m_dataSize];
+        lprintf("Crt8275Renderer::altRenderFrame(): %ph sz: %d", m_pixelData, m_dataSize);
         m_bufSize = m_dataSize;
     }
 
