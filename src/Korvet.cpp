@@ -34,6 +34,11 @@
 #include "WavReader.h"
 #include "PrnWriter.h"
 #include "Psg3910.h"
+#include "Memory.h"
+
+extern "C" {
+    #include "psram_spi.h"
+}
 
 // Korvet implementation
 
@@ -213,10 +218,10 @@ KorvetRenderer::KorvetRenderer()
 
     m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData_off = psram_alloc(maxBufSize << 2);
+    m_prevPixelData_off = psram_alloc(maxBufSize << 2);
+  //  memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
+  //  memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 
     memset(m_lut, 0, sizeof(m_lut));
 
@@ -288,7 +293,7 @@ void KorvetRenderer::prepareFrame()
 
 void KorvetRenderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+  /// TODO:  memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
     swapBuffers();
     prepareFrame();
 }

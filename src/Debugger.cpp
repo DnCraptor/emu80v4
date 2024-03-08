@@ -148,7 +148,7 @@ DebugWindow::DebugWindow(Platform* platform)
 
     setCaption("Emu80 Debugger");
 
-    m_pixelData.prevPixelData = nullptr;
+    m_pixelData.prevPixelData_off = 0;
     m_pixelData.aspectRatio = 1.0;
     m_pixelData.prevAspectRatio = 1.0;
 
@@ -191,8 +191,8 @@ void DebugWindow::setLayout(bool isCompact)
 
     m_pixelData.width = m_curLayout->cols * m_chrW;
     m_pixelData.height = m_curLayout->rows * m_chrH;
-    m_pixels = new uint32_t[m_curLayout->cols * m_chrW * m_curLayout->rows * m_chrH];
-    m_pixelData.pixelData = m_pixels;
+ /// TODO:   m_pixels = new uint32_t[m_curLayout->cols * m_chrW * m_curLayout->rows * m_chrH];
+ /// TODO:   m_pixelData.pixelData = m_pixels;
 
     setDefaultWindowSize(m_curLayout->cols * m_chrW, m_curLayout->rows * m_chrH);
 }

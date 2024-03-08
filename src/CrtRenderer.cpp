@@ -23,15 +23,16 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "CrtRenderer.h"
+#include "Memory.h"
 
 using namespace std;
 
 CrtRenderer::~CrtRenderer()
 {
-    if (m_pixelData)
-        delete[] m_pixelData;
-    if (m_prevPixelData)
-        delete[] m_prevPixelData;
+    if (m_pixelData_off)
+        psram_free(m_pixelData_off);
+    if (m_prevPixelData_off)
+        psram_free(m_prevPixelData_off);
 }
 
 
@@ -48,20 +49,20 @@ EmuPixelData CrtRenderer::getPixelData()
     // Проверка "синего экрана"
     if (!isRasterPresent()) {
        // lprintf("!isRasterPresent()");
-        pd.pixelData = nullptr;
-        pd.prevPixelData = nullptr;
+        pd.pixelData_off = 0;
+        pd.prevPixelData_off = 0;
         return pd;
     }
  //   lprintf("EmuPixelData CrtRenderer::getPixelData()");
 
     pd.width = m_sizeX;
     pd.height = m_sizeY;
-    pd.pixelData = m_pixelData;
+    pd.pixelData_off = m_pixelData_off;
     pd.aspectRatio = m_aspectRatio;
 
     pd.prevWidth = m_prevSizeX;
     pd.prevHeight = m_prevSizeY;
-    pd.prevPixelData = m_prevPixelData;
+    pd.prevPixelData_off = m_prevPixelData_off;
     pd.prevAspectRatio = m_prevAspectRatio;
 
     pd.frameNo = m_frameNo;
@@ -80,23 +81,23 @@ void CrtRenderer::swapBuffers()
         return;
     reqForSwapBuffers = false;
 
-    int w,h, bs;
-    uint32_t* buf;
+    int w, h, bs;
+    size_t buf_off;
 
     w = m_prevSizeX;
     h = m_prevSizeY;
-    buf = m_prevPixelData;
+    buf_off = m_prevPixelData_off;
     bs = m_prevBufSize;
 
     m_prevSizeX = m_sizeX;
     m_prevSizeY = m_sizeY;
-    m_prevPixelData = m_pixelData;
+    m_prevPixelData_off = m_pixelData_off;
     m_prevBufSize = m_bufSize;
     m_prevAspectRatio = m_aspectRatio;
 
     m_sizeX = w;
     m_sizeY = h;
-    m_pixelData = buf;
+    m_pixelData_off = buf_off;
     m_bufSize = bs;
 
     ++m_frameNo;

@@ -57,13 +57,13 @@ class CrtRenderer : public EmuObject
     protected:
         CrtRenderer* m_secondaryRenderer = nullptr;
 
-        uint32_t* m_pixelData = nullptr;
+        size_t m_pixelData_off = 0;
         int m_sizeX = 0;
         int m_sizeY = 0;
         int m_bufSize = 0;
         double m_aspectRatio = 1.0;
 
-        uint32_t* m_prevPixelData = nullptr;
+        size_t m_prevPixelData_off = 0;
         int m_prevSizeX = 0;
         int m_prevSizeY = 0;
         int m_prevBufSize = 0;

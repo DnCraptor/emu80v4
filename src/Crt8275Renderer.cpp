@@ -17,6 +17,9 @@
  */
 
 // Crt8275Renderer.cpp
+extern "C" {
+    #include "psram_spi.h"
+}
 
 #include <sstream>
 #include <cstring>
@@ -25,6 +28,7 @@
 #include "Crt8275Renderer.h"
 #include "Emulation.h"
 #include "Crt8275.h"
+#include "Memory.h"
 
 using namespace std;
 
@@ -126,11 +130,11 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     }
 
     int visibleDataSize = visibleWidth * visibleHeight;
-    uint32_t* visibleData = new uint32_t[visibleDataSize];
+    size_t visibleData = psram_alloc(visibleDataSize << 2);
     lprintf("void Crt8275Renderer::trimImage(int charWidth: %d, int charHeight: %d): %ph sz: %d", charWidth, charHeight, visibleData, visibleDataSize);
 
-    for (int i = 0; i < visibleDataSize; i++)
-        visibleData[i] = 0;
+   // for (int i = 0; i < visibleDataSize; i++)
+    //    visibleData[i] = 0;
 
     int dstX = 0;
     int dstY = 0;
@@ -155,11 +159,17 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     if (visibleY + copyHeight > m_sizeY)
         copyHeight = m_sizeY - visibleY;
 
-    for (int i = 0; i < copyHeight; i++)
-        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth * sizeof(uint32_t));
+    for (int i = 0; i < copyHeight; i++) {
+        size_t to = visibleData + (i + dstY) * visibleWidth + dstX;
+        size_t from = m_pixelData_off + (visibleY + i) * m_sizeX + visibleX;
+        size_t w32sz = copyWidth * sizeof(uint32_t);
+        for (int j = 0; j < w32sz; j += 4) {
+            write32psram(to + j, read32psram(from + j));
+        }
+    }
 
-    delete[] m_pixelData;
-    m_pixelData = visibleData;
+    psram_free(m_pixelData_off);
+    m_pixelData_off = visibleData;
     m_sizeX = visibleWidth;
     m_sizeY = visibleHeight;
     m_dataSize = visibleWidth * visibleHeight;
@@ -200,28 +210,28 @@ void Crt8275Renderer::primaryRenderFrame()
 
     m_dataSize = nRows * nLines * nChars * m_fntCharWidth;
     if (m_dataSize > m_bufSize) {
-        if (m_pixelData) {
-            lprintf("Crt8275Renderer::primaryRenderFrame(): free %ph sz: %d", m_pixelData, m_bufSize);
-            delete[] m_pixelData;
+        if (m_pixelData_off) {
+            lprintf("Crt8275Renderer::primaryRenderFrame(): free %ph sz: %d", m_pixelData_off, m_bufSize);
+            psram_free(m_pixelData_off);
         }
-        lprintf("Crt8275Renderer::primaryRenderFrame(): %dx%dx%dx%d = %d",
+        lprintf("Crt8275Renderer::primaryRenderFrame(): %dx%dx%dx%d*4 = %d*4",
                  nRows, nLines, nChars, m_fntCharWidth, m_dataSize);
-        m_pixelData = new uint32_t [m_dataSize];
-        lprintf("Crt8275Renderer::primaryRenderFrame(): %ph sz: %d", m_pixelData, m_dataSize);
+        m_pixelData_off = psram_alloc(m_dataSize << 2);
+        lprintf("Crt8275Renderer::primaryRenderFrame(): %ph sz: %d", m_pixelData_off, m_dataSize);
         m_bufSize = m_dataSize;
     }
 
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    //memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t)); already in alloc
+    size_t rowPtr_off = m_pixelData_off;
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        size_t chrPtr_off = rowPtr_off;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
         SymbolsLine sl = frame->symbols[row];
         for (int chr = 0; chr < nChars; chr++) {
             SymbolRef symbol = sl[chr];
-            uint32_t* linePtr = chrPtr;
+            size_t linePtr_off = chrPtr_off;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -273,18 +283,23 @@ void Crt8275Renderer::primaryRenderFrame()
                         bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
                         if (rvv && m_useRvv)
                             v = !v;
-                        linePtr[pt] = v ? fgColor : bgColor;
+                        write32psram(linePtr_off + (pt << 2), v ? fgColor : bgColor);
                         fntLine <<= 1;
                     }
                     if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
                         curLten[ln] = true;
-                } else
+                } else {
+                    uint32_t linePtr[nChars * m_fntCharWidth];
                     customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
-                linePtr += nChars * m_fntCharWidth;
+                    for (size_t i = 0; i < nChars * m_fntCharWidth; ++i) {
+                        write32psram(linePtr_off + (i << 2), linePtr[i]);
+                    }
+                }
+                linePtr_off += (nChars * m_fntCharWidth) << 2;
             }
-            chrPtr += m_fntCharWidth;
+            chrPtr_off += m_fntCharWidth << 2;
         }
-    rowPtr += nLines * nChars * m_fntCharWidth;
+        rowPtr_off += (nLines * nChars * m_fntCharWidth) << 2;
     }
 
     trimImage(m_fntCharWidth, nLines);
@@ -315,21 +330,22 @@ void Crt8275Renderer::altRenderFrame()
 
     m_dataSize = nRows * nLines * nChars * 8;
     if (m_dataSize > m_bufSize) {
-        if (m_pixelData)
-            delete[] m_pixelData;
-        m_pixelData = new uint32_t [m_dataSize];
-        lprintf("Crt8275Renderer::altRenderFrame(): %ph sz: %d", m_pixelData, m_dataSize);
+        if (m_pixelData_off) {
+            psram_free(m_pixelData_off);
+        }
+        m_pixelData_off = psram_alloc(m_dataSize << 2);
+        lprintf("Crt8275Renderer::altRenderFrame(): %ph sz: %d", m_pixelData_off, m_dataSize);
         m_bufSize = m_dataSize;
     }
 
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    //memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
+    size_t rowPtr_off = m_pixelData_off;
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        size_t chrPtr_off = rowPtr_off;
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint32_t* linePtr = chrPtr;
+            size_t linePtr_off = chrPtr_off;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -383,14 +399,14 @@ void Crt8275Renderer::altRenderFrame()
                     bool v = lten || (!vsp && (fntLine & 0x80));
                     if (rvv && m_useRvv)
                         v = !v;
-                    linePtr[pt] = v ? fgColor : bgColor;
+                    write32psram(linePtr_off + (pt << 2), v ? fgColor : bgColor);
                     fntLine <<= 1;
                 }
-                linePtr += nChars * 8;
+                linePtr_off += (nChars * 8) << 2;
             }
-            chrPtr += 8;
+            chrPtr_off += 8 << 2;
         }
-    rowPtr += nLines * nChars * 8;
+        rowPtr_off += nLines * nChars * 8 << 2;
     }
 
     trimImage(8, nLines);

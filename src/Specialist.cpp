@@ -33,6 +33,11 @@
 #include "WavReader.h"
 #include "Cpu.h"
 #include "Pit8253.h"
+#include "Memory.h"
+
+extern "C" {
+    #include "psram_spi.h"
+}
 
 using namespace std;
 
@@ -72,10 +77,10 @@ SpecRenderer::SpecRenderer()
     m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData_off = psram_alloc(maxBufSize << 2);
+    m_prevPixelData_off = psram_alloc(maxBufSize << 2);
+  //  memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
+  //  memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -103,7 +108,9 @@ void SpecRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        for (size_t i = 0; i < m_sizeX * m_sizeY * sizeof(uint32_t); i += 4) {
+            write32psram(m_pixelData_off + i, 0);
+        }
         offsetX = 21;
         offsetY = 10;
         m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
@@ -137,7 +144,7 @@ void SpecRenderer::renderFrame()
                     bgColor = spec16ColorPalette[colorByte & 0xF];
             }
             for (int pt = 0; pt < 8; pt++, bt <<= 1)
-                m_pixelData[(row + offsetY) * m_sizeX + col * 8 + pt + offsetX] = (bt & 0x80) ? fgColor : bgColor;
+                write32psram(m_pixelData_off + ((row + offsetY) * m_sizeX + col * 8 + pt + offsetX) << 2, (bt & 0x80) ? fgColor : bgColor);
         }
 }
 

@@ -52,7 +52,7 @@ class Ram : public AddressableDevice {
 
 class Rom : public AddressableDevice {
     public:
-        Rom(unsigned memSize, std::string fileName);
+        Rom(int memSize, std::string fileName);
         virtual ~Rom();
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int addr) override;

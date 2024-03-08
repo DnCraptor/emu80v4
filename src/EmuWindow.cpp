@@ -328,34 +328,36 @@ bool EmuWindow::translateCoords(int& x, int& y)
 
 void EmuWindow::interlaceFields(EmuPixelData frame)
 {
+    lprintf("!void EmuWindow::interlaceFields(EmuPixelData frame)");
     int requiredSize = frame.height * 2 * frame.width;
     if (requiredSize > m_interlacedImageSize) {
         if (m_interlacedImage)
             delete m_interlacedImage;
-        m_interlacedImage = new uint32_t[requiredSize];
+ /// TODO:       m_interlacedImage = new uint32_t[requiredSize];
         m_interlacedImageSize = requiredSize;
     }
 
     for (int i = 0; i < frame.height; i++) {
-        memcpy(m_interlacedImage + frame.width * i * 2, frame.pixelData + i * frame.width, frame.width * 4);
-        memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.prevPixelData + i * frame.width, frame.width * 4);
+  /// TODO:      memcpy(m_interlacedImage + frame.width * i * 2, frame.pixelData + i * frame.width, frame.width * 4);
+  /// TODO:      memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.prevPixelData + i * frame.width, frame.width * 4);
     }
 }
 
 
 void EmuWindow::prepareScanline(EmuPixelData frame)
 {
+    lprintf("!void EmuWindow::prepareScanline(EmuPixelData frame)");
     int requiredSize = frame.height * 2 * frame.width;
     if (requiredSize > m_interlacedImageSize) {
         if (m_interlacedImage)
             delete m_interlacedImage;
-        m_interlacedImage = new uint32_t[requiredSize];
+    /// TODO:    m_interlacedImage = new uint32_t[requiredSize];
         m_interlacedImageSize = requiredSize;
     }
 
     for (int i = 0; i < frame.height; i++) {
-        memcpy(m_interlacedImage + frame.width * i * 2, frame.pixelData + i * frame.width, frame.width * 4);
-        memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.pixelData + i * frame.width, frame.width * 4);
+    /// TODO:    memcpy(m_interlacedImage + frame.width * i * 2, frame.pixelData + i * frame.width, frame.width * 4);
+    /// TODO:    memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.pixelData + i * frame.width, frame.width * 4);
         uint8_t* secondLine = (uint8_t*)(m_interlacedImage + frame.width * (i * 2 + 1));
         for (int x = 0; x < frame.width * 4; x += 4) {
             int r = secondLine[x]; secondLine[x] = r >> 2;
@@ -373,7 +375,7 @@ void EmuWindow::drawFrame(EmuPixelData frame)
     m_curFrameNo = frame.frameNo;
     m_frameDrawn = true;
 
-    if (frame.width == 0 || frame.height == 0 || !frame.pixelData) {
+    if (frame.width == 0 || frame.height == 0 || !frame.pixelData_off) {
         drawFill(0x303050);
         return;
     }
@@ -405,18 +407,18 @@ void EmuWindow::drawFrame(EmuPixelData frame)
     drawFill(0x282828);
 
     if (m_fieldsMixing != FM_INTERLACE && m_fieldsMixing != FM_SCANLINE) {
-        drawImage((uint32_t*)frame.pixelData, frame.width, frame.height, frame.aspectRatio, false, false);
-        if (m_fieldsMixing == FM_MIX && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) {
-            drawImage((uint32_t*)frame.prevPixelData, frame.prevWidth, frame.prevHeight, frame.prevAspectRatio, true, false);
+        drawImage(frame.pixelData_off, frame.width, frame.height, frame.aspectRatio, false, false);
+        if (m_fieldsMixing == FM_MIX && frame.prevPixelData_off && frame.prevHeight == frame.height && frame.prevWidth == frame.width) {
+            drawImage(frame.prevPixelData_off, frame.prevWidth, frame.prevHeight, frame.prevAspectRatio, true, false);
         }
-    } else if (m_fieldsMixing == FM_INTERLACE && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) { // FM_INTERLACE
+    } else if (m_fieldsMixing == FM_INTERLACE && frame.prevPixelData_off && frame.prevHeight == frame.height && frame.prevWidth == frame.width) { // FM_INTERLACE
         if (frame.frameNo & 1)
             interlaceFields(frame);
-        if (m_interlacedImage)
-            drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
+    /// TODO:    if (m_interlacedImage)
+    /// TODO:        drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
     } else { // if (m_fieldsMixing == FM_SCANLINE)
         prepareScanline(frame);
-        drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
+    /// TODO:    drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
     }
 }
 
@@ -426,12 +428,12 @@ void EmuWindow::drawOverlay(EmuPixelData frame)
     if (!m_frameDrawn)
         return;
 
-    if (frame.width == 0 || frame.height == 0 || !frame.pixelData)
+    if (frame.width == 0 || frame.height == 0 || !frame.pixelData_off)
         return;
 
     m_overlay = true;
 
-    drawImage((uint32_t*)frame.pixelData, frame.width, frame.height, frame.aspectRatio, true, true);
+    drawImage(frame.pixelData_off, frame.width, frame.height, frame.aspectRatio, true, true);
 
 /*    if (m_fieldsMixing == FM_MIX && frame.prevPixelData) {
         drawImage((uint32_t*)frame.prevPixelData, frame.prevWidth, frame.prevHeight, m_dstX, m_dstY, m_dstWidth, m_dstHeight, true, true);

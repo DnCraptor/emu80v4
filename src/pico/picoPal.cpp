@@ -591,7 +591,7 @@ void PalWindow::drawFill(uint32_t color) {
     */
 }
 
-void PalWindow::drawImage(uint32_t* pixels, int imageWidth, int imageHeight, double aspectRatio, bool blend, bool useAlpha) {
+void PalWindow::drawImage(size_t pixels_off, int imageWidth, int imageHeight, double aspectRatio, bool blend, bool useAlpha) {
 /// TODO:
 }
 

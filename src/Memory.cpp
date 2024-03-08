@@ -64,7 +64,7 @@ uint8_t Ram::readByte(int addr) {
         return 0xFF;
 }
 
-static int readFromFile(const string& fileName, int offset, int sizeToRead, int psram_off) {
+static int readFromFile(const string& fileName, int offset, int sizeToRead, size_t psram_off) {
     string fullFileName = palMakeFullFileName(fileName);
     lprintf("readFromFile([%s], offset: %d, sizeToRead: %d, psram_off: %08Xh)", fullFileName.c_str(), offset, sizeToRead, psram_off);
     UINT nBytesRead = 0;
@@ -96,7 +96,7 @@ static int readFromFile(const string& fileName, int offset, int sizeToRead, int 
 }
 
 // Rom implementation
-Rom::Rom(unsigned memSize, string fileName) {
+Rom::Rom(int memSize, string fileName) {
     m_off = psram_alloc(memSize, 0xFFFFFFFF);
     m_size = memSize;
     if (readFromFile(fileName, 0, memSize, m_off) == 0) {

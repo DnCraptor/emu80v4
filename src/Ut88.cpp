@@ -25,6 +25,11 @@
 #include "EmuWindow.h"
 #include "Memory.h"
 #include "Cpu8080.h"
+#include "Memory.h"
+
+extern "C" {
+    #include "psram_spi.h"
+}
 
 using namespace std;
 
@@ -62,10 +67,12 @@ Ut88Renderer::Ut88Renderer()
     m_sizeY = m_prevSizeY = 320;
     m_aspectRatio = m_prevAspectRatio = 12. / 13.;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[512 * 512]; // altRenderer requires more mem
-    m_prevPixelData = new uint32_t[512 * 512];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    // altRenderer requires more memory
+    const int maxBufSize = 512 * 512;
+    m_pixelData_off = psram_alloc(maxBufSize << 2);
+    m_prevPixelData_off = psram_alloc(maxBufSize << 2);
+  //  memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
+  //  memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -93,12 +100,12 @@ void Ut88Renderer::primaryRenderFrame()
                     if (rvv)
                         pixel = !pixel;
                     bt <<= 1;
-                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = pixel ? 0 : 0xC0C0C0;
+                    write32psram(m_pixelData_off + (row * 384 * 10 + l * 384 + col * 6 + pt) << 2, pixel ? 0 : 0xC0C0C0);
                 }
             }
             for (int l = 8; l < 10; l++)
                 for (int pt = 0; pt < 6; pt++)
-                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = rvv ? 0xC0C0C0 : 0;
+                    write32psram(m_pixelData_off + (row * 384 * 10 + l * 384 + col * 6 + pt) << 2, rvv ? 0xC0C0C0 : 0);
         }
 }
 
@@ -121,7 +128,7 @@ void Ut88Renderer::altRenderFrame()
                     if (!rvv)
                         pixel = !pixel;
                     bt <<= 1;
-                    m_pixelData[row * 512 * 16 + l * 512 + col * 8 + pt] = pixel ? 0 : 0xC0C0C0;
+                    write32psram(m_pixelData_off + (row * 512 * 16 + l * 512 + col * 8 + pt) << 2, pixel ? 0 : 0xC0C0C0);
                 }
             }
         }
