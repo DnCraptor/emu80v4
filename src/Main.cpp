@@ -46,8 +46,13 @@ void displayCmdLineHelp()
             "For more help see \"Emu80 v4 Manual.rtf\"\n");
 }
 
-int main (int argc, char** argv)
-{
+#ifndef PICO_PAL
+int main(int argc, char** argv) {
+#else
+int main() { // for pico
+    int argc = 0;
+    char** argv = 0;
+#endif
     CmdLine cmdLine(argc, argv);
 
     if (!palInit(argc, argv))
@@ -63,13 +68,10 @@ int main (int argc, char** argv)
         palMsgBox("Warnings:\n\n" + warnings + "\nFor brief help: " EXE_NAME " --help");
 
     new Emulation(cmdLine); // g_emulation присваивается в конструкторе
-
     palStart();
     palExecute();
-
+    // should be unreacable
     delete g_emulation;
-
-    palQuit();
 
     return 0;
 }
