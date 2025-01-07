@@ -28,7 +28,7 @@
 class CrtRenderer : public EmuObject
 {
     public:
-        virtual CrtRenderer* asCrtRenderer() { return this; }
+        virtual CrtRenderer* asCrtRenderer() override { return this; }
         CrtRenderer() {}
         virtual ~CrtRenderer();
 

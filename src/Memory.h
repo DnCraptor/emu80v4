@@ -23,11 +23,28 @@
 
 #include "EmuObjects.h"
 
+class SRam : public AddressableDevice
+{
+    public:
+        virtual SRam* asSRam() override { return this; }
+        SRam(unsigned memSize);
+        virtual ~SRam();
+        void writeByte(int addr, uint8_t value) override;
+        uint8_t readByte(int addr) override;
+        int getSize() { return m_size; }
+
+        static EmuObject* create(const EmuValuesList& parameters) {
+            return parameters[0].isInt() ? new SRam(parameters[0].asInt()) : nullptr;
+        }
+    private:
+        int m_size;
+        size_t m_offset;
+};
 
 class Ram : public AddressableDevice
 {
     public:
-        virtual Ram* asRam() { return this; }
+        virtual Ram* asRam() override { return this; }
         //Ram();
         Ram(unsigned memSize);
         Ram(uint8_t* buf, unsigned memSize);
@@ -39,7 +56,9 @@ class Ram : public AddressableDevice
         uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
         int getSize() {return m_size;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;}
+        static EmuObject* create(const EmuValuesList& parameters) {
+            return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;
+        }
 
     protected:
 
@@ -54,7 +73,7 @@ class Ram : public AddressableDevice
 class Rom : public AddressableDevice
 {
     public:
-        Rom();
+       /// Rom();
         Rom(unsigned memSize, std::string fileName);
         virtual ~Rom();
         void writeByte(int, uint8_t)  override {}
@@ -63,11 +82,13 @@ class Rom : public AddressableDevice
         virtual const uint8_t* getDataPtr() {return m_buf;}
         virtual const uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;}
+        static EmuObject* create(const EmuValuesList& parameters) {
+            return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;
+        }
 
     protected:
         int m_size;
-        uint8_t* m_buf = nullptr;
+        const uint8_t* m_buf = nullptr;
 };
 
 

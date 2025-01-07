@@ -93,11 +93,13 @@ class EmuObject
 };
 
 class Ram;
+class SRam;
 
 class AddressableDevice : public EmuObject
 {
     public:
         virtual Ram* asRam() { return nullptr; }
+        virtual SRam* asSRam() { return nullptr; }
         //AddressableDevice();
         virtual ~AddressableDevice() {} // !!!
 
@@ -159,7 +161,7 @@ class ParentObject : public EmuObject
 class EmuObjectGroup : public EmuObject
 {
     public:
-        virtual EmuObjectGroup* asEmuObjectGroup() { return this; }
+        virtual EmuObjectGroup* asEmuObjectGroup() override { return this; }
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
         void addItem(EmuObject* item);

@@ -618,7 +618,7 @@ void repeat_me_for_input() {
 #endif
 }
 
-uint8_t frame_buffer[DISP_WIDTH * DISP_HEIGHT] = { 0 };
+uint8_t frame_buffer[DISP_WIDTH * DISP_HEIGHT / 2] = { 0 }; // 4-bit color
 
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
@@ -756,6 +756,7 @@ int main() {
     keyboard_send(0xFF);
 #endif
     f_mount(&fs, "SD", 1);
+    f_unlink("/emu80.log");
     int argc = 0;
     palInit(argc, 0);
     CmdLine cmdLine(argc, 0); // ???

@@ -20,18 +20,32 @@
 
 #include "Memory.h"
 #include "Pal.h"
+#include "psram_spi.h"
 
 using namespace std;
 
 // Ram implementation
 
-/*Ram::Ram()
+static size_t sram_used = 0;
+
+SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
-    m_buf = nullptr;
-    m_extBuf = nullptr;
-}*/
+    m_supportsTags = true;
+/// TODO:    memset(m_buf, 0, memSize);
+    sram_used += m_size;
+}
 
+SRam::~SRam() {
+    sram_used -= m_size; /// TODO: ensure order
+}
 
+void SRam::writeByte(int addr, uint8_t value) {
+    write8psram(addr, value);
+}
+
+uint8_t SRam::readByte(int addr) {
+    return read8psram(addr);
+}
 
 Ram::Ram(unsigned memSize)
 {
@@ -42,8 +56,6 @@ Ram::Ram(unsigned memSize)
     m_size = memSize;
 }
 
-
-
 Ram::Ram(uint8_t* buf, unsigned memSize)
 {
     m_supportsTags = true;
@@ -51,21 +63,6 @@ Ram::Ram(uint8_t* buf, unsigned memSize)
     m_buf = buf;
     m_size = memSize;
 }
-
-
-
-/*Ram::Ram(unsigned memSize, string fileName)
-{
-    m_buf = new uint8_t [memSize];
-    m_size = memSize;
-    palReadFromFile(fileName, 0, memSize, m_buf);
-    //if (palReadFromFile(fileName, 0, memSize, _buf) != memSize) {
-    //    delete[] _buf;
-    //    _buf = nullptr;
-    //}
-}*/
-
-
 
 Ram::~Ram()
 {
@@ -100,32 +97,38 @@ uint8_t Ram::readByte(int addr)
 
 
 // Rom implementation
-
+/**
 Rom::Rom()
 {
     m_buf = nullptr;
     m_size = 0;
 }
-
-
+*/
+#include "pico/vector_loader.rom.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
+    /// TODO: selector
+    m_buf = vector_loader_rom;
+    m_size = sizeof(vector_loader_rom);
+    /*
     m_buf = new uint8_t [memSize];
     memset(m_buf, 0xFF, memSize);
     m_size = memSize;
-    if (palReadFromFile(fileName, 0, memSize, m_buf) == 0/*!= memSize*/) {
+    if (palReadFromFile(fileName, 0, memSize, m_buf) == 0/*!= memSize* /) {
         delete[] m_buf;
         m_buf = nullptr;
     }
+    */
 }
 
 
 
 Rom::~Rom()
 {
-    if (!m_buf)
-        delete[] m_buf;
+    /// TODO:
+///    if (!m_buf)
+///        delete[] m_buf;
 }
 
 

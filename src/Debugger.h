@@ -108,7 +108,7 @@ struct BreakpointInfo {
 class DebugWindow : private EmuWindow
 {
     public:
-        virtual DebugWindow* asDebugWindow() { return this; }
+        virtual DebugWindow* asDebugWindow() override { return this; }
         DebugWindow(Platform* platform);
         ~DebugWindow();
 

@@ -92,6 +92,7 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     PlatformInfo pi;
     bool newWnd;
     if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
+        emuLog << "PlatformName: '" << pi.configFileName << "' " << pi.objName << "\n";
         Platform* platform = new Platform(pi.configFileName, pi.objName);
         m_platformList.push_back(platform);
         emuLog << "getConfig()->updateConfig()\n";

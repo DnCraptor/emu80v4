@@ -56,7 +56,7 @@ enum WindowStyle {
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
-        virtual EmuWindow* asEmuWindow() { return this; }
+        virtual EmuWindow* asEmuWindow() override { return this; }
         EmuWindow();
         virtual ~EmuWindow();
 

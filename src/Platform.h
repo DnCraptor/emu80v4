@@ -43,7 +43,7 @@ class KbdTapper;
 class Platform : public ParentObject
 {
     public:
-        virtual Platform* asPlatform() { return this; }
+        virtual Platform* asPlatform() override { return this; }
         Platform(std::string configFileName, std::string name = "");
         virtual ~Platform();
         void addChild(EmuObject* child) override;

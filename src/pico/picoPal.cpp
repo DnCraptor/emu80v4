@@ -139,15 +139,8 @@ void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)
 #include "../EmuCalls.h"
 
 void palExecute() {
-    /// TODO:
     while(1) {
         emuEmulationCycle();
-
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-
     }
     __unreachable();
 }

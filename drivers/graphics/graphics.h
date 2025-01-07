@@ -2,8 +2,8 @@
 extern "C" {
 #endif
 
-#define DISP_WIDTH 320
-#define DISP_HEIGHT 240
+#define DISP_WIDTH 512
+#define DISP_HEIGHT 256
 
 #include "stdbool.h"
 #include "stdio.h"

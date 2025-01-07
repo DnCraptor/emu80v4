@@ -19,7 +19,7 @@
 #ifndef CPU_H
 #define CPU_H
 
-//#include <vector>
+#include <map>
 #include <list>
 
 #include "EmuObjects.h"
@@ -35,7 +35,7 @@ class Cpu : public ActiveDevice
 {
     public:
         virtual Cpu8080Compatible* asCpu8080Compatible() { return nullptr; }
-        virtual Cpu* asCpu() { return this; }
+        virtual Cpu* asCpu() override { return this; }
         enum CpuType {
             CPU_8080,
             CPU_Z80
@@ -96,7 +96,7 @@ class CpuZ80;
 class Cpu8080Compatible : public Cpu
 {
     public:
-        virtual Cpu8080Compatible* asCpu8080Compatible() { return this; }
+        virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
         virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
 
@@ -140,7 +140,7 @@ class Cpu8080Compatible : public Cpu
         int io_input(int port);
         void io_output(int port, int value);
 
-        std::list<CpuHook*>* m_hookArray[65536];
+        std::map<uint16_t, std::list<CpuHook*>*> m_hooksMap;
 };
 
 #endif // CPU_H

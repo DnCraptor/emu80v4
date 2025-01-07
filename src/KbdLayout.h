@@ -188,7 +188,7 @@ class KbdLayoutHelper;
 class KbdLayout : public EmuObject
 {
     public:
-        virtual KbdLayout* asKbdLayout() { return this; }
+        virtual KbdLayout* asKbdLayout() override { return this; }
         enum KbdLayoutMode {
             KLM_QWERTY,
             KLM_JCUKEN,

@@ -26,7 +26,7 @@ const int c_speedUpFactor = 8;
 class KbdTapper : public ActiveDevice
 {
     public:
-        virtual KbdTapper* asKbdTapper() { return this; }
+        virtual KbdTapper* asKbdTapper() override { return this; }
         KbdTapper();
         void operate() override;
         void reset() override;

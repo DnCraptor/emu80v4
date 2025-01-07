@@ -104,7 +104,7 @@ class VectorRenderer : public CrtRenderer, public IActive
             158, 175, 180, 198, 195, 212, 217, 234, 179, 196, 201, 218, 215, 233, 238, 255*/
         };
 
-        uint32_t* m_frameBuf;
+        uint32_t* m_frameBuf = nullptr;
         const uint8_t* m_screenMemory;
 
         bool m_showBorder = false;

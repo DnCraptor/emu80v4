@@ -490,12 +490,16 @@ bool ConfigReader::processConfigFile(ParentObject* parent)
         processed = true;
         // emuLog << t << " " << o << " " << p;
         if (t != "" && o != "" && p == "") {
+            logPrefix();
+            emuLog << "Object " << t << " " << o << " parsing" << "\n";
             if (g_emulation->findObject(m_prefix + o)) {
                 logPrefix();
                 emuLog << "Object " << o << " already exists!" << "\n";
             } else if (EmuObject* obj = createObject(t, m_prefix + o, v)) {
                 obj->setPlatform(parent->asPlatform());
                 parent->addChild(obj);
+                logPrefix();
+                emuLog << "Object " << t << " " << o << " added" << "\n";
             } else {
                 logPrefix();
                 emuLog << "Can't create object " << t << " " << o << "\n";
@@ -503,6 +507,8 @@ bool ConfigReader::processConfigFile(ParentObject* parent)
             }
         }
         else if (t == "" && o != "" && p != "") {
+            logPrefix();
+            emuLog << "Set property " << o << "." << p <<  " parsing\n";
             EmuObject* obj = nullptr;
             if (m_prefix != "" && o == "platform") // подставляем вместо "platform" конкретное имя текущей платформы
                 o = m_prefix.substr(0, m_prefix.size() - 1); // убираем "."
@@ -517,10 +523,14 @@ bool ConfigReader::processConfigFile(ParentObject* parent)
             } else if (!obj->setProperty(p, v)) {
                 logPrefix();
                 emuLog << "Set property " << o << "." << p <<  " failed\n";
+            } else {
+                logPrefix();
+                emuLog << "Set property " << o << "." << p <<  " passed\n";
             }
         }
         v.clearList();
         res = getNextLine(t,o,p,&v);
     }
+    emuLog << "processed: " << processed << "\n";
     return processed;
 }

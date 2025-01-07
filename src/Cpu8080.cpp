@@ -1721,18 +1721,10 @@ Cpu8080::Cpu8080() {
     //reset();
 }
 
-
-/*void Cpu8080::exec(int nCmds)
-{
-    for (int i = 0; i < nCmds; i++)
-        i8080_execute(RD_BYTE(PC++));
-}*/
-
-
 void Cpu8080::operate() {
     if (!m_hooksDisabled) {
         bool retFlag = false;
-        list<CpuHook*>* hookList = m_hookArray[PC];
+        list<CpuHook*>* hookList = m_hooksMap[PC];
         if (hookList) {
             for (auto it = hookList->begin(); it != hookList->end(); it++)
                 retFlag = retFlag || (*it)->hookProc();

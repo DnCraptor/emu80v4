@@ -28,38 +28,27 @@ EmuValue::EmuValue()
     m_sValue = "";
 }
 
+#include <cstring>
+
 EmuValue::EmuValue(const string& str)
 {
     m_sValue = str;
-
     m_isInt = true;
-    /// TODO:
-///    try {
-        if (m_sValue.substr(0,2) == "0x") {
-            string sValueHex = m_sValue.substr(2, m_sValue.size());
-            istringstream iss(sValueHex);
-            iss >> hex >> m_nValue;
-            if (m_nValue) return;
-        } else {
-            istringstream iss(m_sValue);
-            iss >> m_nValue;
-            if (m_nValue) return;
-        }
-///    }
-///    catch(...) {
-///        m_isInt = false;
-///    }
-
-    m_isFloat = true;
-///    try {
+    if (m_sValue.substr(0,2) == "0x") {
+        string sValueHex = m_sValue.substr(2, m_sValue.size());
+        istringstream iss(sValueHex);
+        iss >> hex >> m_nValue;
+        return;
+    }
+    if (strstr(m_sValue.c_str(), ".") != nullptr) {
+        m_isFloat = true;
         istringstream iss(m_sValue);
         iss >> m_fValue;
-        if (m_nValue) return;
-///    } catch (...) {
-        m_isFloat = false;
-//    }
+        return;
+    }
+    istringstream iss(m_sValue);
+    iss >> m_nValue;
 }
-
 
 EmuValue::EmuValue(int64_t n)
 {

@@ -163,7 +163,6 @@ std::string Cpu::getPropertyStringValue(const std::string& propertyName)
     return "";
 }
 
-
 /*std::string Cpu::getDebugInfo()
 {
     stringstream ss;
@@ -171,10 +170,8 @@ std::string Cpu::getPropertyStringValue(const std::string& propertyName)
     return ss.str();
 }*/
 
-
 Cpu8080Compatible::Cpu8080Compatible()
 {
-    memset(m_hookArray, 0, 65536 * sizeof(CpuHook*));
 }
 
 
@@ -182,9 +179,9 @@ void Cpu8080Compatible::addHook(CpuHook* hook)
 {
     Cpu::addHook(hook);
     uint16_t addr = hook->getHookAddr();
-    if (!m_hookArray[addr])
-        m_hookArray[addr] = new list<CpuHook*>;
-    m_hookArray[addr]->push_back(hook);
+    if (!m_hooksMap[addr])
+        m_hooksMap[addr] = new list<CpuHook*>;
+    m_hooksMap[addr]->push_back(hook);
 }
 
 
@@ -192,12 +189,12 @@ void Cpu8080Compatible::removeHook(CpuHook* hook)
 {
     Cpu::removeHook(hook);
     uint16_t addr = hook->getHookAddr();
-    list<CpuHook*>* hookList = m_hookArray[addr];
+    list<CpuHook*>* hookList = m_hooksMap[addr];
     if (hookList) {
         hookList->remove(hook);
         if (hookList->empty()) {
             delete hookList;
-            m_hookArray[addr] = nullptr;
+            m_hooksMap.erase(addr);
         }
     }
 }

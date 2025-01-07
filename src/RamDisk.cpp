@@ -56,8 +56,8 @@ bool RamDisk::setProperty(const std::string& propertyName, const EmuValuesList& 
         return true;
 
     if (propertyName == "page" && values[0].isInt()) {
-            attachPage(values[0].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[1].asString())));
-            return true;
+        attachPage(values[0].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[1].asString())));
+        return true;
     } else if (propertyName == "filter") {
         m_filter = values[0].asString();
         return true;
@@ -136,7 +136,7 @@ void RamDisk::saveToFile()
         unsigned pageSize = m_defPageSize;
 
         if (m_pages[i]) {
-            Ram* ram = m_pages[i]->asRam();
+            SRam* ram = m_pages[i]->asSRam();
             if (ram)
                pageSize = ram->getSize();
         }
@@ -181,7 +181,7 @@ void RamDisk::loadFromFile()
         unsigned pageSize = m_defPageSize;
 
         if (m_pages[i]) {
-            Ram* ram = m_pages[i]->asRam();
+            SRam* ram = m_pages[i]->asSRam();
             if (ram)
                 pageSize = ram->getSize();
         }
@@ -197,7 +197,7 @@ void RamDisk::loadFromFile()
             unsigned pageSize = m_defPageSize;
 
             if (m_pages[i]) {
-                Ram* ram = m_pages[i]->asRam();
+                SRam* ram = m_pages[i]->asSRam();
                 if (ram)
                     pageSize = ram->getSize();
             }
