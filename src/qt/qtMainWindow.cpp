@@ -81,6 +81,9 @@ MainWindow::~MainWindow()
 void MainWindow::setPalWindow(PalWindow* palWindow)
 {
     if (!palWindow) {
+        if (m_windowType == EWT_EMULATION)
+            savePosition();
+
         m_windowType = EWT_UNDEFINED;
         m_platformName = "";
         m_platformGroupName = "";
@@ -168,6 +171,21 @@ void MainWindow::setPalWindow(PalWindow* palWindow)
         m_settingsDialog->initConfig();
         updateConfig(); // немного избыточно
 
+        {
+            bool resizable = m_clientWidth == 0 && m_clientHeight == 0;
+            if (resizable) {
+                QSettings settings;
+                settings.beginGroup("window");
+                if (settings.contains("width") && settings.contains("height")) {
+                    m_clientWidth = settings.value("width").toInt();
+                    m_clientHeight = settings.value("height").toInt();
+                    adjustClientSize();
+                    m_clientWidth = m_clientHeight = 0;
+                    adjustClientSize(); //resizable
+                }
+            }
+        }
+
         if (m_settingsDialog->getOptionValue("showHelp") == "yes") {
             std::string helpFile = palMakeFullFileName(emuGetPropertyValue(m_palWindow->getPlatformObjectName(), "helpFile"));
             HelpDialog* hd = HelpDialog::execute(QString::fromUtf8(helpFile.c_str()), true);
@@ -194,6 +212,26 @@ void MainWindow::setClientSize(int width, int height)
     if (width != 0 && width < 120) width = 120;
     if (height != 0 && height < 75) height = 75;
 
+    if (m_windowType == EWT_EMULATION) {
+        QSettings settings;
+        settings.beginGroup("system");
+        bool preserveSize = settings.value("preserveSize") == "yes";
+
+        if (width == 0 && height == 0) {
+            if (preserveSize) {
+                settings.endGroup();
+                settings.beginGroup("window");
+                if (settings.contains("width") && settings.contains("height")) {
+                    m_clientWidth = settings.value("width").toInt();
+                    m_clientHeight = settings.value("height").toInt();
+                    adjustClientSize();
+                }
+            }
+        } else
+            if (!preserveSize)
+            savePosition();
+    }
+
     m_clientWidth = width;
     m_clientHeight = height;
 
@@ -207,6 +245,7 @@ void MainWindow::adjustClientSize()
 
     if (resizable || m_fullscreenMode) {
         m_paintWidget->setFixedSize(m_paintWidget->width(), m_paintWidget->height());
+        layout()->setSizeConstraint(QLayout::SetFixedSize);
         if (!m_fullscreenMode)
             adjustSize();
         m_paintWidget->setFixedSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
@@ -246,6 +285,17 @@ void MainWindow::showWindow()
                 int left = settings.value("left").toInt();
                 int top = settings.value("top").toInt();
                 move(left, top);
+                bool resizable = m_clientWidth == 0 && m_clientHeight == 0;
+                if (resizable && settings.contains("width") && settings.contains("height")) {
+                    int width = settings.value("width").toInt();
+                    int height = settings.value("height").toInt();
+                    m_paintWidget->setFixedSize(width, height);
+                    layout()->setSizeConstraint(QLayout::SetFixedSize);
+                    adjustSize();
+                    m_paintWidget->setFixedSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
+                    layout()->setSizeConstraint(QLayout::SetNoConstraint);
+                    setFixedSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
+                }
             } else {
                 QRect screenRec = QGuiApplication::primaryScreen()->availableGeometry();
                 QRect frameRec = frameGeometry();
@@ -299,8 +349,7 @@ void MainWindow::MainWindow::hideWindow()
     hide();
 }
 
-
- void MainWindow::setFullScreen(bool fullscreen)
+void MainWindow::setFullScreen(bool fullscreen)
 {
     bool visible = !(m_fullwindowAction->isChecked() || fullscreen);
 
@@ -311,11 +360,28 @@ void MainWindow::MainWindow::hideWindow()
     if (m_toolBar)
         m_toolBar->setVisible(visible);
     if (fullscreen) {
+        m_savedWindowPos = pos();
+        if (m_savedWindowPos.x() < 0)
+            m_savedWindowPos.rx() = 0;
+        if (m_savedWindowPos.y() < 0)
+            m_savedWindowPos.ry() = 0;
+        m_savedWindowSize = size();
         layout()->setSizeConstraint(QLayout::SetNoConstraint);
         setFixedSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
         showFullScreen();
-    } else
+    } else {
         showNormal();
+#ifdef Q_OS_UNIX
+        // workaround for X Window
+        // wait for window to show
+        for (int i = 0 ; i < 20 ; i++)
+            qApp->processEvents();
+        if (pos() != m_savedWindowPos)
+            move(m_savedWindowPos);
+        if (size() != m_savedWindowSize)
+            resize(m_savedWindowSize);
+#endif
+    }
     m_fullscreenMode = fullscreen;
     adjustClientSize();
 }
@@ -378,11 +444,8 @@ void MainWindow::fillPlatformListMenu()
 
             QAction* action = new QAction(platformName, m_platformListMenu);
             action->setData(platform);
-            if (!platform.contains(".") || platform == "orion.2") { // todo: replace with "orion"
-                if (platform != "orion.2")
-                    menu->setTitle(platformName);
-                else
-                    menu->setTitle(u8"Орион-128");
+            if (!platform.contains(".")) {
+                menu->setTitle(platformName);
                 QFont font = action->font();
                 font.setBold(true);
                 action->setFont(font);
@@ -397,10 +460,18 @@ void MainWindow::fillPlatformListMenu()
 
     for (int i = 0; i < LAST_PLATFORMS_QTY; i++) {
         QString value = settings.value(QString::number(i)).toString();
+
+        // workaround for changed Orion platform name
+        if (value == "orion.2")
+            value = "orion";
+
         if (!value.isEmpty()) {
             m_lastPlatformsActions[i]->setVisible(true);
             m_lastPlatformsActions[i]->setData(value);
-            m_lastPlatformsActions[i]->setText(m_platformNames[value]);
+            QString platformName = m_platformNames[value];
+            if (platformName.isEmpty())
+                platformName = value;
+            m_lastPlatformsActions[i]->setText(platformName);
         }
     }
     settings.endGroup();
@@ -883,6 +954,67 @@ void MainWindow::createActions()
     connect(forwardButton, SIGNAL(pressed()), this, SLOT(onForwardOn()));
     connect(forwardButton, SIGNAL(released()), this, SLOT(onForwardOff()));
 
+    // Full throttle
+    QToolButton* fullThrottleButton = new QToolButton(this);
+    fullThrottleButton->setFocusPolicy(Qt::NoFocus);
+    fullThrottleButton->setIcon(QIcon(":/icons/full_throttle.png"));
+    fullThrottleButton->setToolTip(tr("Full Throttle (Alt-End)"));
+    m_toolBar->addWidget(fullThrottleButton);
+    connect(fullThrottleButton, SIGNAL(pressed()), this, SLOT(onFullThrottleOn()));
+    connect(fullThrottleButton, SIGNAL(released()), this, SLOT(onForwardOff()));
+
+    platformMenu->addSeparator();
+
+    // Speed up
+    m_speedUpAction = new QAction(tr("Speed up"), this);
+    m_speedUpAction->setToolTip(tr("Speed up (Alt-PgUp)"));
+    QList<QKeySequence> speedUpKeysList;
+    ADD_HOTKEY(speedUpKeysList, Qt::Key_PageUp);
+    m_speedUpAction->setShortcuts(speedUpKeysList);
+    addAction(m_speedUpAction);
+    platformMenu->addAction(m_speedUpAction);
+    connect(m_speedUpAction, SIGNAL(triggered()), this, SLOT(onSpeedUp()));
+
+    // Speed down
+    m_speedDownAction = new QAction(tr("Speed down"), this);
+    m_speedDownAction->setToolTip(tr("Speed down (Alt-PgDn)"));
+    QList<QKeySequence> speedDownKeysList;
+    ADD_HOTKEY(speedDownKeysList, Qt::Key_PageDown);
+    m_speedDownAction->setShortcuts(speedDownKeysList);
+    addAction(m_speedDownAction);
+    platformMenu->addAction(m_speedDownAction);
+    connect(m_speedDownAction, SIGNAL(triggered()), this, SLOT(onSpeedDown()));
+
+    // Speed up (fine)
+    m_speedUpFineAction = new QAction(tr("Speed up (fine)"), this);
+    m_speedUpFineAction->setToolTip(tr("Fine speed up (Alt-Up)"));
+    QList<QKeySequence> speedUpFineKeysList;
+    ADD_HOTKEY(speedUpFineKeysList, Qt::Key_Up);
+    m_speedUpFineAction->setShortcuts(speedUpFineKeysList);
+    addAction(m_speedUpFineAction);
+    platformMenu->addAction(m_speedUpFineAction);
+    connect(m_speedUpFineAction, SIGNAL(triggered()), this, SLOT(onSpeedUpFine()));
+
+    // Speed down (fine)
+    m_speedDownFineAction = new QAction(tr("Speed down (fine)"), this);
+    m_speedDownFineAction->setToolTip(tr("Fine speed down (Alt-Down)"));
+    QList<QKeySequence> speedDownFineKeysList;
+    ADD_HOTKEY(speedDownFineKeysList, Qt::Key_Down);
+    m_speedDownFineAction->setShortcuts(speedDownFineKeysList);
+    addAction(m_speedDownFineAction);
+    platformMenu->addAction(m_speedDownFineAction);
+    connect(m_speedDownFineAction, SIGNAL(triggered()), this, SLOT(onSpeedDownFine()));
+
+    // Speed normal
+    m_speedNormalAction = new QAction(tr("Normal speed"), this);
+    m_speedNormalAction->setToolTip(tr("Normal speed (Alt-Home)"));
+    QList<QKeySequence> speedNormalKeysList;
+    ADD_HOTKEY(speedNormalKeysList, Qt::Key_Home);
+    m_speedNormalAction->setShortcuts(speedNormalKeysList);
+    addAction(m_speedNormalAction);
+    platformMenu->addAction(m_speedNormalAction);
+    connect(m_speedNormalAction, SIGNAL(triggered()), this, SLOT(onSpeedNormal()));
+
     platformMenu->addSeparator();
 
     // Debug
@@ -1079,6 +1211,13 @@ void MainWindow::createActions()
     m_colorModeMenu->addAction(m_colorColor2Action);
     colorModeGroup->addAction(m_colorColor2Action);
     connect(m_colorColor2Action, SIGNAL(triggered()), this, SLOT(onColorSelect()));
+
+    m_colorGrayscaleAction = new QAction(QIcon(":/icons/gray.png"), tr("Grayscale"), this);
+    m_colorGrayscaleAction->setCheckable(true);
+    m_colorGrayscaleAction->setData("grayscale");
+    m_colorModeMenu->addAction(m_colorGrayscaleAction);
+    colorModeGroup->addAction(m_colorGrayscaleAction);
+    connect(m_colorGrayscaleAction, SIGNAL(triggered()), this, SLOT(onColorSelect()));
 
     m_colorModeMenu->setIcon(QIcon(":/icons/colormode.png"));
     m_colorMenuAction = m_colorModeMenu->menuAction();
@@ -1297,6 +1436,29 @@ void MainWindow::createActions()
 
     m_presetMenu->addSeparator();
 
+    // 1.5x preset
+    m_preset15xAction = new QAction(m_15xIcon, tr("Fixed: 1.5x"), this);
+    m_preset15xAction->setCheckable(true);
+    QList<QKeySequence> preset15xKeysList;
+    ADD_HOTKEY(preset15xKeysList, Qt::Key_8);
+    presetGroup->addAction(m_preset15xAction);
+    m_preset15xAction->setShortcuts(preset15xKeysList);
+    addAction(m_preset15xAction);
+    m_presetMenu->addAction(m_preset15xAction);
+    connect(m_preset15xAction, SIGNAL(triggered()), this, SLOT(on15x()));
+
+    // 2.5x preset
+    m_preset25xAction = new QAction(m_25xIcon, tr("Fixed: 2.5x"), this);
+    m_preset25xAction->setCheckable(true);
+    QList<QKeySequence> preset25xKeysList;
+    ADD_HOTKEY(preset25xKeysList, Qt::Key_9);
+    presetGroup->addAction(m_preset25xAction);
+    m_preset25xAction->setShortcuts(preset25xKeysList);
+    addAction(m_preset25xAction);
+    m_presetMenu->addAction(m_preset25xAction);
+    connect(m_preset25xAction, SIGNAL(triggered()), this, SLOT(on25x()));
+    m_presetMenu->addSeparator();
+
     // Fit preset
     m_presetFitAction = new QAction(m_resizableIcon, tr("Resizable"), this);
     //m_presetFitAction->setToolTip(tr("Preset: Fit (Alt-0)"));
@@ -1422,11 +1584,33 @@ void MainWindow::tuneMenu()
         m_colorColor1Action->setText(tr("Color (Tolkalin)"));
         m_colorColor1Action->setData("color1");
 
+        m_colorGrayscaleAction->setVisible(false);
+        m_colorGrayscaleAction->setEnabled(false);
+
         m_colorColor2Action->setVisible(true);
         m_colorColor2Action->setEnabled(true);
         m_colorColor2Action->setText(tr("Color (Akimenko)"));
         m_colorColor2Action->setData("color2");
-    } else if (platformGroup == "apogey" || platformGroup == "orion" || platformGroup == "lvov" ||
+    } else if (platformGroup == "apogey") {
+        hasColor = true;
+
+        m_colorMonoOrigAction->setVisible(false);
+        m_colorMonoOrigAction->setEnabled(false);
+
+        m_colorMonoAction->setVisible(true);
+        m_colorMonoAction->setEnabled(true);
+
+        m_colorColor1Action->setVisible(true);
+        m_colorColor1Action->setEnabled(true);
+        m_colorColor1Action->setText(tr("Color"));
+        m_colorColor1Action->setData("color");
+
+        m_colorGrayscaleAction->setVisible(true);
+        m_colorGrayscaleAction->setEnabled(true);
+
+        m_colorColor2Action->setVisible(false);
+        m_colorColor2Action->setEnabled(false);
+    } else if (platformGroup == "bashkiria" || platformGroup == "orion" || platformGroup == "lvov" ||
                platformGroup == "vector" || platformGroup == "pk8000" || platformGroup == "korvet") {
         hasColor = true;
 
@@ -1440,6 +1624,9 @@ void MainWindow::tuneMenu()
         m_colorColor1Action->setEnabled(true);
         m_colorColor1Action->setText(tr("Color"));
         m_colorColor1Action->setData("color");
+
+        m_colorGrayscaleAction->setVisible(false);
+        m_colorGrayscaleAction->setEnabled(false);
 
         m_colorColor2Action->setVisible(false);
         m_colorColor2Action->setEnabled(false);
@@ -1458,11 +1645,14 @@ void MainWindow::tuneMenu()
         m_colorColor1Action->setText(tr("Color"));
         m_colorColor1Action->setData("color");
 
+        m_colorGrayscaleAction->setVisible(false);
+        m_colorGrayscaleAction->setEnabled(false);
+
         m_colorColor2Action->setVisible(true);
         m_colorColor2Action->setEnabled(true);
         m_colorColor2Action->setText(tr("Color Module"));
         m_colorColor2Action->setData("colorModule");
-    } else if (platformGroup == "spec") {
+    } else if (platformGroup == "spec" || platformGroup == "sp580") {
         hasColor = true;
 
         m_colorMonoOrigAction->setVisible(false);
@@ -1475,6 +1665,9 @@ void MainWindow::tuneMenu()
         m_colorColor1Action->setEnabled(true);
         m_colorColor1Action->setText(tr("4-color"));
         m_colorColor1Action->setData("4color");
+
+        m_colorGrayscaleAction->setVisible(false);
+        m_colorGrayscaleAction->setEnabled(false);
 
         m_colorColor2Action->setVisible(true);
         m_colorColor2Action->setEnabled(true);
@@ -1494,8 +1687,8 @@ void MainWindow::tuneMenu()
 
     m_printerCaptureAction->setVisible(platformGroup == "korvet" || platformGroup == "vector" || platformGroup == "pk8000" || platformGroup == "lvov");
 
-    m_loadMenuAction->setVisible(platformGroup != "korvet");
-    m_loadRunMenuAction->setVisible(platformGroup != "korvet");
+    m_loadMenuAction->setVisible(platformGroup != "korvet" && platformGroup != "bashkiria");
+    m_loadRunMenuAction->setVisible(platformGroup != "korvet" && platformGroup != "bashkiria");
 
     m_pasteAction->setVisible(!emuGetPropertyValue(m_palWindow->getPlatformObjectName() + ".kbdTapper", "pasting").empty());
 
@@ -1562,9 +1755,14 @@ void MainWindow::onFpsTimer()
         m_frameCount = 0;
     }
 
-    unsigned speed = emuGetEmulationSpeedFactor();
-    m_speedLabel->setVisible(speed != 1);
-    m_speedLabel->setText(speed ? QString::number(speed) + "x" : tr("Paused"));
+    double speed = emuGetEmulationSpeedFactor();
+    m_speedLabel->setVisible(speed != 1.);
+    if (speed == 0.)
+        m_speedLabel->setText(tr("Paused"));
+    else if (speed < 0.)
+        m_speedLabel->setText(tr("Max"));
+    else
+        m_speedLabel->setText(QString::number(speed, 'f', 2) + "x");
 
 
     std::string platform = m_palWindow->getPlatformObjectName() + ".";
@@ -1908,10 +2106,10 @@ PalKeyCode MainWindow::translateKey(QKeyEvent* evt)
 void MainWindow::keyPressEvent(QKeyEvent* evt)
 {
     if (evt->key() == Qt::Key_End && !(evt->modifiers() & Qt::KeypadModifier)) {
-        emuSysReq(m_palWindow, SR_SPEEDUP);
+        emuSysReq(m_palWindow, evt->modifiers() & Qt::AltModifier ? SR_FULLTHROTTLE : SR_SPEEDUP);
         return;
     }
-    unsigned unicodeKey = evt->text()[0].unicode(); // "at()" does not operate with empty strings
+    unsigned unicodeKey = evt->text().isEmpty() ? 0 : evt->text()[0].unicode(); // "at()" does not operate with empty strings
     emuKeyboard(m_palWindow, translateKey(evt), true, unicodeKey);
 }
 
@@ -1922,7 +2120,7 @@ void MainWindow::keyReleaseEvent(QKeyEvent* evt)
         emuSysReq(m_palWindow, SR_SPEEDNORMAL);
         return;
     }
-    unsigned unicodeKey = evt->text()[0].unicode();
+    unsigned unicodeKey = evt->text().isEmpty() ? 0 : evt->text()[0].unicode(); // "at()" does not operate with empty strings
     emuKeyboard(m_palWindow, translateKey(evt), false, unicodeKey);
 }
 
@@ -1977,6 +2175,36 @@ void MainWindow::onPause()
 }
 
 
+void MainWindow::onSpeedUp()
+{
+    emuSysReq(m_palWindow, SR_SPEEDSTEPUP);
+}
+
+
+void MainWindow::onSpeedDown()
+{
+    emuSysReq(m_palWindow, SR_SPEEDSTEPDOWN);
+}
+
+
+void MainWindow::onSpeedUpFine()
+{
+    emuSysReq(m_palWindow, SR_SPEEDSTEPUPFINE);
+}
+
+
+void MainWindow::onSpeedDownFine()
+{
+    emuSysReq(m_palWindow, SR_SPEEDSTEPDOWNFINE);
+}
+
+
+void MainWindow::onSpeedNormal()
+{
+    emuSysReq(m_palWindow, SR_SPEEDSTEPNORMAL);
+}
+
+
 void MainWindow::onMute()
 {
     emuSysReq(m_palWindow, SR_MUTE);
@@ -1992,6 +2220,12 @@ void MainWindow::onForwardOn()
 void MainWindow::onForwardOff()
 {
     emuSysReq(m_palWindow, SR_SPEEDNORMAL);
+}
+
+
+void MainWindow::onFullThrottleOn()
+{
+    emuSysReq(m_palWindow, SR_FULLTHROTTLE);
 }
 
 
@@ -2094,6 +2328,20 @@ void MainWindow::on5x()
 }
 
 
+void MainWindow::on15x()
+{
+    emuSysReq(m_palWindow, SR_1_5X);
+    saveConfig();
+}
+
+
+void MainWindow::on25x()
+{
+    emuSysReq(m_palWindow, SR_2_5X);
+    saveConfig();
+}
+
+
 /*void MainWindow::on2x3()
 {
     emuSysReq(m_palWindow, SR_2X3);
@@ -2158,6 +2406,7 @@ void MainWindow::onLoad()
         m_loaderLastFiles.addToLastFiles(lastFileName);
         updateLastFiles();
     }
+    updateActions();
 }
 
 
@@ -2167,6 +2416,7 @@ void MainWindow::onLoadLastFiles()
     emuSetPropertyValue(m_palWindow->getPlatformObjectName() + ".loader", "loadFile", action->text().toStdString());
     m_loaderLastFiles.addToLastFiles(action->text());
     updateLastFiles();
+    updateActions();
 }
 
 
@@ -2178,6 +2428,7 @@ void MainWindow::onLoadRun()
         m_loaderLastFiles.addToLastFiles(lastFileName);
         updateLastFiles();
     }
+    updateActions();
 }
 
 
@@ -2187,6 +2438,7 @@ void MainWindow::onLoadRunLastFiles()
     emuSetPropertyValue(m_palWindow->getPlatformObjectName() + ".loader", "loadRunFile", action->text().toStdString());
     m_loaderLastFiles.addToLastFiles(action->text());
     updateLastFiles();
+    updateActions();
 }
 
 
@@ -2789,6 +3041,16 @@ void MainWindow::saveConfig()
 }
 
 
+void MainWindow::updateMountToolTip(QAction* action, const QString& fileName)
+{
+    QString toolTip = action->toolTip();
+    toolTip = toolTip.left(toolTip.indexOf('\n'));
+    if (!fileName.isEmpty())
+        toolTip = toolTip + "\n" + tr("Mounted:") + " " + fileName;
+    action->setToolTip(toolTip);
+}
+
+
 void MainWindow::updateActions()
 {
     std::string platform = "";
@@ -2808,6 +3070,7 @@ void MainWindow::updateActions()
     m_diskAAction->setVisible(!val.empty()); // turn off shortcut
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "diskA", "fileName").c_str());
+        updateMountToolTip(m_diskAMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_diskAUnmountAction->setEnabled(false);
             m_diskAUnmountAction->setText(tr("Unmount"));
@@ -2829,6 +3092,7 @@ void MainWindow::updateActions()
     m_diskBAction->setVisible(!val.empty()); // turn off shortcut
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "diskB", "fileName").c_str());
+        updateMountToolTip(m_diskBMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_diskBUnmountAction->setEnabled(false);
             m_diskBUnmountAction->setText(tr("Unmount"));
@@ -2850,6 +3114,7 @@ void MainWindow::updateActions()
     m_diskCAction->setVisible(!val.empty()); // turn off shortcut
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "diskC", "fileName").c_str());
+        updateMountToolTip(m_diskCMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_diskCUnmountAction->setEnabled(false);
             m_diskCUnmountAction->setText(tr("Unmount"));
@@ -2871,6 +3136,7 @@ void MainWindow::updateActions()
     m_diskDAction->setVisible(!val.empty()); // turn off shortcut
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "diskD", "fileName").c_str());
+        updateMountToolTip(m_diskDMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_diskDUnmountAction->setEnabled(false);
             m_diskDUnmountAction->setText(tr("Unmount"));
@@ -2893,6 +3159,7 @@ void MainWindow::updateActions()
     m_menuHddSeparator->setVisible(!val.empty());
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "hdd", "fileName").c_str());
+        updateMountToolTip(m_hddMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_hddUnmountAction->setEnabled(false);
             m_hddUnmountAction->setText(tr("Unmount"));
@@ -2923,6 +3190,7 @@ void MainWindow::updateActions()
     //m_menuEddSeparator->setVisible(!val.empty());
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "ramDisk", "fileName").c_str());
+        updateMountToolTip(m_eddMenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_eddUnassignAction->setEnabled(false);
             m_eddSaveAction->setEnabled(false);
@@ -2967,6 +3235,7 @@ void MainWindow::updateActions()
     //m_menuEddSeparator->setVisible(!val.empty());
     if (!val.empty()) {
         QString qFileName = QString::fromUtf8(emuGetPropertyValue(platform + "ramDisk2", "fileName").c_str());
+        updateMountToolTip(m_edd2MenuAction, qFileName);
         if (qFileName.isEmpty()) {
             m_edd2UnassignAction->setEnabled(false);
             m_edd2SaveAction->setEnabled(false);
@@ -3032,6 +3301,12 @@ void MainWindow::updateActions()
         } else if (frameScale == "5x") {
             m_preset5xAction->setChecked(true);
             m_presetAction->setIcon(m_5xIcon);
+        } else if (frameScale == "1.5x") {
+            m_preset15xAction->setChecked(true);
+            m_presetAction->setIcon(m_15xIcon);
+        } else if (frameScale == "2.5x") {
+            m_preset25xAction->setChecked(true);
+            m_presetAction->setIcon(m_25xIcon);
         } else
             noPreset = true;
     } else
@@ -3164,6 +3439,13 @@ void MainWindow::savePosition()
     settings.beginGroup("window");
     settings.setValue("left", x());
     settings.setValue("top", y());
+
+    bool resizable = m_clientWidth == 0 && m_clientHeight == 0;
+    if (resizable || m_settingsDialog->getOptionValue("preserveSize") != "yes") {
+        settings.setValue("width", m_paintWidget->width());
+        settings.setValue("height", m_paintWidget->height());
+    }
+
     settings.endGroup();
 }
 

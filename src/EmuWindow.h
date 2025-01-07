@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -56,6 +56,7 @@ enum WindowStyle {
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
+        virtual EmuWindow* asEmuWindow() { return this; }
         EmuWindow();
         virtual ~EmuWindow();
 
@@ -80,7 +81,7 @@ class EmuWindow : public EmuObject, public PalWindow
         void setDefaultWindowSize(int width, int height);
         void setCaption(std::string caption);
         void setFrameScale(FrameScale fs);
-        void setFixedYScale(int yScale);
+        void setFixedYScale(double yScale);
         void setFieldsMixing(FieldsMixing fm);
         void setWindowStyle(WindowStyle ws);
         void setSmoothing(SmoothingType smoothing);
@@ -124,7 +125,7 @@ class EmuWindow : public EmuObject, public PalWindow
         FieldsMixing m_fieldsMixing = FM_NONE;
         WindowStyle m_windowStyle = WS_AUTOSIZE;
         SmoothingType m_smoothing = ST_SHARP;
-        int m_scaleY;
+        double m_scaleY;
 
         int m_curImgWidth = 0;
         int m_curImgHeight = 0;
@@ -143,9 +144,9 @@ class EmuWindow : public EmuObject, public PalWindow
         unsigned m_curFrameNo = unsigned(-1);
         bool m_frameDrawn = false;
 
-        double calcBestAspectRatio(double srcAspectRatio, int scaleY);
-        bool m_overlay = false;
-        double m_primaryFrameAspectRatio = 1;
+        double calcBestAspectRatio(double srcAspectRatio, double scaleY);
+        /*bool m_overlay = false;
+        double m_primaryFrameAspectRatio = 1;*/
 };
 
 #endif // EMUWINDOW_H

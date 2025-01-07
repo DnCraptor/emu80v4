@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2018-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2018-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -111,6 +111,8 @@ bool Pk8000Core::setProperty(const string& propertyName, const EmuValuesList& va
 
 Pk8000Renderer::Pk8000Renderer()
 {
+    m_defaultDebugRendering = false;
+
     for (int i = 0; i < 4; i++) {
         m_screenMemoryBanks[i] = nullptr;
         m_screenMemoryRamBanks[i] = nullptr;
@@ -157,6 +159,7 @@ void Pk8000Renderer::operate()
         if (++m_curLine == 308) {
             m_curLine = 0;
             renderFrame();
+            g_emulation->screenUpdateReq();
         }
 
         // New scanline
@@ -862,8 +865,9 @@ bool Pk8000FileLoader::loadFile(const std::string& fileName, bool run)
             m_as->writeByte(0x4000, 0);
             m_as->writeByte(0x4001, 0);
             m_platform->reset();
-            Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
-            if (cpu) {
+            Cpu* bc = m_platform->getCpu();
+            if (bc)
+            if (Cpu8080Compatible* cpu = bc->asCpu8080Compatible()) {
                 cpu->disableHooks();
                 g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
                 cpu->enableHooks();
@@ -914,7 +918,10 @@ bool Pk8000FileLoader::loadFile(const std::string& fileName, bool run)
             return false;
         }
 
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu* bc = m_platform->getCpu();
+        Cpu8080Compatible* cpu = nullptr;
+        if (bc)
+            cpu = bc->asCpu8080Compatible();
 
         m_as->writeByte(0x4000, 0);
         m_as->writeByte(0x4001, 0);

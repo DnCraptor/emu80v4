@@ -71,9 +71,9 @@ enum SysReq
     SR_3X,
     SR_4X,
     SR_5X,
-    SR_2X3,
-    SR_3X5,
-    SR_4X6,
+    SR_1_5X,
+    SR_2_5X,
+    SR_4X6, // unused for now
     SR_FIT,
     SR_MAXIMIZE,
     SR_CROPTOVISIBLE,
@@ -102,7 +102,13 @@ enum SysReq
     SR_PRNCAPTURE,
     SR_PRNCAPTURE_ON,
     SR_PRNCAPTURE_OFF,
-    SR_PASTE
+    SR_PASTE,
+    SR_SPEEDSTEPUP,
+    SR_SPEEDSTEPDOWN,
+    SR_SPEEDSTEPUPFINE,
+    SR_SPEEDSTEPDOWNFINE,
+    SR_SPEEDSTEPNORMAL,
+    SR_FULLTHROTTLE
 };
 
 

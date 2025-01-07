@@ -135,9 +135,11 @@ void RamDisk::saveToFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
-        if (ram)
-            pageSize = ram->getSize();
+        if (m_pages[i]) {
+            Ram* ram = m_pages[i]->asRam();
+            if (ram)
+               pageSize = ram->getSize();
+        }
 
         for (unsigned pos = 0; pos < pageSize; pos++)
             file.write8(m_pages[i]->readByte(pos));
@@ -178,10 +180,11 @@ void RamDisk::loadFromFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
-        if (ram)
-            pageSize = ram->getSize();
-
+        if (m_pages[i]) {
+            Ram* ram = m_pages[i]->asRam();
+            if (ram)
+                pageSize = ram->getSize();
+        }
         if (pageSize < m_defPageSize)
             pageSize = m_defPageSize;
 
@@ -193,9 +196,11 @@ void RamDisk::loadFromFile()
         for (unsigned i = 0; i < m_nPages; i++) {
             unsigned pageSize = m_defPageSize;
 
-            Ram* ram = dynamic_cast<Ram*>(m_pages[i]);
-            if (ram)
-                pageSize = ram->getSize();
+            if (m_pages[i]) {
+                Ram* ram = m_pages[i]->asRam();
+                if (ram)
+                    pageSize = ram->getSize();
+            }
 
             for (unsigned pos = 0; pos < pageSize; pos++)
                 m_pages[i]->writeByte(pos, file.read8());

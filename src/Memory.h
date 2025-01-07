@@ -27,6 +27,7 @@
 class Ram : public AddressableDevice
 {
     public:
+        virtual Ram* asRam() { return this; }
         //Ram();
         Ram(unsigned memSize);
         Ram(uint8_t* buf, unsigned memSize);

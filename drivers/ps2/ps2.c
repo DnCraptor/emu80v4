@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "string.h"
 #include "hardware/irq.h"
-
+#include "graphics.h"
 
 volatile int bitcount;
 static uint8_t ps2bufsize = 0;
@@ -11,6 +11,10 @@ uint8_t ps2buffer[KBD_BUFFER_SIZE];
 uint8_t kbloop = 0;
 
 uint8_t led_status = 0b000;
+
+uint8_t get_leds_stat() {
+    return led_status;
+}
 
 #define PS2_ERR_NONE    0
 
@@ -180,7 +184,7 @@ int16_t keyboard_send(uint8_t data) {
     int_on();
     return ps2_recv_response();
 ERROR:
-    printf("KBD error %02X \r\n", ps2_error);
+///    goutf("\nKBD error %02X\n", ps2_error);
     ps2_error = 0;
     idle();
     int_on();
@@ -189,10 +193,14 @@ ERROR:
 
 void keyboard_toggle_led(uint8_t led) {
     led_status ^= led;
+    /// TODO: hangs on some kbds
+///    keyboard_send(0xED);
+///    busy_wait_ms(50);
+///    keyboard_send(led_status);
+}
 
-    keyboard_send(0xED);
-    busy_wait_ms(50);
-    keyboard_send(led_status);
+uint8_t get_led_status() {
+    return led_status;
 }
 
 uint8_t ps2_to_xt_1(uint32_t val) {
@@ -203,10 +211,10 @@ uint8_t ps2_to_xt_1(uint32_t val) {
     return 0;
 }
 
-uint8_t ps2_to_xt_2(uint32_t val) {
+uint16_t ps2_to_xt_2(uint32_t val) {
     uint8_t i;
     for (i = 0; i < 16; i++) {
-        if (ps2_group2[i].xt_make == val) return ps2_group2[i].make;
+        if (ps2_group2[i].xt_make == val) return 0xE000 | ps2_group2[i].make;
     }
     return 0;
 }

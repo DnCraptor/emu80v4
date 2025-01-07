@@ -29,11 +29,13 @@ class CpuHook;
 class CpuWaits;
 class CpuCycleWaits;
 class PlatformCore;
-
+class Cpu8080Compatible;
 
 class Cpu : public ActiveDevice
 {
     public:
+        virtual Cpu8080Compatible* asCpu8080Compatible() { return nullptr; }
+        virtual Cpu* asCpu() { return this; }
         enum CpuType {
             CPU_8080,
             CPU_Z80
@@ -89,10 +91,13 @@ class Cpu : public ActiveDevice
         CpuCycleWaits* m_cycleWaits = nullptr;
 };
 
+class CpuZ80;
 
 class Cpu8080Compatible : public Cpu
 {
     public:
+        virtual Cpu8080Compatible* asCpu8080Compatible() { return this; }
+        virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
 
         void addHook(CpuHook* hook) override;

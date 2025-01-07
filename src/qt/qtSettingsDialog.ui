@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>540</width>
+    <width>530</width>
     <height>527</height>
    </rect>
   </property>
@@ -97,22 +97,40 @@
           <string>Video</string>
          </property>
          <layout class="QGridLayout" name="gridLayout">
-          <item row="0" column="0">
-           <widget class="QLabel" name="frLabel">
-            <property name="text">
-             <string>Maximum FPS* :</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item row="2" column="0" colspan="3">
+           <layout class="QHBoxLayout" name="horizontalLayout_14">
             <item>
-             <widget class="QSpinBox" name="fpsSpinBox">
+             <widget class="QCheckBox" name="limitFpsCheckBox">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Limit FPS to:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="fpsSpinBox">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>50</width>
+                <height>0</height>
+               </size>
               </property>
               <property name="specialValueText">
                <string/>
@@ -132,42 +150,55 @@
              </widget>
             </item>
             <item>
-             <widget class="QCheckBox" name="maxFpsCheckBox">
+             <spacer name="horizontalSpacer_14">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item row="6" column="0" colspan="3">
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <item>
+             <widget class="QCheckBox" name="vsyncCheckBox">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="toolTip">
+               <string/>
+              </property>
               <property name="text">
-               <string>No fps limit</string>
+               <string notr="true">V-Sync*</string>
               </property>
              </widget>
             </item>
+            <item>
+             <spacer name="horizontalSpacer_15">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
            </layout>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label">
-            <property name="text">
-             <string notr="true">V-Sync*:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QCheckBox" name="vsyncCheckBox">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>Enable</string>
-            </property>
-           </widget>
           </item>
          </layout>
         </widget>
@@ -260,6 +291,12 @@
             </item>
             <item>
              <widget class="QSpinBox" name="volumeSpinBox">
+              <property name="minimumSize">
+               <size>
+                <width>40</width>
+                <height>0</height>
+               </size>
+              </property>
               <property name="minimum">
                <number>1</number>
               </property>
@@ -351,7 +388,7 @@
        <item>
         <widget class="QLabel" name="label_5">
          <property name="text">
-          <string>* Options marked by &quot;*&quot; takes effect after emulator restart</string>
+          <string>* Options marked by &quot;*&quot; take effect after emulator restart</string>
          </property>
         </widget>
        </item>
@@ -360,10 +397,13 @@
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Expanding</enum>
+         </property>
          <property name="sizeHint" stdset="0">
           <size>
            <width>286</width>
-           <height>83</height>
+           <height>60</height>
           </size>
          </property>
         </spacer>
@@ -415,7 +455,17 @@
            </item>
            <item>
             <property name="text">
+             <string notr="true">1.5x</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
              <string notr="true">2x</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string notr="true">2.5x</string>
             </property>
            </item>
            <item>
@@ -463,17 +513,60 @@
            </widget>
           </item>
           <item>
-           <widget class="QRadioButton" name="userSizeRadioButton">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>User-changeable</string>
-            </property>
-           </widget>
+           <layout class="QHBoxLayout" name="horizontalLayout_9">
+            <item>
+             <widget class="QRadioButton" name="userSizeRadioButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>User-changeable</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_11">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Fixed</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>15</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="preserveSizeCheckBox">
+              <property name="text">
+               <string>Preserve user-changeable size</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_12">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -613,7 +706,17 @@
               </item>
               <item>
                <property name="text">
+                <string notr="true">1.5x</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
                 <string notr="true">2x</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string notr="true">2.5x</string>
                </property>
               </item>
               <item>
@@ -825,6 +928,9 @@
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Expanding</enum>
+         </property>
          <property name="sizeHint" stdset="0">
           <size>
            <width>20</width>
@@ -972,6 +1078,16 @@
            </widget>
           </item>
          </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="resetKeysCheckBox">
+         <property name="text">
+          <string>Reset pressed keys on leaving debugger</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item>
@@ -1344,6 +1460,13 @@
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="upAsNumpad5CheckBox">
+         <property name="text">
+          <string>Up key acts as Numpad 5 (Menu)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer_7">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -1370,6 +1493,13 @@
         <widget class="QCheckBox" name="fastResetCheckBox">
          <property name="text">
           <string>Fast reset</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="ayStereoCheckBox">
+         <property name="text">
+          <string>AY stereo mode (ABC)</string>
          </property>
         </widget>
        </item>
@@ -1457,9 +1587,11 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>configTabWidget</tabstop>
+  <tabstop>langComboBox</tabstop>
   <tabstop>showHelpCheckBox</tabstop>
+  <tabstop>limitFpsCheckBox</tabstop>
   <tabstop>fpsSpinBox</tabstop>
-  <tabstop>maxFpsCheckBox</tabstop>
   <tabstop>vsyncCheckBox</tabstop>
   <tabstop>srComboBox</tabstop>
   <tabstop>muteCheckBox</tabstop>
@@ -1472,6 +1604,7 @@
   <tabstop>presetComboBox</tabstop>
   <tabstop>autoSizeRadioButton</tabstop>
   <tabstop>userSizeRadioButton</tabstop>
+  <tabstop>preserveSizeCheckBox</tabstop>
   <tabstop>fixedSizeRadioButton</tabstop>
   <tabstop>widthLineEdit</tabstop>
   <tabstop>heightLineEdit</tabstop>
@@ -1479,12 +1612,20 @@
   <tabstop>fixedScaleComboBox</tabstop>
   <tabstop>stretchRadioButton</tabstop>
   <tabstop>stretchPropIntRadioButton</tabstop>
+  <tabstop>aspectCheckBox</tabstop>
+  <tabstop>wideComboBox</tabstop>
+  <tabstop>customFormatLineEdit</tabstop>
+  <tabstop>adaptArRadioButton</tabstop>
+  <tabstop>sqrArRadioButton</tabstop>
   <tabstop>debugHltCheckBox</tabstop>
   <tabstop>debugIllegalCheckBox</tabstop>
   <tabstop>upper8080checkBox</tabstop>
   <tabstop>upperZ80checkBox</tabstop>
   <tabstop>forceZ80checkBox</tabstop>
   <tabstop>swapF5F9checkBox</tabstop>
+  <tabstop>rkCodePageRadioButton</tabstop>
+  <tabstop>koi8CodePageRadioButton</tabstop>
+  <tabstop>resetKeysCheckBox</tabstop>
   <tabstop>bwRadioButton</tabstop>
   <tabstop>color1RadioButton</tabstop>
   <tabstop>color2RadioButton</tabstop>
@@ -1513,10 +1654,9 @@
   <tabstop>kbdEurekaRadioButton</tabstop>
   <tabstop>numpadJoystickCheckBox</tabstop>
   <tabstop>downAsNumpad5CheckBox</tabstop>
-  <tabstop>langComboBox</tabstop>
-  <tabstop>rkCodePageRadioButton</tabstop>
-  <tabstop>koi8CodePageRadioButton</tabstop>
+  <tabstop>upAsNumpad5CheckBox</tabstop>
   <tabstop>fastResetCheckBox</tabstop>
+  <tabstop>ayStereoCheckBox</tabstop>
  </tabstops>
  <resources/>
  <connections>
@@ -1527,8 +1667,8 @@
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>493</x>
-     <y>552</y>
+     <x>438</x>
+     <y>516</y>
     </hint>
     <hint type="destinationlabel">
      <x>543</x>

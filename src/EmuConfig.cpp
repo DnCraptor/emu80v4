@@ -115,9 +115,11 @@ void EmuConfigTab::addControl(int column, EmuConfigControl* control)
     ci.control = control;
     m_configControlVector.push_back(ci);
 
-    EmuConfigRadioSelector* ecrs = dynamic_cast<EmuConfigRadioSelector*>(control);
-    if (ecrs)
-        palAddRadioSelectorToTab(m_tabId, column, ecrs->getCaption(), ecrs->getObjName(), ecrs->getPropName(), ecrs->getItems(), ecrs->getNItems());
+    if (control) {
+        EmuConfigRadioSelector* ecrs = control->asEmuConfigRadioSelector();
+        if (ecrs)
+            palAddRadioSelectorToTab(m_tabId, column, ecrs->getCaption(), ecrs->getObjName(), ecrs->getPropName(), ecrs->getItems(), ecrs->getNItems());
+    }
 }
 
 
@@ -135,7 +137,11 @@ bool EmuConfigTab::setProperty(const string& propertyName, const EmuValuesList& 
         int col = values[0].asInt();
         if (col < 1 || col > 3)
             return false;
-        EmuConfigControl* control = dynamic_cast<EmuConfigControl*>(g_emulation->findObject(values[1].asString()));
+        EmuObject* obj = g_emulation->findObject(values[1].asString());
+        if (!obj) {
+            return false;
+        }
+        EmuConfigControl* control = obj->asEmuConfigControl();
         if (!control)
             return false;
         addControl(col, control);

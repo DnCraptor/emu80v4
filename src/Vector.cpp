@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,9 +17,11 @@
  */
 
 #include <sstream>
-#include <string.h>
+#include <algorithm>
+#include <cstring>
 
 #include "Globals.h"
+#include "EmuCalls.h"
 #include "Vector.h"
 #include "EmuWindow.h"
 #include "Cpu.h"
@@ -247,7 +249,7 @@ void VectorCore::inte(bool isActive)
         Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
         if (cpu->getInte()) {
             cpu->intRst(7);
-            cpu->hrq(cpu->getKDiv() * 16); // add waits to RST
+            cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
         }
     }
 }
@@ -255,12 +257,15 @@ void VectorCore::inte(bool isActive)
 
 void VectorCore::vrtc(bool isActive)
 {
+    if (isActive)
+        g_emulation->screenUpdateReq();
+
     if (isActive && m_intsEnabled) {
         m_intReq = true;
         Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
         if (cpu->getInte()) {
             cpu->intRst(7);
-            cpu->hrq(cpu->getKDiv() * 16); // add waits to RST
+            cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
         }
     }
 }
@@ -337,7 +342,7 @@ void VectorRenderer::operate()
 
 void VectorRenderer::advanceTo(uint64_t clock)
 {
-    const int bias = 145;
+    const int bias = 189;
 
     if (clock <= m_curFrameClock)
         return;
@@ -607,6 +612,25 @@ string VectorRenderer::getDebugInfo()
 
 bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
 {
+    auto periodPos = fileName.find_last_of(".");
+    string ext = periodPos != string::npos ? fileName.substr(periodPos) : fileName;
+    transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".fdd") {
+        if (!emuSetPropertyValue(m_platform->getName() + ".diskA", "fileName", fileName))
+            return false;
+
+        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        static_cast<VectorAddrSpace*>(m_platform->getCpu()->getAddrSpace())->enableRom();
+        static_cast<Cpu8080Compatible*>(m_platform->getCpu())->setPC(0);
+        g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
+
+        if (run) {
+            m_platform->reset();
+            static_cast<VectorAddrSpace*>(m_platform->getCpu()->getAddrSpace())->disableRom();
+        }
+        return true;
+    }
+
     int fileSize;
     uint8_t* buf = palReadFile(fileName, fileSize, false);
     if (!buf)

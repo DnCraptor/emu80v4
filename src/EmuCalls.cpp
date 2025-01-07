@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2018-2022
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2018-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -104,7 +104,20 @@ void emuSelectPlatform(const std::string& platform)
 }
 
 // Returns current emulation speed factor
-unsigned emuGetEmulationSpeedFactor()
+double emuGetEmulationSpeedFactor()
 {
-    return g_emulation->getPausedState() ? 0 : g_emulation->getSpeedUpFactor();
+    if (g_emulation->getPausedState())
+        return 0.;
+
+    if (g_emulation->getFullThrottleState())
+        return -1;
+
+    return g_emulation->getSpeedUpFactor();
+}
+
+
+// Turns off fullscreen mode (for wasm version)
+void emuExitFullscreenMode(PalWindow* wnd)
+{
+    static_cast<EmuWindow*>(wnd)->setFullScreen(false);
 }

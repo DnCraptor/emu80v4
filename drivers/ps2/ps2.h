@@ -1,12 +1,16 @@
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "strings.h"
+#include "stdio.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 #ifndef KBD_CLOCK_PIN
-#define KBD_CLOCK_PIN    (0)
+#define KBD_CLOCK_PIN   (0)
 #endif
 #ifndef KBD_DATA_PIN
 #define KBD_DATA_PIN    (1)
@@ -27,6 +31,7 @@ void keyboard_init(void);
 
 void Deinit_kbd(void);
 
+uint8_t get_led_status();
 void keyboard_toggle_led(uint8_t led);
 
 int16_t keyboard_send(uint8_t data);
@@ -147,3 +152,9 @@ static struct ps2_struct_group ps2_group2[] =
     { ' ', 0x4D, 0, 0x74 }, // r arrow
     { ' ', 0x1C, 0, 0x5A }, // kp en
 };
+
+uint8_t get_leds_stat();
+
+#ifdef __cplusplus
+}
+#endif

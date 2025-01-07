@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ using namespace std;
 
 void OrionCore::draw()
 {
-    m_crtRenderer->renderFrame();
+    //m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }
@@ -167,6 +167,14 @@ void OrionRenderer::renderFrame()
                     }
                 }
         }
+}
+
+
+void OrionRenderer::operate()
+{
+    renderFrame();
+    m_curClock += g_emulation->getFrequency() * 640 * 312 / 10000000; // 10 MHz pixelclock, 312 scanlines, 640 pixels wide
+    g_emulation->screenUpdateReq(); // transfer to Core
 }
 
 
@@ -360,7 +368,7 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
     if (!buf)
         return false;
 
-    if (fileSize < 32) {
+    if (fileSize < 16) {
         delete[] buf;
         return false;
     }
@@ -368,14 +376,17 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
     uint8_t* ptr = buf;
 
     int bruOffset = 0;
-
     int len = (ptr[0x0b] << 8) | ptr[0x0a];;
 
-    if (len == 0) {
-        // RKO
+    if (!memcmp(ptr, "Orion-128 file\r\n", 16)) {
+        // ORI file
+        bruOffset = 16;
+    } else if (len == 0)
+        // RKO file
         bruOffset = 0x4d;
 
-        if (fileSize < bruOffset + 32) {
+    if (bruOffset != 0) {
+        if (fileSize < bruOffset + 16) {
             delete[] buf;
             return false;
         }
@@ -385,7 +396,7 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
         len = (ptr[0x0b] << 8) | ptr[0x0a];
     }
 
-    len = (((len - 1) | 0xf ) + 17);
+    //len = (((len - 1) | 0xf ) + 17);
 
     if (fileSize < len) {
         delete[] buf;
@@ -393,13 +404,8 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
     }
 
     if (run) {
-        if (len < 16) {
-            delete[] buf;
-            return false;
-        }
         uint16_t begAddr = (ptr[0x09] << 8) | ptr[0x08];
         uint16_t nBytes = (ptr[0x0b] << 8) | ptr[0x0a];
-        len -= 16;
         ptr += 16;
         if (len < nBytes) {
             delete[] buf;
@@ -408,8 +414,9 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
 
 
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
-        if (cpu) {
+        Cpu* bc = m_platform->getCpu();
+        if (bc)
+        if (Cpu8080Compatible* cpu = bc->asCpu8080Compatible()) {
             g_emulation->exec((uint64_t)cpu->getKDiv() * 3000000, true);
             cpu->setPC(begAddr);
         }

@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,10 +37,9 @@
 
 using namespace std;
 
-
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
-    m_frameRate = 100;
+    m_fpsLimit = 0;
     m_vsync = true;
     m_sampleRate = 48000;
 
@@ -62,30 +61,49 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_prnWriter->setName("prnWriter");
 
     ConfigReader cr("emu80.conf");
-    cr.processConfigFile(this);
+
+    if (!cr.processConfigFile(this)) {
+        palMsgBox("Error: emu80.conf not found!", true);
+        palRequestForQuit();
+        return;
+    }
+
     getConfig()->updateConfig();
 
-    if (m_platformList.empty()) {
-        string defPlatformName = palGetDefaultPlatform();
-        if (defPlatformName != "")
-            runPlatform(defPlatformName);
-        else {
-            PlatformInfo pi;
-            bool newWnd;
-            if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
-                Platform* platform = new Platform(pi.configFileName, pi.objName);
-                m_platformList.push_back(platform);
-                getConfig()->updateConfig();
-                //m_activePlatform = platform;
-            } else
-                palRequestForQuit();
+    if (!m_platformList.empty()) {
+        emuLog << "!m_platformList.empty()\n";
+        checkPlatforms();
+        return;
+    }
+
+    // Platforms was not created via command line or run file (SDL version)
+    string defPlatformName = palGetDefaultPlatform();
+    emuLog << "defPlatformName: " << defPlatformName << "\n";
+    if (!defPlatformName.empty()) {
+        // default platform was stored in Qt options file
+        emuLog << "runPlatform: " << defPlatformName << "\n";
+        if (runPlatform(defPlatformName)) {
+            emuLog << "runPlatform: " << defPlatformName << " DONE\n";
+            return;
         }
     }
 
-    checkPlatforms();
+    // first run (SDL or Qt), no default platform
+    PlatformInfo pi;
+    bool newWnd;
+    if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
+        Platform* platform = new Platform(pi.configFileName, pi.objName);
+        m_platformList.push_back(platform);
+        emuLog << "getConfig()->updateConfig()\n";
+        getConfig()->updateConfig();
+        //m_activePlatform = platform;
+    } else {
+        emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
+        palRequestForQuit();
+        return;
+    }
+    emuLog << "Emulation::Emulation DONE\n";
 }
-
-#include <typeinfo>
 
 Emulation::~Emulation()
 {
@@ -116,7 +134,7 @@ void Emulation::checkPlatforms()
             it++;
 
     if (m_platformList.empty()) {
-        palMsgBox("Error: platform configuration files not found!\nFiles emu80.conf etc. should be placed in the excecutable file directory.", true);
+        palMsgBox("Error: Can't create platform, exiting.\nRun again to select another one.", true);
         palRequestForQuit();
     }
 }
@@ -162,8 +180,7 @@ void Emulation::processCmdLine()
         }
 
         if (platformName != "") {
-            runPlatform(platformName);
-            m_platformCreatedFromCmdLine = true;
+            m_platformCreatedFromCmdLine = runPlatform(platformName);
         }
     }
 
@@ -223,15 +240,20 @@ void Emulation::processCmdLine()
 }
 
 
-void Emulation::runPlatform(const string& platformName)
+bool Emulation::runPlatform(const string& platformName)
 {
     const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
     for (unsigned i = 0; i < platformVector->size(); i++)
         if ((*platformVector)[i].objName == platformName) {
             Platform* newPlatform = new Platform((*platformVector)[i].configFileName, platformName);
+            if (!newPlatform->getWindow()) {
+                delete newPlatform;
+                return false;
+            }
             addChild(newPlatform);
-            break;
+            return true;
         }
+    return false;
 }
 
 
@@ -242,6 +264,7 @@ void Emulation::newPlatform(const string& platformName)
         delete (*it);
     m_platformList.clear();
     runPlatform(platformName);
+    checkPlatforms();
 }
 
 void Emulation::registerActiveDevice(IActive* device)
@@ -285,8 +308,9 @@ EmuObject* Emulation::findObject(string name)
 
 void Emulation::addChild(EmuObject* child)
 {
-    if (Platform* pl = dynamic_cast<Platform*>(child))
-        m_platformList.push_back(pl);
+    if (child)
+        if (Platform* pl = child->asPlatform())
+            m_platformList.push_back(pl);
 };
 
 
@@ -297,7 +321,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
 
-    while (m_curClock < toTime && (!m_debugReqCpu || forced)) {
+    while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
         uint64_t time = -1;
         IActive* curDev = nullptr;
 
@@ -318,6 +342,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
         m_curClock = time;
         curDev->operate();
     }
+
     m_clockOffset = m_curClock - toTime;
 
     if (!forced && m_debugReqCpu) {
@@ -333,11 +358,20 @@ void Emulation::exec(uint64_t ticks, bool forced)
 }
 
 
+void Emulation::screenUpdateReq()
+{
+    m_scrUpdateReq = true;
+}
+
+
 void Emulation::draw()
 {
     for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
         (*it)->draw();
     }
+
+    m_scrUpdateReq = false;
+    m_timeAfterLastDraw = 0;
 }
 
 
@@ -451,10 +485,40 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             m_isPaused = !m_isPaused;
             break;
         case SR_SPEEDUP:
-            setSpeedUpFactor(4);
+            setTemporarySpeedUpFactorDbl(m_speedUpFactor <= 4 ? m_speedUpFactor * 4 : 16);
+            break;
+        case SR_FULLTHROTTLE:
+            m_fullThrottle = true;
+            setTemporarySpeedUpFactor(1);
             break;
         case SR_SPEEDNORMAL:
-            setSpeedUpFactor(1);
+            m_fullThrottle = false;
+            setTemporarySpeedUpFactor(0);
+            break;
+        case SR_SPEEDSTEPUP:
+            if (m_speedGrade < 44)
+                setSpeedByGrade(m_speedGrade += 4);
+            else
+                setSpeedByGrade(m_speedGrade = 48);
+            break;
+        case SR_SPEEDSTEPDOWN:
+            if (m_speedGrade > -44)
+                setSpeedByGrade(m_speedGrade -= 4);
+            else
+                setSpeedByGrade(m_speedGrade = -48);
+            break;
+            break;
+        case SR_SPEEDSTEPUPFINE:
+            if (m_speedGrade < 48)
+                setSpeedByGrade(++m_speedGrade);
+            break;
+        case SR_SPEEDSTEPDOWNFINE:
+            if (m_speedGrade > -48)
+                setSpeedByGrade(--m_speedGrade);
+            break;
+        case SR_SPEEDSTEPNORMAL:
+            m_speedGrade = 0;
+            setSpeedByGrade(0);
             break;
         case SR_LOADWAV:
             if (m_wavReader) {
@@ -488,38 +552,61 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 void Emulation::mainLoopCycle()
 {
     if (m_prevSysClock == 0) // first run
-        m_prevSysClock = palGetCounter() - palGetCounterFreq() / 60;
+        m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
 
-    draw();
-    if (m_frameRate > 0) {
-        int64_t delay = palGetCounterFreq() / m_frameRate - (palGetCounter() - m_prevSysClock);
-        if (delay > 0)
-            palDelay(delay);
+    if (m_scrUpdateReq) {
+        if (m_fpsLimit == 0 || m_timeAfterLastDraw > palGetCounterFreq() / m_fpsLimit) {
+            draw();
+        }
+    } else {
+        // min 30 fps when there are no requests for screen update from emulation core
+        if (m_timeAfterLastDraw > palGetCounterFreq() / 30) {
+            draw();
+        }
     }
 
     m_sysClock = palGetCounter();
     unsigned dt = m_sysClock - m_prevSysClock;
-    if (dt > palGetCounterFreq() / 10) // 0.1 s
-        dt = palGetCounterFreq() / 10;
-    uint64_t ticks = m_frequency * m_speedUpFactor * dt / palGetCounterFreq();
+    m_timeAfterLastDraw += dt;
+
+    // provide at least 20 fps when CPU power is not enougt to emulate at 100% speed
+    if (dt > palGetCounterFreq() / 20) // 1/20 s
+        dt = palGetCounterFreq() / 20;
+
+    uint64_t ticks = m_curFrequency * dt / palGetCounterFreq();
     m_prevSysClock = m_sysClock;
+
+    int64_t cntBeforeExec = palGetCounter();
     exec(ticks);
+    int64_t cntAfterExec = palGetCounter();
+
+    int nn = 1;
+    static int avgNn = 1;
+    if (m_fullThrottle) {
+        while (cntAfterExec - cntBeforeExec < (dt * 7 / 8)) {
+            nn++;
+            exec(ticks);
+            cntAfterExec = palGetCounter();
+        }
+        avgNn = (2 * avgNn + nn) / 3;
+        m_mixer->setFrequency(m_frequency * avgNn);
+    }
 }
 
 
 void Emulation::setFrequency(int64_t freq)
 {
     m_frequency = freq;
-    m_mixer->setFrequency(freq);
+    updateFrequency();
 }
 
 
 // установка частоты кадров, 0 - max
 void Emulation::setFrameRate(int frameRate)
 {
-    m_frameRate = frameRate;
+    m_fpsLimit = frameRate;
     // для изменения "на лету" добавить перебор всех окон и пересоздание рендерера при необходимости
-    palSetFrameRate(frameRate);
+    //palSetFrameRate(frameRate);
 }
 
 
@@ -535,7 +622,7 @@ void Emulation::setSampleRate(int sampleRate)
 {
     if (palSetSampleRate(sampleRate)) {
         m_sampleRate = sampleRate;
-        m_mixer->setFrequency(m_frequency);
+        m_mixer->setFrequency(m_curFrequency);
     }
 }
 
@@ -563,10 +650,47 @@ void Emulation::dropFile(EmuWindow* wnd, const string& fileName)
 }
 
 
-void Emulation::setSpeedUpFactor(unsigned speed)
+void Emulation::updateFrequency()
 {
-    m_speedUpFactor = speed;
-    m_mixer->setFrequency(m_frequency * m_speedUpFactor);
+    m_curFrequency = m_frequency * m_currentSpeedUpFactor;
+    m_mixer->setFrequency(m_curFrequency);
+}
+
+
+void Emulation::setTemporarySpeedUpFactor(unsigned speed)
+{
+    if (speed)
+        m_currentSpeedUpFactor = speed;
+    else  // speed = 0, cancel temporary speed up
+        m_currentSpeedUpFactor = m_speedUpFactor;
+
+    updateFrequency();
+}
+
+
+void Emulation::setTemporarySpeedUpFactorDbl(double speed)
+{
+    m_currentSpeedUpFactor = speed;
+    updateFrequency();
+}
+
+
+void Emulation::setSpeedByGrade(int speedGrade)
+{
+    const double powers[12] = {1.0, 1.0595, 1.1225, 1.1892, 1.2599, 1.3348, 1.4242, 1.4983, 1.5874, 1.6818, 1.7818, 1.8877};
+
+        if (speedGrade == 0) {
+        m_speedUpFactor = m_currentSpeedUpFactor = 1.0;
+        updateFrequency();
+        return;
+    }
+
+    bool slowDown = speedGrade < 0;
+    speedGrade = abs(speedGrade);
+    double k = (1 << (speedGrade / 12)) * powers[speedGrade % 12];
+
+    m_speedUpFactor = m_currentSpeedUpFactor = slowDown ? (1 / k) : k;
+    updateFrequency();
 }
 
 
@@ -633,6 +757,11 @@ bool Emulation::setProperty(const string& propertyName, const EmuValuesList& val
             m_debuggerOptions.swapF5F9 = values[0].asString() == "yes";
             return true;
         }
+    } else if (propertyName == "debugResetKeys") {
+        if (values[0].asString() == "yes" || values[0].asString() == "no") {
+            m_debuggerOptions.resetKeys = values[0].asString() == "yes";
+            return true;
+        }
     }
 
     return false;
@@ -659,6 +788,8 @@ string Emulation::getPropertyStringValue(const string& propertyName)
         res = m_debuggerOptions.forceZ80Mnemonics ? "yes" : "no";
     else if (propertyName == "debugSwapF5F9")
         res = m_debuggerOptions.swapF5F9 ? "yes" : "no";
+    else if (propertyName == "debugResetKeys")
+        res = m_debuggerOptions.resetKeys ? "yes" : "no";
     /* else if (propertyName == "frameRate") {
         stringstream stringStream;
         stringStream << m_frameRate;

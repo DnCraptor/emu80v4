@@ -29,6 +29,7 @@ class AddressableDevice;
 class RamDisk : public EmuObject
 {
     public:
+        virtual RamDisk* asRamDisk() { return this; }
         RamDisk(unsigned nPages, unsigned pageSize = 0);
         ~RamDisk();
 

@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,13 +33,14 @@
 #include "WavReader.h"
 #include "Cpu.h"
 #include "Pit8253.h"
+#include "TapeRedirector.h"
 
 using namespace std;
 
 
 void SpecCore::draw()
 {
-    m_crtRenderer->renderFrame();
+    //m_crtRenderer->renderFrame();
     m_window->drawFrame(m_crtRenderer->getPixelData());
     m_window->endDraw();
 }
@@ -138,6 +139,14 @@ void SpecRenderer::renderFrame()
             for (int pt = 0; pt < 8; pt++, bt <<= 1)
                 m_pixelData[(row + offsetY) * m_sizeX + col * 8 + pt + offsetX] = (bt & 0x80) ? fgColor : bgColor;
         }
+}
+
+
+void SpecRenderer::operate()
+{
+    renderFrame();
+    m_curClock += g_emulation->getFrequency() * 512 * 312 / 8000000; // 8 MHz pixelclock, 312 scanlines, 512 pixels wide
+    g_emulation->screenUpdateReq(); // transfer to Core
 }
 
 
@@ -513,10 +522,18 @@ void SpecKeyboard::processKey(EmuKey key, bool isPressed)
     int i, j;
     bool isFound = false;
 
+    using t_matrix = EmuKey[12][6];
+
     // Основная матрица
+    const t_matrix* keyMatrix = &m_keyMatrix;
+    if (m_kbdType == SKT_MX)
+        keyMatrix = &m_keyMatrixMx;
+    else if (m_kbdType == SKT_SP580)
+        keyMatrix = &m_keyMatrixSp580;
+
     for (i = 0; i < 6; i++) {
         for (j = 0; j < 12; j++) {
-            if ((m_kbdType == SKT_MX ? m_keyMatrixMx[j][i] : m_keyMatrix[j][i]) == key) {
+            if ((*keyMatrix)[j][i] == key) {
                 isFound = true;
                 break;
             }
@@ -605,6 +622,9 @@ bool SpecKeyboard::setProperty(const string& propertyName, const EmuValuesList& 
         } else if (values[0].asString() == "eureka") {
             m_kbdType = SKT_EUREKA;
             return true;
+        } else if (values[0].asString() == "sp580") {
+            m_kbdType = SKT_SP580;
+            return true;
         } else
             return false;
     }
@@ -676,19 +696,43 @@ EmuKey SpecKbdLayout::translateKey(PalKeyCode keyCode)
 }
 
 
-bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
+EmuKey SpecKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang)
+{
+    EmuKey key = translateCommonUnicodeKeys(unicodeKey, shift, lang);
+
+    SpecKeyboard* kbd = static_cast<SpecKeyboard*>(m_platform->getKeyboard());
+    if (kbd->getMatrixType() != SpecKeyboard::SKT_SP580)
+        return key;
+
+    if (key == EK_SEMICOLON || key == EK_AT)
+        shift = !shift;
+
+    return key;
+}
+
+
+    bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 {
     int fileSize;
     uint8_t* buf = palReadFile(fileName, fileSize, false);
     if (!buf)
         return false;
 
+    bool res = loadMemFile(buf, fileSize, fileName, run);
+
+    delete[] buf;
+
+    return res;
+}
+
+
+bool SpecFileLoader::loadMemFile(uint8_t* data, int fileSize, const std::string& fileName, bool run)
+{
     if (fileSize < 7) {
-        delete[] buf;
         return false;
     }
 
-    uint8_t* ptr = buf;
+    uint8_t* ptr = data;
 
     if ((*ptr) == 0xE6) {
         ptr++;
@@ -706,7 +750,6 @@ bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
         ++ptr;
         --fileSize;
         if (fileSize < 7) {
-            delete[] buf;
             return false;
         }
     }
@@ -720,7 +763,6 @@ bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (begAddr == 0xE6E6 || begAddr == 0xD3D3 || fileSize < progLen/* + 2*/) {
         // Basic or EDM File
-        delete[] buf;
         return false;
     }
 
@@ -732,10 +774,99 @@ bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu* bc = m_platform->getCpu();
+        Cpu8080Compatible* cpu = nullptr;
+        if (bc)
+            cpu = bc->asCpu8080Compatible();
         if (cpu) {
             g_emulation->exec(int64_t(cpu->getKDiv()) * 2000000, true);
             cpu->setPC(begAddr);
+        }
+    }
+
+    return true;
+}
+
+
+bool Sp580FileLoader::loadFile(const std::string& fileName, bool run)
+{
+    int fileSize;
+    uint8_t* buf = palReadFile(fileName, fileSize, false);
+    if (!buf)
+        return false;
+
+    MsxFileParser parser(buf, fileSize);
+
+    switch (parser.getFormat()) {
+    case MsxFileParser::Format::MF_UNKNOWN: {
+        bool res = SpecFileLoader::loadMemFile(buf, fileSize, fileName, run);
+        delete[] buf;
+        return res; }
+    case MsxFileParser::Format::MF_CAS:
+    case MsxFileParser::Format::MF_TSX: {
+        int pos, len;
+        if (!parser.getNextBlock(pos, len)) {
+            delete[] buf;
+            return false;
+        }
+        if (len < 10 || buf[pos] != 0) {
+            delete[] buf;
+            return false;
+        }
+
+        uint8_t* ptr = buf + pos;
+
+        uint16_t begAddr = (ptr[2] << 8) | ptr[1];
+        uint16_t endAddr = (ptr[4] << 8) | ptr[3];
+        uint16_t startAddr = (ptr[8] << 8) | ptr[7];
+
+        if (!parser.getNextBlock(pos, len)) {
+            delete[] buf;
+            return false;
+        }
+
+        if (len < endAddr - begAddr + 1) {
+            delete[] buf;
+            return false;
+        }
+
+        ptr = buf + pos;
+        for (uint16_t addr = begAddr; addr <= endAddr; addr++)
+            m_as->writeByte(addr, *ptr++);
+
+        pos = pos + len;//endAddr - begAddr + 1;
+
+        if (run) {
+            m_platform->reset();
+            Cpu* bc = m_platform->getCpu();
+            Cpu8080Compatible* cpu = nullptr;
+            if (bc)
+                cpu = bc->asCpu8080Compatible();
+            if (cpu) {
+                g_emulation->exec(int64_t(cpu->getKDiv()) * 2000000, true);
+
+                // Press CR
+                Keyboard* kbd = m_platform->getKeyboard();
+                g_emulation->exec((int64_t)cpu->getKDiv() * 50000, true);
+                kbd->processKey(EK_CR, true);
+                g_emulation->exec((int64_t)cpu->getKDiv() * 50000, true);
+                kbd->processKey(EK_CR, false);
+                g_emulation->exec((int64_t)cpu->getKDiv() * 1000000, true);
+
+                if (m_allowMultiblock && m_tapeRedirector && pos != fileSize) {
+                    m_tapeRedirector->assignFile(fileName, "r");
+                    m_tapeRedirector->openFile();
+                    m_tapeRedirector->assignFile("", "r");
+                    m_tapeRedirector->setFilePos(pos);
+                }
+
+                cpu->setSP(0x8FA7);
+                m_as->writeByte(0x8FA7, 0xC0);
+                m_as->writeByte(0x8FA8, 0xFB);
+                cpu->setPC(startAddr);
+            }
+        }
+
         }
     }
 
@@ -865,7 +996,6 @@ bool SpecMxFileLoader::loadFile(const std::string& fileName, bool run)
 
         uint8_t* ptr = monBuf;
         if (monBegAddr != 0) {
-            //Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
             m_pageMapper->setCurPage(1); // switch to RAM page
             //m_as->writeByte(0xFFFC, 0); // switch to RAM page
             for (uint16_t addr = monBegAddr; addr < monBegAddr + fileSize; addr++)
@@ -877,7 +1007,10 @@ bool SpecMxFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu* bc = m_platform->getCpu();
+        Cpu8080Compatible* cpu = nullptr;
+        if (bc)
+            cpu = bc->asCpu8080Compatible();
         if (!cpu) return false; // на всякий случай
         if (monBegAddr != 0) {
             m_pageMapper->setCurPage(1); // switch to RAM page

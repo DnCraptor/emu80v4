@@ -1,18 +1,47 @@
-#include "debug.h"
 #include "psram_spi.h"
 
 static psram_spi_inst_t psram_spi;
-bool PSRAM_AVAILABLE = false;
 
-void init_psram() {
-    psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
-    psram_write32(&psram_spi, 0x313373, 0xDEADBEEF);
-    PSRAM_AVAILABLE = 0xDEADBEEF == psram_read32(&psram_spi, 0x313373);
-    lprintf("PSRAM_AVAILABLE: %d", PSRAM_AVAILABLE);
+#define ITE_PSRAM (1ul << 20)
+#define MAX_PSRAM (512ul << 20)
+
+static uint32_t _psram_size() {
+#ifdef PSRAM    
+    int32_t res = 0;
+    for (res = ITE_PSRAM; res < MAX_PSRAM; res += ITE_PSRAM) {
+        psram_write32(&psram_spi, res, res);
+        if (res != psram_read32(&psram_spi, res)) {
+            res -= ITE_PSRAM;
+            return res;
+        }
+    }
+    return res - psram_read32(&psram_spi, ITE_PSRAM) + ITE_PSRAM;
+#else
+    return 0;
+#endif
+}
+
+
+uint32_t psram_size() {
+    static int32_t _res = -1;
+    int32_t res = 0;
+    if (_res != -1) {
+        return _res;
+    }
+    _res = _psram_size();
+    return _res;
+}
+
+uint32_t init_psram() {
+    psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, false);
+    if ( !_psram_size() ) {
+        psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
+    }
+    return psram_size();
 }
 
 void psram_cleanup() {
-    lprintf("PSRAM cleanup"); // TODO: block mode, ensure diapason
+    //logMsg("PSRAM cleanup"); // TODO: block mode, ensure diapason
     for (uint32_t addr32 = (1ul << 20); addr32 < (2ul << 20); addr32 += 4) {
         psram_write32(&psram_spi, addr32, 0);
     }
@@ -30,6 +59,18 @@ void write32psram(uint32_t addr32, uint32_t v) {
     psram_write32(&psram_spi, addr32, v);
 }
 
+void writepsram(uint32_t addr32, uint8_t* b, size_t sz) {
+    while (sz--) {
+        psram_write8(&psram_spi, addr32++, *b++);
+    }
+}
+
+void readpsram(uint8_t* b, uint32_t addr32, size_t sz) {
+    while (sz--) {
+        *b++ = psram_read8(&psram_spi, addr32++);
+    }
+}
+
 uint8_t read8psram(uint32_t addr32) {
     return psram_read8(&psram_spi, addr32);
 }
@@ -41,6 +82,8 @@ uint16_t read16psram(uint32_t addr32) {
 uint32_t read32psram(uint32_t addr32) {
     return psram_read32(&psram_spi, addr32);
 }
+
+#include <stdio.h>
 
 #if defined(PSRAM_ASYNC) && defined(PSRAM_ASYNC_SYNCHRONIZE)
 void __isr psram_dma_complete_handler() {
@@ -59,6 +102,59 @@ void __isr psram_dma_complete_handler() {
 #endif
 }
 #endif // defined(PSRAM_ASYNC) && defined(PSRAM_ASYNC_SYNCHRONIZE)
+
+static inline void pio_spi_psram_cs_init(PIO pio, uint sm, uint prog_offs, uint n_bits, float clkdiv, bool fudge, uint pin_cs, uint pin_mosi, uint pin_miso) {
+    pio_sm_config c;
+    if (fudge) {
+        c = spi_psram_fudge_program_get_default_config(prog_offs);
+    } else {
+        c = spi_psram_program_get_default_config(prog_offs);
+    }
+    sm_config_set_out_pins(&c, pin_mosi, 1);
+    sm_config_set_in_pins(&c, pin_miso);
+    sm_config_set_sideset_pins(&c, pin_cs);
+    sm_config_set_out_shift(&c, false, true, n_bits);
+    sm_config_set_in_shift(&c, false, true, n_bits);
+    sm_config_set_clkdiv(&c, clkdiv);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_cs, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_mosi, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_miso, 1, false);
+    pio_gpio_init(pio, pin_miso); // MISSING this initialisation of the incoming PIN!
+    pio_gpio_init(pio, pin_mosi);
+    pio_gpio_init(pio, pin_cs);
+    pio_gpio_init(pio, pin_cs + 1);
+
+    hw_set_bits(&pio->input_sync_bypass, 1u << pin_miso);
+
+    pio_sm_init(pio, sm, prog_offs, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void pio_qspi_psram_cs_init(PIO pio, uint sm, uint prog_offs, uint n_bits, float clkdiv, uint pin_cs, uint pin_sio0) {
+    pio_sm_config c = qspi_psram_program_get_default_config(prog_offs);
+    sm_config_set_out_pins(&c, pin_sio0, 4);
+    sm_config_set_in_pins(&c, pin_sio0);
+    sm_config_set_set_pins(&c, pin_sio0, 4);
+    sm_config_set_sideset_pins(&c, pin_cs);
+    sm_config_set_out_shift(&c, false, true, n_bits);
+    sm_config_set_in_shift(&c, false, true, n_bits);
+    sm_config_set_clkdiv(&c, clkdiv);
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_cs, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_sio0, 4, true);
+    pio_gpio_init(pio, pin_sio0);
+    pio_gpio_init(pio, pin_sio0 + 1);
+    pio_gpio_init(pio, pin_sio0 + 2);
+    pio_gpio_init(pio, pin_sio0 + 3);
+    pio_gpio_init(pio, pin_cs);
+    pio_gpio_init(pio, pin_cs + 1);
+
+    hw_set_bits(&pio->input_sync_bypass, 0xfu << pin_sio0);
+
+    pio_sm_init(pio, sm, prog_offs, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
 
 psram_spi_inst_t psram_spi_init_clkdiv(PIO pio, int sm, float clkdiv, bool fudge) {
     psram_spi_inst_t spi;
@@ -171,59 +267,13 @@ void psram_spi_uninit(psram_spi_inst_t spi, bool fudge) {
     pio_remove_program(spi.pio, fudge ? &spi_psram_fudge_program : &spi_psram_program, spi.offset);
 }
 
-int test_psram(psram_spi_inst_t* psram_spi, int increment) {
-    lprintf("Writing PSRAM...");
-    uint8_t deadbeef[8] = {0xd, 0xe, 0xa, 0xd, 0xb, 0xe, 0xe, 0xf};
-    for (uint32_t addr = 0; addr < (1024 * 1024); addr += increment) {
-        psram_write8(psram_spi, addr, (addr & 0xFF));
-        // psram_write8_async(psram_spi, addr, (addr & 0xFF));
-    }
-    lprintf("Reading PSRAM...");
-    uint32_t psram_begin = time_us_32();
-    for (uint32_t addr = 0; addr < (1024 * 1024); addr += increment) {
-        uint8_t result = psram_read8(psram_spi, addr);
-        if ((uint8_t)(addr & 0xFF) != result) {
-            lprintf("\nPSRAM failure at address %x (%x != %x)\n", addr, addr & 0xFF, result);
-            /* err_blink(); */
-            return 1;
-        }
-    }
-    uint32_t psram_elapsed = time_us_32() - psram_begin;
-    float psram_speed = 1000000.0 * 1024.0 * 1024 / psram_elapsed;
-    lprintf("8 bit: PSRAM read 1MB in %d us, %d B/s (target 705600 B/s)\n", psram_elapsed, (uint32_t)psram_speed);
+const static uint8_t read_id_command[] = {
+    32,         // 32 bits write
+    64,         // 64 bits read
+    0x9fu,      // command
+    0, 0, 0     // Address
+};
 
-    psram_begin = time_us_32();
-    for (uint32_t addr = 0; addr < (1024 * 1024); addr += 2) {
-        uint16_t result = psram_read16(psram_spi, addr);
-        if ((uint16_t)(
-                (((addr + 1) & 0xFF) << 8) |
-                (addr & 0XFF)) != result
-        ) {
-            lprintf("PSRAM failure at address %x (%x != %x) ", addr, addr & 0xFF, result & 0xFF);
-            /* err_blink(); */
-            return 1;
-        }
-    }
-    psram_elapsed = (time_us_32() - psram_begin);
-    psram_speed = 1000000.0 * 1024 * 1024 / psram_elapsed;
-    lprintf("16 bit: PSRAM read 1MB in %d us, %d B/s (target 1411200 B/s)\n", psram_elapsed, (uint32_t)psram_speed);
-
-    psram_begin = time_us_32();
-    for (uint32_t addr = 0; addr < (1024 * 1024); addr += 4) {
-        uint32_t result = psram_read32(psram_spi, addr);
-        if ((uint32_t)(
-                (((addr + 3) & 0xFF) << 24) |
-                (((addr + 2) & 0xFF) << 16) |
-                (((addr + 1) & 0xFF) << 8)  |
-                (addr & 0XFF)) != result
-        ) {
-            lprintf("PSRAM failure at address %x (%x != %x) ", addr, addr & 0xFF, result & 0xFF);
-            /* err_blink(); */
-            return 1;
-        }
-    }
-    psram_elapsed = (time_us_32() - psram_begin);
-    psram_speed = 1000000.0 * 1024 * 1024 / psram_elapsed;
-    lprintf("32 bit: PSRAM read 1MB in %d us, %d B/s (target 1411200 B/s)\n", psram_elapsed, (uint32_t)psram_speed);
-    return 0;
+void psram_id(uint8_t rx[8]) {
+    pio_spi_write_read_dma_blocking(&psram_spi, read_id_command, sizeof(read_id_command), rx, 8);
 }

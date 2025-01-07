@@ -480,19 +480,21 @@ void ConfigReader::logPrefix()
     emuLog << "File " << m_configFileName << ", line " << m_curLine << " : ";
 }
 
-void ConfigReader::processConfigFile(ParentObject* parent)
+bool ConfigReader::processConfigFile(ParentObject* parent)
 {
     string t,o,p;
     EmuValuesList v;
+    bool processed = false;
     bool res = getNextLine(t,o,p,&v);
     while (res) {
-        //cout << t << " " << o << " " << p << endl;
+        processed = true;
+        // emuLog << t << " " << o << " " << p;
         if (t != "" && o != "" && p == "") {
             if (g_emulation->findObject(m_prefix + o)) {
                 logPrefix();
                 emuLog << "Object " << o << " already exists!" << "\n";
             } else if (EmuObject* obj = createObject(t, m_prefix + o, v)) {
-                obj->setPlatform(dynamic_cast<Platform*>(parent));
+                obj->setPlatform(parent->asPlatform());
                 parent->addChild(obj);
             } else {
                 logPrefix();
@@ -520,5 +522,5 @@ void ConfigReader::processConfigFile(ParentObject* parent)
         v.clearList();
         res = getNextLine(t,o,p,&v);
     }
-
+    return processed;
 }

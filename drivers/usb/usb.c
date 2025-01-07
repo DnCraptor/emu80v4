@@ -24,10 +24,11 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "tusb.h"
 #include "bsp/board_api.h"
+#include "tusb.h"
 #include "usb.h"
 
 //--------------------------------------------------------------------+
@@ -51,8 +52,7 @@ void led_blinking_task(void);
 void cdc_task(void);
 
 /*------------- MAIN -------------*/
-inline void init_pico_usb_drive() {
-    set_tud_msc_ejected(false);
+void init_pico_usb_drive() {
     board_init();
     // init device stack on configured roothub port
     tud_init(BOARD_TUD_RHPORT);
@@ -61,7 +61,7 @@ inline void init_pico_usb_drive() {
     }
 }
 
-inline void pico_usb_drive_heartbeat() {
+void pico_usb_drive_heartbeat() {
     tud_task(); // tinyusb device task
     led_blinking_task();
     cdc_task();
@@ -69,14 +69,9 @@ inline void pico_usb_drive_heartbeat() {
 
 void in_flash_drive() {
   init_pico_usb_drive();
-  while(!tud_msc_ejected()) {
+  while(!tud_msc_test_ejected()) {
     pico_usb_drive_heartbeat();
-    //if_swap_drives();
-  }
-  for (int i = 0; i < 10; ++i) { // sevaral hb till end of cycle, TODO: care eject
-    pico_usb_drive_heartbeat();
-    sleep_ms(50);
-  }
+  }  
 }
 
 //--------------------------------------------------------------------+
@@ -107,7 +102,10 @@ void tud_resume_cb(void) {
 
 // Invoked to determine max LUN
 uint8_t tud_msc_get_maxlun_cb(void) {
-  return 1;
+  FRESULT result = f_mount(getSDCardFATFSptr(), "", 1);
+  //char tmp[80]; sprintf(tmp, "tud_msc_get_maxlun_cb sd card mount: %s (%d)", FRESULT_str(result), result); logMsg(tmp);
+  if (result == FR_OK) { logMsg((char*)"Two drives mode"); } else { logMsg((char*)"One drive mode"); }
+  return result == FR_OK ? 2 : 1; // dual LUN
 }
 
 //--------------------------------------------------------------------+

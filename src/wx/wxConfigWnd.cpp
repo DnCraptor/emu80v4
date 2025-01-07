@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2018
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -109,8 +109,10 @@ ConfigWnd::ConfigWnd(wxWindow* parent)
         ;
 
 	wxString helpString2 =
-        L"Alt-1..5\t– пресет: 1x-5x, автоподстройка размера окна, без сглаживания\n"
-        "Alt-0\t– пресет: измен. размер окна, вписать, со сгл, учит. Aspect Ratio\n"
+        L"Alt-1..5\t– пресет: 1x-5x, автоподстройка размера окна\n"
+        "Alt-8\t– пресет: 1.5x, автоподстройка размера окна\n"
+        "Alt-9\t– пресет: 2.5x, автоподстройка размера окна\n"
+        "Alt-0\t– пресет: измен. размер окна, вписать или растянуть\n"
         "Alt-Shift-M\t– то же, что и Alt-0 + максимизировать окно\n"
         "Alt-F\t– оригинальный/альтернативный шрифт\n"
         "Alt-C\t– переключить режим цвета\n"
@@ -123,7 +125,11 @@ ConfigWnd::ConfigWnd(wxWindow* parent)
         "Alt-Enter\t– полноэкранный режим\n"
         "Shift-Alt-P\t– выбор файла для перенаправления печати\n"
         "End\t– ускоренная работа при нажатой клавише (4x)\n"
+        "Alt-End\t– макс. скорость при нажатой клавише\n"
         "Pause, Alt-P\t– пауза/возобновление\n"
+        "Alt-PgUp, Alt-PgDn\t- ускорение/замедление\n"
+        "Alt-Up, Alt-Down\t- точное ускорение/замедление\n"
+        "Alt-Home\t- нормальная скорость\n"
         "Alt-F1\t– эта подсказка\n\n"
         "Вместо клавиши Alt может быть использована Meta (Win)"
         ;

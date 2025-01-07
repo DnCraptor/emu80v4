@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,9 +37,11 @@ Pit8253Counter::Pit8253Counter(Pit8253* pit, int number)
     m_isCounting = false;
     m_gate = true;
     m_out = false;
+    m_prevOut = false;
     m_counterInitValue = 0xffff;
     m_counter = 0xffff;
     m_mode = 0;
+    m_countDelay = 0;
 }
 
 
@@ -51,11 +53,11 @@ void Pit8253Counter::planIrq()
     int ticksToUpdate = 0;
 
     if (m_mode == 3)
-        ticksToUpdate = (m_counter + 1) / 2;
+        ticksToUpdate = (m_counter + 1) / 2 + m_countDelay;
     else if (m_mode == 2)
-        ticksToUpdate = !m_out ? 1 : m_counter - 1;
+        ticksToUpdate = !m_out ? 1 : m_counter - 1  + m_countDelay;
     else if (m_mode == 0 && !m_out)
-        ticksToUpdate = m_counter;
+        ticksToUpdate = m_counter + m_countDelay;
 
     if (ticksToUpdate)
         m_helper->updateAndScheduleNext((g_emulation->getCurClock() / m_kDiv + ticksToUpdate) * m_kDiv);
@@ -64,8 +66,31 @@ void Pit8253Counter::planIrq()
 }
 
 
+void Pit8253Counter::outChangeNotify()
+{
+    if (m_prevOut == m_out)
+        return;
+
+    m_prevOut = m_out;
+
+    if (m_core) {
+        m_core->timer(m_number, m_out);
+    }
+}
+
+
 void Pit8253Counter::operateForTicks(int ticks)
 {
+    if (m_countDelay) {
+        int ticksToSkip = min(ticks, m_countDelay);
+        ticks -= ticksToSkip;
+        m_countDelay -= ticksToSkip;
+        if (m_out)
+            m_tempSumOut += ticksToSkip;
+        if (!ticks)
+            return;
+    }
+
     if (!m_gate) {
         if (m_out)
             m_tempSumOut += ticks;
@@ -171,6 +196,8 @@ void Pit8253Counter::operateForTicks(int ticks)
                 m_tempSumOut += ticks;
             break;
     }
+
+        outChangeNotify();
 }
 
 void Pit8253Counter::updateState()
@@ -281,6 +308,7 @@ void Pit8253Counter::setMode(int mode)
         default:
             break;
     }
+        outChangeNotify();
     planIrq();
 }
 
@@ -320,12 +348,14 @@ void Pit8253Counter::setCounter(uint16_t counter)
             m_counter = m_counterInitValue;
             m_isCounting = true;
             m_out = false;
+            m_countDelay = 2;
             break;
         case 2:
         case 3:
             if (!m_isCounting)
                 m_counter = m_counterInitValue;
             m_isCounting = true;
+            m_countDelay = 2;
             break;
         case 1:
         case 4:
@@ -334,6 +364,8 @@ void Pit8253Counter::setCounter(uint16_t counter)
             // not implemented yet
             break;
     }
+
+        outChangeNotify();
     planIrq();
 }
 
@@ -361,6 +393,8 @@ void Pit8253Counter::setGate(bool gate)
         default:
             break;
     }
+
+        outChangeNotify();
     planIrq();
 }
 
@@ -444,6 +478,8 @@ void Pit8253::writeByte(int addr, uint8_t value)
         if (loadMode == PRLM_LATCH) {
             // команда защелкивания
             if (!m_latched[counterNum]) {
+                if (!m_counters[counterNum]->m_extClockMode)
+                    m_counters[counterNum]->updateState();
                 m_latched[counterNum] = true;
                 m_latches[counterNum] = m_counters[counterNum]->m_counter;
                 m_waitingHi[counterNum] = false;
@@ -518,12 +554,20 @@ bool Pit8253::setProperty(const std::string& propertyName, const EmuValuesList& 
         } else
             return false;
         return true;
+    } else if (propertyName == "core") {
+        int cnt = values[0].asInt();
+        if (cnt >=0 && cnt <= 3) {
+            m_counters[cnt]->m_core = static_cast<PlatformCore*>(g_emulation->findObject(values[1].asString()));
+        } else
+            return false;
+        return true;
     }
+
     return false;
 }
 
 
-/*#include <sstream>
+/* #include <sstream>
 #include <iomanip>
 string Pit8253::getDebugInfo()
 {
@@ -544,7 +588,7 @@ string Pit8253::getDebugInfo()
         ss << "\n";
     }
     return ss.str();
-}*/
+ }*/
 
 
 Pit8253Helper::Pit8253Helper()
@@ -555,12 +599,6 @@ Pit8253Helper::Pit8253Helper()
 
 void Pit8253Helper::updateAndScheduleNext(uint64_t time)
 {
-    bool isActive = m_counter->getOut();
-    if (isActive != m_request) {
-        m_core->timer(0, isActive);
-    }
-    m_request = isActive;
-
     if (time) {
         m_curClock = time;
         resume();
@@ -573,22 +611,4 @@ void Pit8253Helper::operate()
 {
     m_counter->updateState();
     m_counter->planIrq();
-}
-
-
-bool Pit8253Helper::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "core") {
-        m_core = static_cast<PlatformCore*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    } else if (propertyName == "id") {
-        if (values[0].isInt()) {
-            m_id = values[0].asInt();
-            return true;
-        }
-    }
-    return false;
 }

@@ -78,6 +78,10 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_4X;
             case PK_5:
                 return SR_5X;
+            case PK_8:
+                return SR_1_5X;
+            case PK_9:
+                return SR_2_5X;
             case PK_0:
                 return SR_FIT;
             case PK_M:
@@ -98,6 +102,18 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return isShiftPressed ? SR_COPYTXT : SR_NONE;
             case PK_T:
                 return SR_TAPEHOOK;
+            case PK_PGUP:
+                return SR_SPEEDSTEPUP;
+            case PK_PGDN:
+                return SR_SPEEDSTEPDOWN;
+            case PK_UP:
+                return SR_SPEEDSTEPUPFINE;
+            case PK_DOWN:
+                return SR_SPEEDSTEPDOWNFINE;
+            case PK_HOME:
+                return SR_SPEEDSTEPNORMAL;
+            case PK_END:
+                return SR_FULLTHROTTLE;
             default:
                 return SR_NONE;
         } else {

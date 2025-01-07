@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2017-2022
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2017-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -134,6 +134,7 @@ void SettingsDialog::readRunningConfig()
     loadRunningConfigValue("emulation.debugZ80MnemoUpperCase");
     loadRunningConfigValue("emulation.debugForceZ80Mnemonics");
     loadRunningConfigValue("emulation.debugSwapF5F9");
+    loadRunningConfigValue("emulation.debugResetKeys");
     loadRunningConfigValue("window.windowStyle");
     loadRunningConfigValue("window.frameScale");
     loadRunningConfigValue("window.smoothing");
@@ -158,9 +159,11 @@ void SettingsDialog::readRunningConfig()
     loadRunningConfigValue("kbdLayout.layout");
     loadRunningConfigValue("kbdLayout.numpadJoystick");
     loadRunningConfigValue("kbdLayout.downAsNumpad5");
+    loadRunningConfigValue("kbdLayout.upAsNumpad5");
     loadRunningConfigValue("keyboard.matrix");
     loadRunningConfigValue("platform.codePage");
     loadRunningConfigValue("platform.fastReset");
+    loadRunningConfigValue("psgSoundSource.mixing");
     loadRunningConfigValue("diskA.readOnly");
     loadRunningConfigValue("diskB.readOnly");
     loadRunningConfigValue("diskC.readOnly");
@@ -217,6 +220,7 @@ void SettingsDialog::loadSavedConfig()
     m_options["vsync"] = settings.value("vsync").toString();
     m_options["sampleRate"] = settings.value("sampleRate").toString();
     m_options["showHelp"] = settings.value("showHelp", "yes").toString();
+    m_options["preserveSize"] = settings.value("preserveSize", "yes").toString();
     settings.endGroup();
 
     settings.beginGroup(m_platformGroup);
@@ -252,6 +256,9 @@ void SettingsDialog::fillControlValues()
     // Show help
     ui->showHelpCheckBox->setChecked(m_options["showHelp"] == "yes");
 
+    // Preserve size
+    ui->preserveSizeCheckBox->setChecked(m_options["preserveSize"] == "yes");
+
     // OpenGL driver
     /*val = m_options["glDriver"];
     ui->driverComboBox->setCurrentIndex(val == "es" ? 1 : 0);*/
@@ -262,7 +269,7 @@ void SettingsDialog::fillControlValues()
 
     // Frame rate limitation
     bool limitFps = m_options["limitFps"] == "true";
-    ui->maxFpsCheckBox->setChecked(!limitFps);
+    ui->limitFpsCheckBox->setChecked(limitFps);
 
     // VSync
     val = m_options["vsync"];
@@ -277,6 +284,7 @@ void SettingsDialog::fillControlValues()
     ui->upperZ80checkBox->setChecked(m_options["emulation.debugZ80MnemoUpperCase"] == "yes");
     ui->forceZ80checkBox->setChecked(m_options["emulation.debugForceZ80Mnemonics"] == "yes");
     ui->swapF5F9checkBox->setChecked(m_options["emulation.debugSwapF5F9"] == "yes");
+    ui->resetKeysCheckBox->setChecked(m_options["emulation.debugResetKeys"] == "yes");
 
     // Debugger code page
     val = m_options["platform.codePage"];
@@ -308,27 +316,33 @@ void SettingsDialog::fillControlValues()
     if (val == "1x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(0);
-    } else if (val == "2x") {
+    } else if (val == "1.5x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(1);
-    } else if (val == "3x") {
+    } else if (val == "2x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(2);
-    } else if (val == "4x") {
+    } else if (val == "2.5x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(3);
-    } else if (val == "5x") {
+    } else if (val == "3x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(4);
-    } else if (val == "2x3") {
+    } else if (val == "4x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(5);
-    } else if (val == "3x5") {
+    } else if (val == "5x") {
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(6);
+    } else if (val == "2x3") {
+        ui->fixedScaleRadioButton->setChecked(true);
+        ui->fixedScaleComboBox->setCurrentIndex(2);
+    } else if (val == "3x5") {
+        ui->fixedScaleRadioButton->setChecked(true);
+        ui->fixedScaleComboBox->setCurrentIndex(4);
     } else if (val == "4x6") {
         ui->fixedScaleRadioButton->setChecked(true);
-        ui->fixedScaleComboBox->setCurrentIndex(7);
+        ui->fixedScaleComboBox->setCurrentIndex(5);
     } else {
         ui->fixedScaleRadioButton->setChecked(false);
         ui->stretchRadioButton->setChecked(val == "fit");
@@ -368,7 +382,7 @@ void SettingsDialog::fillControlValues()
 
     // Color mode
     val = m_options.value("crtRenderer.colorMode", "");
-    ui->colorGroupBox->setVisible(m_platformGroup == "apogey" || m_platformGroup == "rk86" || m_platformGroup == "spec");
+    ui->colorGroupBox->setVisible(m_platformGroup == "apogey" || m_platformGroup == "rk86" || m_platformGroup == "spec" || m_platformGroup == "sp580");
     if (m_platformGroup == "apogey") {
         ui->color1RadioButton->setText(tr("Color"));
         ui->color2RadioButton->setVisible(false);
@@ -381,7 +395,7 @@ void SettingsDialog::fillControlValues()
         ui->bwRadioButton->setChecked(val == "mono");
         ui->color1RadioButton->setChecked(val == "color1");
         ui->color2RadioButton->setChecked(val == "color2");
-    } else if (m_platformGroup == "spec") {
+    } else if (m_platformGroup == "spec" || m_platformGroup == "sp580") {
         ui->color1RadioButton->setText(tr("4-color mode"));
         ui->color2RadioButton->setVisible(true);
         ui->color2RadioButton->setText(tr("8-color mode"));
@@ -459,6 +473,11 @@ void SettingsDialog::fillControlValues()
     ui->downAsNumpad5CheckBox->setVisible(val != "");
     ui->downAsNumpad5CheckBox->setChecked(val == "yes");
 
+    // Up as numpad 5
+    val = m_options.value("kbdLayout.upAsNumpad5", "");
+    ui->upAsNumpad5CheckBox->setVisible(val != "");
+    ui->upAsNumpad5CheckBox->setChecked(val == "yes");
+
     // Keyboard matrix
     val = m_options.value("keyboard.matrix", "");
     ui->kbdTypeGroupBox->setVisible(val != "");
@@ -471,6 +490,11 @@ void SettingsDialog::fillControlValues()
     val = m_options.value("platform.fastReset", "");
     ui->fastResetCheckBox->setVisible(val != "");
     ui->fastResetCheckBox->setChecked(val == "yes");
+
+    // AY Stereo
+    val = m_options.value("psgSoundSource.mixing", "");
+    ui->ayStereoCheckBox->setVisible(val != "");
+    ui->ayStereoCheckBox->setChecked(val == "stereo");
 }
 
 
@@ -497,11 +521,13 @@ void SettingsDialog::on_presetComboBox_currentIndexChanged(int index)
     case 3:
     case 4:
     case 5:
+    case 6:
+    case 7:
         ui->autoSizeRadioButton->setChecked(true);
         ui->fixedScaleRadioButton->setChecked(true);
         ui->fixedScaleComboBox->setCurrentIndex(index - 1);
         break;
-    case 6:
+    case 8:
         ui->userSizeRadioButton->setChecked(true);
         ui->stretchRadioButton->setChecked(true);
         break;
@@ -544,9 +570,17 @@ void SettingsDialog::adjustPresetComboBoxState()
              ui->fixedScaleRadioButton->isChecked() &&
              ui->fixedScaleComboBox->currentIndex() == 4)
          ui->presetComboBox->setCurrentIndex(5);
+    else if (ui->autoSizeRadioButton->isChecked() &&
+             ui->fixedScaleRadioButton->isChecked() &&
+             ui->fixedScaleComboBox->currentIndex() == 5)
+        ui->presetComboBox->setCurrentIndex(6);
+    else if (ui->autoSizeRadioButton->isChecked() &&
+             ui->fixedScaleRadioButton->isChecked() &&
+             ui->fixedScaleComboBox->currentIndex() == 6)
+        ui->presetComboBox->setCurrentIndex(7);
     else if (ui->userSizeRadioButton->isChecked() &&
              ui->stretchRadioButton->isChecked())
-         ui->presetComboBox->setCurrentIndex(6);
+         ui->presetComboBox->setCurrentIndex(8);
     else
         ui->presetComboBox->setCurrentIndex(0);
     m_presetComboBoxEventsAllowed = true;
@@ -657,18 +691,9 @@ void SettingsDialog::on_applyPushButton_clicked()
     }*/
 
     m_options["showHelp"] = ui->showHelpCheckBox->isChecked() ? "yes" : "no";
-
-    val = QString::number(ui->fpsSpinBox->value());
-    if (val != m_options["maxFps"]) {
-        m_options["maxFps"] = val;
-        rebootFlag = true;
-    }
-
-    bool limitFps = !ui->maxFpsCheckBox->isChecked();
-    if (limitFps != (m_options["limitFps"] == "true")) {
-        m_options["limitFps"] = limitFps ? "true" : "false";
-        rebootFlag = true;
-    }
+    m_options["preserveSize"] = ui->preserveSizeCheckBox->isChecked() ? "yes" : "no";
+    m_options["limitFps"] = ui->limitFpsCheckBox->isChecked() ? "true" : "false";
+    m_options["maxFps"] = QString::number(ui->fpsSpinBox->value());
 
     val = ui->vsyncCheckBox->isChecked() ? "yes" : "no";
     if (val != m_options["vsync"]) {
@@ -686,6 +711,7 @@ void SettingsDialog::on_applyPushButton_clicked()
     m_options["emulation.debugZ80MnemoUpperCase"] = ui->upperZ80checkBox->isChecked() ? "yes" : "no";
     m_options["emulation.debugForceZ80Mnemonics"] = ui->forceZ80checkBox->isChecked() ? "yes" : "no";
     m_options["emulation.debugSwapF5F9"] = ui->swapF5F9checkBox->isChecked() ? "yes" : "no";
+    m_options["emulation.debugResetKeys"] = ui->resetKeysCheckBox->isChecked() ? "yes" : "no";
 
     val = "";
     if (ui->rkCodePageRadioButton->isChecked())
@@ -711,7 +737,31 @@ void SettingsDialog::on_applyPushButton_clicked()
 
     val = "";
     if (ui->fixedScaleRadioButton->isChecked())
-        val = QString::number(ui->fixedScaleComboBox->currentIndex() + 1) + "x";
+        switch (ui->fixedScaleComboBox->currentIndex()) {
+        case 0:
+            val = "1x";
+            break;
+        case 1:
+            val = "1.5x";
+            break;
+        case 2:
+            val = "2x";
+            break;
+        case 3:
+            val = "2.5x";
+            break;
+        case 4:
+            val = "3x";
+            break;
+        case 5:
+            val = "4x";
+            break;
+        case 6:
+            val = "5x";
+            break;
+        default:
+            break;
+        }
     else if (ui->stretchRadioButton->isChecked())
         val = "fit";
     else if (ui->stretchPropIntRadioButton->isChecked())
@@ -746,7 +796,7 @@ void SettingsDialog::on_applyPushButton_clicked()
 
     m_options["cpu.debugOnHalt"] = ui->debugHltCheckBox->isChecked() ? "yes" : "no";
 
-    m_options["cpu.debugOnOllegalCmd"] = ui->debugIllegalCheckBox->isChecked() ? "yes" : "no";
+    m_options["cpu.debugOnIllegalCmd"] = ui->debugIllegalCheckBox->isChecked() ? "yes" : "no";
 
     val = "";
     if (ui->colorGroupBox->isVisible()) {
@@ -757,12 +807,12 @@ void SettingsDialog::on_applyPushButton_clicked()
                 val = "color";
             else if (m_platformGroup == "rk86")
                 val = "color1";
-            else if (m_platformGroup == "spec")
+            else if (m_platformGroup == "spec" || m_platformGroup == "sp580")
                 val = "4color";
         } else if (ui->color2RadioButton->isChecked()) {
             if (m_platformGroup == "rk86")
                 val = "color2";
-            else if (m_platformGroup == "spec")
+            else if (m_platformGroup == "spec" || m_platformGroup == "sp580")
                 val = "8color";
         }
     }
@@ -827,8 +877,14 @@ void SettingsDialog::on_applyPushButton_clicked()
     if (ui->downAsNumpad5CheckBox->isVisible())
         m_options["kbdLayout.downAsNumpad5"] = ui->downAsNumpad5CheckBox->isChecked() ? "yes" : "no";
 
+    if (ui->upAsNumpad5CheckBox->isVisible())
+        m_options["kbdLayout.upAsNumpad5"] = ui->upAsNumpad5CheckBox->isChecked() ? "yes" : "no";
+
     if (ui->fastResetCheckBox->isVisible())
         m_options["platform.fastReset"] = ui->fastResetCheckBox->isChecked() ? "yes" : "no";
+
+    if (ui->ayStereoCheckBox->isVisible())
+        m_options["psgSoundSource.mixing"] = ui->ayStereoCheckBox->isChecked() ? "stereo" : "mono";
 
     val = "";
     if (ui->qwertyRadioButton->isChecked())
@@ -872,8 +928,10 @@ void SettingsDialog::saveRunningConfig()
     foreach (QString option, m_options.keys()) {
         QString value = m_options.value(option);
         if (value != "" && option != "locale" && option != "showHelp" && option != "maxFps" &&
-                           option != "limitFps" && option != "sampleRate" && option != "vsync") {
+                           option != "limitFps" && option != "sampleRate" && option != "vsync" && option != "preserveSize") {
             setRunningConfigValue(option, value);
+        } else if (option == "maxFps") {
+            setRunningConfigValue("emulation.maxFps", m_options.value("limitFps") == "true" ? value : 0);
         }
     }
 }
@@ -889,7 +947,7 @@ void SettingsDialog::saveStoredConfig()
     for (const auto& option: m_options.keys()) {
         QString value = m_options.value(option);
         if (option.left(10) != "emulation." /*&& value != ""*/ && option != "locale" && option != "showHelp" &&
-                option != "maxFps" && option != "limitFps" && option != "sampleRate" && option != "vsync")
+                option != "maxFps" && option != "limitFps" && option != "sampleRate" && option != "vsync" && option != "preserveSize")
             settings.setValue(option, value);
     }
     settings.endGroup();
@@ -897,7 +955,8 @@ void SettingsDialog::saveStoredConfig()
     settings.beginGroup("system");
     foreach (QString option, m_options.keys()) {
         QString value = m_options.value(option);
-        if (option.left(10) != "emulation." && value != "" && (option == "locale" || option == "showHelp" || option == "maxFps" || option == "limitFps" || option == "sampleRate" || option == "vsync"))
+        if (option.left(10) != "emulation." && value != "" && (option == "locale" || option == "showHelp" || option == "maxFps" ||
+                                                               option == "limitFps" || option == "sampleRate" || option == "vsync" || option == "preserveSize"))
             settings.setValue(option, value);
     }
     settings.endGroup();
@@ -965,15 +1024,9 @@ void SettingsDialog::on_okPushButton_clicked()
 }
 
 
-void SettingsDialog::on_vsyncCheckBox_toggled(bool checked)
+void SettingsDialog::on_limitFpsCheckBox_toggled(bool checked)
 {
-    ui->maxFpsCheckBox->setChecked(checked);
-}
-
-
-void SettingsDialog::on_maxFpsCheckBox_toggled(bool checked)
-{
-    ui->fpsSpinBox->setEnabled(!checked);
+    ui->fpsSpinBox->setEnabled(checked);
 }
 
 

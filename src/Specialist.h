@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2022
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -91,7 +91,7 @@ class SpecMxColorRegister : public AddressableDevice
 };
 
 
-class SpecRenderer : public CrtRenderer
+class SpecRenderer : public CrtRenderer, public IActive
 {
     enum SpecColorMode {
         SCM_MONO,
@@ -125,6 +125,9 @@ class SpecRenderer : public CrtRenderer
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
+
+        // derived from ActiveDevice
+        void operate() override;
 
         inline void attachScreenMemory(SpecVideoRam* videoMemory) {m_screenMemory = videoMemory->getDataPtr(); m_colorMemory = videoMemory->getColorDataPtr();}
 
@@ -182,7 +185,8 @@ class SpecKeyboard : public Keyboard
             SKT_ORIGINAL,
             SKT_MX,
             SKT_LIK,
-            SKT_EUREKA
+            SKT_EUREKA,
+            SKT_SP580
         };
 
         SpecKeyboard();
@@ -198,6 +202,7 @@ class SpecKeyboard : public Keyboard
         void setHMatrixMask(uint8_t mask);
         uint16_t getHMatrixData();
         bool getShift();
+        SpecKeyboardType getMatrixType() {return m_kbdType;}
 
         static EmuObject* create(const EmuValuesList&) {return new SpecKeyboard();}
 
@@ -232,6 +237,21 @@ class SpecKeyboard : public Keyboard
             { EK_LANG,  EK_Q,     EK_F,       EK_J,        EK_SEMICOLON, EK_ESC   }
         };
 
+        const EmuKey m_keyMatrixSp580[12][6] = {
+            { EK_CR,    EK_BSP,   EK_PERIOD,  EK_COLON,    EK_MINUS,     EK_CLEAR },
+            { EK_LF,    EK_SLASH, EK_BKSLASH, EK_H,        EK_0,         EK_F10   },
+            { EK_RIGHT, EK_COMMA, EK_V,       EK_Z,        EK_9,         EK_F11   },
+            { EK_RPT,   EK_AT,    EK_D,       EK_RBRACKET, EK_8,         EK_F7    },
+            { EK_LEFT,  EK_B,     EK_L,       EK_LBRACKET, EK_7,         EK_F6    },
+            { EK_SPACE, EK_X,     EK_O,       EK_G,        EK_6,         EK_F5    },
+            { EK_NONE,  EK_T,     EK_R,       EK_N,        EK_5,         EK_F4    },
+            { EK_NONE,  EK_I,     EK_P,       EK_E,        EK_4,         EK_F3    },
+            { EK_DOWN,  EK_M,     EK_A,       EK_K,        EK_3,         EK_F2    },
+            { EK_UP,    EK_S,     EK_W,       EK_U,        EK_2,         EK_F1    },
+            { EK_HOME,  EK_CARET, EK_Y,       EK_C,        EK_1,         EK_TAB   },
+            { EK_LANG,  EK_Q,     EK_F,       EK_J,        EK_SEMICOLON, EK_ESC   }
+        };
+
         //bool m_mxMatrix = false;
         SpecKeyboardType m_kbdType = SKT_ORIGINAL;
 
@@ -252,6 +272,7 @@ class SpecKbdLayout : public RkKbdLayout
 
     protected:
         EmuKey translateKey(PalKeyCode keyCode) override;
+        EmuKey translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang) override;
 };
 
 
@@ -331,6 +352,18 @@ class SpecFileLoader : public FileLoader
         bool loadFile(const std::string& fileName, bool run = false) override;
 
         static EmuObject* create(const EmuValuesList&) {return new SpecFileLoader();}
+
+    protected:
+        bool loadMemFile(uint8_t* data, int fileSize, const std::string& fileName, bool run);
+};
+
+
+class Sp580FileLoader : public SpecFileLoader
+{
+public:
+    bool loadFile(const std::string& fileName, bool run = false) override;
+
+    static EmuObject* create(const EmuValuesList&) {return new Sp580FileLoader();}
 };
 
 

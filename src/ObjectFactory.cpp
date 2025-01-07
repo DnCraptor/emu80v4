@@ -67,6 +67,7 @@
 #include "Kr04.h"
 #include "Korvet.h"
 #include "Palmira.h"
+#include "Bashkiria.h"
 #include "KbdTapper.h"
 
 #include "EmuConfig.h"
@@ -121,6 +122,7 @@ ObjectFactory::ObjectFactory()
     REG_EMU_CLASS(SpecPpi8255Circuit);
     REG_EMU_CLASS(SpecRomDisk);
     REG_EMU_CLASS(SpecFileLoader);
+    REG_EMU_CLASS(Sp580FileLoader);
     REG_EMU_CLASS(SpecMxFileLoader);
     REG_EMU_CLASS(SpecMxPit8253SoundSource);
     REG_EMU_CLASS(EurekaCore);
@@ -157,6 +159,7 @@ ObjectFactory::ObjectFactory()
     REG_EMU_CLASS(ApogeyRomDisk);
     REG_EMU_CLASS(Rk86Core);
     REG_EMU_CLASS(Rk86Renderer);
+    REG_EMU_CLASS(RkPixeltronRenderer);
     REG_EMU_CLASS(RkFddRegister);
     REG_EMU_CLASS(RkFddController);
     REG_EMU_CLASS(RkFileLoader);
@@ -267,7 +270,16 @@ ObjectFactory::ObjectFactory()
     REG_EMU_CLASS(KorvetCpuCycleWaits);
     REG_EMU_CLASS(KorvetPpiPsgAdapter);
     REG_EMU_CLASS(KbdTapper);
-
+    REG_EMU_CLASS(Bashkiria2mCore);
+    REG_EMU_CLASS(Bashkiria2mRenderer);
+    REG_EMU_CLASS(Bashkiria2mPalette);
+    REG_EMU_CLASS(Bashkiria2mPpi8255Circuit1);
+    REG_EMU_CLASS(Bashkiria2mPpi8255Circuit2);
+    REG_EMU_CLASS(Bashkiria2mKeyboard);
+    REG_EMU_CLASS(Bashkiria2mKbdLayout);
+    REG_EMU_CLASS(Bashkiria2mKbdMem);
+    REG_EMU_CLASS(Bashkiria2mPit8253SoundSource);
+    REG_EMU_CLASS(Bashkiria2mSpi8251);
 
     reg("ConfigTab", &EmuConfigTab::create);
     reg("ConfigRadioSelector", &EmuConfigRadioSelector::create);

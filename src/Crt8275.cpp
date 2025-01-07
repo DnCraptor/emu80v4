@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -159,6 +159,9 @@ void Crt8275::displayBuffer()
     for (int i = 0; i < m_nCharsPerRow; i++) {
         uint8_t chr = m_rowBuf[i % 80];
 
+        if (m_wasDmaUnderrun || isBlankedToTheEndOfRow || m_isBlankedToTheEndOfScreen || !m_isDisplayStarted)
+            chr = 0;
+
         if (m_isTransparentAttr && ((chr & 0xC0) == 0x80)) {
             // Transparent Field Attribute Code
             m_curUnderline = chr & 0x20;
@@ -171,9 +174,6 @@ void Crt8275::displayBuffer()
             chr = m_fifo[fifoPos++];
             fifoPos &= 0x0f;
         }
-
-        if (m_wasDmaUnderrun)
-            chr = 0;
 
         m_frame.symbols[m_curRow][i].chr = chr & 0x7F;
 
@@ -361,7 +361,6 @@ void Crt8275::writeByte(int addr, uint8_t value)
         case 1:
             // Writing Command Register
             m_cmdReg = value;
-            m_statusReg &= 0xf7;
             //m_statusReg |= m_isCompleteCommand ? 0 : 0x08;
             m_isCompleteCommand = true;
             m_statusReg &= ~0x08; // reset IC flag
@@ -372,7 +371,7 @@ void Crt8275::writeByte(int addr, uint8_t value)
                     m_parameterNum = 0;
                     m_isCompleteCommand = false;
                     m_isDisplayStarted = false;
-                    m_statusReg &= 0xFb; // reset VE flag
+                    m_statusReg &= 0xBB; // reset IE and VE flags
                     m_statusReg |= 0x08; // set IC flag
                     startRasterIfNotStarted();
                     break;

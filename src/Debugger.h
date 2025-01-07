@@ -108,6 +108,7 @@ struct BreakpointInfo {
 class DebugWindow : private EmuWindow
 {
     public:
+        virtual DebugWindow* asDebugWindow() { return this; }
         DebugWindow(Platform* platform);
         ~DebugWindow();
 
@@ -391,6 +392,7 @@ class DebugWindow : private EmuWindow
         bool m_mnemoZ80UpperCase;
         bool m_forceZ80Mnemonics;
         bool m_swapF5F9;
+        bool m_resetKeys;
 
         CodePage m_codePage = CP_RK;
 };

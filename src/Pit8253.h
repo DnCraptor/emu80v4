@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 
 class Pit8253;
 class Pit8253Helper;
+class PlatformCore;
 
 class Pit8253Counter : public EmuObject //PassiveDevice
 {
@@ -61,6 +62,8 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         Pit8253Helper* m_helper = nullptr;
         bool m_extClockMode = false;
 
+        PlatformCore* m_core = nullptr;
+
         uint64_t m_prevClock = 0;
         uint64_t m_sampleClock = 0;
         int m_avgOut = 0;
@@ -76,9 +79,12 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         bool m_gate;
         bool m_out;
 
+        bool m_prevOut;
+
         int m_counter;
         int m_counterInitValue;
         bool m_isCounting;
+        int m_countDelay = 0;
 
         void setMode(int mode);
         void setHalfOfCounter();
@@ -88,6 +94,7 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         void stopCount();
 
         void planIrq();
+        void outChangeNotify();
 };
 
 class Pit8253 : public AddressableDevice
@@ -108,7 +115,7 @@ class Pit8253 : public AddressableDevice
 
         void setFrequency(int64_t freq) override;
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        //std::string getDebugInfo() override;
+        // std::string getDebugInfo() override;
 
         void mute(); // i8253 does not have reset input so use this method instead if necessary
 
@@ -133,14 +140,12 @@ class Pit8253 : public AddressableDevice
 };
 
 
-class PlatformCore;
-
 class Pit8253Helper : public ActiveDevice
 {
 public:
     Pit8253Helper();
     void operate() override;
-    bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
+    //bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
     void setCounter(Pit8253Counter* cnt) {m_counter = cnt;}
 
@@ -150,9 +155,6 @@ public:
 
 private:
     Pit8253Counter* m_counter = nullptr;
-    PlatformCore* m_core = nullptr;
-    int m_id = 0;
-    bool m_request = false;
 
     void checkForInt();
 };

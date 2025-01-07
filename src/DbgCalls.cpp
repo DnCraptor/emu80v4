@@ -36,7 +36,7 @@ DebugWindow* emuGetDebugger(PalWindow* wnd)
     if (!wnd)
         return nullptr;
 
-    DebugWindow* dbg = dynamic_cast<DebugWindow*>(wnd);
+    DebugWindow* dbg = wnd->asDebugWindow();
     if (!dbg) {
         Platform* platform = emuGetPlatform(wnd);
         if (platform)

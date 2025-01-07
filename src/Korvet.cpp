@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2021-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2021-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -129,13 +129,7 @@ void KorvetCore::draw()
 
 void KorvetCore::inte(bool isActive)
 {
-    if (!isActive)
-        m_pic->inte(false);
-    else {
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
-        if (cpu->getInte())
-            m_pic->inte(true);
-    }
+    m_pic->inte(isActive);
 }
 
 
@@ -146,18 +140,24 @@ void KorvetCore::vrtc(bool isActive)
     if (m_curVrtc != isActive) {
         m_curVrtc = isActive;
         m_ppiCircuit->setVbl(!isActive);
-        m_pit->getCounter(2)->setGate(!isActive);
+        //m_pit->getCounter(2)->setGate(!isActive);
     }
 }
 
 
 void KorvetCore::hrtc(bool isActive, int)
 {
-    Pit8253Counter* cnt = m_pit->getCounter(2);
-    bool prev = cnt->getOut();
-    cnt->operateForTicks(1);
-    if (!prev && cnt->getOut())
-        m_pic->irq(5, isActive);
+    if (isActive && !m_curHrtc) {
+        Pit8253Counter* cnt = m_pit->getCounter(2);
+        cnt->operateForTicks(1);
+    }
+    m_curHrtc = isActive;
+}
+
+
+void KorvetCore::timer(int /*id*/, bool isActive)
+{
+    m_pic->irq(5, isActive);
 }
 
 
@@ -254,18 +254,19 @@ void KorvetRenderer::operate()
     if (++m_curLine == 312) {
         m_curLine = 0;
         renderFrame();
+        g_emulation->screenUpdateReq();
     }
 
-    static_cast<KorvetCore*>(m_platform->getCore())->hrtc(true, 0);
-    //static_cast<KorvetCore*>(m_platform->getCore())->hrtc(false, 0);
-
-    if (m_curLine == 293)
+    if (m_curLine == 297) // acrually SVBL in much shorter than 1 scanline
         static_cast<KorvetCore*>(m_platform->getCore())->int4(false);
-    if (m_curLine == 295) {
+    if (m_curLine == 296) {
         m_platform->getCore()->vrtc(true);
         static_cast<KorvetCore*>(m_platform->getCore())->int4(true);
     } else if (m_curLine == 39)
         m_platform->getCore()->vrtc(false);
+
+    static_cast<KorvetCore*>(m_platform->getCore())->hrtc(true, 0);
+    static_cast<KorvetCore*>(m_platform->getCore())->hrtc(false, 0);
 
     m_curClock += g_emulation->getFrequency() / 10000000 * 640;
 }

@@ -43,6 +43,9 @@ void ApogeyCore::vrtc(bool isActive)
     if (isActive) {
         m_crtRenderer->renderFrame();
     }
+
+    if (isActive)
+        g_emulation->screenUpdateReq();
 }
 
 
@@ -97,10 +100,16 @@ ApogeyRenderer::ApogeyRenderer()
 
 uint32_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
-    if (m_colorMode)
-        return (gpa0 ? 0 : 0x0000FF) | (gpa1 ? 0: 0x00FF00) | (hglt ? 0: 0xFF0000);
-    else
+    static const uint32_t c_bwPalette[8] = {0x000000, 0x828282, 0xC5C5C5, 0xEEEEEE, 0x585858, 0xAEAEAE, 0xDFDFDF, 0xFFFFFF};
+
+    switch (m_colorMode) {
+    case ColorMode::Mono:
         return hglt ? 0xFFFFFF : 0xC0C0C0;
+    case ColorMode::Color:
+        return (gpa0 ? 0 : 0x0000FF) | (gpa1 ? 0 : 0x00FF00) | (hglt ? 0 : 0xFF0000);
+    case ColorMode::Grayscale:
+        return c_bwPalette[(gpa0 ? 0 : 4) + (gpa1 ? 0 : 2) + (hglt ? 0 : 1)];
+    }
 }
 
 
@@ -131,15 +140,17 @@ wchar_t ApogeyRenderer::getUnicodeSymbol(uint8_t chr, bool, bool, bool)
 }
 
 
-void ApogeyRenderer::setColorMode(bool colorMode)
+void ApogeyRenderer::setColorMode(ColorMode colorMode)
 {
-    if (colorMode) {
-        m_colorMode = true;
+    m_colorMode = colorMode;
+    switch (colorMode) {
+    case ColorMode::Color:
+    case ColorMode::Grayscale:
         m_rvvOffset  = false;
         m_hgltOffset = false;
         m_gpaOffset  = false;
-    } else {
-        m_colorMode = false;
+        break;
+    case ColorMode::Mono:
         m_rvvOffset  = true;
         m_hgltOffset = true;
         m_gpaOffset  = true;
@@ -149,7 +160,16 @@ void ApogeyRenderer::setColorMode(bool colorMode)
 
 void ApogeyRenderer::toggleColorMode()
 {
-    setColorMode(!m_colorMode);
+    switch (m_colorMode) {
+    case ColorMode::Mono:
+        setColorMode(ColorMode::Color);
+        break;
+    case ColorMode::Color:
+        setColorMode(ColorMode::Grayscale);
+        break;
+    case ColorMode::Grayscale:
+        setColorMode(ColorMode::Mono);
+    }
 }
 
 
@@ -160,9 +180,11 @@ bool ApogeyRenderer::setProperty(const string& propertyName, const EmuValuesList
 
     if (propertyName == "colorMode") {
         if (values[0].asString() == "mono")
-            setColorMode(false);
+            setColorMode(ColorMode::Mono);
         else if (values[0].asString() == "color")
-            setColorMode(true);
+            setColorMode(ColorMode::Color);
+        else if (values[0].asString() == "grayscale")
+            setColorMode(ColorMode::Grayscale);
         else
             return false;
         return true;
@@ -180,9 +202,16 @@ string ApogeyRenderer::getPropertyStringValue(const string& propertyName)
     if (res != "")
         return res;
 
-    if (propertyName == "colorMode")
-        return m_colorMode ? "color" : "mono";
-
+    if (propertyName == "colorMode") {
+        switch (m_colorMode) {
+        case ColorMode::Mono:
+            return "mono";
+        case ColorMode::Color:
+            return "color";
+        case ColorMode::Grayscale:
+            return "grayscale";
+        }
+    }
     return "";
 }
 
@@ -211,14 +240,17 @@ bool ApogeyRomDisk::setProperty(const std::string& propertyName, const EmuValues
         int mb = values[0].asInt();
         if (mb < 0)
             mb = 0;
-        else if (mb > 2)
+        else if (mb > 2 && mb <= 4)
             mb = 4;
+        else if (mb > 4)
+            mb = 8;
         switch(mb)
         {
            case 0: m_mask = 0x0f; break; // 512KB
            case 1: m_mask = 0x1f; break; // 1MB
            case 2: m_mask = 0x3f; break; // 2MB
            case 4: m_mask = 0x7f; break; // 4MB
+           case 8: m_mask = 0xff; break; // 8MB
         }
         return true;
     }

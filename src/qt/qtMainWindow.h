@@ -107,7 +107,13 @@ private slots:
     void onReset();
     void onPause();
     void onForwardOn();
+    void onFullThrottleOn();
     void onForwardOff();
+    void onSpeedUp();
+    void onSpeedDown();
+    void onSpeedUpFine();
+    void onSpeedDownFine();
+    void onSpeedNormal();
     void onDebug();
     void onColorMode();
     void onColorSelect();
@@ -117,6 +123,8 @@ private slots:
     void on3x();
     void on4x();
     void on5x();
+    void on15x();
+    void on25x();
     void onFit();
     void onFullscreen();
     void onFullwindow();
@@ -230,6 +238,7 @@ private:
     void savePosition();
     void updateLastFiles();
     void updateLastPlatforms(QString platform);
+    void updateMountToolTip(QAction* action, const QString& fileName);
 
     LastFileList m_loaderLastFiles = LastFileList("loader");
     LastFileList m_fddLastFiles = LastFileList("fdd");
@@ -253,6 +262,9 @@ private:
 
     bool m_showFirstTime = true;
     QPoint m_hiddenWindowPos = {0, 0};
+
+    QPoint m_savedWindowPos = {0, 0};
+    QSize m_savedWindowSize = {0, 0};
 
     SettingsDialog* m_settingsDialog = nullptr;
 
@@ -279,6 +291,8 @@ private:
     QIcon m_3xIcon                  = QIcon(":/icons/3x.png");
     QIcon m_4xIcon                  = QIcon(":/icons/4x.png");
     QIcon m_5xIcon                  = QIcon(":/icons/5x.png");
+    QIcon m_15xIcon                 = QIcon(":/icons/15x.png");
+    QIcon m_25xIcon                 = QIcon(":/icons/25x.png");
     QIcon m_resizableIcon           = QIcon(":/icons/resizable.png");
 
     QMenu* m_loadRunMenu = nullptr;
@@ -356,6 +370,11 @@ private:
     QAction* m_resetAction;
     QAction* m_pauseAction;
     QAction* m_forwardAction;
+    QAction* m_speedUpAction;
+    QAction* m_speedDownAction;
+    QAction* m_speedUpFineAction;
+    QAction* m_speedDownFineAction;
+    QAction* m_speedNormalAction;
     QAction* m_debugAction;
     QAction* m_screenshotAction;
     QAction* m_copyImageAction;
@@ -368,6 +387,7 @@ private:
     QAction* m_colorAction;
     QAction* m_colorMonoOrigAction;
     QAction* m_colorMonoAction;
+    QAction* m_colorGrayscaleAction;
     QAction* m_colorColor1Action;
     QAction* m_colorColor2Action;
     QAction* m_bwAction;
@@ -387,6 +407,8 @@ private:
     QAction* m_preset3xAction;
     QAction* m_preset4xAction;
     QAction* m_preset5xAction;
+    QAction* m_preset15xAction;
+    QAction* m_preset25xAction;
     QAction* m_presetFitAction;
     QAction* m_platformHelpAction;
     QAction* m_aboutAction;

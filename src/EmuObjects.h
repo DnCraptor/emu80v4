@@ -29,10 +29,37 @@
 
 
 class Platform;
+class EmuConfigControl;
+class EmuWindow;
+class Cpu;
+class PlatformCore;
+class KbdLayout;
+class CrtRenderer;
+class DiskImage;
+class FileLoader;
+class RamDisk;
+class EmuConfigTab;
+class Keyboard;
+class EmuObjectGroup;
+class KbdTapper;
 
 class EmuObject
 {
     public:
+        virtual Platform* asPlatform() { return nullptr; };
+        virtual EmuConfigControl* asEmuConfigControl() { return nullptr; }
+        virtual EmuWindow* asEmuWindow() { return nullptr; }
+        virtual Cpu* asCpu() { return nullptr; }
+        virtual PlatformCore* asPlatformCore() { return nullptr; }
+        virtual KbdLayout* asKbdLayout() { return nullptr; }
+        virtual CrtRenderer* asCrtRenderer() { return nullptr; }
+        virtual DiskImage* asDiskImage() { return nullptr; }
+        virtual FileLoader* asFileLoader() { return nullptr; }
+        virtual RamDisk* asRamDisk() { return nullptr; }
+        virtual EmuConfigTab* asEmuConfigTab() { return nullptr; }
+        virtual Keyboard* asKeyboard() { return nullptr; }
+        virtual EmuObjectGroup* asEmuObjectGroup() { return nullptr; }
+        virtual KbdTapper* asKbdTapper() { return nullptr; }
         EmuObject();
         virtual ~EmuObject();
 
@@ -65,10 +92,12 @@ class EmuObject
         std::string m_name;
 };
 
+class Ram;
 
 class AddressableDevice : public EmuObject
 {
     public:
+        virtual Ram* asRam() { return nullptr; }
         //AddressableDevice();
         virtual ~AddressableDevice() {} // !!!
 
@@ -124,13 +153,13 @@ class ParentObject : public EmuObject
 {
     public:
         virtual void addChild(EmuObject* child) = 0;
-
 };
 
 
 class EmuObjectGroup : public EmuObject
 {
     public:
+        virtual EmuObjectGroup* asEmuObjectGroup() { return this; }
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
         void addItem(EmuObject* item);

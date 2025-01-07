@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@ struct DebuggerOptions {
     bool mnemoZ80UpperCase = false;
     bool forceZ80Mnemonics = false;
     bool swapF5F9 = true;
+    bool resetKeys = true;
 };
 
 class Emulation : public ParentObject
@@ -84,6 +85,7 @@ class Emulation : public ParentObject
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
+        void screenUpdateReq();
 
         //inline Platform* getPlatform() {return m_platform;} //!!!
         inline uint64_t getCurClock() {return m_curClock;}
@@ -99,10 +101,13 @@ class Emulation : public ParentObject
         void setFrameRate(int frameRate);               // установка частоты кадров, 0 - max
         void setVsync(bool vsync);                      // установка vsync
         bool getVsync() {return m_vsync;}
-        void setSpeedUpFactor(unsigned speed);
+        void setTemporarySpeedUpFactor(unsigned speed);
+        void setTemporarySpeedUpFactorDbl(double speed);
+        void updateFrequency();
 
-        unsigned getSpeedUpFactor() {return m_speedUpFactor;}
+        double getSpeedUpFactor() {return m_currentSpeedUpFactor;}
         bool getPausedState() {return m_isPaused;}
+        bool getFullThrottleState() {return m_fullThrottle;}
 
         void processCmdLine();
 
@@ -116,15 +121,21 @@ class Emulation : public ParentObject
         uint64_t m_clockOffset = 0;
         uint64_t m_sysClock;
         uint64_t m_prevSysClock = 0;
+        uint64_t m_timeAfterLastDraw = 0;
         Cpu* m_debugReqCpu = nullptr;
+        bool m_scrUpdateReq = false;
+        bool m_fullThrottle = false;
 
         bool m_isPaused = false;
-        unsigned m_speedUpFactor = 1;
+        double m_speedUpFactor = 1.0;
+        double m_currentSpeedUpFactor = 1.0;
+        int m_speedGrade = 0;
 
         uint64_t m_frequency;
-        unsigned m_frameRate;
-        bool m_vsync;
-        unsigned m_sampleRate;
+        uint64_t m_curFrequency;
+        unsigned m_fpsLimit = 0;
+        bool m_vsync = true;
+        unsigned m_sampleRate = 48000;
 
         std::list<EmuObject*> m_objectList;
         std::list<Platform*> m_platformList;
@@ -146,9 +157,11 @@ class Emulation : public ParentObject
         CmdLine& m_cmdLine;
 
         bool m_platformCreatedFromCmdLine = false;
-        void runPlatform (const std::string& platformName);
+        bool runPlatform (const std::string& platformName);
 
         DebuggerOptions m_debuggerOptions;
+
+        void setSpeedByGrade(int speedGrade);
 };
 
 

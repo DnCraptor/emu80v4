@@ -34,11 +34,16 @@
 #include <QClipboard>
 #include <QAudioFormat>
 
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
   #include <QRegularExpression>
+  #include <QAudioSink>
+  #include <QMediaDevices>
+  #define AUDIO_SINK_TYPE QAudioSink
 #else
   #include <QRegExp>
   #define QRegularExpression QRegExp
+  #define AUDIO_SINK_TYPE QAudioOutput
 #endif
 
 
@@ -60,7 +65,7 @@ using namespace std;
 static string basePath;
 
 static int sampleRate = 48000;
-static int frameRate = 100;
+//static int frameRate = 100;
 static bool vsync = true;
 
 static bool isRunning = false;
@@ -137,7 +142,7 @@ bool palQtInit(int& argc, char** argv)
     } else
         glDriver = settings.value("glDriver").toString();*/
 
-    frameRate = 100;
+    /*frameRate = 100;
     if (!settings.contains("maxFps"))
         settings.setValue("maxFps", frameRate);
     else
@@ -149,7 +154,7 @@ bool palQtInit(int& argc, char** argv)
     else
         limitFps = settings.value("limitFps").toBool();
     if (!limitFps)
-        frameRate = 0;
+        frameRate = 0;*/
 
     vsync = true;
     if (!settings.contains("vsync"))
@@ -191,17 +196,17 @@ const string& palGetBasePath()
 }
 
 
-static QAudioOutput* audio = nullptr;
+static AUDIO_SINK_TYPE* audio = nullptr;
 
 static EmuAudioIoDevice* audioDevice = nullptr;
 
 
 void palQtQuit()
 {
-    if (audioDevice)
-        delete audioDevice;
     if (audio)
         audio->stop();
+    if (audioDevice)
+        delete audioDevice;
 
     delete translator;
     delete application;
@@ -210,16 +215,17 @@ void palQtQuit()
 
 void palStart()
 {
-    emuSetPropertyValue("emulation", "maxFps", QString::number(frameRate).toStdString());      // !!!
+    //emuSetPropertyValue("emulation", "maxFps", QString::number(frameRate).toStdString());      // !!!
     emuSetPropertyValue("emulation", "vsync", vsync ? "yes" : "no");                           // !!!
     emuSetPropertyValue("emulation", "sampleRate", QString::number(sampleRate).toStdString()); // !!!
 
     QAudioFormat format;
     format.setSampleRate(sampleRate);
-    format.setChannelCount(1);
+    format.setChannelCount(2);
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     format.setSampleFormat(QAudioFormat::Int16);
+    format.setChannelConfig(QAudioFormat::ChannelConfigStereo);
 #else
     format.setSampleSize(16);
     format.setCodec("audio/pcm");
@@ -227,9 +233,15 @@ void palStart()
     format.setSampleType(QAudioFormat::SignedInt);
 #endif
 
-    audio = new QAudioOutput(format, nullptr /*palGetMainWindow()*/);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QMediaDevices devices;
+    audio = new QAudioSink(devices.defaultAudioOutput(), format);
+#else
+    audio = new QAudioOutput(format);
+#endif
+
     audio->setBufferSize(sampleRate / 5);
-    audioDevice = new EmuAudioIoDevice(sampleRate, frameRate);
+    audioDevice = new EmuAudioIoDevice(sampleRate/*, frameRate*/);
     audioDevice->start();
     audio->start(audioDevice);
 
@@ -258,11 +270,12 @@ void palExecute()
 }
 
 
-bool palSetFrameRate(int)
+/*bool palSetFrameRate(int)
 {
     // Not used in Qt version
     return true;
-}
+}*/
+
 
 bool palSetVsync(bool)
 {
@@ -349,6 +362,13 @@ void palPlaySample(int16_t sample)
 {
     if (audioDevice)
         audioDevice->addSample(sample);
+}
+
+
+void palPlaySample(int16_t left, int16_t right)
+{
+    if (audioDevice)
+        audioDevice->addSample(left, right);
 }
 
 

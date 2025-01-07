@@ -33,27 +33,31 @@ EmuValue::EmuValue(const string& str)
     m_sValue = str;
 
     m_isInt = true;
-    try {
+    /// TODO:
+///    try {
         if (m_sValue.substr(0,2) == "0x") {
             string sValueHex = m_sValue.substr(2, m_sValue.size());
             istringstream iss(sValueHex);
             iss >> hex >> m_nValue;
+            if (m_nValue) return;
         } else {
             istringstream iss(m_sValue);
             iss >> m_nValue;
+            if (m_nValue) return;
         }
-    }
-    catch(...) {
-        m_isInt = false;
-    }
+///    }
+///    catch(...) {
+///        m_isInt = false;
+///    }
 
     m_isFloat = true;
-    try {
+///    try {
         istringstream iss(m_sValue);
         iss >> m_fValue;
-    } catch (...) {
+        if (m_nValue) return;
+///    } catch (...) {
         m_isFloat = false;
-    }
+//    }
 }
 
 

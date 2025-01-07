@@ -32,6 +32,7 @@ class EmuWindow;
 class PlatformCore : public EmuObject
 {
     public:
+        virtual PlatformCore* asPlatformCore() { return this; }
         PlatformCore();
         virtual ~PlatformCore();
 
