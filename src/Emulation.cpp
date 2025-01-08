@@ -97,7 +97,7 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
         m_platformList.push_back(platform);
         emuLog << "getConfig()->updateConfig()\n";
         getConfig()->updateConfig();
-        //m_activePlatform = platform;
+        m_activePlatform = platform;
     } else {
         emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
         palRequestForQuit();
@@ -246,12 +246,13 @@ bool Emulation::runPlatform(const string& platformName)
     const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
     for (unsigned i = 0; i < platformVector->size(); i++)
         if ((*platformVector)[i].objName == platformName) {
-            Platform* newPlatform = new Platform((*platformVector)[i].configFileName, platformName);
-            if (!newPlatform->getWindow()) {
-                delete newPlatform;
+            m_activePlatform = new Platform((*platformVector)[i].configFileName, platformName);
+            if (!m_activePlatform->getWindow()) {
+                delete m_activePlatform;
+                m_activePlatform = nullptr;
                 return false;
             }
-            addChild(newPlatform);
+            addChild(m_activePlatform);
             return true;
         }
     return false;
@@ -386,6 +387,11 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
         wnd->processKey(keyCode, isPressed);
 }
 
+void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
+    emuLog << to_string(keyCode) << " / " << isPressed << "\n";
+    if (m_activePlatform)
+        m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+}
 
 void Emulation::resetKeys(EmuWindow* wnd)
 {

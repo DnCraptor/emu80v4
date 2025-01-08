@@ -374,6 +374,7 @@ void Platform::sysReq(SysReq sr)
 
 void Platform::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
+    emuLog << "Platform::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (m_kbdLayout)
         m_kbdLayout->processKey(keyCode, isPressed, unicodeKey);
 }

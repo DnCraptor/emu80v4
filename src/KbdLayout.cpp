@@ -39,6 +39,7 @@ void KbdLayout::resetKeys()
 
 void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
+///    emuLog << "Platform::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (isPressed && processSpecialKeys(keyCode))
         return;
 
