@@ -43,10 +43,12 @@ static int dma_chan_ctrl;
 static int dma_chan;
 
 static uint8_t* graphics_buffer = 0;
-static uint graphics_buffer_width = 0;
-static uint graphics_buffer_height = 0;
-static int graphics_buffer_shift_x = 0;
-static int graphics_buffer_shift_y = 0;
+static uint client_buffer_width = 626;
+static uint client_buffer_height = 288;
+const static uint graphics_buffer_width = 640;
+const static uint graphics_buffer_height = 480;
+///static int graphics_buffer_shift_x = 0;
+///static int graphics_buffer_shift_y = 0;
 
 static bool is_flash_line = false;
 static bool is_flash_frame = false;
@@ -73,7 +75,6 @@ void __time_critical_func() dma_handler_VGA() {
     screen_line++;
 
     if (screen_line == N_lines_total) {
-///        palSetVsync();
         screen_line = 0;
         frame_number++;
         input_buffer = graphics_buffer;
@@ -109,63 +110,9 @@ void __time_critical_func() dma_handler_VGA() {
     uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
-            line_number = screen_line / 2;
-            if (screen_line % 2) return;
-            y = screen_line / 2 - graphics_buffer_shift_y;
+            line_number = screen_line;
+            y = screen_line; /// - graphics_buffer_shift_y;
             break;
-/**
-        case TEXTMODE_160x100:
-        case TEXTMODE_53x30:
-        case TEXTMODE_DEFAULT: {
-            uint16_t* output_buffer_16bit = (uint16_t *)*output_buffer;
-            output_buffer_16bit += shift_picture / 2;
-            const uint font_height = 16;
-
-            // "слой" символа
-            uint32_t glyph_line = screen_line % font_height;
-if (!text_buffer) return;
-            //указатель откуда начать считывать символы
-            uint8_t* text_buffer_line = &text_buffer[screen_line / font_height * text_buffer_width * 2];
-
-            for (int x = 0; x < text_buffer_width; x++) {
-                //из таблицы символов получаем "срез" текущего символа
-                uint8_t glyph_pixels = font_8x16[*text_buffer_line++ * font_height + glyph_line];
-                //считываем из быстрой палитры начало таблицы быстрого преобразования 2-битных комбинаций цветов пикселей
-                uint16_t* color = &txt_palette_fast[*text_buffer_line++ * 4];
-#if 0
-                if (cursor_blink_state && !manager_started &&
-                    (screen_line / 16 == CURSOR_Y && x == CURSOR_X && glyph_line >= 11 && glyph_line <= 13)) {
-                    *output_buffer_16bit++ = color[3];
-                    *output_buffer_16bit++ = color[3];
-                    *output_buffer_16bit++ = color[3];
-                    *output_buffer_16bit++ = color[3];
-                    if (text_buffer_width == 40) {
-                        *output_buffer_16bit++ = color[3];
-                        *output_buffer_16bit++ = color[3];
-                        *output_buffer_16bit++ = color[3];
-                        *output_buffer_16bit++ = color[3];
-                    }
-                }
-                else
-#endif
-                {
-                    *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    glyph_pixels >>= 2;
-                    *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    glyph_pixels >>= 2;
-                    *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    glyph_pixels >>= 2;
-                    *output_buffer_16bit++ = color[glyph_pixels & 3];
-                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
-                }
-            }
-            dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
-            return;
-        }
-*/
         default: {
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
             return;
@@ -176,10 +123,10 @@ if (!text_buffer) return;
         dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
         return;
     }
-    if (y >= graphics_buffer_height) {
+    if (y >= client_buffer_height) {
         // заполнение линии цветом фона
-        if (y == graphics_buffer_height | y == graphics_buffer_height + 1 |
-            y == graphics_buffer_height + 2) {
+        if (y == client_buffer_height | y == client_buffer_height + 1 |
+            y == client_buffer_height + 2) {
             uint32_t* output_buffer_32bit = *output_buffer;
             uint32_t p_i = ((line_number & is_flash_line) + (frame_number & is_flash_frame)) & 1;
             uint32_t color32 = bg_color[p_i];
@@ -195,43 +142,38 @@ if (!text_buffer) return;
 
     //зона прорисовки изображения
     //начальные точки буферов
-    uint8_t* input_buffer_8bit = input_buffer + y / 2 * 80 + (y & 1) * 8192;
+    uint8_t* input_buffer_8bit = input_buffer + y * client_buffer_width;
 
     uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
     output_buffer_16bit += shift_picture / 2; //смещение началы вывода на размер синхросигнала
 
-    //    g_buf_shx&=0xfffffffe;//4bit buf
-    //    graphics_buffer_shift_x &= 0xfffffff1; //1bit buf
-        graphics_buffer_shift_x &= 0xfffffff2; //2bit buf
-
     //для div_factor 2
-    uint max_width = graphics_buffer_width;
-    if (graphics_buffer_shift_x < 0) {
-        //vbuf8-=g_buf_shx; //8bit buf
-///            input_buffer_8bit -= graphics_buffer_shift_x / 8; //1bit buf
-            input_buffer_8bit -= graphics_buffer_shift_x / 4; //2bit buf
-        max_width += graphics_buffer_shift_x;
-    }
-    else {
+    uint max_width = client_buffer_width;
+///    if (graphics_buffer_shift_x < 0) {
+///            ///input_buffer_8bit -= graphics_buffer_shift_x / 8; //1bit buf
+///            input_buffer_8bit -= graphics_buffer_shift_x / 4; //2bit buf
+///        max_width += graphics_buffer_shift_x;
+///    }
+///    else {
 #define div_factor (2)
-        output_buffer_16bit += graphics_buffer_shift_x * 2 / div_factor;
-    }
+///        output_buffer_16bit += graphics_buffer_shift_x * 2 / div_factor;
+///    }
 
 
-    int width = MIN((visible_line_size - ((graphics_buffer_shift_x > 0) ? (graphics_buffer_shift_x) : 0)), max_width);
+///    int width = MIN((visible_line_size - ((graphics_buffer_shift_x > 0) ? (graphics_buffer_shift_x) : 0)), max_width);
+    int width = MIN(visible_line_size, max_width);
     if (width < 0) return; // TODO: detect a case
 
     // Индекс палитры в зависимости от настроек чередования строк и кадров
 ///    uint16_t* current_palette = palette[(y & is_flash_line) + (frame_number & is_flash_frame) & 1];
 
-    uint8_t* output_buffer_8bit;
+    uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
             for  (int x = 0; x < width; ++x) {
-              ///  *output_buffer_16bit++ = palette[input_buffer_8bit[x ^ 2] & 0b00111111];
-                register uint8_t cx = input_buffer_8bit[x ^ 2] & 0b00111111;
+                register uint8_t cx = input_buffer_8bit[x] & 0b00111111;
                 uint16_t c = (cx >> 4) | (cx & 0b1100) | ((cx & 0b11) << 4); // swap R and B
-                *output_buffer_16bit++ = (c << 8 | c) & 0x3f3f | palette16_mask;
+                *output_buffer_8bit++ = (c & 0x3f) | 0xc0;
             }
             break;
         default:
@@ -348,14 +290,14 @@ void graphics_set_mode(enum graphics_mode_t mode) {
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
-    graphics_buffer_width = width;
-    graphics_buffer_height = height;
+    client_buffer_width = width;
+    client_buffer_height = height;
 }
 
 
 void graphics_set_offset(const int x, const int y) {
-    graphics_buffer_shift_x = x;
-    graphics_buffer_shift_y = y;
+///    graphics_buffer_shift_x = x;
+///    graphics_buffer_shift_y = y;
 }
 
 void graphics_set_flashmode(const bool flash_line, const bool flash_frame) {

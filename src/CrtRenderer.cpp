@@ -30,8 +30,8 @@ CrtRenderer::~CrtRenderer()
 {
     if (m_pixelData)
         delete[] m_pixelData;
-    if (m_prevPixelData)
-        delete[] m_prevPixelData;
+///    if (m_prevPixelData)
+///        delete[] m_prevPixelData;
 }
 
 
@@ -48,7 +48,7 @@ EmuPixelData CrtRenderer::getPixelData()
     // Проверка "синего экрана"
     if (!isRasterPresent()) {
         pd.pixelData = nullptr;
-        pd.prevPixelData = nullptr;
+///        pd.prevPixelData = nullptr;
         return pd;
     }
 
@@ -58,10 +58,10 @@ EmuPixelData CrtRenderer::getPixelData()
     pd.pixelData = m_pixelData;
     pd.aspectRatio = m_aspectRatio;
 
-    pd.prevWidth = m_prevSizeX;
-    pd.prevHeight = m_prevSizeY;
-    pd.prevPixelData = m_prevPixelData;
-    pd.prevAspectRatio = m_prevAspectRatio;
+///    pd.prevWidth = m_prevSizeX;
+///    pd.prevHeight = m_prevSizeY;
+///    pd.prevPixelData = m_prevPixelData;
+///    pd.prevAspectRatio = m_prevAspectRatio;
 
     pd.frameNo = m_frameNo;
 
@@ -75,7 +75,7 @@ void CrtRenderer::swapBuffers()
     if (!reqForSwapBuffers && (g_emulation->getPausedState() || g_emulation->isDebuggerActive()))
         return;
     reqForSwapBuffers = false;
-
+/**
     int w,h, bs;
     uint32_t* buf;
 
@@ -94,7 +94,7 @@ void CrtRenderer::swapBuffers()
     m_sizeY = h;
     m_pixelData = buf;
     m_bufSize = bs;
-
+*/
     ++m_frameNo;
 }
 

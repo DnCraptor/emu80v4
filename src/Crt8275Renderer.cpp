@@ -137,7 +137,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     }
 
     int visibleDataSize = visibleWidth * visibleHeight;
-    uint32_t* visibleData = new uint32_t[visibleDataSize];
+    uint8_t* visibleData = new uint8_t[visibleDataSize];
 
     for (int i = 0; i < visibleDataSize; i++)
         visibleData[i] = 0;
@@ -166,7 +166,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
         copyHeight = m_sizeY - visibleY;
 
     for (int i = 0; i < copyHeight; i++)
-        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth * sizeof(uint32_t));
+        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth);
 
     delete[] m_pixelData;
     m_pixelData = visibleData;
@@ -212,20 +212,20 @@ void Crt8275Renderer::primaryRenderFrame()
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
-        m_pixelData = new uint32_t [m_dataSize];
+        m_pixelData = new uint8_t [m_dataSize];
         m_bufSize = m_dataSize;
     }
 
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    memset(m_pixelData, 0, m_dataSize);
+    uint8_t* rowPtr = m_pixelData;
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        uint8_t* chrPtr = rowPtr;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint32_t* linePtr = chrPtr;
+            uint8_t* linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -250,8 +250,8 @@ void Crt8275Renderer::primaryRenderFrame()
                 rvv = frame->symbols[row][chr+1].symbolAttributes.rvv;
 
             const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
-            uint32_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint32_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
 
             for (int ln = 0; ln < nLines; ln++) {
                 int lc;
@@ -321,18 +321,18 @@ void Crt8275Renderer::altRenderFrame()
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
-        m_pixelData = new uint32_t [m_dataSize];
+        m_pixelData = new uint8_t [m_dataSize];
         m_bufSize = m_dataSize;
     }
 
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    memset(m_pixelData, 0, m_dataSize);
+    uint8_t* rowPtr = m_pixelData;
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        uint8_t* chrPtr = rowPtr;
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint32_t* linePtr = chrPtr;
+            uint8_t* linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -363,8 +363,8 @@ void Crt8275Renderer::altRenderFrame()
                 fntPtr += 8;
             else if (nLines == 16)
                 fntPtr += (8+12);
-            uint32_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint32_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
 
 
             for (int ln = 0; ln < nLines; ln++) {

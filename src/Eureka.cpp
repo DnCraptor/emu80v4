@@ -108,10 +108,10 @@ EurekaRenderer::EurekaRenderer()
     m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+///    m_prevPixelData = new uint32_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -125,7 +125,7 @@ void EurekaRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 21;
         offsetY = 10;
         m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
@@ -146,6 +146,7 @@ void EurekaRenderer::renderFrame()
                 uint8_t bt = m_videoRam[addr];
                 for (int pt = 0; pt < 4; pt++, bt <<= 2) {
                     uint32_t color = eurekaPalette[(bt & 0xC0) >> 6];
+                    /// TODO:
                     m_pixelData[offset + row * m_sizeX + col * 8 + pt * 2] = color;
                     m_pixelData[offset + row * m_sizeX + col * 8 + pt * 2 + 1] = color;
                 }
@@ -157,7 +158,7 @@ void EurekaRenderer::renderFrame()
                 int addr = col * 256 + row;
                 uint8_t bt = m_videoRam[addr];
                 for (int pt = 0; pt < 8; pt++, bt <<= 1)
-                    m_pixelData[offset + row * m_sizeX + col * 8 + pt] = (bt & 0x80) ? 0xC0C0C0 : 0x000000;
+                    m_pixelData[offset + row * m_sizeX + col * 8 + pt] = (bt & 0x80) ? 0xC0 : 0x00;
             }
     }
 }

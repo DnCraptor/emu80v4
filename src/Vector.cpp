@@ -34,6 +34,7 @@
 #include "Covox.h"
 #include "PrnWriter.h"
 #include "AtaDrive.h"
+#include "graphics.h"
 
 using namespace std;
 
@@ -235,8 +236,11 @@ void VectorCore::reset()
 
 void VectorCore::draw()
 {
-    m_window->drawFrame(m_crtRenderer->getPixelData());
-    m_window->endDraw();
+    EmuPixelData pd = m_crtRenderer->getPixelData();
+///    emuLog << "pd: " << pd.width << "x" << pd.height << "\n"; // 626x288
+    graphics_set_buffer(pd.pixelData, pd.width, pd.height);
+///    m_window->drawFrame(pd);
+///    m_window->endDraw();
 }
 
 
@@ -289,19 +293,23 @@ bool VectorCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
+// 626 = 704 / 13.5 * pixelFreq
+#define MAX_BUFFER_SIZE (626 * 288)
+uint8_t pixelData[MAX_BUFFER_SIZE];
+uint8_t frameBuf[MAX_BUFFER_SIZE];
 
 VectorRenderer::VectorRenderer()
 {
     const int pixelFreq = 12; // MHz
-    const int maxBufSize = 626 * 288; // 626 = 704 / 13.5 * pixelFreq
+    const int maxBufSize = MAX_BUFFER_SIZE; // 626 = 704 / 13.5 * pixelFreq
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
     m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-///    m_pixelData = new uint32_t[maxBufSize];
+    m_pixelData = pixelData; /// new uint8_t[maxBufSize];
 ///    m_prevPixelData = new uint32_t[maxBufSize];
-///    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
+    memset(m_pixelData, 0, m_bufSize);
 ///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
@@ -310,7 +318,7 @@ VectorRenderer::VectorRenderer()
     m_curFramePixel = 0;
     m_curFrameClock = m_curClock;
 
-///    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = frameBuf; ///new uint8_t[maxBufSize];
 
     memset(m_colorPalette, 0, sizeof(uint32_t) * 16);
     memset(m_bwPalette, 0, sizeof(uint32_t) * 16);
@@ -428,8 +436,8 @@ void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
         return;
     }
 
-    uint32_t* linePtr = m_frameBuf + (nLine - 24) * 626;
-    uint32_t* ptr;
+    uint8_t* linePtr = m_frameBuf + (nLine - 24) * 626;
+    uint8_t* ptr;
 
     if (nLine < 40 || nLine >= 296) {
         // upper and lower borders
@@ -482,11 +490,11 @@ void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
 void VectorRenderer::renderFrame()
 {
     if (m_showBorder)
-        memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     else {
-        uint32_t* ptr = m_frameBuf + 626 * 16 + 57;
+        uint8_t* ptr = m_frameBuf + 626 * 16 + 57;
         for (int i = 0; i < 256 * 512; i += 512) {
-            memcpy(m_pixelData + i, ptr, 512 * sizeof(uint32_t));
+            memcpy(m_pixelData + i, ptr, 512);
             ptr += 626;
         }
     }

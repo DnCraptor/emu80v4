@@ -338,7 +338,7 @@ void EmuWindow::interlaceFields(EmuPixelData frame)
 
     for (int i = 0; i < frame.height; i++) {
         memcpy(m_interlacedImage + frame.width * i * 2, frame.pixelData + i * frame.width, frame.width * 4);
-        memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.prevPixelData + i * frame.width, frame.width * 4);
+///        memcpy(m_interlacedImage + frame.width * (i * 2 + 1), frame.prevPixelData + i * frame.width, frame.width * 4);
     }
 }
 
@@ -406,14 +406,14 @@ void EmuWindow::drawFrame(EmuPixelData frame)
 
     if (m_fieldsMixing != FM_INTERLACE && m_fieldsMixing != FM_SCANLINE) {
         drawImage((uint32_t*)frame.pixelData, frame.width, frame.height, frame.aspectRatio, false, false);
-        if (m_fieldsMixing == FM_MIX && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) {
-            drawImage((uint32_t*)frame.prevPixelData, frame.prevWidth, frame.prevHeight, frame.prevAspectRatio, true, false);
-        }
-    } else if (m_fieldsMixing == FM_INTERLACE && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) { // FM_INTERLACE
-        if (frame.frameNo & 1)
-            interlaceFields(frame);
-        if (m_interlacedImage)
-            drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
+///        if (m_fieldsMixing == FM_MIX && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) {
+///            drawImage((uint32_t*)frame.prevPixelData, frame.prevWidth, frame.prevHeight, frame.prevAspectRatio, true, false);
+///        }
+///    } else if (m_fieldsMixing == FM_INTERLACE && frame.prevPixelData && frame.prevHeight == frame.height && frame.prevWidth == frame.width) { // FM_INTERLACE
+///        if (frame.frameNo & 1)
+///            interlaceFields(frame);
+///        if (m_interlacedImage)
+///            drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
     } else { // if (m_fieldsMixing == FM_SCANLINE)
         prepareScanline(frame);
         drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);

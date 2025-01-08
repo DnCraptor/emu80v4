@@ -108,12 +108,12 @@ Bashkiria2mRenderer::Bashkiria2mRenderer()
     m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+///    m_prevPixelData = new uint32_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = new uint8_t[maxBufSize];
 }
 
 
@@ -125,7 +125,7 @@ Bashkiria2mRenderer::~Bashkiria2mRenderer()
 
 void Bashkiria2mRenderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
 
     if (m_showBorder) {
@@ -136,7 +136,7 @@ void Bashkiria2mRenderer::renderFrame()
         m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
     m_bufSize = m_sizeX * m_sizeY;
-    memset(m_frameBuf, 0, m_bufSize * sizeof(uint32_t));
+    memset(m_frameBuf, 0, m_bufSize);
 }
 
 

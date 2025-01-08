@@ -50,9 +50,9 @@ class Crt8275Renderer : public TextCrtRenderer
 
         virtual const uint8_t* getCurFontPtr(bool, bool, bool) {return nullptr;}
         virtual const uint8_t* getAltFontPtr(bool, bool, bool) {return nullptr;}
-        virtual uint32_t getCurFgColor(bool, bool, bool) {return 0xFFFFFF;}
-        virtual uint32_t getCurBgColor(bool, bool, bool) {return 0x000000;}
-        virtual void customDrawSymbolLine(uint32_t*, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
+        virtual uint8_t getCurFgColor(bool, bool, bool) {return 0xFF;}
+        virtual uint8_t getCurBgColor(bool, bool, bool) {return 0x00;}
+        virtual void customDrawSymbolLine(uint8_t*, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
 
         Crt8275* m_crt = nullptr;

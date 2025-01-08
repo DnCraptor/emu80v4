@@ -372,15 +372,15 @@ PartnerRenderer::PartnerRenderer()
 }
 
 
-uint32_t PartnerRenderer::getCurFgColor(bool, bool, bool)
+uint8_t PartnerRenderer::getCurFgColor(bool, bool, bool)
 {
-    return 0xC0C0C0;
+    return 0xC0;
 }
 
 
-uint32_t PartnerRenderer::getCurBgColor(bool, bool, bool)
+uint8_t PartnerRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x000000;
+    return 0x00;
 }
 
 
@@ -441,19 +441,19 @@ void PartnerMcpgRenderer::attachMcpgRam(Ram* mcpgRam)
 }
 
 
-uint32_t PartnerMcpgRenderer::getCurFgColor(bool, bool, bool)
+uint8_t PartnerMcpgRenderer::getCurFgColor(bool, bool, bool)
 {
-    return 0xFFFFFF;
+    return 0xFF;
 }
 
 
-uint32_t PartnerMcpgRenderer::getCurBgColor(bool, bool, bool)
+uint8_t PartnerMcpgRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x000000;
+    return 0x00;
 }
 
 
-void PartnerMcpgRenderer::customDrawSymbolLine(uint32_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
+void PartnerMcpgRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {
     int col[4];
 

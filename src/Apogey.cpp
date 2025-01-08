@@ -98,24 +98,24 @@ ApogeyRenderer::ApogeyRenderer()
 }
 
 
-uint32_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
+uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
-    static const uint32_t c_bwPalette[8] = {0x000000, 0x828282, 0xC5C5C5, 0xEEEEEE, 0x585858, 0xAEAEAE, 0xDFDFDF, 0xFFFFFF};
+    static const uint8_t c_bwPalette[8] = {0x00, 0x82, 0xC5, 0xEE, 0x58, 0xAE, 0xDF, 0xFF};
 
     switch (m_colorMode) {
     case ColorMode::Mono:
-        return hglt ? 0xFFFFFF : 0xC0C0C0;
+        return hglt ? 0xFF : 0xC0;
     case ColorMode::Color:
-        return (gpa0 ? 0 : 0x0000FF) | (gpa1 ? 0 : 0x00FF00) | (hglt ? 0 : 0xFF0000);
+        return (gpa0 ? 0 : 0x0000FF) | (gpa1 ? 0 : 0x00FF00) | (hglt ? 0 : 0xFF0000); /// TODO:
     case ColorMode::Grayscale:
         return c_bwPalette[(gpa0 ? 0 : 4) + (gpa1 ? 0 : 2) + (hglt ? 0 : 1)];
     }
 }
 
 
-uint32_t ApogeyRenderer::getCurBgColor(bool, bool, bool)
+uint8_t ApogeyRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x000000;
+    return 0x00;
 }
 
 

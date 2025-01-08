@@ -69,10 +69,10 @@ LvovRenderer::LvovRenderer()
     m_sizeY = m_prevSizeY = 256;
     m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+///    m_prevPixelData = new uint32_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -86,7 +86,7 @@ void LvovRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 261;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 0;
         offsetY = 25;
         m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;

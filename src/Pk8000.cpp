@@ -127,10 +127,10 @@ Pk8000Renderer::Pk8000Renderer()
     m_sizeY = m_prevSizeY = 192;
     m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+///    m_prevPixelData = new uint32_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
     m_ticksPerPixel = g_emulation->getFrequency() / 5000000;
     setMode(0);
 
@@ -390,7 +390,7 @@ void Pk8000Renderer::renderLine(int nLine)
 
 void Pk8000Renderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
     prepareFrame();
 }

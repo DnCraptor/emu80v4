@@ -88,29 +88,29 @@ Rk86Renderer::Rk86Renderer()
 }
 
 
-uint32_t Rk86Renderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
+uint8_t Rk86Renderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
     switch (m_colorMode) {
         //case RCM_MONO_SIMPLE:
         case RCM_COLOR1:
              {
-                 uint32_t res = (gpa1 ? 0x0000FF : 0) | (gpa0 ? 0x00FF00 : 0) | (hglt ? 0xFF0000 : 0);
+                 uint32_t res = (gpa1 ? 0x0000FF : 0) | (gpa0 ? 0x00FF00 : 0) | (hglt ? 0xFF0000 : 0); /// TODO:
                 if (res == 0)
-                    res = 0xC0C0C0;
+                    res = 0xC0;
                 return res;
              }
         case RCM_COLOR2:
-            return (gpa0 ? 0 : 0xFF0000) | (gpa1 ? 0: 0x00FF00) | (hglt ? 0: 0x0000FF);
+            return (gpa0 ? 0 : 0xFF0000) | (gpa1 ? 0: 0x00FF00) | (hglt ? 0: 0x0000FF); /// TODO:
         //case RCM_MONO:
         default:
-            return 0xC0C0C0;
+            return 0xC0;
     }
 }
 
 
-uint32_t Rk86Renderer::getCurBgColor(bool, bool, bool)
+uint8_t Rk86Renderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x000000;
+    return 0x00;
 }
 
 
@@ -211,7 +211,7 @@ RkPixeltronRenderer::RkPixeltronRenderer()
 }
 
 
-void RkPixeltronRenderer::customDrawSymbolLine(uint32_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
+void RkPixeltronRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
 {
     int offset = (gpa0 ? 0x400 : 0) + symbol * 8 + (line & 7);
     uint8_t bt = ~m_font[offset];

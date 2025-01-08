@@ -618,13 +618,11 @@ void repeat_me_for_input() {
 #endif
 }
 
-uint8_t frame_buffer[DISP_WIDTH * DISP_HEIGHT / 2] = { 0 }; // 4-bit color
-
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
 
-    graphics_set_buffer(frame_buffer, DISP_WIDTH, DISP_HEIGHT);
+    graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
     sem_acquire_blocking(&vga_start_semaphore);
@@ -682,6 +680,10 @@ inline static void inInit(uint gpio) {
     gpio_set_dir(gpio, GPIO_IN);
     gpio_pull_up(gpio);
 }
+#endif
+
+#ifdef AUDIO_PWM_PIN
+#include "hardware/pwm.h"
 #endif
 
 void init_sound() {

@@ -77,7 +77,7 @@ class Bashkiria2mRenderer : public CrtRenderer, public IActive
         static EmuObject* create(const EmuValuesList&) {return new Bashkiria2mRenderer();}
 
     private:
-        uint32_t* m_frameBuf;
+        uint8_t* m_frameBuf;
         const uint8_t* m_screenMemory = nullptr;
         int m_line = 0, m_scrollAct = 0;
         uint8_t m_scroll = 0;

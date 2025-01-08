@@ -150,6 +150,9 @@ void palExecute() {
 #ifdef I2S_SOUND
 extern i2s_config_t i2s_config;
 #endif
+#ifdef AUDIO_PWM_PIN
+#include "hardware/pwm.h"
+#endif
 
 void palPlaySample(int16_t left, int16_t right) {
 #ifdef I2S_SOUND

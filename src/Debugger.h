@@ -246,7 +246,7 @@ class DebugWindow : private EmuWindow
         bool m_compactMode = false;
 
         EmuPixelData m_pixelData;
-        uint32_t* m_pixels = nullptr;
+        uint8_t* m_pixels = nullptr;
         bool m_needRepaint = true;
         void invalidate();
         void updateEmuScreen();

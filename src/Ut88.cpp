@@ -61,10 +61,10 @@ Ut88Renderer::Ut88Renderer()
     m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+///    m_prevPixelData = new uint32_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -95,7 +95,7 @@ void Ut88Renderer::primaryRenderFrame()
     if (m_useBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offset = 417 * 3 + 1;
         m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
@@ -104,7 +104,7 @@ void Ut88Renderer::primaryRenderFrame()
         m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
 
-    memset(m_pixelData, 0, sizeof(uint32_t) * m_sizeX * m_sizeY);
+    memset(m_pixelData, 0, m_sizeX * m_sizeY);
 
     for (int row = 0; row < 28; row++)
         for (int col = 0; col < 64; col++) {
@@ -116,12 +116,12 @@ void Ut88Renderer::primaryRenderFrame()
                 for (int pt = 0; pt < 6; pt++) {
                     bool pixel = (bt & 0x80);
                     bt <<= 1;
-                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? 0 : 0xC0C0C0;
+                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? 0 : 0xC0;
                 }
             }
             if (cursor)
                 for (int pt = 0; pt < 6; pt++)
-                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = 0xC0C0C0;
+                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = 0xC0;
         }
 }
 
