@@ -52,6 +52,7 @@ int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t*
 }
 
 void palLog(std::string s) {
+#if LOG
     static FIL pl;
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     f_open(&pl, "/emu80.log", FA_WRITE | FA_OPEN_APPEND);
@@ -59,29 +60,36 @@ void palLog(std::string s) {
     f_write(&pl, s.c_str(), s.length(), &bw);
     f_close(&pl);
     gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
 }
 
 EmuLog& EmuLog::operator<<(string s)
 {
+#if LOG
     palLog(s);
+#endif
     return *this;
 }
 
 
 EmuLog& EmuLog::operator<<(const char* sz)
 {
+#if LOG
     string s = sz;
     palLog(s);
+#endif
     return *this;
 }
 
 
 EmuLog& EmuLog::operator<<(int n)
 {
+#if LOG
     ostringstream oss;
     oss << n;
     string s = oss.str();
     palLog(s);
+#endif
     return *this;
 }
 
@@ -91,8 +99,6 @@ uint64_t palGetCounterFreq()
 {
     return 1000000;
 }
-
-#include <pico/stdlib.h>
 
 uint64_t palGetCounter()
 {
@@ -188,8 +194,10 @@ bool palSetVsync(bool)
 
 void palMsgBox(string msg, bool)
 {
+#if LOG
     /// TODO:
     palLog(msg + "\n");
+#endif
 }
 
 void palSetRunFileName(std::string) {

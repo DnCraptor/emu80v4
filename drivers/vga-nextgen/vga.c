@@ -36,8 +36,7 @@ static int line_VS_begin = 490;
 static int line_VS_end = 491;
 static int shift_picture = 0;
 
-static int visible_line_size = 320;
-
+static int visible_line_size = 626; /// TODO: <-- client_buffer_width ?
 
 static int dma_chan_ctrl;
 static int dma_chan;
@@ -110,8 +109,9 @@ void __time_critical_func() dma_handler_VGA() {
     uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
-            line_number = screen_line;
-            y = screen_line; /// - graphics_buffer_shift_y;
+            if (screen_line % 2) return;
+            line_number = screen_line / 2;
+            y = line_number + 24; /// - graphics_buffer_shift_y;
             break;
         default: {
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
@@ -148,7 +148,7 @@ void __time_critical_func() dma_handler_VGA() {
     output_buffer_16bit += shift_picture / 2; //смещение началы вывода на размер синхросигнала
 
     //для div_factor 2
-    uint max_width = client_buffer_width;
+///    uint max_width = client_buffer_width;
 ///    if (graphics_buffer_shift_x < 0) {
 ///            ///input_buffer_8bit -= graphics_buffer_shift_x / 8; //1bit buf
 ///            input_buffer_8bit -= graphics_buffer_shift_x / 4; //2bit buf
@@ -161,19 +161,24 @@ void __time_critical_func() dma_handler_VGA() {
 
 
 ///    int width = MIN((visible_line_size - ((graphics_buffer_shift_x > 0) ? (graphics_buffer_shift_x) : 0)), max_width);
-    int width = MIN(visible_line_size, max_width);
-    if (width < 0) return; // TODO: detect a case
+///    if (width < 0) return; // TODO: detect a case
 
     // Индекс палитры в зависимости от настроек чередования строк и кадров
 ///    uint16_t* current_palette = palette[(y & is_flash_line) + (frame_number & is_flash_frame) & 1];
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
+    int width = client_buffer_width;
+    int xoff2 = (graphics_buffer_width - width) / 2;
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
+            for  (int x = 0; x < xoff2; ++x) {
+                *output_buffer_8bit++ = 0xC0;
+            }
             for  (int x = 0; x < width; ++x) {
-                register uint8_t cx = input_buffer_8bit[x] & 0b00111111;
-                uint16_t c = (cx >> 4) | (cx & 0b1100) | ((cx & 0b11) << 4); // swap R and B
-                *output_buffer_8bit++ = (c & 0x3f) | 0xc0;
+                *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
+            }
+            for  (int x = 0; x < xoff2; ++x) {
+                *output_buffer_8bit++ = 0xC0;
             }
             break;
         default:
