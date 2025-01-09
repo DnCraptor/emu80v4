@@ -94,41 +94,29 @@ uint8_t Ram::readByte(int addr)
         return 0xFF;
 }
 
-
-
 // Rom implementation
-/**
-Rom::Rom()
-{
-    m_buf = nullptr;
-    m_size = 0;
-}
-*/
-#include "pico/vector_loader.rom.h"
+///#include "pico/vector_loader.rom.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
     /// TODO: selector
-    m_buf = vector_loader_rom;
-    m_size = sizeof(vector_loader_rom);
-    /*
+///    m_buf = vector_loader_rom;
+///    m_size = sizeof(vector_loader_rom);
     m_buf = new uint8_t [memSize];
-    memset(m_buf, 0xFF, memSize);
+    memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;
-    if (palReadFromFile(fileName, 0, memSize, m_buf) == 0/*!= memSize* /) {
+    if (palReadFromFile(fileName, 0, memSize, (uint8_t*)m_buf) == 0/*!= memSize*/) {
         delete[] m_buf;
         m_buf = nullptr;
     }
-    */
 }
 
 
 
 Rom::~Rom()
 {
-    /// TODO:
-///    if (!m_buf)
-///        delete[] m_buf;
+    if (!m_buf)
+       delete[] m_buf;
 }
 
 

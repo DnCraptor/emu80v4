@@ -235,9 +235,9 @@ void VectorCore::reset()
 
 void VectorCore::draw()
 {
-    EmuPixelData pd = m_crtRenderer->getPixelData();
+///    EmuPixelData pd = m_crtRenderer->getPixelData();
 ///    emuLog << "pd: " << pd.width << "x" << pd.height << "\n"; // 626x288
-    graphics_set_buffer(pd.pixelData, pd.width, pd.height);
+///    graphics_set_buffer(pd.pixelData, pd.width, pd.height);
 ///    m_window->drawFrame(pd);
 ///    m_window->endDraw();
 }
@@ -294,7 +294,7 @@ bool VectorCore::setProperty(const string& propertyName, const EmuValuesList& va
 
 // 626 = 704 / 13.5 * pixelFreq
 #define MAX_BUFFER_SIZE (626 * 288)
-uint8_t pixelData[MAX_BUFFER_SIZE];
+///uint8_t pixelData[MAX_BUFFER_SIZE];
 uint8_t frameBuf[MAX_BUFFER_SIZE];
 
 VectorRenderer::VectorRenderer()
@@ -304,11 +304,11 @@ VectorRenderer::VectorRenderer()
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
+///    m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = pixelData; /// new uint8_t[maxBufSize];
+    m_pixelData = frameBuf; /// new uint8_t[maxBufSize];
     ///m_prevPixelData = prevPixelData; // new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize);
+ ///   memset(m_pixelData, 0, m_bufSize);
     ///memset(m_prevPixelData, 0, m_prevBufSize);
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
@@ -488,6 +488,7 @@ void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
 
 void VectorRenderer::renderFrame()
 {
+    /**
     if (m_showBorder)
         memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     else {
@@ -497,9 +498,10 @@ void VectorRenderer::renderFrame()
             ptr += 626;
         }
     }
-
+*/
     swapBuffers();
     prepareFrame();
+    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
 }
 
 
@@ -508,11 +510,11 @@ void VectorRenderer::prepareFrame()
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
-        m_aspectRatio = 576.0 * 9 / 704 / 12;
+///        m_aspectRatio = 576.0 * 9 / 704 / 12;
     } else {
         m_sizeX = 626;
         m_sizeY = 288;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
+///        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     }
 }
 
