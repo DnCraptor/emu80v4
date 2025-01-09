@@ -579,6 +579,8 @@ void __not_in_flash_func(process_kbd_report)(
                 *pk = vk;
     ///            kbdExtraMapping(vk, true);
                 g_emulation->activePlatformKey(vk, true);
+                if (vk == PK_KP_PLUS) graphics_inc_y();
+                else if (vk == PK_KP_MINUS) graphics_dec_y();
             }
         }
     }

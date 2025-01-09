@@ -39,6 +39,8 @@ void graphics_set_mode(enum graphics_mode_t mode);
 
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
+void graphics_inc_y(void);
+void graphics_dec_y(void);
 void graphics_set_offset(int x, int y);
 
 void graphics_set_palette(uint8_t i, uint32_t color);

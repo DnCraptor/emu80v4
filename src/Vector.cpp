@@ -307,9 +307,9 @@ VectorRenderer::VectorRenderer()
     m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
     m_pixelData = pixelData; /// new uint8_t[maxBufSize];
-///    m_prevPixelData = new uint32_t[maxBufSize];
+    ///m_prevPixelData = prevPixelData; // new uint32_t[maxBufSize];
     memset(m_pixelData, 0, m_bufSize);
-///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    ///memset(m_prevPixelData, 0, m_prevBufSize);
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
     m_curScanlineClock = m_curClock;
@@ -329,8 +329,8 @@ VectorRenderer::VectorRenderer()
 
 VectorRenderer::~VectorRenderer()
 {
-    if (m_frameBuf)
-        delete[] m_frameBuf;
+///    if (m_frameBuf)
+///        delete[] m_frameBuf;
 }
 
 

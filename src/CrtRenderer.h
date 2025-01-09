@@ -60,7 +60,7 @@ class CrtRenderer : public EmuObject
         int m_bufSize = 0;
         double m_aspectRatio = 1.0;
 
-///        uint32_t* m_prevPixelData = nullptr;
+        ///uint8_t* m_prevPixelData = nullptr;
         int m_prevSizeX = 0;
         int m_prevSizeY = 0;
         int m_prevBufSize = 0;

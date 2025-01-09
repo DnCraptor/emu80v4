@@ -47,7 +47,7 @@ static uint client_buffer_height = 288;
 const static uint graphics_buffer_width = 640;
 const static uint graphics_buffer_height = 480;
 ///static int graphics_buffer_shift_x = 0;
-///static int graphics_buffer_shift_y = 0;
+static int graphics_buffer_shift_y = 24;
 
 static bool is_flash_line = false;
 static bool is_flash_frame = false;
@@ -111,7 +111,7 @@ void __time_critical_func() dma_handler_VGA() {
         case GRAPHICSMODE_DEFAULT:
             if (screen_line % 2) return;
             line_number = screen_line / 2;
-            y = line_number + 24; /// - graphics_buffer_shift_y;
+            y = line_number + graphics_buffer_shift_y;
             break;
         default: {
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
@@ -299,10 +299,17 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
     client_buffer_height = height;
 }
 
+void graphics_inc_y(void) {
+    graphics_buffer_shift_y++;
+}
+
+void graphics_dec_y(void) {
+    graphics_buffer_shift_y--;
+}
 
 void graphics_set_offset(const int x, const int y) {
 ///    graphics_buffer_shift_x = x;
-///    graphics_buffer_shift_y = y;
+    graphics_buffer_shift_y = y;
 }
 
 void graphics_set_flashmode(const bool flash_line, const bool flash_frame) {
