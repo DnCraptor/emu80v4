@@ -116,9 +116,9 @@ class VectorRenderer : public CrtRenderer, public IActive
         uint8_t m_borderColor = 0;
         bool m_mode512px = false;
         bool m_mode512pxLatched = false;
-        uint32_t m_colorPalette[16];
-        uint32_t m_bwPalette[16];
-        const uint32_t* m_palette= m_colorPalette;
+        uint8_t m_colorPalette[16];
+        uint8_t m_bwPalette[16];
+        const uint8_t* m_palette = m_colorPalette;
         int m_lastColor = 0;
 
         unsigned m_ticksPerPixel;

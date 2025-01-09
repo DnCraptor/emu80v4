@@ -97,16 +97,24 @@ ApogeyRenderer::ApogeyRenderer()
     m_customDraw = false;
 }
 
-
 uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
-    static const uint8_t c_bwPalette[8] = {0x00, 0x82, 0xC5, 0xEE, 0x58, 0xAE, 0xDF, 0xFF};
+    static const uint8_t c_bwPalette[8] = {
+        RGB888(0x00, 0x00, 0x00),
+        RGB888(0x82, 0x82, 0x82),
+        RGB888(0xC5, 0xC5, 0xC5),
+        RGB888(0xEE, 0xEE, 0xEE),
+        RGB888(0x58, 0x58, 0x58),
+        RGB888(0xAE, 0xAE, 0xAE),
+        RGB888(0xDF, 0xDF, 0xDF),
+        RGB888(0xFF, 0xFF, 0xFF)
+    };
 
     switch (m_colorMode) {
     case ColorMode::Mono:
-        return hglt ? 0xFF : 0xC0;
+        return hglt ? RGB888(0xFF, 0xFF, 0xFF) : RGB888(0xC0, 0xC0, 0xC0);
     case ColorMode::Color:
-        return (gpa0 ? 0 : 0x0000FF) | (gpa1 ? 0 : 0x00FF00) | (hglt ? 0 : 0xFF0000); /// TODO:
+        return (gpa0 ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF)) | (gpa1 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) | (hglt ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0));
     case ColorMode::Grayscale:
         return c_bwPalette[(gpa0 ? 0 : 4) + (gpa1 ? 0 : 2) + (hglt ? 0 : 1)];
     }
@@ -115,7 +123,7 @@ uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 
 uint8_t ApogeyRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x00;
+    return RGB888(0, 0, 0);
 }
 
 

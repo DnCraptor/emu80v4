@@ -10,8 +10,6 @@
 #include <hardware/sync.h>
 #include <hardware/flash.h>
 
-#include "graphics.h"
-
 #include "audio.h"
 #include "ff.h"
 #include "psram_spi.h"

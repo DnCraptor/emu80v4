@@ -13,6 +13,8 @@
 #include "../EmuTypes.h"
 #include "../PalKeys.h"
 
+#include "graphics.h"
+
 using namespace std;
 
 class PalWindow;

@@ -371,16 +371,15 @@ PartnerRenderer::PartnerRenderer()
     m_customDraw = false;
 }
 
-
 uint8_t PartnerRenderer::getCurFgColor(bool, bool, bool)
 {
-    return 0xC0;
+    return RGB888(0xC0, 0xC0, 0xC0);
 }
 
 
 uint8_t PartnerRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x00;
+    return RGB888(0, 0, 0);
 }
 
 
@@ -440,16 +439,15 @@ void PartnerMcpgRenderer::attachMcpgRam(Ram* mcpgRam)
     m_fontPtr = mcpgRam->getDataPtr();
 }
 
-
 uint8_t PartnerMcpgRenderer::getCurFgColor(bool, bool, bool)
 {
-    return 0xFF;
+    return RGB888(0xFF, 0xFF, 0xFF);
 }
 
 
 uint8_t PartnerMcpgRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x00;
+    return RGB888(0, 0, 0);
 }
 
 
@@ -463,16 +461,16 @@ void PartnerMcpgRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol,
     col[3] = m_fontPtr[fntOffs + 0x800] & 0x7;
     col[2] = (m_fontPtr[fntOffs + 0x800] & 0x38) >> 3;
 
-    uint32_t bgColor = (gpa0 ? 0xFF0000 : 0) + (gpa1 ? 0x00FF00 : 0) + (hglt ? 0x0000FF : 0) + 0xFF000000;
+    uint8_t bgColor = RGB888((gpa0 ? 0xFF : 0), (gpa1 ? 0xFF : 0), (hglt ? 0xFF : 0));
 
     for (int pt = 0; pt < 4; pt++) {
-        uint32_t color;
+        uint8_t color;
         if (col[pt] == 7 || (vsp & !lten))
             color = bgColor;
         else
-            color = (col[pt] & 1 ? 0 : 0xFF0000) + (col[pt] & 2 ? 0 : 0x00FF00) + (col[pt] & 4 ? 0 : 0x0000FF) + 0xFF000000;
+            color = (col[pt] & 1 ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0)) + (col[pt] & 2 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) + (col[pt] & 4 ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF));
         if (gpa0 && gpa1 && !hglt && ((symbol & 0xC0) != 0xC0) /*&& ((symbol & 0xC0) != 0x80)*/)
-            color = 0x00000000; //transparent
+            color = RGB888(0, 0, 0); //transparent
         linePtr[pt] = color;
     }
 }

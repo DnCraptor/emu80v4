@@ -34,7 +34,6 @@
 #include "Covox.h"
 #include "PrnWriter.h"
 #include "AtaDrive.h"
-#include "graphics.h"
 
 using namespace std;
 
@@ -320,8 +319,8 @@ VectorRenderer::VectorRenderer()
 
     m_frameBuf = frameBuf; ///new uint8_t[maxBufSize];
 
-    memset(m_colorPalette, 0, sizeof(uint32_t) * 16);
-    memset(m_bwPalette, 0, sizeof(uint32_t) * 16);
+    memset(m_colorPalette, 0, 16);
+    memset(m_bwPalette, 0, 16);
     m_palette = m_colorPalette;
 
     prepareFrame(); // prepare 1st frame dimensions
@@ -409,12 +408,12 @@ void VectorRenderer::setLineOffset(uint8_t lineOffset)
 void VectorRenderer::setPaletteColor(uint8_t color)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 27);
-
-    m_colorPalette[m_lastColor] = ((color & 0x7) << 21) | ((color & 0x7) << 18) | ((color & 0x6) << 15) |
-                                  ((color & 0x38) << 10) | ((color & 0x38) << 7) | ((color & 0x30) << 4) |
-                                  (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
-    uint8_t bw = c_bwMap[color];
-    m_bwPalette[m_lastColor] = (bw << 16) | (bw << 8) | bw;
+    register uint32_t c = ((color & 0x7) << 21) | ((color & 0x7) << 18) | ((color & 0x6) << 15) |
+                          ((color & 0x38) << 10) | ((color & 0x38) << 7) | ((color & 0x30) << 4) |
+                          (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
+    m_colorPalette[m_lastColor] = RGB888(((c >> 16) & 0xFF), ((c >> 8) & 0xFF), (c & 0xFF));
+    register uint8_t bw = c_bwMap[color];
+    m_bwPalette[m_lastColor] = RGB888((bw << 16), (bw << 8), bw);
 }
 
 
