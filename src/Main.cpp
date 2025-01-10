@@ -552,6 +552,7 @@ void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
+    static bool numlock = false;
     if (!g_emulation) {
         return;
     }
@@ -581,6 +582,12 @@ void __not_in_flash_func(process_kbd_report)(
                 g_emulation->activePlatformKey(vk, true);
                 if (vk == PK_KP_PLUS) graphics_inc_y();
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
+                else if (vk == PK_KP_MUL) graphics_inc_x();
+                else if (vk == PK_KP_DIV) graphics_dec_x();
+                else if (vk == PK_NUMLOCK) {
+                    numlock = !numlock;
+                //    graphics_set_mode(numlock ? GMODE_640_480 : GMODE_800_600);
+                }
             }
         }
     }
@@ -761,9 +768,13 @@ int main() {
 #endif
     f_mount(&fs, "SD", 1);
     f_unlink("/emu80.log");
-    int argc = 0;
-    palInit(argc, 0);
-    CmdLine cmdLine(argc, 0); // ???
+    static const char* argv[] = {
+        "emu80",
+        "--platform", "vector"
+    };
+    int argc = 3;
+    palInit(argc, (char**)argv);
+    CmdLine cmdLine(argc, (char**)argv);
     new Emulation(cmdLine); // g_emulation присваивается в конструкторе
     palExecute();
     __unreachable();

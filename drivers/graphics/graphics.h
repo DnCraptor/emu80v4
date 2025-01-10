@@ -29,8 +29,10 @@ extern "C" {
 #include "font8x8.h"
 #include "font8x16.h"
 enum graphics_mode_t {
-    TEXTMODE_DEFAULT,
-    GRAPHICSMODE_DEFAULT,
+    TEXTMODE_DEFAULT = 0,
+    GRAPHICSMODE_DEFAULT = 1,
+    GMODE_640_480 = 1,
+    GMODE_800_600 = 2
 };
 
 void graphics_init();
@@ -39,6 +41,8 @@ void graphics_set_mode(enum graphics_mode_t mode);
 
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
+void graphics_inc_x(void);
+void graphics_dec_x(void);
 void graphics_inc_y(void);
 void graphics_dec_y(void);
 void graphics_set_offset(int x, int y);

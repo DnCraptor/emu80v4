@@ -8,7 +8,7 @@
 #include <hardware/pio.h>
 
 std::string palGetDefaultPlatform() {
-    return "vector"; /// TODO:
+    return "";
 }
 
 uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
