@@ -586,7 +586,7 @@ void __not_in_flash_func(process_kbd_report)(
                 else if (vk == PK_KP_DIV) graphics_dec_x();
                 else if (vk == PK_NUMLOCK) {
                     numlock = !numlock;
-                //    graphics_set_mode(numlock ? GMODE_640_480 : GMODE_800_600);
+                    graphics_set_mode(numlock ? GMODE_640_480 : GMODE_800_600);
                 }
             }
         }

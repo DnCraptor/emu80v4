@@ -256,7 +256,7 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             break;
         case GMODE_800_600:
             graphics_buffer_shift_y = -6;
-            graphics_buffer_shift_x = (800 - 622) / 2 + 70; // ??? why
+            graphics_buffer_shift_x = (800 - 622) / 2;
             graphics_buffer_width = 800;
             graphics_buffer_height = 600;
             TMPL_LINE8 = 0b11000000;
@@ -285,7 +285,8 @@ void graphics_set_mode(enum graphics_mode_t mode) {
 ///    }
 
     //инициализация шаблонов строк и синхросигнала
-    if (!lines_pattern_data) //выделение памяти, если не выделено
+    if (lines_pattern_data) free(lines_pattern_data);
+   // if (!lines_pattern_data) //выделение памяти, если не выделено
     {
         const uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
         PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000; //делитель для конкретной sm
