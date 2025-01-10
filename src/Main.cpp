@@ -767,7 +767,9 @@ int main() {
     keyboard_send(0xFF);
 #endif
     f_mount(&fs, "SD", 1);
+#if LOG
     f_unlink("/emu80.log");
+#endif
     static const char* argv[] = {
         "emu80",
         "--platform", "vector"

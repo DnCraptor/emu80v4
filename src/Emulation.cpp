@@ -19,6 +19,9 @@
 #include <sstream>
 #include <algorithm>
 
+#include <hardware/watchdog.h>
+#include <pico/stdlib.h>
+
 #include "Pal.h"
 
 #include "Globals.h"
@@ -34,6 +37,7 @@
 #include "PrnWriter.h"
 #include "FileLoader.h"
 #include "EmuCalls.h"
+#include "Shortcuts.h"
 
 using namespace std;
 
@@ -388,9 +392,22 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
 }
 
 void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
+    static bool isAltPressed, isShiftPressed, isCtrlPressed = false;
+#if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
-    if (m_activePlatform)
-        m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+#endif
+    if (m_activePlatform) {
+        if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT) isShiftPressed = isPressed;
+        else if (keyCode == PK_LALT || keyCode == PK_RALT) isAltPressed = isPressed;
+        else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL) isCtrlPressed = isPressed;
+        if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
+            watchdog_enable(100, true);
+            while(true) sleep_ms(20);
+        }
+        SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
+        if (sr) m_activePlatform->sysReq(sr);
+        else m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+    }
 }
 
 void Emulation::resetKeys(EmuWindow* wnd)

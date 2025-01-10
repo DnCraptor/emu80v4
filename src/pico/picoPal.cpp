@@ -114,9 +114,18 @@ string palMakeFullFileName(string fileName)
     return fullFileName;
 }
 
+static std::string clipboard;
+std::string palGetTextFromClipboard() {
+    return clipboard;
+}
+
+void palCopyTextToClipboard(const char* text) {
+    clipboard = text;
+}
+
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
     /// TODO:
-    return "emu80.dmp";
+    return "/emu80/vector/clrs.rom";
 }
 
 void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)
