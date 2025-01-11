@@ -97,6 +97,7 @@ uint8_t Ram::readByte(int addr)
 // Rom implementation
 #include "pico/vector_loader.rom.h"
 #include "pico/apogey.rom.h"
+#include "pico/bashkiria_bios1_rom.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
@@ -108,6 +109,11 @@ Rom::Rom(unsigned memSize, string fileName)
     if (fileName == "apogey/apogey.rom") {
         m_buf = apogey_rom;
         m_size = sizeof(apogey_rom);
+        return;
+    }
+    if (fileName == "bashkiria/bios1.rom") {
+        m_buf = bashkiria_bios1_rom;
+        m_size = sizeof(bashkiria_bios1_rom);
         return;
     }
     m_buf = new uint8_t [memSize];

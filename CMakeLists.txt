@@ -24,8 +24,10 @@ set(VGA_DRV ON)
 #set(HDMI ON)
 
 #set(CPU_MHZ 366)
-set(CPU_MHZ 372)
+#set(CPU_MHZ 372)
 #set(CPU_MHZ 378)
+#set(CPU_MHZ 444)
+set(CPU_MHZ 460)
 set (PORT_VERSION "0.0.5")
 #set (MURM2 ON)
 
@@ -270,7 +272,7 @@ ELSE()
 
         DEFAULT_THROTTLING=0
 
-       # LOG=1
+     #   LOG=1
     )
 ENDIF()
 
