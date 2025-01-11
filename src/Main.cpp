@@ -772,7 +772,7 @@ int main() {
 #endif
     static const char* argv[] = {
         "emu80",
-        "--platform", "vector"
+        "--platform", "vector" //"apogey.sd"
     };
     int argc = 3;
     palInit(argc, (char**)argv);

@@ -34,6 +34,7 @@ uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
+    emuLog << "palReadFromFile: " << fileName << "\n";
     string fullFileName;
     if (useBasePath)
         fullFileName = palMakeFullFileName(fileName);

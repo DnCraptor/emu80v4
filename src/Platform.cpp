@@ -33,7 +33,6 @@
 #include "FileLoader.h"
 #include "Keyboard.h"
 #include "RamDisk.h"
-#include "Debugger.h"
 #include "KbdTapper.h"
 
 using namespace std;
@@ -198,12 +197,8 @@ void Platform::reset()
 Platform::~Platform()
 {
     Platform::shutdown();
-
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
         delete *it;
-
-    if (m_dbgWindow)
-        delete m_dbgWindow;
 }
 
 
@@ -409,31 +404,16 @@ void Platform::draw()
 {
     if (m_core)
         m_core->draw();
-
-    if (m_dbgWindow)
-        m_dbgWindow->draw();
 }
 
 
 void Platform::showDebugger()
 {
-#ifndef PAL_WASM
-    if (m_cpu->getType() == Cpu::CPU_8080 || m_cpu->getType() == Cpu::CPU_Z80) {
-        if (!m_dbgWindow) {
-            m_dbgWindow = new DebugWindow(this);
-            m_dbgWindow->initDbgWindow();
-            m_dbgWindow->setCaption("Debug: " + m_window->getCaption());
-        }
-        m_dbgWindow->startDebug();
-    }
-#endif
 }
 
 
 void Platform::updateDebugger()
 {
-    if (m_dbgWindow)
-        m_dbgWindow->update();
 }
 
 

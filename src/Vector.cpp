@@ -292,21 +292,17 @@ bool VectorCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
-// 626 = 704 / 13.5 * pixelFreq
-#define MAX_BUFFER_SIZE (626 * 288)
-///uint8_t pixelData[MAX_BUFFER_SIZE];
-uint8_t frameBuf[MAX_BUFFER_SIZE];
 
 VectorRenderer::VectorRenderer()
 {
     const int pixelFreq = 12; // MHz
-    const int maxBufSize = MAX_BUFFER_SIZE; // 626 = 704 / 13.5 * pixelFreq
+    const int maxBufSize = 626 * 288; // 626 = 704 / 13.5 * pixelFreq
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
 ///    m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
     m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = frameBuf; /// new uint8_t[maxBufSize];
+    m_pixelData = new uint8_t[maxBufSize];
     ///m_prevPixelData = prevPixelData; // new uint32_t[maxBufSize];
  ///   memset(m_pixelData, 0, m_bufSize);
     ///memset(m_prevPixelData, 0, m_prevBufSize);
@@ -317,7 +313,7 @@ VectorRenderer::VectorRenderer()
     m_curFramePixel = 0;
     m_curFrameClock = m_curClock;
 
-    m_frameBuf = frameBuf; ///new uint8_t[maxBufSize];
+    m_frameBuf = m_pixelData; ///new uint8_t[maxBufSize];
 
     memset(m_colorPalette, 0, 16);
     memset(m_bwPalette, 0, 16);

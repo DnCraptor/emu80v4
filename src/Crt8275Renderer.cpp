@@ -194,6 +194,7 @@ void Crt8275Renderer::mouseDrag(int x, int y)
     m_crt->setLpenPosition(x, y);
 }
 
+extern "C" void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
 
 void Crt8275Renderer::primaryRenderFrame()
 {
@@ -292,6 +293,7 @@ void Crt8275Renderer::primaryRenderFrame()
     }
 
     trimImage(m_fntCharWidth, nLines);
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -397,6 +399,7 @@ void Crt8275Renderer::altRenderFrame()
     }
 
     trimImage(8, nLines);
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 

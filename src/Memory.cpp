@@ -95,27 +95,37 @@ uint8_t Ram::readByte(int addr)
 }
 
 // Rom implementation
-///#include "pico/vector_loader.rom.h"
+#include "pico/vector_loader.rom.h"
+#include "pico/apogey.rom.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
-    /// TODO: selector
-///    m_buf = vector_loader_rom;
-///    m_size = sizeof(vector_loader_rom);
+    if (fileName == "vector/loader.rom") {
+        m_buf = vector_loader_rom;
+        m_size = sizeof(vector_loader_rom);
+        return;
+    }
+    if (fileName == "apogey/apogey.rom") {
+        m_buf = apogey_rom;
+        m_size = sizeof(apogey_rom);
+        return;
+    }
     m_buf = new uint8_t [memSize];
     memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;
     if (palReadFromFile(fileName, 0, memSize, (uint8_t*)m_buf) == 0/*!= memSize*/) {
         delete[] m_buf;
         m_buf = nullptr;
+        return;
     }
+    b_ram = true;
 }
 
 
 
 Rom::~Rom()
 {
-    if (!m_buf)
+    if (b_ram)
        delete[] m_buf;
 }
 

@@ -89,6 +89,7 @@ class Rom : public AddressableDevice
     protected:
         int m_size;
         const uint8_t* m_buf = nullptr;
+        bool b_ram = false;
 };
 
 
