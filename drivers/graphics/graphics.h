@@ -1,3 +1,5 @@
+#ifndef GRAPHICS
+#define GRAPHICS
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -72,3 +74,4 @@ void graphics_fill(int32_t x, int32_t y, uint32_t width, uint32_t height, uint8_
 #ifdef __cplusplus
 }
 #endif
+#endif // GRAPHICS

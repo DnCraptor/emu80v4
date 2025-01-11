@@ -123,7 +123,7 @@ void SpecRenderer::renderFrame()
             uint8_t bgColor = 0;
             switch (m_colorMode) {
                 case SCM_MONO:
-                    fgColor = 0xC0C0C0;
+                    fgColor = RGB888(0xC0, 0xC0, 0xC0);
                     break;
                 case SCM_4COLOR:
                     fgColor = spec4ColorPalette[(colorByte & 0xC0) >> 6];
@@ -139,6 +139,7 @@ void SpecRenderer::renderFrame()
             for (int pt = 0; pt < 8; pt++, bt <<= 1)
                 m_pixelData[(row + offsetY) * m_sizeX + col * 8 + pt + offsetX] = (bt & 0x80) ? fgColor : bgColor;
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 

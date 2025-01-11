@@ -29,10 +29,10 @@
 #include "Pit8253Sound.h"
 #include "Keyboard.h"
 #include "Fdc1793.h"
+#include "graphics.h"
 
 class GeneralSoundSource;
 class AddrSpaceMapper;
-
 
 class Bashkiria2mCore : public PlatformCore
 {
@@ -84,9 +84,9 @@ class Bashkiria2mRenderer : public CrtRenderer, public IActive
         uint8_t m_page = 0;
         bool m_colorMode = true;
         bool m_showBorder = false;
-        uint32_t m_palette[2][4] = {
-            {0x000000,0xB4B4B4,0x5A5A5A,0xFFFFFF},
-            {0x000000,0x00FF00,0x0000FF,0xFF0000}
+        uint8_t m_palette[2][4] = {
+            {RGB888(0, 0, 0), RGB888(0xB4, 0xB4, 0xB4), RGB888(0x5A, 0x5A, 0x5A), RGB888(0xFF, 0xFF, 0xFF) },
+            {RGB888(0, 0, 0), RGB888(0, 0xFF, 0), RGB888(0, 0, 0xFF), RGB888(0xFF, 0, 0)}
         };
 };
 

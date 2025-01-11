@@ -350,7 +350,7 @@ inline static bool isInReport(hid_keyboard_report_t const *report, const unsigne
     return false;
 }
 
-PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
+volatile PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 PalKeyCode map_key(uint8_t kc) {
     switch(kc) {
@@ -553,9 +553,6 @@ void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t const *prev_report
 ) {
     static bool numlock = false;
-    if (!g_emulation) {
-        return;
-    }
     for (uint8_t pkc: prev_report->keycode) {
         if (!pkc) continue;
         bool key_still_pressed = false;
@@ -566,20 +563,23 @@ void __not_in_flash_func(process_kbd_report)(
             }
         }
         if (!key_still_pressed) {
-            g_emulation->activePlatformKey(pressed_key[pkc], false);
+            if (g_emulation) {
+                g_emulation->activePlatformKey(pressed_key[pkc], false);
+            }
             pressed_key[pkc] = PalKeyCode::PK_NONE;
         }
     }
     for (uint8_t kc: report->keycode) {
         if (!kc) continue;
-        PalKeyCode* pk = pressed_key + kc;
-        PalKeyCode vk = *pk;
+        PalKeyCode vk = pressed_key[kc];
         if (vk == PalKeyCode::PK_NONE) { // it was not yet pressed
             vk = map_key(kc);
             if (vk != PalKeyCode::PK_NONE) {
-                *pk = vk;
+                pressed_key[kc] = vk;
     ///            kbdExtraMapping(vk, true);
-                g_emulation->activePlatformKey(vk, true);
+                if (g_emulation) {
+                    g_emulation->activePlatformKey(vk, true);
+                }
                 if (vk == PK_KP_PLUS) graphics_inc_y();
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
                 else if (vk == PK_KP_MUL) graphics_inc_x();
@@ -777,10 +777,45 @@ int main() {
 #if LOG
     f_unlink("/emu80.log");
 #endif
-    static const char* argv[] = {
+    static const char* argv[3] = {
         "emu80",
-        "--platform", "vector", /// "bashkiria", //"apogey.sd"
+        "--platform",
+        0
     };
+    while(true) {
+        if (pressed_key[HID_KEY_F1]) {
+            argv[2] = "vector";
+            break;
+        }
+        if (pressed_key[HID_KEY_F2]) {
+            argv[2] = "bashkiria";
+            break;
+        }
+        if (pressed_key[HID_KEY_F3]) {
+            argv[2] = "spec.m1";
+            break;
+        }
+        if (pressed_key[HID_KEY_F4]) {
+            argv[2] = "sp580";
+            break;
+        }
+        if (pressed_key[HID_KEY_F5]) {
+            argv[2] = "spec.z80";
+            break;
+        }
+        if (pressed_key[HID_KEY_F6]) {
+            argv[2] = "spec.lik";
+            break;
+        }
+        if (pressed_key[HID_KEY_F7]) {
+            argv[2] = "spec";
+            break;
+        }
+        sleep_ms(50);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(50);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
     int argc = 3;
     palInit(argc, (char**)argv);
     CmdLine cmdLine(argc, (char**)argv);

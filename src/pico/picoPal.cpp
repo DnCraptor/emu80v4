@@ -140,7 +140,7 @@ plot(0, 0, RGB888(0xFF, 0xFF, 0xFF));
  ///   while(1) {
   ///  }
     /// TODO:
-    return "/emu80/vector/clrs.rom";
+    return "/emu80/open.file.rom";
 }
 
 void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)

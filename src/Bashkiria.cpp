@@ -146,7 +146,7 @@ void Bashkiria2mRenderer::operate()
     if (m_line<256) {
         int addr = (m_page==0 ? 0x1000 : 0x9000) + ((m_line+m_scrollAct)&0xFF);
         int offsetX = m_showBorder?21:0, offsetY = m_showBorder?10:0;
-        uint32_t* nColor = m_palette[m_colorMode ? 1 : 0];
+        uint8_t* nColor = m_palette[m_colorMode ? 1 : 0];
         for (int col = 0; col < 48; col++,addr+=256) {
             uint16_t b1 = m_screenMemory[addr];
             uint16_t b2 = m_screenMemory[addr+0x4000]<<1;
