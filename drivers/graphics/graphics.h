@@ -60,6 +60,15 @@ void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, ui
 
 void clrScr(uint8_t color);
 
+uint32_t graphics_get_width();
+uint32_t graphics_get_height();
+uint8_t* graphics_get_frame();
+
+void plot(int x, int y, uint8_t color);
+void line(int x0, int y0, int x1, int y1, uint8_t color);
+void graphics_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint8_t color);
+void graphics_fill(int32_t x, int32_t y, uint32_t width, uint32_t height, uint8_t bgcolor);
+
 #ifdef __cplusplus
 }
 #endif

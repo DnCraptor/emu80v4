@@ -372,10 +372,9 @@ void Emulation::screenUpdateReq()
 
 void Emulation::draw()
 {
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
-        (*it)->draw();
-    }
-
+///    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
+///        (*it)->draw();
+///    }
     m_scrUpdateReq = false;
     m_timeAfterLastDraw = 0;
 }
@@ -572,12 +571,11 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
     }
 }
 
-
 void Emulation::mainLoopCycle()
 {
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
-
+/**
     if (m_scrUpdateReq) {
         if (m_fpsLimit == 0 || m_timeAfterLastDraw > palGetCounterFreq() / m_fpsLimit) {
             draw();
@@ -588,12 +586,12 @@ void Emulation::mainLoopCycle()
             draw();
         }
     }
-
+*/
     m_sysClock = palGetCounter();
     unsigned dt = m_sysClock - m_prevSysClock;
     m_timeAfterLastDraw += dt;
 
-    // provide at least 20 fps when CPU power is not enougt to emulate at 100% speed
+    // provide at least 20 fps when CPU power is not enough to emulate at 100% speed
     if (dt > palGetCounterFreq() / 20) // 1/20 s
         dt = palGetCounterFreq() / 20;
 

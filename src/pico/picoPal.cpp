@@ -123,7 +123,21 @@ void palCopyTextToClipboard(const char* text) {
     clipboard = text;
 }
 
+
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
+    /*
+    uint32_t sw = graphics_get_width();
+    uint32_t sh = graphics_get_height();
+    uint32_t w = sw - 10;
+    uint32_t h = sw - 6;
+    int32_t x = (sw - w) / 2;
+    int32_t y = (sh - h) / 2;
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x+1, y+1, w-2, h-2, RGB888(0xFF, 0xFF, 0xFF));
+plot(0, 0, RGB888(0xFF, 0xFF, 0xFF));
+*/
+ ///   while(1) {
+  ///  }
     /// TODO:
     return "/emu80/vector/clrs.rom";
 }

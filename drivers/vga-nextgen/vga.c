@@ -468,9 +468,88 @@ void graphics_init() {
         false // Don't start yet
     );
 
-    graphics_set_mode(GMODE_800_600);
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
+    graphics_set_mode(GMODE_800_600);
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);
+}
+
+uint32_t graphics_get_width() {
+    return graphics_buffer_width;
+}
+uint32_t graphics_get_height() {
+    return graphics_buffer_height / 2; // TODO: for other modes?
+}
+uint8_t* graphics_get_frame() {
+    return graphics_buffer;
+}
+
+inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t color) {
+    y *= 2; // TODO:
+    if (x < 0 || x >= w) return;
+    if (y < 0 || y >= h) y++;
+    else graphics_buffer[w * (y++) + x] = color;
+    if (y < 0 || y >= h) return;
+    graphics_buffer[w * y + x] = color;
+}
+
+void plot(int x, int y, uint8_t color) {
+    _plot(x, y, graphics_buffer_width, graphics_buffer_height / 2, color);
+}
+
+void line(int x0, int y0, int x1, int y1, uint8_t color) {
+    uint32_t w = graphics_get_width();
+    uint32_t h = graphics_get_height();
+    if (x0 > x1) {
+        int t = x0;
+        x0 = x1;
+        x1 = t;
+    }
+    if (y1 == y0) {
+        for (int xi = x0; xi <= x1; ++xi) {
+            _plot(xi, y0, w, h, color);
+        }
+    }
+    if (y0 > y1) {
+        int t = y0;
+        y0 = y1;
+        y1 = t;
+    }
+    if (x1 == x0) {
+        for (int yi = y0; yi <= y1; ++yi) {
+            _plot(x0, yi, w, h, color);
+        }
+    }
+    int dx = x1 - x0;
+    int dy = y1 - y0;
+    if (dx > dy) {
+        float dydx = dy / (dx * 1.0);
+        for (int xi = x0; xi <= x1; ++xi) {
+            int yi = y0 + dydx * (xi - x0);
+            _plot(xi, yi, w, h, color);
+        }
+    }
+    float dxdy = dx / (dy * 1.0);
+    for (int yi = y0; yi <= y1; ++yi) {
+        int xi = x0 + dxdy * (yi - y0);
+        _plot(xi, yi, w, h, color);
+    }
+}
+
+void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t color) {
+    int32_t x1 = x0 + width;
+    int32_t y1 = y0 + height;
+    line(x0, y0, x1, y0, color);
+    line(x1, y0, x1, y1, color);
+    line(x1, y1, x0, y1, color);
+    line(x0, y1, x0, y0, color);
+}
+
+void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
+    int32_t x1 = x0 + width;
+    int32_t y1 = y0 + height;
+    for(int xi = x0; xi <= x1; ++xi) {
+        line(xi, y0, xi, y1, bgcolor);
+    }
 }
