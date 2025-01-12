@@ -42,7 +42,7 @@ class EurekaCore : public SpecCore
 class EurekaRenderer : public CrtRenderer, public IActive
 {
     const uint32_t eurekaPalette[4] = {
-        0x000000, 0x0000FF, 0xFF0000, 0x00FF00,
+        RGB888(0, 0, 0), RGB888(0x00, 0x00, 0xFF), RGB888(0xFF, 0x00,0x00), RGB888(0x00, 0xFF, 0x00)
     };
 
     public:

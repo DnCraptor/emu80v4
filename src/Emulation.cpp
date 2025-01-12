@@ -319,9 +319,12 @@ void Emulation::addChild(EmuObject* child)
             m_platformList.push_back(pl);
 };
 
+/// TODO: .h
+extern void processKeys();
 
 void Emulation::exec(uint64_t ticks, bool forced)
 {
+    processKeys();
     if (m_isPaused)
         return;
 
@@ -354,11 +357,13 @@ void Emulation::exec(uint64_t ticks, bool forced)
     if (!forced && m_debugReqCpu) {
         m_clockOffset = 0;
         // show debugger
+        /**
         for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
         if ((*it)->getCpu() == m_debugReqCpu) {
             (*it)->showDebugger();
             break;
         }
+        */
     }
 
 }

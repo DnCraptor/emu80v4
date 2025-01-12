@@ -352,6 +352,38 @@ inline static bool isInReport(hid_keyboard_report_t const *report, const unsigne
 
 volatile PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
+Emulation* g_emulation = nullptr;
+
+class PalKeyCodeAction {
+public:
+    PalKeyCode vk;
+    bool pressed;
+    PalKeyCodeAction(): vk(PK_NONE), pressed(false) {}
+    PalKeyCodeAction(const PalKeyCodeAction& o): vk(o.vk), pressed(o.pressed) {}
+    PalKeyCodeAction(PalKeyCode vk, bool pressed): vk(vk), pressed(pressed) {}
+};
+#include <queue>
+static std::queue<PalKeyCodeAction*> actions;
+
+inline static void addKey(PalKeyCode vk, bool pressed) {
+    actions.push(new PalKeyCodeAction(vk, pressed));
+}
+
+void processKeys() {
+    if (!actions.empty()) {
+        PalKeyCodeAction* p = actions.front();
+        actions.pop();
+        if (p && g_emulation) {
+            g_emulation->activePlatformKey(p->vk, p->pressed);
+            delete p;
+        }
+    }
+}
+
+void repeat_handler() {
+    /// TODO
+}
+
 PalKeyCode map_key(uint8_t kc) {
     switch(kc) {
         case HID_KEY_SPACE: return PalKeyCode::PK_SPACE;
@@ -473,80 +505,6 @@ PalKeyCode map_key(uint8_t kc) {
     }
     return PalKeyCode::PK_NONE;
 }
-/**
-void kbdExtraMapping(fabgl::VirtualKey virtualKey, bool pressed) {
-    switch(virtualKey) {
-        case PalKeyCode::PK_RCTRL: if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_ALTFIRE, pressed); break;
-        case PalKeyCode::PK_MENU_RIGHT: if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_ALTFIRE, pressed); break;
-        case PalKeyCode::PK_HOME: joyPushData(PalKeyCode::PK_MENU_HOME, pressed); break;
-        case PalKeyCode::PK_UP: {
-            if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_UP, pressed);
-            joyPushData(PalKeyCode::PK_MENU_UP, pressed);
-            break;
-        }
-        case PalKeyCode::PK_DOWN: {
-            if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_DOWN, pressed);
-            joyPushData(PalKeyCode::PK_MENU_DOWN, pressed);
-            break;
-        }
-        case PalKeyCode::PK_LEFT: {
-            if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_LEFT, pressed);
-            joyPushData(PalKeyCode::PK_MENU_LEFT, pressed);
-            break;
-        }
-        case PalKeyCode::PK_RIGHT: {
-            if (Config::CursorAsJoy) joyPushData(PalKeyCode::PK_DPAD_RIGHT, pressed);
-            joyPushData(PalKeyCode::PK_MENU_RIGHT, pressed);
-            break;
-        }
-        case PalKeyCode::PK_KP_ENTER: { // VK_KP_ENTER
-            kbdPushData(Config::rightSpace ? PalKeyCode::PK_SPACE : PalKeyCode::PK_RETURN, pressed);
-            return;
-        }
-
-        case PalKeyCode::PK_BACKSPACE: joyPushData(PalKeyCode::PK_MENU_BS, pressed); break;
-        case PalKeyCode::PK_SPACE:     joyPushData(PalKeyCode::PK_MENU_ENTER, pressed); break;
-        case PalKeyCode::PK_TAB:       if (Config::TABasfire1) JPAD(PalKeyCode::PK_DPAD_FIRE, pressed); break;
-        case PalKeyCode::PK_LALT:      if (Config::CursorAsJoy) JPAD(PalKeyCode::PK_DPAD_FIRE, pressed); break;
-        case PalKeyCode::PK_RETURN:    joyPushData(PalKeyCode::PK_MENU_ENTER, pressed); break;
-
-        case PalKeyCode::PK_KP_MULTIPLY: JPAD(PalKeyCode::PK_DPAD_START, pressed); break;
-        case PalKeyCode::PK_KP_MINUS:    JPAD(PalKeyCode::PK_DPAD_SELECT, pressed); break;
-        case PalKeyCode::PK_KP_PLUS:     JPAD(PalKeyCode::PK_DPAD_FIRE, pressed); break;
-        case PalKeyCode::PK_KP_PERIOD:   JPAD(PalKeyCode::PK_DPAD_FIRE, pressed); break;
-        case PalKeyCode::PK_KP_0:        JPAD(PalKeyCode::PK_DPAD_ALTFIRE, pressed); break;
-
-        case PalKeyCode::PK_KP_1: {
-            JPAD(PalKeyCode::PK_DPAD_LEFT, pressed);
-            JPAD(PalKeyCode::PK_DPAD_DOWN, pressed);
-            break;
-        }
-        case PalKeyCode::PK_KP_2:        JPAD(PalKeyCode::PK_DPAD_DOWN, pressed); break;
-        case PalKeyCode::PK_KP_3: {
-            JPAD(PalKeyCode::PK_DPAD_RIGHT, pressed);
-            JPAD(PalKeyCode::PK_DPAD_DOWN, pressed);
-            break;
-        }
-        case PalKeyCode::PK_KP_4:        JPAD(PalKeyCode::PK_DPAD_LEFT, pressed); break;
-        case PalKeyCode::PK_KP_5:        JPAD(PalKeyCode::PK_DPAD_DOWN, pressed); break;
-        case PalKeyCode::PK_KP_6:        JPAD(PalKeyCode::PK_DPAD_RIGHT, pressed); break;
-        case PalKeyCode::PK_KP_7: {
-            JPAD(PalKeyCode::PK_DPAD_LEFT, pressed);
-            JPAD(PalKeyCode::PK_DPAD_UP, pressed);
-            break;
-        }
-        case PalKeyCode::PK_KP_8:        JPAD(PalKeyCode::PK_DPAD_UP, pressed); break;
-        case PalKeyCode::PK_KP_9: {
-            JPAD(PalKeyCode::PK_DPAD_RIGHT, pressed);
-            JPAD(PalKeyCode::PK_DPAD_UP, pressed);
-            break;
-        }
-    }
-    kbdPushData(virtualKey, pressed);
-}
-*/
-
-Emulation* g_emulation = nullptr;
 
 void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t const *report,
@@ -564,7 +522,7 @@ void __not_in_flash_func(process_kbd_report)(
         }
         if (!key_still_pressed) {
             if (g_emulation) {
-                g_emulation->activePlatformKey(pressed_key[pkc], false);
+                addKey(pressed_key[pkc], false);
             }
             pressed_key[pkc] = PalKeyCode::PK_NONE;
         }
@@ -576,9 +534,8 @@ void __not_in_flash_func(process_kbd_report)(
             vk = map_key(kc);
             if (vk != PalKeyCode::PK_NONE) {
                 pressed_key[kc] = vk;
-    ///            kbdExtraMapping(vk, true);
                 if (g_emulation) {
-                    g_emulation->activePlatformKey(vk, true);
+                    addKey(vk, true);
                 }
                 if (vk == PK_KP_PLUS) graphics_inc_y();
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
@@ -618,11 +575,11 @@ void __scratch_x("render") repeat_me_for_input() {
             last_input_tick = tick;
         }
         tick = time_us_64();
-  ///      uint32_t tickKbdRep2 = time_us_32();
-  ///      if (tickKbdRep2 - tickKbdRep1 > 150000) { // repeat each 150 ms
-  ///          repeat_handler();
-  ///          tickKbdRep1 = tickKbdRep2;
-  ///      }
+        uint32_t tickKbdRep2 = time_us_32();
+        if (tickKbdRep2 - tickKbdRep1 > 150000) { // repeat each 150 ms
+            repeat_handler();
+            tickKbdRep1 = tickKbdRep2;
+        }
 
 #ifdef KBDUSB
         tuh_task();
@@ -809,6 +766,10 @@ int main() {
         }
         if (pressed_key[HID_KEY_F7]) {
             argv[2] = "spec";
+            break;
+        }
+        if (pressed_key[HID_KEY_F8]) {
+            argv[2] = "eureka";
             break;
         }
         sleep_ms(50);

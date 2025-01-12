@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.0.6")
+set (PORT_VERSION "0.0.7")
 #set (MURM2 ON)
 
 set(KBDUSB ON)

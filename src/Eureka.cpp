@@ -145,8 +145,7 @@ void EurekaRenderer::renderFrame()
                 int addr = col * 256 + row;
                 uint8_t bt = m_videoRam[addr];
                 for (int pt = 0; pt < 4; pt++, bt <<= 2) {
-                    uint32_t color = eurekaPalette[(bt & 0xC0) >> 6];
-                    /// TODO:
+                    uint8_t color = eurekaPalette[(bt & 0xC0) >> 6];
                     m_pixelData[offset + row * m_sizeX + col * 8 + pt * 2] = color;
                     m_pixelData[offset + row * m_sizeX + col * 8 + pt * 2 + 1] = color;
                 }
@@ -158,9 +157,10 @@ void EurekaRenderer::renderFrame()
                 int addr = col * 256 + row;
                 uint8_t bt = m_videoRam[addr];
                 for (int pt = 0; pt < 8; pt++, bt <<= 1)
-                    m_pixelData[offset + row * m_sizeX + col * 8 + pt] = (bt & 0x80) ? 0xC0 : 0x00;
+                    m_pixelData[offset + row * m_sizeX + col * 8 + pt] = (bt & 0x80) ? RGB888(0xC0, 0xC0, 0xC0) : RGB888(0, 0, 0);
             }
     }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
