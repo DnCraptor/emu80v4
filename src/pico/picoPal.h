@@ -80,6 +80,8 @@ struct PalFileInfo {
     int year;
 };
 
+typedef PalFileInfo* PPalFileInfo;
+
 void palGetDirContent(const std::string& dir, std::list<PalFileInfo*>& fileList);
 
 #endif // PICOPAL_H

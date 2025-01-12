@@ -354,19 +354,21 @@ volatile PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 Emulation* g_emulation = nullptr;
 
-class PalKeyCodeAction {
-public:
-    PalKeyCode vk;
-    bool pressed;
-    PalKeyCodeAction(): vk(PK_NONE), pressed(false) {}
-    PalKeyCodeAction(const PalKeyCodeAction& o): vk(o.vk), pressed(o.pressed) {}
-    PalKeyCodeAction(PalKeyCode vk, bool pressed): vk(vk), pressed(pressed) {}
-};
 #include <queue>
 static std::queue<PalKeyCodeAction*> actions;
 
 inline static void addKey(PalKeyCode vk, bool pressed) {
     actions.push(new PalKeyCodeAction(vk, pressed));
+}
+
+PalKeyCodeAction getKey() {
+    if (actions.empty()) return PalKeyCodeAction();
+    PalKeyCodeAction* p = actions.front();
+    actions.pop();
+    if (!p) return PalKeyCodeAction();
+    PalKeyCodeAction res = *p;
+    delete p;
+    return res;
 }
 
 void processKeys() {

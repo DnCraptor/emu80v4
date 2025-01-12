@@ -11,6 +11,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "stdlib.h"
+#include "font8x8.h"
 
 uint16_t pio_program_VGA_instructions[] = {
     //     .wrap_target
@@ -476,26 +477,29 @@ void graphics_init() {
 }
 
 uint32_t graphics_get_width() {
-    return graphics_buffer_width;
+    return client_buffer_width;
 }
 uint32_t graphics_get_height() {
-    return graphics_buffer_height / 2; // TODO: for other modes?
+    return client_buffer_height;
 }
 uint8_t* graphics_get_frame() {
     return graphics_buffer;
 }
+uint32_t graphics_get_font_width() {
+    return 8;
+}
+uint32_t graphics_get_font_height() {
+    return 8;
+}
 
 inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t color) {
-    y *= 2; // TODO:
     if (x < 0 || x >= w) return;
-    if (y < 0 || y >= h) y++;
-    else graphics_buffer[w * (y++) + x] = color;
     if (y < 0 || y >= h) return;
     graphics_buffer[w * y + x] = color;
 }
 
 void plot(int x, int y, uint8_t color) {
-    _plot(x, y, graphics_buffer_width, graphics_buffer_height / 2, color);
+    _plot(x, y, client_buffer_width, client_buffer_height, color);
 }
 
 void line(int x0, int y0, int x1, int y1, uint8_t color) {
@@ -551,5 +555,20 @@ void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
     int32_t y1 = y0 + height;
     for(int xi = x0; xi <= x1; ++xi) {
         line(xi, y0, xi, y1, bgcolor);
+    }
+}
+
+void graphics_type(int x, int y, uint8_t color, const char* msg, size_t msg_len) {
+    for (size_t i = 0; i < msg_len; ++i) {
+        char ch = msg[i];
+        const uint8_t* pf_line0 = font_8x8 + ch*8;
+        uint32_t xt = x + i * graphics_get_font_width();
+        for (size_t j = 0; j < graphics_get_font_height(); ++j) {
+            uint32_t yt = y + j;
+            uint8_t chl = pf_line0[j];
+            for (uint8_t z = 0; z < 8; ++z) {
+                if ((chl >> z) & 1) plot(xt + z, yt, color);
+            }
+        }
     }
 }
