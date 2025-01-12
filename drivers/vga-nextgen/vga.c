@@ -171,6 +171,11 @@ void __time_critical_func() dma_handler_VGA() {
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
     int width = client_buffer_width;
+    bool duplicateX = false;
+    if (width <= graphics_buffer_width / 2) {
+        width *= 2;
+        duplicateX = true;
+    }
     int xoff1 = graphics_buffer_shift_x;
     if (xoff1 < 0) xoff1 = 0;
     int xoff2 = graphics_buffer_width - width - xoff1;
@@ -181,8 +186,16 @@ void __time_critical_func() dma_handler_VGA() {
             for  (int x = 0; x < xoff1; ++x) {
                 *output_buffer_8bit++ = 0xC0;
             }
-            for  (int x = 0; x < width; ++x) {
-                *output_buffer_8bit++ = *input_buffer_8bit++ | 0xC0;
+            if (duplicateX) {
+                for  (int x = 0; x < width / 2; ++x) {
+                    uint8_t c = *input_buffer_8bit++ | 0xC0;
+                    *output_buffer_8bit++ = c;
+                    *output_buffer_8bit++ = c;
+                }
+            } else {
+                for  (int x = 0; x < width; ++x) {
+                    *output_buffer_8bit++ = *input_buffer_8bit++ | 0xC0;
+                }
             }
             for  (int x = 0; x < xoff2; ++x) {
                 *output_buffer_8bit++ = 0xC0;
@@ -238,10 +251,14 @@ void graphics_set_mode(enum graphics_mode_t mode) {
                 }
             }
         case GRAPHICSMODE_DEFAULT:
-            graphics_buffer_shift_y = 24;
-            graphics_buffer_shift_x = (640 - 622) / 2;
             graphics_buffer_width = 640;
             graphics_buffer_height = 480;
+            graphics_buffer_shift_y = 24; /// TODO:
+            if (!client_buffer_width) client_buffer_width = 622;
+            if (client_buffer_width >= graphics_buffer_width / 2) 
+                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width * 2) / 2;
+            else
+                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) / 2;
             TMPL_LINE8 = 0b11000000;
             HS_SHIFT = 328 * 2;
             HS_SIZE = 48 * 2;
@@ -256,10 +273,14 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             fdiv = clock_get_hz(clk_sys) / 25175000.0; //частота пиксельклока
             break;
         case GMODE_800_600:
-            graphics_buffer_shift_y = -6;
-            graphics_buffer_shift_x = (800 - 622) / 2;
             graphics_buffer_width = 800;
             graphics_buffer_height = 600;
+            graphics_buffer_shift_y = -6; /// TODO:
+            if (!client_buffer_width) client_buffer_width = 622;
+            if (client_buffer_width >= graphics_buffer_width / 2) 
+                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width * 2) / 2;
+            else
+                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) / 2;
             TMPL_LINE8 = 0b11000000;
             // SVGA Signal 800 x 600 @ 60 Hz timing
             HS_SHIFT = 800 + 40; // Front porch + Visible area
@@ -327,7 +348,16 @@ void graphics_set_mode(enum graphics_mode_t mode) {
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
-    client_buffer_width = width;
+    if (client_buffer_width != width) {
+        client_buffer_width = width;
+        if (width <= graphics_buffer_shift_x / 2)
+            graphics_buffer_shift_x = (graphics_buffer_width - width * 2) / 2;
+        else
+            graphics_buffer_shift_x = (graphics_buffer_width - width) / 2;
+        if (graphics_buffer_shift_x < 0) {
+            graphics_buffer_shift_x = 0;
+        }
+    }
     client_buffer_height = height;
 }
 

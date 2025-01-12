@@ -396,7 +396,9 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
 }
 
 void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
-    static bool isAltPressed, isShiftPressed, isCtrlPressed = false;
+    static bool isAltPressed = false;
+    static bool isShiftPressed = false;
+    static bool isCtrlPressed = false;
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif

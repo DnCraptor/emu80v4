@@ -203,16 +203,18 @@ again:
     uint32_t yb = y + fnth + 5;
     graphics_fill(x + 1, yb, w-2, h-2-fnth-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in files rect
     uint32_t msi = fnth + 1; // height of one file line
+    uint32_t height_in_j = 0;
     for (auto i = fileList.begin(); i != fileList.end(); ++i, ++j) {
         PalFileInfo* fi = *i;
         if (j < shift_j) continue;
         uint32_t ybj = yb + (j - shift_j) * msi;
-        if (ybj + fnth > y + w) break;
+        if (ybj + msi >= y + w) break;
+        height_in_j++;
         string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
         if (selected_file_n == j + shift_j) {
             selected_fi = fi;
             graphics_fill(xb-1, ybj-1, w-2, fnth+2, RGB888(114, 114, 224));
-            graphics_type(xb, ybj, RGB888(0, 0, 0), name.c_str(), name.length());
+            graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name.c_str(), name.length());
         } else {
             graphics_type(xb, ybj, RGB888(0, 0, 0), name.c_str(), name.length());
         }
@@ -247,7 +249,7 @@ again:
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = fileList.size() - 1;
             }
-            while (selected_file_n > j + shift_j) {
+            while (selected_file_n >= shift_j + height_in_j) {
                 shift_j++;
             }
             goto again;
@@ -257,7 +259,7 @@ again:
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = fileList.size() - 1;
             }
-            while (selected_file_n > j + shift_j) {
+            while (selected_file_n >= shift_j + height_in_j) {
                 shift_j += 10;
             }
             goto again;
