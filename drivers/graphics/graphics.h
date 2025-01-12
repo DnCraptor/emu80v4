@@ -7,6 +7,7 @@ extern "C" {
 #define DISP_WIDTH 512
 #define DISP_HEIGHT 256
 #define RGB888(r, g, b) ((((r) >> 6) << 4) | (((g) >> 6) << 2) | ((b) >> 6))
+#define RGB(rgb) (RGB888(rgb >> 16, (rgb >> 8) & 0xFF, rgb & 0xFF))
 
 #include "stdbool.h"
 #include "stdio.h"

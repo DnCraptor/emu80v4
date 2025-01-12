@@ -50,7 +50,8 @@ class KorvetAddrSpace : public AddressableDevice
         static EmuObject* create(const EmuValuesList& parameters) {return new KorvetAddrSpace(parameters[0].asString());}
 
     private:
-        uint8_t* m_memMap = nullptr;
+        const uint8_t* m_memMap = nullptr;
+        bool m_memMapFromRom = false;
         AddressableDevice* m_pages[9];
         int m_memCfg = 0;
 };
@@ -191,18 +192,18 @@ class KorvetRenderer : public CrtRenderer, public IActive
         static EmuObject* create(const EmuValuesList&) {return new KorvetRenderer();}
 
     private:
-        const uint32_t c_korvetColorPalette[16] = {
-            0x000000, 0x0000C0, 0x00C000, 0x00C0C0,
-            0xC00000, 0xC000C0, 0xC0C000, 0xC0C0C0,
-            0x404040, 0x4040FF, 0x40FF40, 0x40FFFF,
-            0xFF4040, 0xFF40FF, 0xFFFF40, 0xFFFFFF
+        const uint8_t c_korvetColorPalette[16] = {
+            RGB(0x000000), RGB(0x0000C0), RGB(0x00C000), RGB(0x00C0C0),
+            RGB(0xC00000), RGB(0xC000C0), RGB(0xC0C000), RGB(0xC0C0C0),
+            RGB(0x404040), RGB(0x4040FF), RGB(0x40FF40), RGB(0x40FFFF),
+            RGB(0xFF4040), RGB(0xFF40FF), RGB(0xFFFF40), RGB(0xFFFFFF)
         };
 
-        const uint32_t c_korvetBwPalette[16] = {
-            0x000000, 0x111111, 0x222222, 0x333333,
-            0x424242, 0x545454, 0x656565, 0x767676,
-            0x898989, 0x9A9A9A, 0xABABAB, 0xBDBDBD,
-            0xCCCCCC, 0xDDDDDD, 0xEEEEEE, 0xFFFFFF
+        const uint8_t c_korvetBwPalette[16] = {
+            RGB(0x000000), RGB(0x111111), RGB(0x222222), RGB(0x333333),
+            RGB(0x424242), RGB(0x545454), RGB(0x656565), RGB(0x767676),
+            RGB(0x898989), RGB(0x9A9A9A), RGB(0xABABAB), RGB(0xBDBDBD),
+            RGB(0xCCCCCC), RGB(0xDDDDDD), RGB(0xEEEEEE), RGB(0xFFFFFF)
         };
 
         const wchar_t* c_korvetSymbols =
@@ -225,7 +226,8 @@ class KorvetRenderer : public CrtRenderer, public IActive
             L"абвгдежзийклмнопрстуфхцчшщъыьэюя"
             L"≡ё≥≤⌠⌡÷≈°•·√ⁿ²■ ";
 
-        uint8_t* m_font = nullptr;
+        const uint8_t* m_font = nullptr;
+        bool m_fontFromRom = false;
         int m_fontNo = 0;
 
         KorvetGraphicsAdapter* m_graphicsAdapter = nullptr;
@@ -234,13 +236,13 @@ class KorvetRenderer : public CrtRenderer, public IActive
         bool m_wideChr = false;
 
         int m_lut[16];
-        const uint32_t* m_palette= c_korvetColorPalette;
+        const uint8_t* m_palette= c_korvetColorPalette;
 
         bool m_showBorder = false;
         bool m_colorMode = true;
 
         int m_curLine = 0;
-        uint32_t* m_frameBuf;
+        uint8_t* m_frameBuf;
 
         void setColorMode(bool colorMode);
 

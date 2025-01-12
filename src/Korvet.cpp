@@ -39,11 +39,17 @@
 
 using namespace std;
 
+#include "pico/korvet.mapper.mem.h"
 
 KorvetAddrSpace::KorvetAddrSpace(string fileName)
 {
+    if (fileName == "korvet/mapper.mem") {
+        m_memMap = korvet_mapper_mem;
+        m_memMapFromRom = true;
+        return;
+    }
     m_memMap = new uint8_t[8192];
-    if (palReadFromFile(fileName, 0, 8192, m_memMap) != 8192) {
+    if (palReadFromFile(fileName, 0, 8192, (uint8_t*)m_memMap) != 8192) {
         delete[] m_memMap;
         m_memMap = nullptr;
     }
@@ -52,7 +58,7 @@ KorvetAddrSpace::KorvetAddrSpace(string fileName)
 
 KorvetAddrSpace::~KorvetAddrSpace()
 {
-    delete[] m_memMap;
+    if (!m_memMapFromRom && m_memMap) delete[] m_memMap;
 }
 
 
@@ -219,23 +225,29 @@ KorvetRenderer::KorvetRenderer()
 
     memset(m_lut, 0, sizeof(m_lut));
 
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = m_pixelData;///new uint32_t[maxBufSize];
 }
 
 
 KorvetRenderer::~KorvetRenderer()
 {
-    if (m_font)
+    if (!m_fontFromRom && m_font)
         delete[] m_font;
 
-    delete[] m_frameBuf;
+  ///  delete[] m_frameBuf;
 }
 
+#include "pico/korvet_font.bin.h"
 
 void KorvetRenderer::setFontFile(std::string fontFileName)
 {
+    if (fontFileName == "korvet/font.bin") {
+        m_fontFromRom = true;
+        m_font = korvet_font_bin;
+        return;
+    }
     m_font = new uint8_t[8192];
-    if (palReadFromFile(fontFileName, 0, 8192, m_font) != 8192) {
+    if (palReadFromFile(fontFileName, 0, 8192, (uint8_t*)m_font) != 8192) {
         delete[] m_font;
         m_font = nullptr;
     }
@@ -288,9 +300,10 @@ void KorvetRenderer::prepareFrame()
 
 void KorvetRenderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
+///    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
     prepareFrame();
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -302,7 +315,7 @@ void KorvetRenderer::renderLine(int nLine)
     if (nLine < 23 || nLine >= 311)
         return;
 
-    uint32_t* linePtr;
+    uint8_t* linePtr;
 
     if (m_showBorder) {
         linePtr = m_frameBuf + m_sizeX * (nLine - 23);
@@ -325,7 +338,7 @@ void KorvetRenderer::renderLine(int nLine)
     }
 
     nLine -= 40;
-    uint8_t* fontPtr = m_font + m_fontNo * 4096;
+    const uint8_t* fontPtr = m_font + m_fontNo * 4096;
 
     for (int nbt = nLine * 64; nbt < (nLine + 1) * 64; nbt++) {
         uint8_t bt0 = m_graphicsAdapter->m_planes[0][nbt + m_displayPage * 0x4000];

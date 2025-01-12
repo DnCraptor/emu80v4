@@ -98,6 +98,9 @@ uint8_t Ram::readByte(int addr)
 #include "pico/vector_loader.rom.h"
 #include "pico/apogey.rom.h"
 #include "pico/bashkiria_bios1_rom.h"
+#include "pico/korvet_rom1_bin.h"
+#include "pico/korvet_rom2_bin.h"
+#include "pico/korvet_rom3_bin.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
@@ -114,6 +117,21 @@ Rom::Rom(unsigned memSize, string fileName)
     if (fileName == "bashkiria/bios1.rom") {
         m_buf = bashkiria_bios1_rom;
         m_size = sizeof(bashkiria_bios1_rom);
+        return;
+    }
+    if (fileName == "korvet/rom1.bin") {
+        m_buf = korvet_rom1_bin;
+        m_size = sizeof(korvet_rom1_bin);
+        return;
+    }
+    if (fileName == "korvet/rom2.bin") {
+        m_buf = korvet_rom2_bin;
+        m_size = sizeof(korvet_rom2_bin);
+        return;
+    }
+    if (fileName == "korvet/rom3.bin") {
+        m_buf = korvet_rom3_bin;
+        m_size = sizeof(korvet_rom3_bin);
         return;
     }
     m_buf = new uint8_t [memSize];

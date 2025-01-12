@@ -772,6 +772,10 @@ int main() {
             argv[2] = "eureka";
             break;
         }
+        if (pressed_key[HID_KEY_F9]) {
+            argv[2] = "korvet";
+            break;
+        }
         sleep_ms(50);
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(50);
