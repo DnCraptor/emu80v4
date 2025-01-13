@@ -137,7 +137,7 @@ Pk8000Renderer::Pk8000Renderer()
     memset(m_bgScanlinePixels, 0, 320 * sizeof(uint32_t));
     memset(m_fgScanlinePixels, 0, 320 * sizeof(uint32_t));
 
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = m_pixelData; /// new uint32_t[maxBufSize];
 
     prepareFrame(); // prepare 1st frame dimensions
 }
@@ -145,7 +145,7 @@ Pk8000Renderer::Pk8000Renderer()
 
 Pk8000Renderer::~Pk8000Renderer()
 {
-    delete[] m_frameBuf;
+  ///  delete[] m_frameBuf;
 }
 
 
@@ -290,7 +290,7 @@ void Pk8000Renderer::renderLine(int nLine)
     for (int i = m_curBlankingPixel; i < 320; i++)
         m_blankingPixels[(i + m_pixelsPerOutInstruction) % 320] = m_blanking ? BS_BLANK : BS_NORMAL;
 
-    uint32_t* linePtr;
+    uint8_t* linePtr;
 
     if (m_showBorder) {
 
@@ -299,7 +299,7 @@ void Pk8000Renderer::renderLine(int nLine)
             *linePtr++ = 0;
 
         if (nLine < 71 || nLine > 262 || /*m_blanking ||*/ m_mode > 2) {
-            uint32_t* borderPixels = m_bgScanlinePixels + 59 + m_offsetX;
+            uint8_t* borderPixels = m_bgScanlinePixels + 59 + m_offsetX;
             for(int i = 0; i < m_sizeX - m_offsetX; i++)
                 *linePtr++ = *borderPixels++;
             return;
@@ -328,7 +328,7 @@ void Pk8000Renderer::renderLine(int nLine)
             uint8_t chr = m_screenMemoryBanks[m_bank][(m_txtBase & ~0x0400) + row * 64 + pos];
             uint8_t bt = m_screenMemoryBanks[m_bank][m_sgBase + chr * 8 + line];
             for (int i = 0; i < 6; i++) {
-                uint32_t color = (bt & 0x80 ? m_fgScanlinePixels : m_bgScanlinePixels)[59 + m_offsetX + pos * 6 + i];
+                uint8_t color = (bt & 0x80 ? m_fgScanlinePixels : m_bgScanlinePixels)[59 + m_offsetX + pos * 6 + i];
                 *linePtr++ = color;
                 bt <<= 1;
             }
@@ -338,12 +338,12 @@ void Pk8000Renderer::renderLine(int nLine)
         for (int pos = 0; pos < 32; pos++) {
             uint8_t chr = m_screenMemoryBanks[m_bank][m_txtBase + row * 32 + pos];
             unsigned colorCode = m_colorRegs[chr >> 3];
-            uint32_t fgColor = m_palette[colorCode & 0x0F];
-            uint32_t bgColor = m_palette[colorCode >> 4];
+            uint8_t fgColor = m_palette[colorCode & 0x0F];
+            uint8_t bgColor = m_palette[colorCode >> 4];
             uint8_t bt = m_screenMemoryBanks[m_bank][m_sgBase + chr * 8 + line];
             for (int i = 0; i < 8; i++) {
                 BlankingState bs = m_blankingPixels[54 + m_offsetX + pos * 8 + i];
-                uint32_t color;
+                uint8_t color;
                 switch (bs) {
                 case BS_NORMAL:
                     color = bt & 0x80 ? fgColor : bgColor;
@@ -368,11 +368,11 @@ void Pk8000Renderer::renderLine(int nLine)
         for (int pos = 0; pos < 32; pos++) {
             uint8_t chr = m_screenMemoryBanks[m_bank][m_sgBase + part * 256 + row * 32 + pos];
             unsigned colorCode = m_screenMemoryBanks[m_bank][m_colBase + part * 0x800 + chr * 8 + line];
-            uint32_t fgColor = m_palette[colorCode & 0x0F];
-            uint32_t bgColor = m_palette[colorCode >> 4];
+            uint8_t fgColor = m_palette[colorCode & 0x0F];
+            uint8_t bgColor = m_palette[colorCode >> 4];
             uint8_t bt = m_screenMemoryBanks[m_bank][m_grBase + part * 0x800 + chr * 8 + line];
             for (int i = 0; i < 8; i++) {
-                uint32_t color = bt & 0x80 ? fgColor : bgColor;
+                uint8_t color = bt & 0x80 ? fgColor : bgColor;
                 *linePtr++ = color;
                 bt <<= 1;
             }
@@ -387,9 +387,10 @@ void Pk8000Renderer::renderLine(int nLine)
 
 void Pk8000Renderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
+   // memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
     prepareFrame();
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -407,7 +408,7 @@ void Pk8000Renderer::prepareFrame()
 
     if (m_showBorder) {
         // Last 8 lines are black
-        uint32_t* ptr = m_frameBuf + 280 * m_sizeX;
+        uint8_t* ptr = m_frameBuf + 280 * m_sizeX;
         for(int i = 0; i < m_sizeX * 8; i++)
             *ptr++ = 0;
     }

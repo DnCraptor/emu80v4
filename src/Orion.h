@@ -22,6 +22,7 @@
 #include "PlatformCore.h"
 #include "CrtRenderer.h"
 #include "FileLoader.h"
+#include "graphics.h"
 
 class Ram;
 class SoundMixer;
@@ -58,18 +59,18 @@ class OrionRenderer : public CrtRenderer, public IActive
         OCM_16COLOR = 3
     };
 
-    const uint32_t orion16ColorPalette[16] = {
-        0x000000, 0x0000C0, 0x00C000, 0x00C0C0,
-        0xC00000, 0xC000C0, 0xC0C000, 0xC0C0C0,
-        0x000000, 0x0000FF, 0x00FF00, 0x00FFFF,
-        0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF
+    const uint8_t orion16ColorPalette[16] = {
+        RGB(0x000000), RGB(0x0000C0), RGB(0x00C000), RGB(0x00C0C0),
+        RGB(0xC00000), RGB(0xC000C0), RGB(0xC0C000), RGB(0xC0C0C0),
+        RGB(0x000000), RGB(0x0000FF), RGB(0x00FF00), RGB(0x00FFFF),
+        RGB(0xFF0000), RGB(0xFF00FF), RGB(0xFFFF00), RGB(0xFFFFFF)
     };
 
-    const uint32_t orion4ColorPalettes[2][5] = {
-        {0x000000, 0xC00000, 0x00C000, 0x0000C0,
-         0xC0C0C0}, // белый для ч/б режима
-        {0x00C0C0, 0xC0C0C0, 0xC0C000, 0xC000C0,
-        0xC0C0C0} // белый для ч/б режима
+    const uint8_t orion4ColorPalettes[2][5] = {
+        {RGB(0x000000), RGB(0xC00000), RGB(0x00C000), RGB(0x0000C0),
+         RGB(0xC0C0C0)}, // белый для ч/б режима
+        {RGB(0x00C0C0), RGB(0xC0C0C0), RGB(0xC0C000), RGB(0xC000C0),
+        RGB(0xC0C0C0)} // белый для ч/б режима
     };
 
     public:

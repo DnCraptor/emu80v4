@@ -162,6 +162,7 @@ void OrionRenderer::renderFrame()
                     }
                 }
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 

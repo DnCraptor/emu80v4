@@ -101,6 +101,14 @@ uint8_t Ram::readByte(int addr)
 #include "pico/korvet_rom1_bin.h"
 #include "pico/korvet_rom2_bin.h"
 #include "pico/korvet_rom3_bin.h"
+#if ORION
+#include "pico/orion_m2rk_bin.h"
+#endif
+#if PK8000
+#include "pico/pk8000_fdc.rom.h"
+#include "pico/pk8000_hdd.rom.h"
+#include "pico/pk8000_v12.rom.h"
+#endif
 
 Rom::Rom(unsigned memSize, string fileName)
 {
@@ -134,6 +142,30 @@ Rom::Rom(unsigned memSize, string fileName)
         m_size = sizeof(korvet_rom3_bin);
         return;
     }
+    #if ORION
+    if (fileName == "orion/rom/m2rk.bin") {
+        m_buf = orion_m2rk_bin;
+        m_size = sizeof(orion_m2rk_bin);
+        return;
+    }
+    #endif
+    #if PK8000
+    if (fileName == "pk8000/pk8000_v12.rom") {
+        m_buf = pk8000_v12_rom;
+        m_size = sizeof(pk8000_v12_rom);
+        return;
+    }
+    if (fileName == "pk8000/pk8000_fdc.rom") {
+        m_buf = pk8000_fdc_rom;
+        m_size = sizeof(pk8000_fdc_rom);
+        return;
+    }
+    if (fileName == "pk8000/pk8000_hdd.rom") {
+        m_buf = pk8000_hdd_rom;
+        m_size = sizeof(pk8000_hdd_rom);
+        return;
+    }
+    #endif
     m_buf = new uint8_t [memSize];
     memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;

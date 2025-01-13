@@ -98,7 +98,7 @@ void LvovRenderer::renderFrame()
             uint8_t bt = m_screenMemory[addr];
             for (int p = 0; p < 4; p++) {
                 int colorBits = ((bt & 0x80) >> 6) | ((bt & 0x08) >> 3);
-                uint32_t color;
+                uint8_t color;
                 if (m_colorMode) {
                     int r, g, b;
                     switch (colorBits) {
@@ -130,6 +130,7 @@ void LvovRenderer::renderFrame()
                 m_pixelData[(row + offsetY) * m_sizeX + col * 4 + p + offsetX] = color;
             }
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 

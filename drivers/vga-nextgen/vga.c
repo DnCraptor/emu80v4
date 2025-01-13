@@ -144,7 +144,7 @@ void __time_critical_func() dma_handler_VGA() {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
             for  (int x = 0; x < xoff1; ++x) {
-                *output_buffer_8bit++ = 0xC0 | 0b010101;
+                *output_buffer_8bit++ = 0xC0;
             }
             if (duplicateX) {
                 for  (int x = 0; x < width / 2; ++x) {
@@ -158,7 +158,7 @@ void __time_critical_func() dma_handler_VGA() {
                 }
             }
             for  (int x = 0; x < xoff2; ++x) {
-                *output_buffer_8bit++ = 0xC0 | 0b010101;
+                *output_buffer_8bit++ = 0xC0;
             }
             break;
         default:

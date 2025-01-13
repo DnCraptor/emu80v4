@@ -695,7 +695,27 @@ static const char* platforms[] = {
     "spec.lik",
     "spec",
     "eureka",
-    "korvet"
+    "korvet",
+    "lvov",
+    "mikro80",
+    "mikro80.rk",
+#if ORION
+    "orion",
+    "orion.1",
+    "orion.31",
+    "orion.32",
+    "orion.dsdos"
+#endif
+#if PK8000
+    "pk8000",
+    "pk8000.fdc",
+    "pk8000.hdd",
+#endif
+    "vector.z80",
+///    "spmx",
+///    "spmx.turbo",
+///    "spmx.mxos",
+    "spmx.com"
 };
 static const char* argv[3] = {
     "emu80",
@@ -826,11 +846,11 @@ int main() {
                 }
                 goto again;
             }
-            if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_7]) {
+            if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_KEYPAD_7]) {
                 selected_file_n = 0;
                 goto again;
             }
-            if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_1]) {
+            if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
                 selected_file_n = lines - 1;
                 goto again;
             }
