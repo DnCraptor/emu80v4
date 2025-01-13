@@ -42,11 +42,11 @@ static int visible_line_size = 640 / 2;
 static int dma_chan_ctrl;
 static int dma_chan;
 
-static uint8_t* graphics_buffer = 0;
-static uint client_buffer_width = 626;
-static uint client_buffer_height = 288;
-static uint graphics_buffer_width = 640;
-static uint graphics_buffer_height = 480;
+volatile static uint8_t* graphics_buffer = 0;
+static int client_buffer_width = 320;
+static int client_buffer_height = 240;
+static int graphics_buffer_width = 640;
+static int graphics_buffer_height = 480;
 static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
@@ -55,9 +55,6 @@ static bool is_flash_frame = false;
 
 static uint32_t bg_color[2];
 static uint16_t palette16_mask = 0;
-
-static uint text_buffer_width = 0;
-static uint text_buffer_height = 0;
 
 static uint16_t txt_palette[16];
 
@@ -71,13 +68,12 @@ void __time_critical_func() dma_handler_VGA() {
     dma_hw->ints0 = 1u << dma_chan_ctrl;
     static uint32_t frame_number = 0;
     static uint32_t screen_line = 0;
-    static uint8_t* input_buffer = NULL;
+    uint8_t* input_buffer = graphics_buffer;
     screen_line++;
 
     if (screen_line == N_lines_total) {
         screen_line = 0;
         frame_number++;
-        input_buffer = graphics_buffer;
     }
 
     if (screen_line >= N_lines_visible) {
@@ -122,52 +118,16 @@ void __time_critical_func() dma_handler_VGA() {
     }
 
     if (y < 0 || y >= client_buffer_height) {
+        // заполнение линии цветом фона
         dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
         return;
-    }
-    /*
-    if (y >= client_buffer_height) {
-        // заполнение линии цветом фона
-        if (y == client_buffer_height | y == client_buffer_height + 1 |
-            y == client_buffer_height + 2) {
-            uint32_t* output_buffer_32bit = *output_buffer;
-            uint32_t p_i = ((line_number & is_flash_line) + (frame_number & is_flash_frame)) & 1;
-            uint32_t color32 = bg_color[p_i];
-
-            output_buffer_32bit += shift_picture / 4;
-            for (int i = visible_line_size / 2; i--;) {
-                *output_buffer_32bit++ = color32;
-            }
-        }
-        dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
-        return;
     };
-    */
     //зона прорисовки изображения
     //начальные точки буферов
     uint8_t* input_buffer_8bit = input_buffer + y * client_buffer_width;
 
     uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
     output_buffer_16bit += shift_picture / 2; //смещение началы вывода на размер синхросигнала
-
-    //для div_factor 2
-///    uint max_width = client_buffer_width;
-///    if (graphics_buffer_shift_x < 0) {
-///            ///input_buffer_8bit -= graphics_buffer_shift_x / 8; //1bit buf
-///            input_buffer_8bit -= graphics_buffer_shift_x / 4; //2bit buf
-///        max_width += graphics_buffer_shift_x;
-///    }
-///    else {
-///#define div_factor (2)
-///        output_buffer_16bit += graphics_buffer_shift_x * 2 / div_factor;
-///    }
-
-
-///    int width = MIN((visible_line_size - ((graphics_buffer_shift_x > 0) ? (graphics_buffer_shift_x) : 0)), max_width);
-///    if (width < 0) return; // TODO: detect a case
-
-    // Индекс палитры в зависимости от настроек чередования строк и кадров
-///    uint16_t* current_palette = palette[(y & is_flash_line) + (frame_number & is_flash_frame) & 1];
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
     int width = client_buffer_width;
@@ -184,7 +144,7 @@ void __time_critical_func() dma_handler_VGA() {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
             for  (int x = 0; x < xoff1; ++x) {
-                *output_buffer_8bit++ = 0xC0;
+                *output_buffer_8bit++ = 0xC0 | 0b010101;
             }
             if (duplicateX) {
                 for  (int x = 0; x < width / 2; ++x) {
@@ -198,7 +158,7 @@ void __time_critical_func() dma_handler_VGA() {
                 }
             }
             for  (int x = 0; x < xoff2; ++x) {
-                *output_buffer_8bit++ = 0xC0;
+                *output_buffer_8bit++ = 0xC0 | 0b010101;
             }
             break;
         default:
@@ -207,10 +167,18 @@ void __time_critical_func() dma_handler_VGA() {
     dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
 }
 
+static void adjust_shift_x() {
+    if (client_buffer_width * 2 <= graphics_buffer_width)
+        graphics_buffer_shift_x = (graphics_buffer_width - (client_buffer_width << 1)) >> 1;
+    else
+        graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
+    if (graphics_buffer_shift_x < 0) graphics_buffer_shift_x = 0; /// TODO: support -sx
+}
+static void adjust_shift_y() {
+    graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
+}
+
 void graphics_set_mode(enum graphics_mode_t mode) {
-    text_buffer_width = 80;
-    text_buffer_height = 30;
-///    memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
     if (_SM_VGA < 0) return; // если  VGA не инициализирована -
 
     graphics_mode = mode;
@@ -230,35 +198,9 @@ void graphics_set_mode(enum graphics_mode_t mode) {
     int HS_SHIFT = 100;
 
     switch (graphics_mode) {
-        case TEXTMODE_DEFAULT:
-            graphics_buffer_width = 640;
-            graphics_buffer_height = 480;
-            //текстовая палитра
-            for (int i = 0; i < 16; i++) {
-                txt_palette[i] = txt_palette[i] & 0x3f | palette16_mask >> 8;
-            }
-
-            if (!txt_palette_fast) {
-                txt_palette_fast = (uint16_t *)calloc(256 * 4, sizeof(uint16_t));
-                for (int i = 0; i < 256; i++) {
-                    const uint8_t c1 = txt_palette[i & 0xf];
-                    const uint8_t c0 = txt_palette[i >> 4];
-
-                    txt_palette_fast[i * 4 + 0] = c0 | c0 << 8;
-                    txt_palette_fast[i * 4 + 1] = c1 | c0 << 8;
-                    txt_palette_fast[i * 4 + 2] = c0 | c1 << 8;
-                    txt_palette_fast[i * 4 + 3] = c1 | c1 << 8;
-                }
-            }
         case GRAPHICSMODE_DEFAULT:
             graphics_buffer_width = 640;
             graphics_buffer_height = 480;
-            graphics_buffer_shift_y = 24; /// TODO:
-            if (!client_buffer_width) client_buffer_width = 622;
-            if (client_buffer_width >= graphics_buffer_width / 2) 
-                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width * 2) / 2;
-            else
-                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) / 2;
             TMPL_LINE8 = 0b11000000;
             HS_SHIFT = 328 * 2;
             HS_SIZE = 48 * 2;
@@ -275,12 +217,6 @@ void graphics_set_mode(enum graphics_mode_t mode) {
         case GMODE_800_600:
             graphics_buffer_width = 800;
             graphics_buffer_height = 600;
-            graphics_buffer_shift_y = -6; /// TODO:
-            if (!client_buffer_width) client_buffer_width = 622;
-            if (client_buffer_width >= graphics_buffer_width / 2) 
-                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width * 2) / 2;
-            else
-                graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) / 2;
             TMPL_LINE8 = 0b11000000;
             // SVGA Signal 800 x 600 @ 60 Hz timing
             HS_SHIFT = 800 + 40; // Front porch + Visible area
@@ -297,6 +233,8 @@ void graphics_set_mode(enum graphics_mode_t mode) {
         default:
             return;
     }
+    adjust_shift_x();
+    adjust_shift_y();
 
     //корректировка  палитры по маске бит синхры
     bg_color[0] = bg_color[0] & 0x3f3f3f3f | palette16_mask | palette16_mask << 16;
@@ -350,15 +288,12 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
     graphics_buffer = buffer;
     if (client_buffer_width != width) {
         client_buffer_width = width;
-        if (width <= graphics_buffer_shift_x / 2)
-            graphics_buffer_shift_x = (graphics_buffer_width - width * 2) / 2;
-        else
-            graphics_buffer_shift_x = (graphics_buffer_width - width) / 2;
-        if (graphics_buffer_shift_x < 0) {
-            graphics_buffer_shift_x = 0;
-        }
+        adjust_shift_x();
     }
-    client_buffer_height = height;
+    if (client_buffer_height != height) {
+        client_buffer_height = height;
+        adjust_shift_y();
+    }
 }
 
 void graphics_inc_x(void) {
@@ -523,6 +458,7 @@ uint32_t graphics_get_font_height() {
 }
 
 inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t color) {
+    if (!graphics_buffer) return;
     if (x < 0 || x >= w) return;
     if (y < 0 || y >= h) return;
     graphics_buffer[w * y + x] = color;
@@ -544,6 +480,7 @@ void line(int x0, int y0, int x1, int y1, uint8_t color) {
         for (int xi = x0; xi <= x1; ++xi) {
             _plot(xi, y0, w, h, color);
         }
+        return;
     }
     if (y0 > y1) {
         int t = y0;
@@ -554,17 +491,19 @@ void line(int x0, int y0, int x1, int y1, uint8_t color) {
         for (int yi = y0; yi <= y1; ++yi) {
             _plot(x0, yi, w, h, color);
         }
+        return;
     }
     int dx = x1 - x0;
     int dy = y1 - y0;
     if (dx > dy) {
-        float dydx = dy / (dx * 1.0);
+        double dydx = dy / (dx * 1.0);
         for (int xi = x0; xi <= x1; ++xi) {
             int yi = y0 + dydx * (xi - x0);
             _plot(xi, yi, w, h, color);
         }
+        return;
     }
-    float dxdy = dx / (dy * 1.0);
+    double dxdy = dx / (dy * 1.0);
     for (int yi = y0; yi <= y1; ++yi) {
         int xi = x0 + dxdy * (yi - y0);
         _plot(xi, yi, w, h, color);

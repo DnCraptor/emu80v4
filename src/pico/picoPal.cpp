@@ -179,6 +179,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     uint32_t yt = y+2+1;
 again:
     graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
+    graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
     string t = title + ": " + fdir; // include dir into title
     uint32_t xt = (w-2 - t.length() * fntw) / 2; // center title
     graphics_type(xt, yt, RGB888(0, 0, 0), t.c_str(), t.length()); // print title
@@ -201,7 +202,7 @@ again:
     int j = 0;
     uint32_t xb = x + 2;
     uint32_t yb = y + fnth + 5;
-    graphics_fill(x + 1, yb, w-2, h-2-fnth-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in files rect
+    graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
     uint32_t msi = fnth + 1; // height of one file line
     uint32_t height_in_j = 0;
     for (auto i = fileList.begin(); i != fileList.end(); ++i, ++j) {
@@ -213,7 +214,7 @@ again:
         string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
         if (selected_file_n == j + shift_j) {
             selected_fi = fi;
-            graphics_fill(xb-1, ybj-1, w-2, fnth+2, RGB888(114, 114, 224));
+            graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
             graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name.c_str(), name.length());
         } else {
             graphics_type(xb, ybj, RGB888(0, 0, 0), name.c_str(), name.length());
@@ -230,7 +231,7 @@ again:
             while (selected_file_n < shift_j) {
                 shift_j--;
             }
-            if (shift_j < 0) shift_j = 0;
+            if (shift_j < 0) shift_j = fileList.size() - 1;
             goto again;
         }
         if ((pk.vk == PK_PGUP || pk.vk == PK_KP_9) && pk.pressed) {
@@ -247,7 +248,7 @@ again:
         if ((pk.vk == PK_DOWN || pk.vk == PK_KP_2) && pk.pressed) {
             selected_file_n++;
             if (selected_file_n >= fileList.size()) {
-                selected_file_n = fileList.size() - 1;
+                selected_file_n = 0;
             }
             while (selected_file_n >= shift_j + height_in_j) {
                 shift_j++;
@@ -259,6 +260,18 @@ again:
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = fileList.size() - 1;
             }
+            while (selected_file_n >= shift_j + height_in_j) {
+                shift_j += 10;
+            }
+            goto again;
+        }
+        if ((pk.vk == PK_HOME || pk.vk == PK_KP_7) && pk.pressed) {
+            selected_file_n = 0;
+            shift_j = 0;
+            goto again;
+        }
+        if ((pk.vk == PK_END || pk.vk == PK_KP_1) && pk.pressed) {
+            selected_file_n = fileList.size() - 1;
             while (selected_file_n >= shift_j + height_in_j) {
                 shift_j += 10;
             }

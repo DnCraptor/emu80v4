@@ -207,27 +207,62 @@ bool KorvetCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
+extern uint8_t* tmp_screen; // W/A
 
 KorvetRenderer::KorvetRenderer()
 {
     const int pixelFreq = 10; // MHz
     const int maxBufSize = 521 * 288; // 521 = 704 / 13.5 * pixelFreq
+#if LOG
+    emuLog << "KorvetRenderer::KorvetRenderer()\n";
+#endif
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
 
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / pixelFreq;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint8_t[maxBufSize];
-///    m_prevPixelData = new uint32_t[maxBufSize];
+    m_bufSize = m_sizeX * m_sizeY;
+    m_pixelData = tmp_screen; /// new uint8_t[maxBufSize];
     memset(m_pixelData, 0, m_bufSize);
-///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 
     memset(m_lut, 0, sizeof(m_lut));
 
     m_frameBuf = m_pixelData;///new uint32_t[maxBufSize];
+#if LOG
+    emuLog << "KorvetRenderer::KorvetRenderer() DONE\n";
+#endif
 }
 
+const uint8_t KorvetRenderer::c_korvetColorPalette[16] = {
+            RGB(0x000000), RGB(0x0000C0), RGB(0x00C000), RGB(0x00C0C0),
+            RGB(0xC00000), RGB(0xC000C0), RGB(0xC0C000), RGB(0xC0C0C0),
+            RGB(0x404040), RGB(0x4040FF), RGB(0x40FF40), RGB(0x40FFFF),
+            RGB(0xFF4040), RGB(0xFF40FF), RGB(0xFFFF40), RGB(0xFFFFFF)
+};
+const uint8_t KorvetRenderer::c_korvetBwPalette[16] = {
+            RGB(0x000000), RGB(0x111111), RGB(0x222222), RGB(0x333333),
+            RGB(0x424242), RGB(0x545454), RGB(0x656565), RGB(0x767676),
+            RGB(0x898989), RGB(0x9A9A9A), RGB(0xABABAB), RGB(0xBDBDBD),
+            RGB(0xCCCCCC), RGB(0xDDDDDD), RGB(0xEEEEEE), RGB(0xFFFFFF)
+};
+const wchar_t* KorvetRenderer::c_korvetSymbols =
+            L" ☺☻█████◘█PpLl♫☼►◄↕‼¶§■↨↑↓→←    "
+            L" !\"#$%&'()*+,-./0123456789:;<=>?"
+            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+            L"`abcdefghijklmnopqrstuvwxyz{|}~"
+            L"································"
+            L"································"
+            L"юабцдефгхийклмнопярстужвьызшэщчъ"
+            L"ЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪ"
+            L" ☺☻█████◘█PpLl♫☼►◄↕‼¶§■↨↑↓→←    "
+            L" !\"#$%&'()*+,-./0123456789:;<=>?"
+            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+            L"`abcdefghijklmnopqrstuvwxyz{|}~"
+            L"░▒▓│┤╡╢╖╕╣║╗╝╜╛┐"
+            L"└┴┬├─┼╞╟╚╔╩╦╠═╬╧"
+            L"╨Ё╥╙╘╒╓╫╪┘┌█▄▌▐▀"
+            L"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+            L"абвгдежзийклмнопрстуфхцчшщъыьэюя"
+            L"≡ё≥≤⌠⌡÷≈°•·√ⁿ²■ ";
 
 KorvetRenderer::~KorvetRenderer()
 {
@@ -289,11 +324,9 @@ void KorvetRenderer::prepareFrame()
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
-        m_aspectRatio = 576.0 * 9 / 704 / 10;
     } else {
         m_sizeX = 521;
         m_sizeY = 288;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     }
 }
 

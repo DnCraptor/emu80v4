@@ -58,13 +58,9 @@ class CrtRenderer : public EmuObject
         int m_sizeX = 0;
         int m_sizeY = 0;
         int m_bufSize = 0;
-        double m_aspectRatio = 1.0;
 
-        ///uint8_t* m_prevPixelData = nullptr;
         int m_prevSizeX = 0;
         int m_prevSizeY = 0;
-        int m_prevBufSize = 0;
-        double m_prevAspectRatio = 1.0;
 
         virtual bool isRasterPresent() {return true;}
         void swapBuffers();

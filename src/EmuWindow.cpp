@@ -368,6 +368,7 @@ void EmuWindow::prepareScanline(EmuPixelData frame)
 
 void EmuWindow::drawFrame(EmuPixelData frame)
 {
+    /**
     if (frame.frameNo == m_curFrameNo)
         return;
     m_curFrameNo = frame.frameNo;
@@ -418,6 +419,7 @@ void EmuWindow::drawFrame(EmuPixelData frame)
         prepareScanline(frame);
         drawImage(m_interlacedImage, frame.width, frame.height * 2, frame.aspectRatio, false, false);
     }
+    */
 }
 
 
@@ -431,7 +433,7 @@ void EmuWindow::drawOverlay(EmuPixelData frame)
 
     //m_overlay = true;
 
-    drawImage((uint32_t*)frame.pixelData, frame.width, frame.height, frame.aspectRatio, true, true);
+///    drawImage((uint32_t*)frame.pixelData, frame.width, frame.height, frame.aspectRatio, true, true);
 
 /*    if (m_fieldsMixing == FM_MIX && frame.prevPixelData) {
         drawImage((uint32_t*)frame.prevPixelData, frame.prevWidth, frame.prevHeight, m_dstX, m_dstY, m_dstWidth, m_dstHeight, true, true);

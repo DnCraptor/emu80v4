@@ -105,13 +105,10 @@ EurekaRenderer::EurekaRenderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
+    m_bufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
     m_pixelData = new uint8_t[maxBufSize];
-///    m_prevPixelData = new uint32_t[maxBufSize];
     memset(m_pixelData, 0, m_bufSize);
-///    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
 }
 
 
@@ -128,12 +125,10 @@ void EurekaRenderer::renderFrame()
         memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 21;
         offsetY = 10;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 384;
         m_sizeY = 256;
         offsetX = offsetY = 0;
-        m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
 
     int offset = offsetY * m_sizeX + offsetX;

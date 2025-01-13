@@ -386,7 +386,7 @@ void repeat_handler() {
     /// TODO
 }
 
-PalKeyCode map_key(uint8_t kc) {
+static PalKeyCode map_key(uint8_t kc) {
     switch(kc) {
         case HID_KEY_SPACE: return PalKeyCode::PK_SPACE;
 
@@ -508,7 +508,8 @@ PalKeyCode map_key(uint8_t kc) {
     return PalKeyCode::PK_NONE;
 }
 
-void __not_in_flash_func(process_kbd_report)(
+void ///__not_in_flash_func(
+    process_kbd_report(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
@@ -559,7 +560,8 @@ Ps2Kbd_Mrmltr ps2kbd(
 );
 #endif
 
-void __scratch_x("render") repeat_me_for_input() {
+void /// __scratch_x("render")
+ repeat_me_for_input() {
     static uint32_t tickKbdRep1 = time_us_32();
     // 60 FPS loop
 #define frame_tick (16666)
@@ -588,11 +590,12 @@ void __scratch_x("render") repeat_me_for_input() {
 #endif
 }
 
+uint8_t* tmp_screen = nullptr;
+
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
-
-    graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
+    graphics_set_buffer((uint8_t*)tmp_screen, DISP_WIDTH, DISP_HEIGHT);
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
     sem_acquire_blocking(&vga_start_semaphore);
@@ -683,6 +686,23 @@ void init_sound() {
 #endif
 }
 
+static const char* platforms[] = {
+    "vector",
+    "bashkiria",
+    "spec.m1",
+    "sp580",
+    "spec.z80",
+    "spec.lik",
+    "spec",
+    "eureka",
+    "korvet"
+};
+static const char* argv[3] = {
+    "emu80",
+    "--platform",
+    0
+};
+
 int main() {
     static FATFS fs;
 #if !PICO_RP2040
@@ -706,6 +726,8 @@ int main() {
 #else
     keyboard_init();
 #endif
+    tmp_screen = new uint8_t[DISP_WIDTH*DISP_HEIGHT];
+    memset((void*)tmp_screen, RGB(0xFFFF00), DISP_WIDTH*DISP_HEIGHT);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -736,52 +758,91 @@ int main() {
 #if LOG
     f_unlink("/emu80.log");
 #endif
-    static const char* argv[3] = {
-        "emu80",
-        "--platform",
-        0
-    };
-    while(true) {
-        if (pressed_key[HID_KEY_F1]) {
-            argv[2] = "vector";
-            break;
+    {
+        int selected_file_n = 0;
+       
+        uint32_t sw = graphics_get_width();
+        uint32_t sh = graphics_get_height();
+        uint32_t w = sw - 10;
+        uint32_t h = sh - 6;
+        int32_t x = (sw - w) / 2;
+        int32_t y = (sh - h) / 2;
+        uint32_t fntw = graphics_get_font_width();
+        uint32_t fnth = graphics_get_font_height();
+        graphics_rect(x, y, w, h, RGB888(0, 0, 0)); // outer rect
+
+        uint32_t yt = y+2+1;
+        graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
+        graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
+        string t = "Select platform";
+        uint32_t xt = (w-2 - t.length() * fntw) / 2; // center title
+        graphics_type(xt, yt, RGB888(0, 0, 0), t.c_str(), t.length()); // print title
+        
+    again:
+        int j = 0;
+        uint32_t xb = x + 2;
+        uint32_t yb = y + fnth + 5;
+        graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
+        uint32_t msi = fnth + 1; // height of one file line
+        size_t lines = sizeof(platforms) / sizeof(char*);
+        for (auto i = 0; i < lines; ++i, ++j) {
+            const char* name = platforms[i];
+            uint32_t ybj = yb + j * msi;
+            if (ybj + msi >= y + w) break;
+            if (selected_file_n == j) {
+                graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
+                graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name, strlen(name));
+            } else {
+                graphics_type(xb, ybj, RGB888(0, 0, 0), name, strlen(name));
+            }
         }
-        if (pressed_key[HID_KEY_F2]) {
-            argv[2] = "bashkiria";
-            break;
+        while(1) {
+            sleep_ms(100);
+            if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
+                selected_file_n--;
+                if (selected_file_n < 0) {
+                    selected_file_n = lines - 1;
+                }
+                goto again;
+            }
+            if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
+                selected_file_n -= 10;
+                if (selected_file_n < 0) {
+                    selected_file_n = 0;
+                }
+                goto again;
+            }
+            if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
+                selected_file_n++;
+                if (selected_file_n >= lines) {
+                    selected_file_n = 0;
+                }
+                goto again;
+            }
+            if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
+                selected_file_n += 10;
+                if (selected_file_n >= lines) {
+                    selected_file_n = lines - 1;
+                }
+                goto again;
+            }
+            if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_7]) {
+                selected_file_n = 0;
+                goto again;
+            }
+            if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_1]) {
+                selected_file_n = lines - 1;
+                goto again;
+            }
+            if (pressed_key[HID_KEY_ENTER] || pressed_key[HID_KEY_KEYPAD_ENTER]) {
+                break;
+            }
         }
-        if (pressed_key[HID_KEY_F3]) {
-            argv[2] = "spec.m1";
-            break;
+        graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
+        if (selected_file_n != 8) { // korvet W/A
+            delete[] tmp_screen;
         }
-        if (pressed_key[HID_KEY_F4]) {
-            argv[2] = "sp580";
-            break;
-        }
-        if (pressed_key[HID_KEY_F5]) {
-            argv[2] = "spec.z80";
-            break;
-        }
-        if (pressed_key[HID_KEY_F6]) {
-            argv[2] = "spec.lik";
-            break;
-        }
-        if (pressed_key[HID_KEY_F7]) {
-            argv[2] = "spec";
-            break;
-        }
-        if (pressed_key[HID_KEY_F8]) {
-            argv[2] = "eureka";
-            break;
-        }
-        if (pressed_key[HID_KEY_F9]) {
-            argv[2] = "korvet";
-            break;
-        }
-        sleep_ms(50);
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(50);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
+        argv[2] = platforms[selected_file_n];
     }
     int argc = 3;
     palInit(argc, (char**)argv);

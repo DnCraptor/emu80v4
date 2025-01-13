@@ -65,7 +65,7 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
     m_freqMHz = g_emulation->getFrequency() / 1000000.0 / m_crt->getKDiv();
 
     int scanLines = m_crt->getNLines() * (m_crt->getNRows() + m_crt->getVrRows());
-
+/*
     if (m_frameRate == 0.0)
         m_aspectRatio = 1.0;
     else if (scanLines >= 475) {
@@ -81,6 +81,7 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
         // 480i (NTSC)
         m_aspectRatio = 480.0 * 9 / 704 / charWidth / m_freqMHz; // 480 * 13.5 * 4 / 704 / m_fntCharWidth / freqMHz / 3 / 2
     }
+*/
 }
 
 
@@ -174,7 +175,6 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     m_sizeY = visibleHeight;
     m_dataSize = visibleWidth * visibleHeight;
     m_bufSize = m_dataSize;
-    m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
 
     m_cropX = visibleX;
     m_cropY = visibleY;
@@ -313,8 +313,6 @@ void Crt8275Renderer::altRenderFrame()
         nLines = 12;
     else
         nLines = 8;
-
-    m_aspectRatio = m_aspectRatio * nLines / frame->nLines;
 
     m_sizeX = nChars * 8;
     m_sizeY = nRows * nLines;

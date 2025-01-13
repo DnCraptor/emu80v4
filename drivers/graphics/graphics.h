@@ -4,8 +4,8 @@
 extern "C" {
 #endif
 
-#define DISP_WIDTH 512
-#define DISP_HEIGHT 256
+#define DISP_WIDTH 521
+#define DISP_HEIGHT 288
 #define RGB888(r, g, b) ((((r) >> 6) << 4) | (((g) >> 6) << 2) | ((b) >> 6))
 #define RGB(rgb) (RGB888(rgb >> 16, (rgb >> 8) & 0xFF, rgb & 0xFF))
 
@@ -32,10 +32,9 @@ extern "C" {
 #include "font8x8.h"
 #include "font8x16.h"
 enum graphics_mode_t {
-    TEXTMODE_DEFAULT = 0,
-    GRAPHICSMODE_DEFAULT = 1,
-    GMODE_640_480 = 1,
-    GMODE_800_600 = 2
+    GRAPHICSMODE_DEFAULT = 0,
+    GMODE_640_480 = 0,
+    GMODE_800_600 = 1
 };
 
 void graphics_init();
