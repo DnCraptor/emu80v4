@@ -25,6 +25,7 @@
 #include "Crt8275Renderer.h"
 #include "Emulation.h"
 #include "Crt8275.h"
+#include "Pal.h"
 
 using namespace std;
 
@@ -208,6 +209,8 @@ void Crt8275Renderer::primaryRenderFrame()
 
     m_sizeX = nChars * m_fntCharWidth;
     m_sizeY = nRows * nLines;
+    // 468x300=140400
+///    emuLog << "void Crt8275Renderer::primaryRenderFrame() " << to_string(m_sizeX) + "x" + to_string(m_sizeY) << "\n";
 
     m_dataSize = nRows * nLines * nChars * m_fntCharWidth;
     if (m_dataSize > m_bufSize) {
@@ -230,25 +233,25 @@ void Crt8275Renderer::primaryRenderFrame()
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt;
+                hglt = symbol.symbolAttributes.hglt();
             else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt;
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
 
             bool gpa0, gpa1;
             if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0;
-                gpa1 = symbol.symbolAttributes.gpa1;
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
             }
             else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0;
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1;
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
             }
 
             bool rvv;
             if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv;
+                rvv = symbol.symbolAttributes.rvv();
             else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv;
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
 
             const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
             uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
@@ -261,13 +264,13 @@ void Crt8275Renderer::primaryRenderFrame()
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
 
-                bool vsp = symbol.symbolLineAttributes[ln].vsp;
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
 
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten;
+                    lten = symbol.symbolLineAttributes[ln].lten();
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten;
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
 
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 
@@ -289,7 +292,7 @@ void Crt8275Renderer::primaryRenderFrame()
             }
             chrPtr += m_fntCharWidth;
         }
-    rowPtr += nLines * nChars * m_fntCharWidth;
+        rowPtr += nLines * nChars * m_fntCharWidth;
     }
 
     trimImage(m_fntCharWidth, nLines);
@@ -336,27 +339,27 @@ void Crt8275Renderer::altRenderFrame()
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt;
+                hglt = symbol.symbolAttributes.hglt();
             else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt;
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
 
             bool gpa0, gpa1;
             if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0;
-                gpa1 = symbol.symbolAttributes.gpa1;
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
             }
             else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0;
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1;
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
             }
 
             bool rvv;
             if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv;
+                rvv = symbol.symbolAttributes.rvv();
             else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv;
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
 
-            bool vsp = symbol.symbolLineAttributes[1].vsp; // !!!
+            bool vsp = symbol.symbolLineAttributes[1].vsp(); // !!!
 
             const uint8_t* fntPtr = getAltFontPtr(gpa0, gpa1, hglt);
             if (nLines == 12)
@@ -393,7 +396,7 @@ void Crt8275Renderer::altRenderFrame()
             }
             chrPtr += 8;
         }
-    rowPtr += nLines * nChars * 8;
+        rowPtr += nLines * nChars * 8;
     }
 
     trimImage(8, nLines);
@@ -435,10 +438,10 @@ const char* Crt8275Renderer::getTextScreen()
         for (int x = 0; x < w; x++) {
             Symbol symbol = frame->symbols[y][x];
             uint8_t chr = symbol.chr;
-            bool gpa0 = symbol.symbolAttributes.gpa0;
-            bool gpa1 = symbol.symbolAttributes.gpa1;
-            bool hglt = symbol.symbolAttributes.hglt;
-            bool vsp = symbol.symbolLineAttributes[1].vsp;
+            bool gpa0 = symbol.symbolAttributes.gpa0();
+            bool gpa1 = symbol.symbolAttributes.gpa1();
+            bool hglt = symbol.symbolAttributes.hglt();
+            bool vsp = symbol.symbolLineAttributes[1].vsp();
 
             wchar_t wchr = getUnicodeSymbol(chr, gpa0, gpa1, hglt);
 

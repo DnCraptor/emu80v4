@@ -93,8 +93,10 @@ class TextCrtRenderer : public CrtRenderer
         void setAltRender(bool isAltRender);
 
     protected:
-        uint8_t* m_font = nullptr;
-        uint8_t* m_altFont = nullptr;
+        const uint8_t* m_font = nullptr;
+        const uint8_t* m_altFont = nullptr;
+        bool m_font_ram = false;
+        bool m_altFont_ram = false;
         bool m_useAltFont = false;
         bool m_isAltRender = false;
         int m_fontSize;

@@ -105,7 +105,7 @@ void Ut88Renderer::primaryRenderFrame()
         for (int col = 0; col < 64; col++) {
             int addr = row * 64 + col;
             bool cursor = col != 63 && m_screenMemory[addr + 1] & 0x80;
-            uint8_t* fontPtr = m_font + (m_screenMemory[addr] & 0x7f) * 8;
+            const uint8_t* fontPtr = m_font + (m_screenMemory[addr] & 0x7f) * 8;
             for (int l = 0; l < 8; l++) {
                 uint8_t bt = fontPtr[l] << 2;
                 for (int pt = 0; pt < 6; pt++) {

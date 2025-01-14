@@ -110,6 +110,10 @@ uint8_t Ram::readByte(int addr)
 #include "pico/pk8000_v12.rom.h"
 #endif
 #include "pico/ut88.rom.h"
+#if PK86
+#include "pico/rk86_dos29_bin.h"
+#include "pico/rk86_rom.h"
+#endif
 
 Rom::Rom(unsigned memSize, string fileName)
 {
@@ -172,6 +176,18 @@ Rom::Rom(unsigned memSize, string fileName)
         m_size = sizeof(ut88_rom);
         return;
     }
+    #if PK86
+    if (fileName == "rk86/rk86.rom") {
+        m_buf = rk86_rom;
+        m_size = sizeof(rk86_rom);
+        return;
+    }
+    if (fileName == "rk86/dos29.bin") {
+        m_buf = dos29_bin;
+        m_size = sizeof(dos29_bin);
+        return;
+    }
+    #endif
     m_buf = new uint8_t [memSize];
     memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;

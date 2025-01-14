@@ -707,7 +707,7 @@ EmuKey SpecKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCod
 }
 
 
-    bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
+bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 {
     int fileSize;
     uint8_t* buf = palReadFile(fileName, fileSize, false);

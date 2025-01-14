@@ -688,7 +688,7 @@ void init_sound() {
 
 static const char* platforms[] = {
     "vector",
-    "bashkiria",
+    "vector.z80",
     "spec.m1",
     "sp580",
     "spec.z80",
@@ -696,6 +696,7 @@ static const char* platforms[] = {
     "spec",
     "eureka",
     "korvet",
+    "bashkiria",
     "lvov",
     "mikro80",
     "mikro80.rk",
@@ -711,12 +712,57 @@ static const char* platforms[] = {
     "pk8000.fdc",
     "pk8000.hdd",
 #endif
-    "vector.z80",
-///    "spmx",
-///    "spmx.turbo",
-///    "spmx.mxos",
+    "spmx",
+    "spmx.turbo",
+    "spmx.mxos",
     "spmx.com",
-    "ut88"
+    "ut88",
+#if PK86
+    "rk86",
+    "rk86.sd",
+    "rk86.sdos",
+    "rk86.z80",
+    "rk86.kr03",
+#endif
+};
+static const char* platformNames[] = {
+    "Vector-06c",
+    "Vector-06c Z80 CPU",
+    "Specialist (Monitor 1)",
+    "Specialist SP580",
+    "Specialist Z80 CPU",
+    "Lik (Specialist clone)",
+    "Specialist",
+    "Eureka",
+    "Korvet",
+    "Bashkiria-2M",
+    "PK-01 Lvov",
+    "Mikro-80",
+    "Mikro80 (Monitor RK)",
+#if ORION
+    "orion",
+    "orion.1",
+    "orion.31",
+    "orion.32",
+    "orion.dsdos"
+#endif
+#if PK8000
+    "pk8000",
+    "pk8000.fdc",
+    "pk8000.hdd",
+#endif
+    "Specialist-MX",
+    "Specialist-MX Turbo (Z80)",
+    "Specialist-MX (MXOS)",
+    "Specialist-MX (Commander)",
+    "UT-88",
+#if PK86
+    "rk86",
+    "rk86.sd",
+    "rk86.sdos",
+    "rk86.z80",
+    "rk86.kr03",
+#endif
 };
 static const char* argv[3] = {
     "emu80",
@@ -807,7 +853,7 @@ int main() {
         uint32_t msi = fnth + 1; // height of one file line
         size_t lines = sizeof(platforms) / sizeof(char*);
         for (auto i = 0; i < lines; ++i, ++j) {
-            const char* name = platforms[i];
+            const char* name = platformNames[i];
             uint32_t ybj = yb + j * msi;
             if (ybj + msi >= y + w) break;
             if (selected_file_n == j) {

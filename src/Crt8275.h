@@ -26,43 +26,39 @@
 class Dma8257;
 class PlatformCore;
 
-
-/*enum CursorFormat
-{
-    CF_BLINKINGBLOCK = 0,
-    CF_BLINKINGUNDERLINE = 1,
-    CF_BLOCK = 2,
-    CF_UNDERLINE = 3
-};*/
-
-
-
-struct SymbolAttributes {
-    //bool vsp;    // video suppression (per symbol)
-    bool rvv;    // reverse video
-    bool hglt;   // highlight
-    bool gpa0;   // general purpose 1
-    bool gpa1;   // general purpose 2
+struct __packed SymbolAttributes {
+    uint8_t bits;
+    inline bool rvv (void) const { return bits & 0b0111; }   // reverse video
+    inline bool hglt(void) const { return bits & 0b1011; }   // highlight
+    inline bool gpa0(void) const { return bits & 0b1101; }   // general purpose 1
+    inline bool gpa1(void) const { return bits & 0b1110; }   // general purpose 2
+    inline void rvv (bool b) { if(b) bits |= 0b1000; else bits &= 0b0111; }
+    inline void hglt(bool b) { if(b) bits |= 0b0100; else bits &= 0b1011; }
+    inline void gpa0(bool b) { if(b) bits |= 0b0010; else bits &= 0b1101; }
+    inline void gpa1(bool b) { if(b) bits |= 0b0001; else bits &= 0b1110; }
 };
 
-
-
-struct SymbolLineAttributes {
-    int lc;      // line counter
-    bool vsp;    // video suppression
-    bool lten;   // light enable
+struct __packed SymbolLineAttributes {
+    uint16_t bits;
+    inline  int lc  (void) const { return bits & 0b0011111111111111; }   // line counter
+    inline bool vsp (void) const { return bits & 0b0100000000000000; }   // video suppression
+    inline bool lten(void) const { return bits & 0b1000000000000000; }   // light enable
+    inline void lc  (int v) {
+        bits &= 0b1100000000000000;
+        bits |= v & 0b0011111111111111;
+    }
+    inline void vsp (bool b) { if(b) bits |= 0b0100000000000000; else bits &= 0b1011111111111111; }
+    inline void lten(bool b) { if(b) bits |= 0b1000000000000000; else bits &= 0b0111111111111111; }
 };
 
-
-
-struct Symbol {
+struct __packed Symbol {
     uint8_t chr;
     SymbolAttributes symbolAttributes;
     SymbolLineAttributes symbolLineAttributes[16];
 };
 
 
-struct Frame {
+struct __packed Frame {
     int nRows;          // line number from top
     int nCharsPerRow;
     int nLines;

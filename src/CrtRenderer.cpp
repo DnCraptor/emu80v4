@@ -30,8 +30,6 @@ CrtRenderer::~CrtRenderer()
 {
     if (m_pixelData)
         delete[] m_pixelData;
-///    if (m_prevPixelData)
-///        delete[] m_prevPixelData;
 }
 
 
@@ -182,22 +180,42 @@ bool CrtRenderer::setProperty(const string& propertyName, const EmuValuesList& v
 
 TextCrtRenderer::~TextCrtRenderer()
 {
-    if (m_font)
+    if (m_font_ram)
         delete[] m_font;
-    if (m_altFont)
+    if (m_altFont_ram)
         delete[] m_altFont;
 }
 
+#if PK86
+#include "pico/rk86_fontr_bin.h"
+#include "pico/rk86_sgr_bin.h"
+#endif
 
 void TextCrtRenderer::setFontFile(string fontFileName)
 {
+#if PK86
+    if (fontFileName == "rk86/sgr.bin") {
+        m_font = sgr_bin;
+        m_fontSize = sizeof(sgr_bin);
+        return;
+    }
+#endif
     m_font = palReadFile(fontFileName, m_fontSize);
+    m_font_ram = true;
 }
 
 
 void TextCrtRenderer::setAltFontFile(string fontFileName)
 {
+#if PK86
+    if (fontFileName == "rk86/fontr.bin") {
+        m_altFont = fontr_bin;
+        m_altFontSize = sizeof(fontr_bin);
+        return;
+    }
+#endif
     m_altFont = palReadFile(fontFileName, m_altFontSize);
+    m_altFont_ram = true;
 }
 
 
