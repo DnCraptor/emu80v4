@@ -715,7 +715,8 @@ static const char* platforms[] = {
 ///    "spmx",
 ///    "spmx.turbo",
 ///    "spmx.mxos",
-    "spmx.com"
+    "spmx.com",
+    "ut88"
 };
 static const char* argv[3] = {
     "emu80",

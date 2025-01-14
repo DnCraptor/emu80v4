@@ -28,19 +28,28 @@ using namespace std;
 
 RkRomDisk::RkRomDisk(string romDiskName)
 {
-    m_romDisk = palReadFile(romDiskName, m_fileSize);
+    m_romDisk = new FIL();
+    f_open(m_romDisk, romDiskName.c_str(), FA_READ);
 }
 
 
 RkRomDisk::~RkRomDisk()
 {
-    delete[] m_romDisk;
+    f_close(m_romDisk);
+    delete m_romDisk;
 }
 
 
 uint8_t RkRomDisk::getPortA()
 {
-    return m_curAddr < unsigned(m_fileSize) ? m_romDisk[m_curAddr] : 0xFF;
+    if (m_curAddr < unsigned(m_fileSize)) {
+        f_lseek(m_romDisk, m_curAddr);
+        uint8_t res;
+        UINT br;
+        f_read(m_romDisk, &res, 1, &br);
+        return res;
+    }
+    return 0xFF;
 }
 
 

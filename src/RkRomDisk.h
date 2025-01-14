@@ -20,7 +20,7 @@
 #define RKROMDISK_H
 
 #include "Ppi8255Circuit.h"
-
+#include "ff.h"
 
 class RkRomDisk : public Ppi8255Circuit
 {
@@ -39,7 +39,7 @@ class RkRomDisk : public Ppi8255Circuit
         static EmuObject* create(const EmuValuesList& parameters) {return new RkRomDisk(parameters[0].asString());}
 
     protected:
-        uint8_t* m_romDisk = nullptr;
+        FIL* m_romDisk = nullptr;
         int m_fileSize = 0;
         unsigned m_curAddr = 0;
 };

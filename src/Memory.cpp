@@ -109,6 +109,7 @@ uint8_t Ram::readByte(int addr)
 #include "pico/pk8000_hdd.rom.h"
 #include "pico/pk8000_v12.rom.h"
 #endif
+#include "pico/ut88.rom.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
@@ -166,6 +167,11 @@ Rom::Rom(unsigned memSize, string fileName)
         return;
     }
     #endif
+    if (fileName == "ut88/ut88.rom") {
+        m_buf = ut88_rom;
+        m_size = sizeof(ut88_rom);
+        return;
+    }
     m_buf = new uint8_t [memSize];
     memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;

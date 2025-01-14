@@ -111,13 +111,14 @@ void Ut88Renderer::primaryRenderFrame()
                 for (int pt = 0; pt < 6; pt++) {
                     bool pixel = (bt & 0x80);
                     bt <<= 1;
-                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? 0 : 0xC0;
+                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? RGB(0) : RGB(0xC0C0C0);
                 }
             }
             if (cursor)
                 for (int pt = 0; pt < 6; pt++)
-                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = 0xC0;
+                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = RGB(0xC0C0C0);
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
