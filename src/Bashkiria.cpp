@@ -174,11 +174,12 @@ void Bashkiria2mRenderer::setPalette(int addr, uint8_t value)
     value = ~value;
     for(int i=0; i<2; ++i) {
         uint8_t c = i==0 ? (value&3)*21 : value>>2;
-        uint32_t color = 0, level[4]={0,90,180,255};
-        for(int j=0; j<3; ++j,c>>=2) {
-            color <<= 8; color |= level[c&3];
+        uint32_t color = 0, level[4] = {0, 90, 180, 255};
+        for(int j = 0; j < 3; ++j, c >>=2) {
+            color <<= 8;
+            color |= level[c & 3];
         }
-        m_palette[i][addr&3] = color;
+        m_palette[i][addr & 3] = RGB(color);
     }
 }
 
