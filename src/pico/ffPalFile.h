@@ -10,19 +10,13 @@ class PalFile
     public:
         bool open(std::string fileName, std::string mode = "r") {
             m_file = new FIL();
-            if (mode == "r") {
-                if (FR_OK != f_open(m_file, fileName.c_str(), FA_READ)) {
-                    close();
-                    return false;
-                }
-            }
-            if (mode == "r+") {
-                if (FR_OK != f_open(m_file, fileName.c_str(), FA_READ || FA_OPEN_APPEND)) {
-                    close();
-                    return false;
-                }
-            }
-            if (FR_OK != f_open(m_file, fileName.c_str(), FA_WRITE)) {
+            BYTE modeb = FA_READ;
+            if (mode == "r+") modeb = FA_READ | FA_WRITE;
+            else if (mode == "a") modeb = FA_WRITE | FA_OPEN_APPEND | FA_CREATE_NEW;
+            else if (mode == "a+") modeb = FA_WRITE | FA_OPEN_APPEND | FA_CREATE_ALWAYS;
+            else if (mode == "w") modeb = FA_WRITE | FA_CREATE_NEW;
+            else if (mode == "w+") modeb = FA_WRITE | FA_CREATE_ALWAYS;
+            if (FR_OK != f_open(m_file, fileName.c_str(), modeb)) {
                 close();
                 return false;
             }

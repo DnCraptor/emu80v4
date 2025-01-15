@@ -209,6 +209,9 @@ RkPixeltronRenderer::RkPixeltronRenderer()
     m_gpaOffset  = false;
 }
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 
 void RkPixeltronRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
 {
@@ -223,7 +226,9 @@ void RkPixeltronRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol,
     uint8_t bgColor = (bt & 0x80) ? RGB888(0x40, 0x40, 0x40) : RGB888(0, 0, 0);
 
     for (int i = 0; i < 6; i++) {
-        *linePtr++ = (bt & 0x20) ? fgColor : bgColor;
+        bool v = (bt & 0x20) ? fgColor : bgColor; // TODO: 2-bits?
+        bitWrite(*linePtr, i, v);
+///        linePtr[i] = (bt & 0x20) ? fgColor : bgColor;
         bt <<= 1;
     }
 }

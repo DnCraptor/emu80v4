@@ -633,20 +633,10 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         return true;
     }
 
-    int fileSize;
-    uint8_t* buf = palReadFile(fileName, fileSize, false);
-    if (!buf)
+    FIL f;
+    if (f_open(&f, fileName.c_str(), FA_READ) != FR_OK)
         return false;
-
-    /*if (fileSize > 32768 - 256) {  // review
-        delete[] buf;
-        return false;
-    }*/
-
     bool basFile = false;
-
-    uint8_t* ptr = buf;
-
     uint16_t begAddr = 0x100;
 
     // check for "r0m"
@@ -669,10 +659,13 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     for (unsigned i = 0; i < 0x100; i++)
         m_as->writeByte(i, 0x00);
 
+    UINT br;
     if (!basFile)
-        for (int i = 0; i < fileSize; i++) {
+        for (int i = 0; i < f_size(&f); ++i) {
             uint16_t addr = begAddr + i;
-            m_as->writeByte(addr, *ptr++);
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(addr, v);
             if (!run && (addr & 0xFF) == 0) {
                 // paint block
                 int block = addr >> 8;
@@ -682,20 +675,24 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             }
         }
     else {
+        int fileSize = f_size(&f);
+        uint32_t v;
+        f_read(&f, &v, 4, &br);
         // check for CAS
-        if (fileSize >= 14 && ptr[0] == 0xD3 && ptr[1] == 0xD3 && ptr[2] == 0xD3 && ptr[3] == 0xD3) {
+        if (fileSize >= 14 && v == 0xD3D3D3D3) {
             // Cas file
-            while (fileSize && *ptr != 0xE6) {
-                ptr++;
+            while (fileSize) {
+                uint8_t v;
+                f_read(&f, &v, 1, &br);
+                if (v == 0xE6) break;
                 fileSize--;
             }
 
             if (fileSize < 7) {
-                delete[] buf;
+                f_close(&f);
                 return false;
             }
-
-            ptr += 5;
+            f_lseek(&f, f_tell(&f) + 5);
             fileSize -= 5;
         }
 
@@ -712,9 +709,15 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         uint16_t addr, nextAddr;
         addr = nextAddr = 0x4301;
         for(;;) {
-            if (addr == nextAddr + 1)
-                nextAddr = (ptr[0] << 8) | ptr[-1];
-            m_as->writeByte(addr++, *ptr++);
+            if (addr == nextAddr + 1) {
+                f_lseek(&f, f_tell(&f) - 1);
+                f_read(&f, &nextAddr, 2, &br); // TODO: ensure order of bytes
+                ///nextAddr = (ptr[0] << 8) | ptr[-1];
+                f_lseek(&f, f_tell(&f) - 1);
+            }
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(addr++, v);
             fileSize--;
             if (nextAddr == 0 || fileSize == 0 || addr >= 0x7EFF)
                 break;
@@ -725,7 +728,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         m_as->writeByte(0x4048, addr >> 8);
         m_as->writeByte(0x4049, addr & 0xFF);
         m_as->writeByte(0x404A, addr >> 8);
-        delete[] buf;
+        f_close(&f);
 
         if (run) {
             m_as->writeByte(0x3DBF, 'R');
@@ -741,7 +744,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     }
 
 
-    delete[] buf;
+    f_close(&f);
 
     if (run) {
         as->disableRom();

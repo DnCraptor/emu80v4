@@ -757,11 +757,11 @@ static const char* platformNames[] = {
     "Specialist-MX (Commander)",
     "UT-88",
 #if PK86
-    "rk86",
-    "rk86.sd",
-    "rk86.sdos",
-    "rk86.z80",
-    "rk86.kr03",
+    "Radio-86PK",
+    "Radio-86PK (SD card / vinxru)",
+    "Radio-86PK (SDOS)",
+    "Radio-86PK Z80 CPU",
+    "Electronika KP-02/03",
 #endif
 };
 static const char* argv[3] = {
