@@ -111,10 +111,22 @@ class SpecRenderer : public CrtRenderer, public IActive
     };
 
     const uint8_t spec16ColorPalette[16] = {
-        RGB888(0, 0, 0), RGB888(0, 0, 0xC0), RGB888(0, 0xC0, 0), RGB888(0x00, 0xC0, 0xC0),
-        RGB888(0xC0, 0, 0), RGB888(0xC0, 0, 0xC0), RGB888(0xC0, 0xC0, 0), RGB888(0xC0, 0xC0, 0xC0),
-        RGB888(0x80, 0x80, 0x80), RGB888(0, 0, 0xFF), RGB888(0, 0xFF, 0), RGB888(0, 0xFF, 0xFF),
-        RGB888(0xFF, 0, 0), RGB888(0xFF, 0, 0xFF), RGB888(0xFF, 0xFF, 0), RGB888(0xFF, 0xFF, 0xFF)
+        0b000000, // black
+        0b000010, // blue
+        0b001000, // green
+        0b001010, // gb
+        0b100000, // r
+        0b100010, // rb
+        0b101000, // rg
+        0b101010, // rgb
+        0b010101, // grey
+        0b000011, // l blue
+        0b001100, // l green
+        0b001111, // l gb
+        0b110000, // l r
+        0b110011, // l rb
+        0b111100, // l rg
+        0b111111  // l rgb
     };
 
     public:
