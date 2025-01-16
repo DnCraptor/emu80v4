@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.1.8")
+set (PORT_VERSION "0.1.9")
 #set (MURM2 ON)
 
 set(KBDUSB ON)
@@ -274,6 +274,7 @@ ELSE()
 
         #LOG=1
         #PK86=1
+        ORION=1
     )
 ENDIF()
 

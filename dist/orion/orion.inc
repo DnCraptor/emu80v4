@@ -54,15 +54,15 @@ platform.fastResetCpuTicks = 3000000
 
 
 Ram ram0 = 0xF000
-Ram ram1 = 0xF000
-Ram ram2 = 0xF000
-Ram ram3 = 0xF000
+SRam ram1 = 0xF000
+SRam ram2 = 0xF000
+SRam ram3 = 0xF000
 
 ifdef RAM_512K
-  Ram ram4 = 0xF000
-  Ram ram5 = 0xF000
-  Ram ram6 = 0xF000
-  Ram ram7 = 0xF000
+  SRam ram4 = 0xF000
+  SRam ram5 = 0xF000
+  SRam ram6 = 0xF000
+  SRam ram7 = 0xF000
 endif
 
 Ram sysRam = 0x400
