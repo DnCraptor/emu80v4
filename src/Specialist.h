@@ -117,7 +117,7 @@ class SpecRenderer : public CrtRenderer, public IActive
         0b001010, // gb
         0b100000, // r
         0b100010, // rb
-        0b101000, // rg
+        0b010100, // r-g-
         0b101010, // rgb
         0b010101, // grey
         0b000011, // l blue

@@ -175,8 +175,10 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     vector<PalFileInfo*> fileList;
     int selected_file_n = 0;
     int shift_j = 0;
+    uint32_t height_in_j = 0;
     PalFileInfo* selected_fi = nullptr;
     uint32_t yt = y+2+1;
+    const char back[] = "..";
 again:
     graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
     graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
@@ -190,7 +192,7 @@ again:
     // add virtual dir for back action
     if (fdir.length() > 1) {
         PalFileInfo* newFile = new PalFileInfo;
-        newFile->fileName = "..";
+        newFile->fileName = back;
         newFile->isDir = 1;
         fileList.push_back(newFile);
     }
@@ -204,15 +206,15 @@ again:
     uint32_t yb = y + fnth + 5;
     graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
     uint32_t msi = fnth + 1; // height of one file line
-    uint32_t height_in_j = 0;
+    height_in_j = 0;
     for (auto i = fileList.begin(); i != fileList.end(); ++i, ++j) {
         PalFileInfo* fi = *i;
         if (j < shift_j) continue;
         uint32_t ybj = yb + (j - shift_j) * msi;
-        if (ybj + msi >= y + w) break;
+        if (ybj > y + h - fnth) break;
         height_in_j++;
         string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
-        if (selected_file_n == j + shift_j) {
+        if (selected_file_n == j) {
             selected_fi = fi;
             graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
             graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name.c_str(), name.length());
@@ -281,7 +283,7 @@ again:
             selected_file_n = 0;
             shift_j = 0;
             if (selected_fi->isDir) {
-                if (selected_fi->fileName == "..") {
+                if (selected_fi->fileName == back) {
                     fdir = fdir.substr(0, fdir.find_last_of("/"));
                     if (fdir.empty()) fdir = "/";
                 } else {
