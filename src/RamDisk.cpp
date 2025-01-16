@@ -136,9 +136,14 @@ void RamDisk::saveToFile()
         unsigned pageSize = m_defPageSize;
 
         if (m_pages[i]) {
-            SRam* ram = m_pages[i]->asSRam();
-            if (ram)
-               pageSize = ram->getSize();
+            SRam* sram = m_pages[i]->asSRam();
+            if (sram)
+               pageSize = sram->getSize();
+            else {
+                Ram* ram = m_pages[i]->asRam();
+                if (ram)
+                    pageSize = ram->getSize();
+            }
         }
 
         for (unsigned pos = 0; pos < pageSize; pos++)
@@ -180,8 +185,11 @@ void RamDisk::loadFromFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        if (m_pages[i]) {
-            SRam* ram = m_pages[i]->asSRam();
+        SRam* sram = m_pages[i]->asSRam();
+        if (sram)
+            pageSize = sram->getSize();
+        else {
+            Ram* ram = m_pages[i]->asRam();
             if (ram)
                 pageSize = ram->getSize();
         }
@@ -197,9 +205,14 @@ void RamDisk::loadFromFile()
             unsigned pageSize = m_defPageSize;
 
             if (m_pages[i]) {
-                SRam* ram = m_pages[i]->asSRam();
-                if (ram)
-                    pageSize = ram->getSize();
+                SRam* sram = m_pages[i]->asSRam();
+                if (sram)
+                   pageSize = sram->getSize();
+                else {
+                    Ram* ram = m_pages[i]->asRam();
+                    if (ram)
+                        pageSize = ram->getSize();
+                }
             }
 
             for (unsigned pos = 0; pos < pageSize; pos++)

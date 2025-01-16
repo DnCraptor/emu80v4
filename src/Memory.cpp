@@ -40,11 +40,11 @@ SRam::~SRam() {
 }
 
 void SRam::writeByte(int addr, uint8_t value) {
-    write8psram(addr, value);
+    write8psram(m_offset + addr, value);
 }
 
 uint8_t SRam::readByte(int addr) {
-    return read8psram(addr);
+    return read8psram(m_offset + addr);
 }
 
 Ram::Ram(unsigned memSize)

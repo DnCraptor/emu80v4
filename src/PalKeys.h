@@ -148,7 +148,7 @@ public:
     PalKeyCode vk;
     bool pressed;
     PalKeyCodeAction(): vk(PK_NONE), pressed(false) {}
-    PalKeyCodeAction(const PalKeyCodeAction& o): vk(o.vk), pressed(o.pressed) {}
+    PalKeyCodeAction(volatile const PalKeyCodeAction& o): vk(o.vk), pressed(o.pressed) {}
     PalKeyCodeAction(PalKeyCode vk, bool pressed): vk(vk), pressed(pressed) {}
 };
 

@@ -354,6 +354,7 @@ volatile PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 Emulation* g_emulation = nullptr;
 
+/**
 #include <queue>
 static std::queue<PalKeyCodeAction*> actions;
 
@@ -379,6 +380,25 @@ void processKeys() {
             g_emulation->activePlatformKey(p->vk, p->pressed);
             delete p;
         }
+    }
+}
+*/
+volatile static PalKeyCodeAction lastKey;
+volatile static bool isLastKey;
+inline static void addKey(PalKeyCode vk, bool pressed) {
+    lastKey.vk = vk;
+    lastKey.pressed = pressed;
+    isLastKey = true;
+}
+PalKeyCodeAction getKey() {
+    if (!isLastKey) return PalKeyCodeAction();
+    isLastKey = false;
+    return lastKey;
+}
+void processKeys() {
+    if (isLastKey && g_emulation) {
+        isLastKey = false;
+        g_emulation->activePlatformKey(lastKey.vk, lastKey.pressed);
     }
 }
 
