@@ -179,6 +179,8 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     PalFileInfo* selected_fi = nullptr;
     uint32_t yt = y+2+1;
     const char back[] = "..";
+    string t2;
+    if (write) t2 = "Type a name of ext: " + filter;
 again:
     graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
     graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
@@ -204,6 +206,12 @@ again:
     int j = 0;
     uint32_t xb = x + 2;
     uint32_t yb = y + fnth + 5;
+    if (write) {
+        graphics_fill(x+1, yb+1, w-2, yb+fnth+1, RGB888(207, 255, 255)); // Title2 background
+        xt = x+2;
+        graphics_type(xt, yb+1, RGB888(0, 0, 0), t2.c_str(), t2.length()); // print title2
+        yb += fnth+1;
+    }
     graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
     uint32_t msi = fnth + 1; // height of one file line
     height_in_j = 0;
@@ -225,6 +233,13 @@ again:
     string res = "";
     while(1) {
         PalKeyCodeAction pk = getKey();
+        if (write && pk.pressed) {
+            if (pk.vk >= PK_1 && pk.vk <= PK_0) { t2 += '1' + pk.vk - PK_1; goto again; }
+            if (pk.vk >= PK_A && pk.vk <= PK_Z) { t2 += 'a' + pk.vk - PK_A; goto again; } // TODO: shift, caps lock
+            if (pk.vk == PK_SPACE) { t2 += ' '; goto again; }
+            if (pk.vk == PK_PERIOD) { t2 += '.'; goto again; }
+            if (pk.vk == PK_BSP) { t2 = ""; goto again; } /// TODO:
+        }
         if ((pk.vk == PK_UP || pk.vk == PK_KP_8) && pk.pressed) {
             selected_file_n--;
             if (selected_file_n < 0) {
@@ -280,6 +295,10 @@ again:
             goto again;
         }
         if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed && selected_fi) {
+            if (write) { // TODO: 
+                res = fdir + "/" + t2;
+                break;
+            }
             selected_file_n = 0;
             shift_j = 0;
             if (selected_fi->isDir) {

@@ -227,7 +227,7 @@ ifdef USE_TAPE
 
   TapeRedirector tapeOutFile
   tapeOutFile.mode = "w"
-  tapeOutFile.filter = "Файлы Ориона (*.rko)|*.rko|Файлы RK-совместимых ПК (*.rk)|*.rk|Файлы BSM (*.bsm)|*.bsm|Файлы EDM (*.edm)|*.edm|Все файлы (*.*)|*"
+  tapeOutFile.filter = ".rko"
 
   RkTapeOutHook tapeOutHook = @F80C_ADDR
   tapeOutHook.tapeRedirector = &tapeOutFile

@@ -104,7 +104,7 @@ tapeInFile.filter = "Файлы Специалиста (*.rks)|*.rks;*.RKS|Фа�
 
 TapeRedirector tapeOutFile
 tapeOutFile.mode = "w"
-tapeOutFile.filter = "Файлы Специалиста (*.rks)|*.rks|Файлы RK-совместимых ПК (*.rk)|*.rk|Все файлы (*.*)|*"
+tapeOutFile.filter = ".rks"
 
 RkTapeOutHook tapeOutHook = @C80C_ADDR
 tapeOutHook.outReg = A

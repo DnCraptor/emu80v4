@@ -162,7 +162,7 @@ tapeInFile.filter = "Файлы Микро-80 (*.rk8)|*.rk8;*.RK8|Файлы RK-
 
 TapeRedirector tapeOutFile
 tapeOutFile.mode = "w"
-tapeOutFile.filter = "Файлы Микро-80 (*.rk8)|*.rk8|Файлы RK-совместимых ПК (*.rk)|*.rk|Все файлы (*.*)|*"
+tapeOutFile.filter = ".rk8"
 
 RkTapeOutHook tapeOutHook = @C80C_ADDR
 tapeOutHook.outReg = C

@@ -21,6 +21,7 @@
 #include "Memory.h"
 #include "Pal.h"
 #include "psram_spi.h"
+#include "ff.h"
 
 using namespace std;
 
@@ -28,23 +29,43 @@ using namespace std;
 
 static size_t sram_used = 0;
 
+static FIL f;
+static const char PAGEFILE[] = "/emu80/pico2-80.pagefile";
+
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
     m_supportsTags = true;
 /// TODO:    memset(m_buf, 0, memSize);
     sram_used += m_size;
+    f_open(&f, PAGEFILE, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
 }
 
 SRam::~SRam() {
     sram_used -= m_size; /// TODO: ensure order
+    f_close(&f);
 }
 
 void SRam::writeByte(int addr, uint8_t value) {
-    write8psram(m_offset + addr, value);
+    if (psram_size() > m_offset + addr) {
+        write8psram(m_offset + addr, value);
+        return;
+    }
+    UINT br;
+    FSIZE_t lba = m_offset;
+    f_lseek(&f, lba + addr);
+    f_write(&f, &value, 1, &br);
 }
 
 uint8_t SRam::readByte(int addr) {
-    return read8psram(m_offset + addr);
+    if (psram_size() > m_offset + addr) {
+        return read8psram(m_offset + addr);
+    }
+    UINT br;
+    FSIZE_t lba = m_offset;
+    f_lseek(&f, lba + addr);
+    uint8_t value;
+    f_read(&f, &value, 1, &br);
+    return value;
 }
 
 Ram::Ram(unsigned memSize)

@@ -184,7 +184,7 @@ ramDisk.page = 7, &ramDisk8
 
 TapeRedirector rfsTapeOutFile
 rfsTapeOutFile.mode = "w"
-rfsTapeOutFile.filter = "Файлы RAMFOS (*.rfs)|*.rfs|Все файлы (*.*)|*"
+rfsTapeOutFile.filter = ".rfs"
 rfsTapeOutFile.timeout = 1500
 
 TapeRedirector rfsTapeInFile
