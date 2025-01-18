@@ -356,55 +356,57 @@ bool OrionFddQueryRegister::setProperty(const string& propertyName, const EmuVal
     return false;
 }
 
+#include "ff.h"
 
 bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
 {
-    int fileSize;
-    uint8_t* buf = palReadFile(fileName, fileSize, false);
-    if (!buf)
+    FIL f;
+    if (FR_OK != f_open(&f, fileName.c_str(), FA_READ))
         return false;
 
-    if (fileSize < 16) {
-        delete[] buf;
+    if (f_size(&f) < 16) {
+        f_close(&f);
         return false;
     }
-
-    uint8_t* ptr = buf;
-
+    char p16[16];
+    UINT br;
+    f_read(&f, p16, 16, &br);
     int bruOffset = 0;
-    int len = (ptr[0x0b] << 8) | ptr[0x0a];;
+    int len = (p16[0x0b] << 8) | p16[0x0a];;
 
-    if (!memcmp(ptr, "Orion-128 file\r\n", 16)) {
+    if (!memcmp(p16, "Orion-128 file\r\n", 16)) {
         // ORI file
         bruOffset = 16;
+        f_lseek(&f, 0);
     } else if (len == 0)
         // RKO file
         bruOffset = 0x4d;
 
+    int fileSize = f_size(&f);
     if (bruOffset != 0) {
         if (fileSize < bruOffset + 16) {
-            delete[] buf;
+            f_close(&f);
             return false;
         }
-
         fileSize -= bruOffset;
-        ptr += bruOffset;
-        len = (ptr[0x0b] << 8) | ptr[0x0a];
+        f_lseek(&f, bruOffset);
+        f_read(&f, p16, 16, &br);
+        len = (p16[0x0b] << 8) | p16[0x0a];
+        f_lseek(&f, bruOffset);
     }
 
-    //len = (((len - 1) | 0xf ) + 17);
-
     if (fileSize < len) {
-        delete[] buf;
+        f_close(&f);
         return false;
     }
 
     if (run) {
-        uint16_t begAddr = (ptr[0x09] << 8) | ptr[0x08];
-        uint16_t nBytes = (ptr[0x0b] << 8) | ptr[0x0a];
-        ptr += 16;
+        uint16_t begAddr = (p16[0x09] << 8) | p16[0x08];
+        uint16_t nBytes = (p16[0x0b] << 8) | p16[0x0a];
+        bruOffset += 16;
+        f_lseek(&f, bruOffset);
         if (len < nBytes) {
-            delete[] buf;
+            f_close(&f);
             return false;
         }
 
@@ -417,16 +419,21 @@ bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
             cpu->setPC(begAddr);
         }
 
-        for (int i = 0; i < nBytes; i++)
-            m_as->writeByte(begAddr++, *ptr++);
+        for (int i = 0; i < nBytes; i++) {
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(begAddr++, v);
+        }
     } else {
-        for (uint16_t addr = 0; addr < len; addr++)
-            m_ramDisk->writeByte(addr, *ptr++);
+        for (uint16_t addr = 0; addr < len; addr++) {
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_ramDisk->writeByte(addr, v);
+        }
         m_ramDisk->writeByte(len, 0xff);
     }
 
-    delete[] buf;
-
+    f_close(&f);
     return true;
 }
 

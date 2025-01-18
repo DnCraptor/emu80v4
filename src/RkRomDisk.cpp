@@ -29,7 +29,9 @@ using namespace std;
 RkRomDisk::RkRomDisk(string romDiskName)
 {
     m_romDisk = new FIL();
+    romDiskName = palMakeFullFileName(romDiskName);
     f_open(m_romDisk, romDiskName.c_str(), FA_READ);
+    m_fileSize = f_size(m_romDisk);
 }
 
 

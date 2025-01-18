@@ -54,21 +54,18 @@ class PalFile
         }
         void write8(uint8_t value) {
             if (!m_file) return;
-            uint8_t res;
             UINT br;
-            f_write(m_file, &res, 1, &br);
+            f_write(m_file, &value, 1, &br);
         }
         void write16(uint16_t value) {
             if (!m_file) return;
-            uint16_t res;
             UINT br;
-            f_write(m_file, &res, 2, &br);
+            f_write(m_file, &value, 2, &br);
         }
         void write32(uint32_t value) {
             if (!m_file) return;
-            uint32_t res;
             UINT br;
-            f_write(m_file, &res, 4, &br);
+            f_write(m_file, &value, 4, &br);
         }
         int64_t getSize() {
             if (!m_file) return 0;

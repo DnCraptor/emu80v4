@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.2.0")
+set (PORT_VERSION "0.2.2")
 #set (MURM2 ON)
 
 set(KBDUSB ON)
@@ -40,7 +40,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME pico2-80)
+SET(PROJECT_NAME m1p2-emu80)
 set(FLASH_SIZE 4096)
 
 IF(MURM2)
@@ -54,7 +54,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(pico2-80 C CXX ASM)
+project(m1p2-emu80 C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -92,7 +92,7 @@ message(STATUS "")
 add_executable(${PROJECT_NAME} ${SRC})
 
 # pull in common dependencies
-target_link_libraries(pico2-80 PRIVATE
+target_link_libraries(m1p2-emu80 PRIVATE
     psram
     audio
     graphics
@@ -123,7 +123,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 if (PICO_CYW43_SUPPORTED)
-    target_link_libraries(pico2-80 pico_cyw43_arch_none)
+    target_link_libraries(m1p2-emu80 pico_cyw43_arch_none)
 endif()
 
 ##pico_enable_stdio_uart(${PROJECT_NAME} 0)

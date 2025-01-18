@@ -30,7 +30,7 @@ using namespace std;
 static size_t sram_used = 0;
 
 static FIL f;
-static const char PAGEFILE[] = "/emu80/pico2-80.pagefile";
+static const char PAGEFILE[] = "/emu80/m1p2-emu80.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
@@ -123,7 +123,10 @@ uint8_t Ram::readByte(int addr)
 #include "pico/korvet_rom2_bin.h"
 #include "pico/korvet_rom3_bin.h"
 #if ORION
+#include "pico/orion_m1rk_bin.h"
 #include "pico/orion_m2rk_bin.h"
+#include "pico/orion_m31rk_bin.h"
+#include "pico/orion_m32zrk_bin.h"
 #endif
 #if PK8000
 #include "pico/pk8000_fdc.rom.h"
@@ -169,9 +172,24 @@ Rom::Rom(unsigned memSize, string fileName)
         return;
     }
     #if ORION
+    if (fileName == "orion/rom/m1rk.bin") {
+        m_buf = orion_m1rk_bin;
+        m_size = sizeof(orion_m1rk_bin);
+        return;
+    }
     if (fileName == "orion/rom/m2rk.bin") {
         m_buf = orion_m2rk_bin;
         m_size = sizeof(orion_m2rk_bin);
+        return;
+    }
+    if (fileName == "orion/rom/m31rk.bin") {
+        m_buf = orion_m31rk_bin;
+        m_size = sizeof(orion_m31rk_bin);
+        return;
+    }
+    if (fileName == "orion/rom/m32zrk.bin") {
+        m_buf = orion_m32zrk_bin;
+        m_size = sizeof(orion_m32zrk_bin);
         return;
     }
     #endif
