@@ -450,11 +450,10 @@ uint8_t PartnerMcpgRenderer::getCurBgColor(bool, bool, bool)
     return RGB888(0, 0, 0);
 }
 
-
-void PartnerMcpgRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
-{
+void PartnerMcpgRenderer::customDrawSymbolLine(
+    Crt1Bit& oneBitlinePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt
+) {
     int col[4];
-
     int fntOffs = (rvv ? 0x400 : 0) + symbol * 8 + (line & 0x7);
     col[1] = m_fontPtr[fntOffs] & 0x7;
     col[0] = (m_fontPtr[fntOffs] & 0x38) >> 3;
@@ -471,7 +470,8 @@ void PartnerMcpgRenderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol,
             color = (col[pt] & 1 ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0)) + (col[pt] & 2 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) + (col[pt] & 4 ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF));
         if (gpa0 && gpa1 && !hglt && ((symbol & 0xC0) != 0xC0) /*&& ((symbol & 0xC0) != 0x80)*/)
             color = RGB888(0, 0, 0); //transparent
-        linePtr[pt] = color;
+        oneBitlinePtr.setBit(pt, color);
+//        linePtr[pt] = color;
     }
 }
 

@@ -110,6 +110,7 @@ void __time_critical_func() dma_handler_VGA() {
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
+        case GMODE_1024_768:
             if (screen_line % 2) return;
             line_number = screen_line / 2;
             y = line_number + graphics_buffer_shift_y;
@@ -145,6 +146,7 @@ void __time_critical_func() dma_handler_VGA() {
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
+        case GMODE_1024_768:
             for  (int x = 0; x < xoff1; ++x) {
                 *output_buffer_8bit++ = 0xC0;
             }
@@ -193,6 +195,10 @@ static void adjust_shift_x() {
 }
 static void adjust_shift_y() {
     graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
+}
+
+enum graphics_mode_t graphics_get_mode() {
+    return graphics_mode;
 }
 
 void graphics_set_mode(enum graphics_mode_t mode) {
@@ -246,6 +252,22 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             line_VS_end = 600 + 3 + 4; // ++ Sync pulse 2?
             N_lines_total = 628; // Whole frame
             fdiv = clock_get_hz(clk_sys) / 40000000;  // частота пиксельклока 40.0 MHz
+            break;
+        case GMODE_1024_768:
+            graphics_buffer_width = 1024;
+            graphics_buffer_height = 768;
+            TMPL_LINE8 = 0b11000000;
+            // XGA Signal 1024 x 768 @ 60 Hz timing
+            HS_SHIFT = 1024 + 24; // Front porch + Visible area
+            HS_SIZE = 160; // Back porch
+            line_size = 1344;
+            shift_picture = line_size - HS_SHIFT;
+            visible_line_size = 1024 / 2;
+            N_lines_visible = 768;
+            line_VS_begin = 768 + 3; // + Front porch
+            line_VS_end = 768 + 3 + 6; // ++ Sync pulse 2?
+            N_lines_total = 806; // Whole frame
+            fdiv = clock_get_hz(clk_sys) / 65000000;  // частота пиксельклока 65.0 MHz
             break;
         default:
             return;
@@ -302,7 +324,15 @@ void graphics_set_mode(enum graphics_mode_t mode) {
 }
 
 void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
-    graphics_set_buffer(buffer, width, height);
+    graphics_buffer = buffer;
+    if (client_buffer_width != width) {
+        client_buffer_width = width;
+        adjust_shift_x();
+    }
+    if (client_buffer_height != height) {
+        client_buffer_height = height;
+        adjust_shift_y();
+    }
     one_bit_buffer = true;
 }
 
@@ -458,7 +488,7 @@ void graphics_init() {
     );
 
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode(GMODE_1024_768);
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);

@@ -22,10 +22,28 @@
 #define CRT8275RENDERER_H
 
 #include "CrtRenderer.h"
-#include "graphics.h"
 
 class Crt8275;
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+
+typedef struct {
+    uint8_t* ptr;
+    uint8_t bit;
+    inline void operator +=(int a) {
+        int nv = a + bit;
+        ptr += nv >> 3;
+        bit = nv & 7;
+    }
+    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
+        int nv = a + bit;
+        uint8_t* p = ptr + (nv >> 3);
+        uint8_t bit = nv & 7;
+        bitWrite(*p, bit, b);
+    }
+} Crt1Bit;
 
 class Crt8275Renderer : public TextCrtRenderer
 {
@@ -51,9 +69,9 @@ class Crt8275Renderer : public TextCrtRenderer
 
         virtual const uint8_t* getCurFontPtr(bool, bool, bool) {return nullptr;}
         virtual const uint8_t* getAltFontPtr(bool, bool, bool) {return nullptr;}
-        virtual uint8_t getCurFgColor(bool, bool, bool) {return RGB(0xFFFFFF);}
-        virtual uint8_t getCurBgColor(bool, bool, bool) {return RGB(0x000000);}
-        virtual void customDrawSymbolLine(uint8_t*, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
+        virtual uint8_t getCurFgColor(bool, bool, bool) {return 0xFF;}
+        virtual uint8_t getCurBgColor(bool, bool, bool) {return 0x00;}
+        virtual void customDrawSymbolLine(Crt1Bit&, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
 
         Crt8275* m_crt = nullptr;

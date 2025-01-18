@@ -25,7 +25,7 @@
 #include "Crt8275Renderer.h"
 #include "Emulation.h"
 #include "Crt8275.h"
-#include "Pal.h"
+#include "graphics.h"
 
 using namespace std;
 
@@ -65,8 +65,9 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
     m_frameRate = m_crt->getFrameRate();
     m_freqMHz = g_emulation->getFrequency() / 1000000.0 / m_crt->getKDiv();
 
+    /**
     int scanLines = m_crt->getNLines() * (m_crt->getNRows() + m_crt->getVrRows());
-/*
+
     if (m_frameRate == 0.0)
         m_aspectRatio = 1.0;
     else if (scanLines >= 475) {
@@ -82,7 +83,7 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
         // 480i (NTSC)
         m_aspectRatio = 480.0 * 9 / 704 / charWidth / m_freqMHz; // 480 * 13.5 * 4 / 704 / m_fntCharWidth / freqMHz / 3 / 2
     }
-*/
+    */
 }
 
 
@@ -138,7 +139,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
         visibleHeight = 240 * charHeight / m_crt->getNLines();
     }
 
-    int visibleDataSize = visibleWidth * visibleHeight;
+    int visibleDataSize = visibleWidth * visibleHeight >> 3;
     uint8_t* visibleData = new uint8_t[visibleDataSize];
 
     for (int i = 0; i < visibleDataSize; i++)
@@ -168,7 +169,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
         copyHeight = m_sizeY - visibleY;
 
     for (int i = 0; i < copyHeight; i++)
-        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth);
+        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth >> 3);
 
     delete[] m_pixelData;
     m_pixelData = visibleData;
@@ -176,6 +177,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     m_sizeY = visibleHeight;
     m_dataSize = visibleWidth * visibleHeight;
     m_bufSize = m_dataSize;
+///    m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
 
     m_cropX = visibleX;
     m_cropY = visibleY;
@@ -195,9 +197,6 @@ void Crt8275Renderer::mouseDrag(int x, int y)
     m_crt->setLpenPosition(x, y);
 }
 
-#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 
 void Crt8275Renderer::primaryRenderFrame()
 {
@@ -211,10 +210,8 @@ void Crt8275Renderer::primaryRenderFrame()
 
     m_sizeX = nChars * m_fntCharWidth;
     m_sizeY = nRows * nLines;
-    // 468x300=140400
-///    emuLog << "void Crt8275Renderer::primaryRenderFrame() " << to_string(m_sizeX) + "x" + to_string(m_sizeY) << "\n";
 
-    m_dataSize = (nRows * nLines * nChars * m_fntCharWidth) >> 3; // /8
+    m_dataSize = nRows * nLines * nChars * m_fntCharWidth >> 3;
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
@@ -223,15 +220,15 @@ void Crt8275Renderer::primaryRenderFrame()
     }
 
     memset(m_pixelData, 0, m_dataSize);
-    uint8_t* rowPtr = m_pixelData;
+    Crt1Bit rowPtr = { m_pixelData, 0 };
 
     for (int row = 0; row < nRows; row++) {
-        uint8_t* chrPtr = rowPtr;
+        Crt1Bit chrPtr = rowPtr;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint8_t* linePtr = chrPtr;
+            Crt1Bit linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -281,25 +278,23 @@ void Crt8275Renderer::primaryRenderFrame()
 
                     for (int pt = 0; pt < m_fntCharWidth; pt++) {
                         bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
-                        if (rvv && m_useRvv) {
+                        if (rvv && m_useRvv)
                             v = !v;
-                        }
-                        v = v ? fgColor : bgColor;
-                        bitWrite(linePtr[pt >> 3], (pt & 7), v);
-                        ///linePtr[pt] = v ? fgColor : bgColor;
+                        linePtr.setBit(pt, v ? fgColor : bgColor);
                         fntLine <<= 1;
                     }
                     if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
                         curLten[ln] = true;
                 } else
                     customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
-                linePtr += (nChars * m_fntCharWidth) >> 3;
+                linePtr += nChars * m_fntCharWidth;
             }
-            chrPtr += m_fntCharWidth >> 8;
+            chrPtr += m_fntCharWidth;
         }
-        rowPtr += (nLines * nChars * m_fntCharWidth) >> 3;
+        rowPtr += nLines * nChars * m_fntCharWidth;
     }
-///    trimImage(m_fntCharWidth, nLines);
+
+    trimImage(m_fntCharWidth, nLines);
     graphics_set_1bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
@@ -321,6 +316,8 @@ void Crt8275Renderer::altRenderFrame()
     else
         nLines = 8;
 
+///    m_aspectRatio = m_aspectRatio * nLines / frame->nLines;
+
     m_sizeX = nChars * 8;
     m_sizeY = nRows * nLines;
 
@@ -333,13 +330,13 @@ void Crt8275Renderer::altRenderFrame()
     }
 
     memset(m_pixelData, 0, m_dataSize);
-    uint8_t* rowPtr = m_pixelData;
+    Crt1Bit rowPtr = { m_pixelData, 0 };
 
     for (int row = 0; row < nRows; row++) {
-        uint8_t* chrPtr = rowPtr;
+        Crt1Bit chrPtr = rowPtr;
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint8_t* linePtr = chrPtr;
+            Crt1Bit linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
@@ -370,35 +367,34 @@ void Crt8275Renderer::altRenderFrame()
                 fntPtr += 8;
             else if (nLines == 16)
                 fntPtr += (8+12);
-      //      uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-      //      uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
 
 
             for (int ln = 0; ln < nLines; ln++) {
                 uint8_t fntLine = fntPtr[symbol.chr * (8+12+16) + ln];
-
-
                 bool lten = false;
 
                 if (frame->cursorUnderline && frame->cursorRow == row && frame->cursorPos + (m_ltenOffset ? -1 : 0) == chr) {
                     if (ln >= nLines - 2 && (!frame->cursorBlinking || frame->frameCount % 20 < 12 ))
                         lten = true;
                 }
+
                 for (int pt = 0; pt < 8; pt++) {
                     bool v = lten || (!vsp && (fntLine & 0x80));
                     if (rvv && m_useRvv)
                         v = !v;
-                    bitWrite(linePtr[pt >> 3], (pt & 7), v);
-///                    linePtr[pt] = v ? fgColor : bgColor;
+                    linePtr.setBit(pt, v ? fgColor : bgColor);
                     fntLine <<= 1;
                 }
-                linePtr += nChars;
+                linePtr += nChars * 8;
             }
-            chrPtr++;
+            chrPtr += 8;
         }
-        rowPtr += nLines * nChars;
+        rowPtr += nLines * nChars * 8;
     }
-///    trimImage(8, nLines);
+
+    trimImage(8, nLines);
     graphics_set_1bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 

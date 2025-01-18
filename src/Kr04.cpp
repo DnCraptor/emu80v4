@@ -149,7 +149,7 @@ void Kr04Renderer::toggleColorMode()
 }
 
 
-void Kr04Renderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
+void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {
     int offset = 0x8000 | (rvv ? 0x4000 : 0) | (hglt ? 0x2000 : 0) | (gpa1 ? 0x1000 : 0) | (gpa0 ? 0x0800 : 0) | ((symbol & 0x40) << 4) | (line << 6) | (symbol & 0x3F);
     uint8_t bt = vsp ? 0 : m_memory->readByte(offset);
@@ -173,9 +173,12 @@ void Kr04Renderer::customDrawSymbolLine(uint8_t* linePtr, uint8_t symbol, int li
             color = amp | (amp << 8) | (amp << 16);
             break;
         }
-        *linePtr++ = color;
-        if (!m_hiRes)
-            *linePtr++ = color;
+        linePtr.setBit(0, color);
+        linePtr += 1;
+        if (!m_hiRes) {
+            linePtr.setBit(0, color);
+            linePtr += 1;
+        }
         bt >>= 1;
     }
 }

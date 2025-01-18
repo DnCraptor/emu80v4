@@ -567,7 +567,9 @@ void ///__not_in_flash_func(
                 else if (vk == PK_KP_DIV) graphics_dec_x();
                 else if (vk == PK_NUMLOCK) {
                     numlock = !numlock;
-                    graphics_set_mode(numlock ? GMODE_640_480 : GMODE_800_600);
+                    uint8_t m = ((uint8_t)graphics_get_mode() + 1);
+                    if (m >= UNSUPPORTED_MODE) m = GRAPHICSMODE_DEFAULT;
+                    graphics_set_mode((enum graphics_mode_t)m);
                 }
             }
         }

@@ -28,17 +28,20 @@ extern "C" {
 #ifdef SOFTTV
 #include "tv-software.h"
 #endif
-#include "font6x8.h"
+//#include "font6x8.h"
 #include "font8x8.h"
-#include "font8x16.h"
+//#include "font8x16.h"
 enum graphics_mode_t {
     GRAPHICSMODE_DEFAULT = 0,
     GMODE_640_480 = 0,
-    GMODE_800_600 = 1
+    GMODE_800_600 = 1,
+    GMODE_1024_768 = 2,
+    UNSUPPORTED_MODE
 };
 
 void graphics_init();
 
+enum graphics_mode_t graphics_get_mode();
 void graphics_set_mode(enum graphics_mode_t mode);
 
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
