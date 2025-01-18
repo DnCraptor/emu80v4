@@ -54,7 +54,7 @@ platform.fastResetCpuTicks = 3000000
 
 
 Ram ram0 = 0xF000
-SRam ram1 = 0xF000
+Ram ram1 = 0xF000
 SRam ram2 = 0xF000
 SRam ram3 = 0xF000
 
