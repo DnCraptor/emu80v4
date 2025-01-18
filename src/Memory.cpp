@@ -138,12 +138,42 @@ uint8_t Ram::readByte(int addr)
 #include "pico/rk86_dos29_bin.h"
 #include "pico/rk86_rom.h"
 #endif
+#include "pico/partner_romp1_bin.h"
+#include "pico/partner_romp2_bin.h"
+#include "pico/partner_mcpgrom_bin.h"
+#include "pico/partner_fddrom_bin.h"
+#include "pico/partner_sdrom_bin.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
-    if (fileName == "vector/loader.rom") {
-        m_buf = vector_loader_rom;
-        m_size = sizeof(vector_loader_rom);
+    if (fileName == "partner/romp1.bin") {
+        m_buf = partner_romp1_bin;
+        m_size = sizeof(partner_romp1_bin);
+        return;
+    }
+    if (fileName == "partner/romp2.bin") {
+        m_buf = partner_romp2_bin;
+        m_size = sizeof(partner_romp2_bin);
+        return;
+    }
+    if (fileName == "partner/mcpgrom.bin") {
+        m_buf = partner_mcpgrom_bin;
+        m_size = sizeof(partner_mcpgrom_bin);
+        return;
+    }
+    if (fileName == "partner/fddrom.bin") {
+        m_buf = partner_fddrom_bin;
+        m_size = sizeof(partner_fddrom_bin);
+        return;
+    }
+    if (fileName == "partner/fddrom.bin") {
+        m_buf = partner_fddrom_bin;
+        m_size = sizeof(partner_fddrom_bin);
+        return;
+    }
+    if (fileName == "partner/sdrom.bin") {
+        m_buf = partner_sdrom_bin;
+        m_size = sizeof(partner_sdrom_bin);
         return;
     }
     if (fileName == "apogey/apogey.rom") {
@@ -169,6 +199,11 @@ Rom::Rom(unsigned memSize, string fileName)
     if (fileName == "korvet/rom3.bin") {
         m_buf = korvet_rom3_bin;
         m_size = sizeof(korvet_rom3_bin);
+        return;
+    }
+    if (fileName == "ut88/ut88.rom") {
+        m_buf = ut88_rom;
+        m_size = sizeof(ut88_rom);
         return;
     }
     #if ORION
@@ -210,11 +245,6 @@ Rom::Rom(unsigned memSize, string fileName)
         return;
     }
     #endif
-    if (fileName == "ut88/ut88.rom") {
-        m_buf = ut88_rom;
-        m_size = sizeof(ut88_rom);
-        return;
-    }
     #if PK86
     if (fileName == "rk86/rk86.rom") {
         m_buf = rk86_rom;

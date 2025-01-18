@@ -18,8 +18,9 @@ uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
         fullFileName = palMakeFullFileName(fileName);
     else
         fullFileName = fileName;
-
+#if LOG
     emuLog << "fullFileName: '" << fullFileName << "'\n";
+#endif
     FIL file;
     if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
         fileSize = f_size(&file);
@@ -34,7 +35,9 @@ uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
+#if LOG
     emuLog << "palReadFromFile: " << fileName << "\n";
+#endif
     string fullFileName;
     if (useBasePath)
         fullFileName = palMakeFullFileName(fileName);

@@ -192,9 +192,16 @@ TextCrtRenderer::~TextCrtRenderer()
 #include "pico/apogey_fonta_bin.h"
 #include "pico/apogey_sga_bin.h"
 #endif
+#include "pico/partner_fontp_bin.h"
+#include "pico/partner_sgp_bin.h"
 
 void TextCrtRenderer::setFontFile(string fontFileName)
 {
+    if (fontFileName == "partner/sgp.bin") {
+        m_altFont = partner_sgp_bin;
+        m_altFontSize = sizeof(partner_sgp_bin);
+        return;
+    }
 #if PK86
     if (fontFileName == "rk86/sgr.bin") {
         m_font = sgr_bin;
@@ -214,6 +221,11 @@ void TextCrtRenderer::setFontFile(string fontFileName)
 
 void TextCrtRenderer::setAltFontFile(string fontFileName)
 {
+    if (fontFileName == "partner/fontp.bin") {
+        m_altFont = partner_fontp_bin;
+        m_altFontSize = sizeof(partner_fontp_bin);
+        return;
+    }
 #if PK86
     if (fontFileName == "rk86/fontr.bin") {
         m_altFont = fontr_bin;

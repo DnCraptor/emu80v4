@@ -140,7 +140,6 @@ void __time_critical_func() dma_handler_VGA() {
         duplicateX = true;
     }
     int xoff1 = graphics_buffer_shift_x;
-    if (xoff1 < 0) xoff1 = 0;
     int xoff2 = graphics_buffer_width - width - xoff1;
     if (xoff2 > graphics_buffer_width) xoff2 = graphics_buffer_width;
     switch (graphics_mode) {
@@ -151,28 +150,28 @@ void __time_critical_func() dma_handler_VGA() {
             }
             if (one_bit_buffer) {
                 if (duplicateX) {
-                    for  (int x = 0; x < width / 2; ++x) {
+                    for  (int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
                         uint8_t bits = input_buffer_8bit[x >> 3];
-                        uint8_t c = (bitRead(bits, (x & 7)) ? 0b111111 : 0) | 0xC0;
+                        uint8_t c = (bitRead(bits, (x & 7)) ? 0xFF : 0xC0);
                         *output_buffer_8bit++ = c;
                         *output_buffer_8bit++ = c;
                     }
                 } else {
-                    for  (int x = 0; x < width; ++x) {
+                    for  (int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
                         uint8_t bits = input_buffer_8bit[x >> 3];
-                        *output_buffer_8bit++ = (bitRead(bits, (x & 7)) ? 0b111111 : 0) | 0xC0;
+                        *output_buffer_8bit++ = (bitRead(bits, (x & 7)) ? 0xFF : 0xC0);
                     }
                 }
             } else {
                 if (duplicateX) {
-                    for  (int x = 0; x < width / 2; ++x) {
-                        uint8_t c = *input_buffer_8bit++ | 0xC0;
+                    for  (int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
+                        uint8_t c = input_buffer_8bit[x] | 0xC0;
                         *output_buffer_8bit++ = c;
                         *output_buffer_8bit++ = c;
                     }
                 } else {
-                    for  (int x = 0; x < width; ++x) {
-                        *output_buffer_8bit++ = *input_buffer_8bit++ | 0xC0;
+                    for  (int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                        *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
                     }
                 }
             }
@@ -191,7 +190,6 @@ static void adjust_shift_x() {
         graphics_buffer_shift_x = (graphics_buffer_width - (client_buffer_width << 1)) >> 1;
     else
         graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
-    if (graphics_buffer_shift_x < 0) graphics_buffer_shift_x = 0; /// TODO: support -sx
 }
 static void adjust_shift_y() {
     graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
