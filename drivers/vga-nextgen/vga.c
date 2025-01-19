@@ -131,14 +131,14 @@ void __time_critical_func() dma_handler_VGA() {
     uint8_t* input_buffer_8bit = input_buffer + ( one_bit_buffer ? ((y * client_buffer_width) >> 3) : y * client_buffer_width);
 
     uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
-    output_buffer_16bit += shift_picture / 2; //смещение началы вывода на размер синхросигнала
+    output_buffer_16bit += shift_picture >> 1; //смещение началы вывода на размер синхросигнала
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
     int width = client_buffer_width;
-    bool duplicateX = false;
-    if (width <= graphics_buffer_width / 2) {
+    bool duplicatePixels = false;
+    if (width <= (graphics_buffer_width >> 1)) {
         width *= 2;
-        duplicateX = true;
+        duplicatePixels = true;
     }
     int xoff1 = graphics_buffer_shift_x;
     int xoff2 = graphics_buffer_width - width - xoff1;
@@ -147,37 +147,35 @@ void __time_critical_func() dma_handler_VGA() {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
         case GMODE_1024_768:
-            for  (int x = 0; x < xoff1; ++x) {
+            for  (register int x = 0; x < xoff1; ++x) {
                 *output_buffer_8bit++ = 0xC0;
             }
             if (one_bit_buffer) {
-                if (duplicateX) {
-                    for  (int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
-                        uint8_t bits = input_buffer_8bit[x >> 3];
-                        uint8_t c = (bitRead(bits, (x & 7)) ? 0xFF : 0xC0);
+                if (duplicatePixels) {
+                    for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                        register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
                         *output_buffer_8bit++ = c;
                         *output_buffer_8bit++ = c;
                     }
                 } else {
-                    for  (int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        uint8_t bits = input_buffer_8bit[x >> 3];
-                        *output_buffer_8bit++ = (bitRead(bits, (x & 7)) ? 0xFF : 0xC0);
+                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                        *output_buffer_8bit++ = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
                     }
                 }
             } else {
-                if (duplicateX) {
-                    for  (int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
-                        uint8_t c = input_buffer_8bit[x] | 0xC0;
+                if (duplicatePixels) {
+                    for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
+                        register uint8_t c = input_buffer_8bit[x] | 0xC0;
                         *output_buffer_8bit++ = c;
                         *output_buffer_8bit++ = c;
                     }
                 } else {
-                    for  (int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
                         *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
                     }
                 }
             }
-            for  (int x = 0; x < xoff2; ++x) {
+            for  (register int x = 0; x < xoff2; ++x) {
                 *output_buffer_8bit++ = 0xC0;
             }
             break;
@@ -510,11 +508,20 @@ uint32_t graphics_get_font_height() {
     return 8;
 }
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+
 inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t color) {
     if (!graphics_buffer) return;
     if (x < 0 || x >= w) return;
     if (y < 0 || y >= h) return;
-    graphics_buffer[w * y + x] = color;
+    register uint32_t idx = w * y + x;
+    if (one_bit_buffer) {
+        bitWrite(graphics_buffer[idx >> 3], idx & 7, color);
+    } else {
+        graphics_buffer[idx] = color;
+    }
 }
 
 void plot(int x, int y, uint8_t color) {

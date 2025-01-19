@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.2.3")
+set (PORT_VERSION "0.2.4")
 #set (MURM2 ON)
 
 set(KBDUSB ON)
@@ -273,7 +273,7 @@ ELSE()
         DEFAULT_THROTTLING=0
 
         #LOG=1
-        #PK86=1
+        PK86=1
         ORION=1
     )
 ENDIF()

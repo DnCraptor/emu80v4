@@ -219,8 +219,8 @@ again:
     uint32_t msi = fnth + 1; // height of one file line
     height_in_j = 0;
     for (auto i = fileList.begin(); i != fileList.end(); ++i, ++j) {
-        PalFileInfo* fi = *i;
         if (j < shift_j) continue;
+        PalFileInfo* fi = *i;
         uint32_t ybj = yb + (j - shift_j) * msi;
         if (ybj > y + h - fnth) break;
         height_in_j++;

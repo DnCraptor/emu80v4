@@ -173,10 +173,10 @@ void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int li
             color = amp | (amp << 8) | (amp << 16);
             break;
         }
-        linePtr.setBit(0, color);
+        linePtr.setBit(color);
         linePtr += 1;
         if (!m_hiRes) {
-            linePtr.setBit(0, color);
+            linePtr.setBit(color);
             linePtr += 1;
         }
         bt >>= 1;

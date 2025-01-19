@@ -33,15 +33,20 @@ typedef struct {
     uint8_t* ptr;
     uint8_t bit;
     inline void operator +=(int a) {
-        int nv = a + bit;
-        ptr += nv >> 3;
-        bit = nv & 7;
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        ptr = (uint8_t*)(p8 >> 3);
+        bit = (p8 & 7);
+    }
+    inline void setBit(uint8_t b) { /// TODO: b - bool
+        bitWrite(*ptr, bit, b);
     }
     inline void setBit(int a, uint8_t b) { /// TODO: b - bool
-        int nv = a + bit;
-        uint8_t* p = ptr + (nv >> 3);
-        uint8_t bit = nv & 7;
-        bitWrite(*p, bit, b);
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b);
     }
 } Crt1Bit;
 

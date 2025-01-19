@@ -139,7 +139,7 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
         visibleHeight = 240 * charHeight / m_crt->getNLines();
     }
 
-    int visibleDataSize = visibleWidth * visibleHeight >> 3;
+    int visibleDataSize = (visibleWidth * visibleHeight) >> 3;
     uint8_t* visibleData = new uint8_t[visibleDataSize];
 
     for (int i = 0; i < visibleDataSize; i++)
@@ -168,14 +168,19 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     if (visibleY + copyHeight > m_sizeY)
         copyHeight = m_sizeY - visibleY;
 
-    for (int i = 0; i < copyHeight; i++)
-        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth >> 3);
+    for (int i = 0; i < copyHeight; i++) {
+        memcpy(
+            visibleData + (((i + dstY) * visibleWidth + dstX) >> 3),
+            m_pixelData + (((visibleY + i) * m_sizeX + visibleX) >> 3),
+            copyWidth >> 3
+        );
+    }
 
     delete[] m_pixelData;
     m_pixelData = visibleData;
     m_sizeX = visibleWidth;
     m_sizeY = visibleHeight;
-    m_dataSize = visibleWidth * visibleHeight;
+    m_dataSize = (visibleWidth * visibleHeight) >> 3;
     m_bufSize = m_dataSize;
 ///    m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
 
@@ -209,9 +214,10 @@ void Crt8275Renderer::primaryRenderFrame()
     int nChars = frame->nCharsPerRow;
 
     m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
     m_sizeY = nRows * nLines;
 
-    m_dataSize = nRows * nLines * nChars * m_fntCharWidth >> 3;
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
@@ -287,14 +293,14 @@ void Crt8275Renderer::primaryRenderFrame()
                         curLten[ln] = true;
                 } else
                     customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
-                linePtr += nChars * m_fntCharWidth;
+                linePtr += m_sizeX;
             }
             chrPtr += m_fntCharWidth;
         }
-        rowPtr += nLines * nChars * m_fntCharWidth;
+        rowPtr += nLines * m_sizeX;
     }
 
-    trimImage(m_fntCharWidth, nLines);
+///    trimImage(m_fntCharWidth, nLines);
     graphics_set_1bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
@@ -394,7 +400,7 @@ void Crt8275Renderer::altRenderFrame()
         rowPtr += nLines * nChars * 8;
     }
 
-    trimImage(8, nLines);
+///    trimImage(8, nLines);
     graphics_set_1bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 

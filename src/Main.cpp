@@ -29,9 +29,6 @@
 
 #pragma GCC optimize("Ofast")
 
-bool cursor_blink_state = false;
-uint8_t CURSOR_X, CURSOR_Y = 0;
-
 struct semaphore vga_start_semaphore;
 
 static FATFS fs;
@@ -709,7 +706,7 @@ void init_sound() {
 #endif
 }
 
-static const char* platforms[] = {
+static const char* const platforms[] = {
     "vector",
     "vector.z80",
     "spec.m1",
@@ -734,20 +731,23 @@ static const char* platforms[] = {
     "orion.31",
     "orion.32",
 #endif
+#if PK86
+    "apogey",
+    "apogey.sd",
+    "mikrosha",
+    "mikrosha.krista",
+    "rk86",
+    "rk86.sd",
+    "rk86.sdos",
+    "rk86.z80",
+    "rk86.kr03",
+#endif
     "eureka",
     "ut88"
 #if PK8000
     "pk8000",
     "pk8000.fdc",
     "pk8000.hdd",
-#endif
-#if PK86
-    "rk86",
-    "rk86.sd",
-    "rk86.sdos",
-    "rk86.z80",
-    "rk86.kr03",
-    "apogey.sd"
 #endif
 };
 /**
@@ -773,6 +773,15 @@ static const char* platforms[] = {
 Орион-128 (Монитор 2) DSDOS
 Орион-128 (Монитор 3.1)
 Орион-128 (Монитор 3.2) Z80 CPU (Московский вариант)
+Апогей БК-01
+Апогей БК-01 (SD card)
+Микроша
+Криста
+Радио-86РК
+Радио-86РК (SD card / vinxru)
+Радио-86РК (SDOS)
+Радио-86РК Z80 CPU
+Электроника КР-02/03
 Эврика
 ЮТ-88
  */
@@ -819,8 +828,22 @@ static const unsigned char platforms_list_cp866[] = {
 	0x38, 0x20, 0x28, 0x8c, 0xae, 0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x33,
 	0x2e, 0x32, 0x29, 0x20, 0x5a, 0x38, 0x30, 0x20, 0x43, 0x50, 0x55, 0x20,
 	0x28, 0x8c, 0xae, 0xe1, 0xaa, 0xae, 0xa2, 0xe1, 0xaa, 0xa8, 0xa9, 0x20,
-	0xa2, 0xa0, 0xe0, 0xa8, 0xa0, 0xad, 0xe2, 0x29, 0x00, 0x0a, 0x9d, 0xa2,
-	0xe0, 0xa8, 0xaa, 0xa0, 0x00, 0x0a, 0x9e, 0x92, 0x2d, 0x38, 0x38, 0x00
+	0xa2, 0xa0, 0xe0, 0xa8, 0xa0, 0xad, 0xe2, 0x29, 0x00, 0x0a, 0x80, 0xaf,
+	0xae, 0xa3, 0xa5, 0xa9, 0x20, 0x81, 0x8a, 0x2d, 0x30, 0x31, 0x00, 0x0a,
+	0x80, 0xaf, 0xae, 0xa3, 0xa5, 0xa9, 0x20, 0x81, 0x8a, 0x2d, 0x30, 0x31,
+	0x20, 0x28, 0x53, 0x44, 0x20, 0x63, 0x61, 0x72, 0x64, 0x29, 0x00, 0x0a,
+	0x8c, 0xa8, 0xaa, 0xe0, 0xae, 0xe8, 0xa0, 0x00, 0x0a, 0x8a, 0xe0, 0xa8,
+	0xe1, 0xe2, 0xa0, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38,
+	0x36, 0x90, 0x8a, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38,
+	0x36, 0x90, 0x8a, 0x20, 0x28, 0x53, 0x44, 0x20, 0x63, 0x61, 0x72, 0x64,
+	0x20, 0x2f, 0x20, 0x76, 0x69, 0x6e, 0x78, 0x72, 0x75, 0x29, 0x00, 0x0a,
+	0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38, 0x36, 0x90, 0x8a, 0x20, 0x28,
+	0x53, 0x44, 0x4f, 0x53, 0x29, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae,
+	0x2d, 0x38, 0x36, 0x90, 0x8a, 0x20, 0x5a, 0x38, 0x30, 0x20, 0x43, 0x50,
+	0x55, 0x00, 0x0a, 0x9d, 0xab, 0xa5, 0xaa, 0xe2, 0xe0, 0xae, 0xad, 0xa8,
+	0xaa, 0xa0, 0x20, 0x8a, 0x90, 0x2d, 0x30, 0x32, 0x2f, 0x30, 0x33, 0x00,
+	0x0a, 0x9d, 0xa2, 0xe0, 0xa8, 0xaa, 0xa0, 0x00, 0x0a, 0x9e, 0x92, 0x2d,
+	0x38, 0x38, 0x00
 };
 
 static const char* argv[3] = {
@@ -887,6 +910,8 @@ int main() {
 #endif
     {
         int selected_file_n = 0;
+        int shift_j = 0;
+        uint32_t height_in_j = 0;
         uint32_t sw = graphics_get_width();
         uint32_t sh = graphics_get_height();
         uint32_t w = sw - 10;
@@ -912,11 +937,14 @@ int main() {
         uint32_t msi = fnth + 1; // height of one file line
         size_t lines = sizeof(platforms) / sizeof(char*);
         const char* pls = (const char*)platforms_list_cp866;
+        height_in_j = 0;
         for (auto i = 0; i < lines; ++i, ++j) {
             const char* name = pls; ///pls[i].c_str();
             while(*pls++); ++pls;
-            uint32_t ybj = yb + j * msi;
-            if (ybj + fnth > y + h) break;
+            if (j < shift_j) continue;
+            uint32_t ybj = yb + (j - shift_j) * msi;
+            if (ybj > y + h - fnth) break;
+            height_in_j++;
             if (selected_file_n == j) {
                 graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
                 graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name, strlen(name));
@@ -931,6 +959,10 @@ int main() {
                 if (selected_file_n < 0) {
                     selected_file_n = lines - 1;
                 }
+                while (selected_file_n < shift_j) {
+                    shift_j--;
+                }
+                if (shift_j < 0) shift_j = lines - 1;
                 goto again;
             }
             if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
@@ -938,12 +970,19 @@ int main() {
                 if (selected_file_n < 0) {
                     selected_file_n = 0;
                 }
+                while (selected_file_n < shift_j) {
+                    shift_j -= 10;
+                }
+                if (shift_j < 0) shift_j = 0;
                 goto again;
             }
             if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
                 selected_file_n++;
                 if (selected_file_n >= lines) {
                     selected_file_n = 0;
+                }
+                while (selected_file_n >= shift_j + height_in_j) {
+                    shift_j++;
                 }
                 goto again;
             }
@@ -952,14 +991,21 @@ int main() {
                 if (selected_file_n >= lines) {
                     selected_file_n = lines - 1;
                 }
+                while (selected_file_n >= shift_j + height_in_j) {
+                    shift_j += 10;
+                }
                 goto again;
             }
             if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_KEYPAD_7]) {
                 selected_file_n = 0;
+                shift_j = 0;
                 goto again;
             }
             if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
                 selected_file_n = lines - 1;
+                while (selected_file_n >= shift_j + height_in_j) {
+                    shift_j += 10;
+                }
                 goto again;
             }
             if (pressed_key[HID_KEY_ENTER] || pressed_key[HID_KEY_KEYPAD_ENTER]) {

@@ -209,10 +209,6 @@ RkPixeltronRenderer::RkPixeltronRenderer()
     m_gpaOffset  = false;
 }
 
-#define bitSet(value, bit) ((value) |= (1UL << (bit)))
-#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
-#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
-
 void RkPixeltronRenderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
 {
     int offset = (gpa0 ? 0x400 : 0) + symbol * 8 + (line & 7);
