@@ -364,6 +364,7 @@ void Platform::sysReq(SysReq sr)
         default:
             break;
     }
+    g_emulation->resetKeys(nullptr);
 }
 
 

@@ -460,17 +460,17 @@ void PartnerMcpgRenderer::customDrawSymbolLine(
     col[3] = m_fontPtr[fntOffs + 0x800] & 0x7;
     col[2] = (m_fontPtr[fntOffs + 0x800] & 0x38) >> 3;
 
-    uint8_t bgColor = RGB888((gpa0 ? 0xFF : 0), (gpa1 ? 0xFF : 0), (hglt ? 0xFF : 0));
+    uint32_t bgColor = 0; /// TODO: (gpa0 ? 0xFF0000 : 0) + (gpa1 ? 0x00FF00 : 0) + (hglt ? 0x0000FF : 0) + 0xFF000000;
 
     for (int pt = 0; pt < 4; pt++) {
-        uint8_t color;
+        uint32_t color;
         if (col[pt] == 7 || (vsp & !lten))
             color = bgColor;
         else
-            color = (col[pt] & 1 ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0)) + (col[pt] & 2 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) + (col[pt] & 4 ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF));
+            color = (col[pt] & 1 ? 0 : 0xFF0000) + (col[pt] & 2 ? 0 : 0x00FF00) + (col[pt] & 4 ? 0 : 0x0000FF) + 0xFF000000;
         if (gpa0 && gpa1 && !hglt && ((symbol & 0xC0) != 0xC0) /*&& ((symbol & 0xC0) != 0x80)*/)
-            color = RGB888(0, 0, 0); //transparent
-        oneBitlinePtr.setBit(pt, color);
+            color = 0x00000000; //transparent
+        oneBitlinePtr.setBit(pt, RGB((color & 0xFFFFFF)));
 //        linePtr[pt] = color;
     }
 }

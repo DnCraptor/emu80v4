@@ -55,6 +55,7 @@ class CrtRenderer : public EmuObject
         CrtRenderer* m_secondaryRenderer = nullptr;
 
         uint8_t* m_pixelData = nullptr;
+        uint8_t* m_pixelData2 = nullptr;
         int m_sizeX = 0;
         int m_sizeY = 0;
         int m_bufSize = 0;

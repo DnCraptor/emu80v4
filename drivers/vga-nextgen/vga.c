@@ -518,7 +518,7 @@ inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t c
     if (y < 0 || y >= h) return;
     register uint32_t idx = w * y + x;
     if (one_bit_buffer) {
-        bitWrite(graphics_buffer[idx >> 3], idx & 7, color);
+        bitWrite(graphics_buffer[idx >> 3], idx & 7, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
     } else {
         graphics_buffer[idx] = color;
     }

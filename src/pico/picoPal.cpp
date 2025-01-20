@@ -185,11 +185,11 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     string t2;
     if (write) t2 = "Type a name of ext: " + filter;
 again:
-    graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
+    graphics_fill(x+1, y+1, w-2, fnth+2, 0b000101); // Title background
     graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
     string t = title + ": " + fdir; // include dir into title
     uint32_t xt = (w-2 - t.length() * fntw) / 2; // center title
-    graphics_type(xt, yt, RGB888(0, 0, 0), t.c_str(), t.length()); // print title
+    graphics_type(xt, yt, 0b101010, t.c_str(), t.length()); // print title
     for (auto i = fileList.begin(); i != fileList.end(); ++i) { // cleanup files list
         delete *i;
     }
