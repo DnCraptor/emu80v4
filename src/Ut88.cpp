@@ -60,8 +60,10 @@ Ut88Renderer::Ut88Renderer()
     m_sizeY = m_prevSizeY = 288;
     m_bufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint8_t[maxBufSize];
+    m_pixelData = new uint8_t[maxBufSize]; // TODO: 1-bit-buffer
+    m_pixelData2 = new uint8_t[maxBufSize];
     memset(m_pixelData, 0, m_bufSize);
+    memset(m_pixelData2, 0, m_bufSize);
 }
 
 
@@ -92,14 +94,14 @@ void Ut88Renderer::primaryRenderFrame()
     if (m_useBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offset = 417 * 3 + 1;
     } else {
         m_sizeX = 384;
         m_sizeY = 280;
     }
-
-    memset(m_pixelData, 0, m_sizeX * m_sizeY);
+    m_bufSize = m_sizeX * m_sizeY;
+    memcpy(m_pixelData2, m_pixelData, m_bufSize);
+    memset(m_pixelData, 0, m_bufSize);
 
     for (int row = 0; row < 28; row++)
         for (int col = 0; col < 64; col++) {
@@ -118,7 +120,7 @@ void Ut88Renderer::primaryRenderFrame()
                 for (int pt = 0; pt < 6; pt++)
                     m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = RGB(0xC0C0C0);
         }
-    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
+    graphics_set_buffer(m_pixelData2, m_sizeX, m_sizeY);
 }
 
 

@@ -30,6 +30,8 @@ CrtRenderer::~CrtRenderer()
 {
     if (m_pixelData)
         delete[] m_pixelData;
+    if (m_pixelData2)
+        delete[] m_pixelData2;
 }
 
 

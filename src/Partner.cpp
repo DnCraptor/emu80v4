@@ -460,7 +460,7 @@ void PartnerMcpgRenderer::customDrawSymbolLine(
     col[3] = m_fontPtr[fntOffs + 0x800] & 0x7;
     col[2] = (m_fontPtr[fntOffs + 0x800] & 0x38) >> 3;
 
-    uint32_t bgColor = 0; /// TODO: (gpa0 ? 0xFF0000 : 0) + (gpa1 ? 0x00FF00 : 0) + (hglt ? 0x0000FF : 0) + 0xFF000000;
+    uint32_t bgColor = (gpa0 ? 0xFF0000 : 0) + (gpa1 ? 0x00FF00 : 0) + (hglt ? 0x0000FF : 0) + 0xFF000000;
 
     for (int pt = 0; pt < 4; pt++) {
         uint32_t color;
