@@ -106,6 +106,7 @@ class Crt8275Renderer : public TextCrtRenderer
         void primaryRenderFrame() override;
         void altRenderFrame() override;
 
+        void calcAspectRatio(int charWidth);
     private:
         double m_freqMHz;
         double m_frameRate;
@@ -115,7 +116,6 @@ class Crt8275Renderer : public TextCrtRenderer
         int m_cropY = 0;
 
         std::string getCrtMode();
-        void calcAspectRatio(int charWidth);
         void trimImage(int charWidth, int charHeight);
 };
 

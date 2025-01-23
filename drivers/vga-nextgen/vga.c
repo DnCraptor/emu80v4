@@ -43,6 +43,8 @@ static int dma_chan_ctrl;
 static int dma_chan;
 
 volatile static uint8_t* graphics_buffer = 0;
+volatile static uint8_t* graphics_buffer2 = 0;
+volatile static uint8_t* graphics_buffer3 = 0;
 volatile static bool one_bit_buffer = false;
 static int client_buffer_width = 320;
 static int client_buffer_height = 240;
@@ -151,15 +153,42 @@ void __time_critical_func() dma_handler_VGA() {
                 *output_buffer_8bit++ = 0xC0;
             }
             if (one_bit_buffer) {
-                if (duplicatePixels) {
-                    for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                        register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
-                        *output_buffer_8bit++ = c;
-                        *output_buffer_8bit++ = c;
+                if (graphics_buffer3) {
+                    size_t shift = input_buffer_8bit - graphics_buffer;
+                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
+                    register char* input_buffer_8bit3 = graphics_buffer3 + shift;
+                    if (duplicatePixels) {
+                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                            register size_t x8 = x >> 3;
+                            register uint8_t x7 = x & 7;
+                            register uint8_t c = 0xC0 |
+                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
+                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
+                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
+                            *output_buffer_8bit++ = c;
+                            *output_buffer_8bit++ = c;
+                        }
+                    } else {
+                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                            register size_t x8 = x >> 3;
+                            register uint8_t x7 = x & 7;
+                            *output_buffer_8bit++ = 0xC0 |
+                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
+                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
+                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
+                        }
                     }
                 } else {
-                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        *output_buffer_8bit++ = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
+                    if (duplicatePixels) {
+                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                            register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
+                            *output_buffer_8bit++ = c;
+                            *output_buffer_8bit++ = c;
+                        }
+                    } else {
+                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                            *output_buffer_8bit++ = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
+                        }
                     }
                 }
             } else {
@@ -320,6 +349,28 @@ void graphics_set_mode(enum graphics_mode_t mode) {
         memcpy(base_ptr, lines_pattern[0], line_size);
     }
 }
+
+void graphics_set_1bit_buffer3(
+    uint8_t* buffer1,
+    uint8_t* buffer2,
+    uint8_t* buffer3,
+    const uint16_t width,
+    const uint16_t height
+) {
+    graphics_buffer = buffer1;
+    graphics_buffer2 = buffer2;
+    graphics_buffer3 = buffer3;
+    if (client_buffer_width != width) {
+        client_buffer_width = width;
+        adjust_shift_x();
+    }
+    if (client_buffer_height != height) {
+        client_buffer_height = height;
+        adjust_shift_y();
+    }
+    one_bit_buffer = true;
+}
+
 
 void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;

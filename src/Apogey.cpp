@@ -20,7 +20,7 @@
 #include "Emulation.h"
 #include "Globals.h"
 #include "EmuWindow.h"
-
+#include "Crt8275.h"
 
 using namespace std;
 
@@ -99,31 +99,18 @@ ApogeyRenderer::ApogeyRenderer()
 
 uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
-    static const uint8_t c_bwPalette[8] = {
-        RGB888(0x00, 0x00, 0x00),
-        RGB888(0x82, 0x82, 0x82),
-        RGB888(0xC5, 0xC5, 0xC5),
-        RGB888(0xEE, 0xEE, 0xEE),
-        RGB888(0x58, 0x58, 0x58),
-        RGB888(0xAE, 0xAE, 0xAE),
-        RGB888(0xDF, 0xDF, 0xDF),
-        RGB888(0xFF, 0xFF, 0xFF)
-    };
-
     switch (m_colorMode) {
     case ColorMode::Mono:
-        return hglt ? RGB888(0xFF, 0xFF, 0xFF) : RGB888(0xC0, 0xC0, 0xC0);
-    case ColorMode::Color:
-        return (gpa0 ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF)) | (gpa1 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) | (hglt ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0));
-    case ColorMode::Grayscale:
-        return c_bwPalette[(gpa0 ? 0 : 4) + (gpa1 ? 0 : 2) + (hglt ? 0 : 1)];
+        return hglt ? 0b111 : 0b011;
+    default:
+        return (gpa0 ? 0 : 0b001) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b100);
     }
 }
 
 
 uint8_t ApogeyRenderer::getCurBgColor(bool, bool, bool)
 {
-    return RGB888(0, 0, 0);
+    return 0;
 }
 
 
@@ -136,6 +123,149 @@ const uint8_t* ApogeyRenderer::getCurFontPtr(bool, bool, bool)
 const uint8_t* ApogeyRenderer::getAltFontPtr(bool, bool, bool)
 {
     return m_altFont + (m_fontNumber ? (8+12+16)*128 : 0);
+}
+
+typedef struct {
+    uint8_t* ptr1; // R
+    uint8_t* ptr2; // G
+    uint8_t* ptr3; // B
+    uint8_t bit;
+    inline void operator +=(int a) {
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        size_t shift = p - ptr1;
+        ptr1 = p;
+        ptr2 += shift;
+        ptr3 += shift;
+        bit = (p8 & 7);
+    }
+    inline void set3Bit(uint8_t b) { // 0bRGB
+        bitWrite(*ptr1, bit, b & 1);        // R
+        bitWrite(*ptr2, bit, (b >> 1) & 1); // G
+        bitWrite(*ptr3, bit, (b >> 2) & 1); // B
+    }
+    inline void set3Bit(int a, uint8_t b) { // b - 0bRGB
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b & 1); // R
+        size_t shift = p - ptr1;
+        p = ptr2 + shift;
+        bitWrite(*p, bi, (b >> 1) & 1); // G
+        p = ptr3 + shift;
+        bitWrite(*p, bi, (b >> 2) & 1); // B
+    }
+} Crt3Bit;
+
+void ApogeyRenderer::primaryRenderFrame()
+{
+    calcAspectRatio(m_fntCharWidth);
+
+    const Frame* frame = m_crt->getFrame();
+
+    int nRows = frame->nRows;
+    int nLines = frame->nLines;
+    int nChars = frame->nCharsPerRow;
+
+    m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_sizeY = nRows * nLines;
+
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
+    if (m_dataSize > m_bufSize) {
+        if (m_pixelData)
+            delete[] m_pixelData;
+        if (m_pixelData2)
+            delete[] m_pixelData2;
+        if (m_pixelData3)
+            delete[] m_pixelData3;
+        m_pixelData = new uint8_t [m_dataSize];
+        m_pixelData2 = new uint8_t [m_dataSize];
+        m_pixelData3 = new uint8_t [m_dataSize];
+        memset(m_pixelData, 0, m_dataSize);
+        memset(m_pixelData2, 0, m_dataSize);
+        memset(m_pixelData3, 0, m_dataSize);
+        m_bufSize = m_dataSize;
+    }
+
+    Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
+
+    for (int row = 0; row < nRows; row++) {
+        Crt3Bit chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt3Bit linePtr = chrPtr;
+
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+
+            ///    if (!m_customDraw) {
+                    uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+
+                    for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                        bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                        if (rvv && m_useRvv)
+                            v = !v;
+                        linePtr.set3Bit(pt, v ? fgColor : bgColor);
+                        fntLine <<= 1;
+                    }
+                    if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                        curLten[ln] = true;
+            ///    } else
+            ///        customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+
+///    trimImage(m_fntCharWidth, nLines);
+    graphics_set_1bit_buffer3(m_pixelData, m_pixelData2, m_pixelData3, m_sizeX, m_sizeY);
 }
 
 

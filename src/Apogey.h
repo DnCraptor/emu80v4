@@ -61,11 +61,13 @@ class ApogeyRenderer : public Crt8275Renderer
         static EmuObject* create(const EmuValuesList&) {return new ApogeyRenderer();}
 
     protected:
+        uint8_t* m_pixelData3 = nullptr;
         const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         const uint8_t* getAltFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
         uint8_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
+        void primaryRenderFrame() override;
 
     private:
         enum class ColorMode {
