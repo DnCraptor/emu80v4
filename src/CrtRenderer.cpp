@@ -200,8 +200,8 @@ TextCrtRenderer::~TextCrtRenderer()
 void TextCrtRenderer::setFontFile(string fontFileName)
 {
     if (fontFileName == "partner/sgp.bin") {
-        m_altFont = partner_sgp_bin;
-        m_altFontSize = sizeof(partner_sgp_bin);
+        m_font = partner_sgp_bin;
+        m_fontSize = sizeof(partner_sgp_bin);
         return;
     }
 #if PK86
@@ -235,7 +235,7 @@ void TextCrtRenderer::setAltFontFile(string fontFileName)
         return;
     }
     if (fontFileName == "apogey/fonta.bin") {
-        m_font = fonta_bin;
+        m_altFont = fonta_bin;
         m_altFontSize = sizeof(fonta_bin);
         return;
     }
