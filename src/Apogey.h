@@ -53,6 +53,7 @@ class ApogeyRenderer : public Crt8275Renderer
 {
     public:
         ApogeyRenderer();
+        virtual ~ApogeyRenderer();
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;

@@ -178,6 +178,28 @@ void __time_critical_func() dma_handler_VGA() {
                              (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
                         }
                     }
+                } else if (graphics_buffer2) { // 2 slices graisale mode
+                    size_t shift = input_buffer_8bit - graphics_buffer;
+                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
+                    if (duplicatePixels) {
+                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                            register size_t x8 = x >> 3;
+                            register uint8_t x7 = x & 7;
+                            register uint8_t c = 0xC0 |
+                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
+                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
+                            *output_buffer_8bit++ = c;
+                            *output_buffer_8bit++ = c;
+                        }
+                    } else {
+                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                            register size_t x8 = x >> 3;
+                            register uint8_t x7 = x & 7;
+                            *output_buffer_8bit++ = 0xC0 |
+                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
+                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
+                        }
+                    }
                 } else {
                     if (duplicatePixels) {
                         for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
@@ -371,6 +393,25 @@ void graphics_set_1bit_buffer3(
     one_bit_buffer = true;
 }
 
+void graphics_set_1bit_buffer2(
+    uint8_t* buffer1,
+    uint8_t* buffer2,
+    const uint16_t width,
+    const uint16_t height
+) {
+    graphics_buffer = buffer1;
+    graphics_buffer2 = buffer2;
+    graphics_buffer3 = 0;
+    if (client_buffer_width != width) {
+        client_buffer_width = width;
+        adjust_shift_x();
+    }
+    if (client_buffer_height != height) {
+        client_buffer_height = height;
+        adjust_shift_y();
+    }
+    one_bit_buffer = true;
+}
 
 void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
@@ -383,6 +424,7 @@ void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint1
         adjust_shift_y();
     }
     one_bit_buffer = true;
+    graphics_buffer2 = graphics_buffer3 = 0;
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
@@ -396,6 +438,7 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
         adjust_shift_y();
     }
     one_bit_buffer = false;
+    graphics_buffer2 = graphics_buffer3 = 0;
 }
 
 void graphics_inc_x(void) {
@@ -569,7 +612,20 @@ inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t c
     if (y < 0 || y >= h) return;
     register uint32_t idx = w * y + x;
     if (one_bit_buffer) {
-        bitWrite(graphics_buffer[idx >> 3], idx & 7, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
+        if (graphics_buffer3) {
+            register uint8_t b = idx & 7;
+            idx >>= 3;
+            bitWrite(graphics_buffer [idx], b, ((color >> 4) & 3) > 1);
+            bitWrite(graphics_buffer2[idx], b, ((color >> 2) & 3) > 1);
+            bitWrite(graphics_buffer3[idx], b, (color & 3) > 1);
+        } else if (graphics_buffer2) {
+            register uint8_t b = idx & 7;
+            idx >>= 3;
+            bitWrite(graphics_buffer [idx], b, (((color >> 4) & 3) > 2) || (((color >> 2) & 3) > 2) || ((color & 3) > 2));
+            bitWrite(graphics_buffer2[idx], b, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
+        } else {
+            bitWrite(graphics_buffer[idx >> 3], idx & 7, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
+        }
     } else {
         graphics_buffer[idx] = color;
     }

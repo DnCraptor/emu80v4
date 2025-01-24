@@ -26,29 +26,42 @@
 class Dma8257;
 class PlatformCore;
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+
 struct __packed SymbolAttributes {
     uint8_t bits;
-    inline bool rvv (void) const { return (bits & 0b0111) != 0; }   // reverse video
-    inline bool hglt(void) const { return (bits & 0b1011) != 0; }   // highlight
-    inline bool gpa0(void) const { return (bits & 0b1101) != 0; }   // general purpose 1
-    inline bool gpa1(void) const { return (bits & 0b1110) != 0; }   // general purpose 2
-    inline void rvv (bool b) { if(b) bits |= 0b1000; else bits &= 0b0111; }
-    inline void hglt(bool b) { if(b) bits |= 0b0100; else bits &= 0b1011; }
-    inline void gpa0(bool b) { if(b) bits |= 0b0010; else bits &= 0b1101; }
-    inline void gpa1(bool b) { if(b) bits |= 0b0001; else bits &= 0b1110; }
+    inline bool rvv (void) const { return bitRead(bits, 3); }   // reverse video
+    inline bool hglt(void) const { return bitRead(bits, 2); }   // highlight
+    inline bool gpa0(void) const { return bitRead(bits, 1); }   // general purpose 1
+    inline bool gpa1(void) const { return bitRead(bits, 0); }   // general purpose 2
+    inline void rvv (bool b) { bitWrite(bits, 3, b); }
+    inline void hglt(bool b) { bitWrite(bits, 2, b); }
+    inline void gpa0(bool b) { bitWrite(bits, 1, b); }
+    inline void gpa1(bool b) { bitWrite(bits, 0, b); }
 };
-
+/*
 struct __packed SymbolLineAttributes {
     uint16_t bits;
     inline  int lc  (void) const { return bits & 0b0011111111111111; }   // line counter
-    inline bool vsp (void) const { return (bits & 0b0100000000000000) != 0; }   // video suppression
-    inline bool lten(void) const { return (bits & 0b1000000000000000) != 0; }   // light enable
+    inline bool vsp (void) const { return bitRead(bits, 15); }   // video suppression
+    inline bool lten(void) const { return bitRead(bits, 14); }   // light enable
     inline void lc  (int v) {
         bits &= 0b1100000000000000;
         bits |= v & 0b0011111111111111;
     }
-    inline void vsp (bool b) { if(b) bits |= 0b0100000000000000; else bits &= 0b1011111111111111; }
-    inline void lten(bool b) { if(b) bits |= 0b1000000000000000; else bits &= 0b0111111111111111; }
+    inline void vsp (bool b) { bitWrite(bits, 15, b); }
+    inline void lten(bool b) { bitWrite(bits, 14, b); }
+};
+*/
+struct __packed SymbolLineAttributes {
+    uint8_t bits;
+    inline bool vsp (void) const { return bitRead(bits, 1); }   // video suppression
+    inline bool lten(void) const { return bitRead(bits, 0); }   // light enable
+    inline void vsp (bool b) { bitWrite(bits, 1, b); }
+    inline void lten(bool b) { bitWrite(bits, 0, b); }
 };
 
 struct __packed Symbol {

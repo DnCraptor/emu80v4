@@ -236,7 +236,7 @@ void TextCrtRenderer::setAltFontFile(string fontFileName)
     }
     if (fontFileName == "apogey/fonta.bin") {
         m_font = fonta_bin;
-        m_fontSize = sizeof(fonta_bin);
+        m_altFontSize = sizeof(fonta_bin);
         return;
     }
 #endif

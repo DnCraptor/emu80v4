@@ -80,6 +80,10 @@ bool ApogeyCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
+ApogeyRenderer::~ApogeyRenderer() {
+        if (m_pixelData3)
+            delete[] m_pixelData3;
+}
 
 ApogeyRenderer::ApogeyRenderer()
 {
@@ -101,7 +105,7 @@ uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
     switch (m_colorMode) {
     case ColorMode::Mono:
-        return hglt ? 0b111 : 0b011;
+        return hglt ? 0b11 : 0b10;
     default:
         return (gpa0 ? 0 : 0b001) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b100);
     }
@@ -159,6 +163,35 @@ typedef struct {
     }
 } Crt3Bit;
 
+typedef struct {
+    uint8_t* ptr1; // 0b101010
+    uint8_t* ptr2; // 0b010101
+    uint8_t bit;
+    inline void operator +=(int a) {
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        size_t shift = p - ptr1;
+        ptr1 = p;
+        ptr2 += shift;
+        bit = (p8 & 7);
+    }
+    inline void set2Bits(uint8_t b) { // 0bHL
+        bitWrite(*ptr1, bit, b & 1);        // 0b101010
+        bitWrite(*ptr2, bit, (b >> 1) & 1); // 0b010101
+    }
+    inline void set2Bits(int a, uint8_t b) { // b - 0bHighLow
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b & 1); // 0b101010
+        size_t shift = p - ptr1;
+        p = ptr2 + shift;
+        bitWrite(*p, bi, (b >> 1) & 1); // 0b010101
+    }
+} Crt2BitGS;
+
 void ApogeyRenderer::primaryRenderFrame()
 {
     calcAspectRatio(m_fntCharWidth);
@@ -179,8 +212,9 @@ void ApogeyRenderer::primaryRenderFrame()
             delete[] m_pixelData;
         if (m_pixelData2)
             delete[] m_pixelData2;
-        if (m_pixelData3)
+        if (m_pixelData3) {
             delete[] m_pixelData3;
+        }
         m_pixelData = new uint8_t [m_dataSize];
         m_pixelData2 = new uint8_t [m_dataSize];
         m_pixelData3 = new uint8_t [m_dataSize];
@@ -188,6 +222,87 @@ void ApogeyRenderer::primaryRenderFrame()
         memset(m_pixelData2, 0, m_dataSize);
         memset(m_pixelData3, 0, m_dataSize);
         m_bufSize = m_dataSize;
+    }
+
+    if(m_colorMode == ColorMode::Mono) {
+
+    Crt2BitGS rowPtr = { m_pixelData, m_pixelData2, 0 };
+
+    for (int row = 0; row < nRows; row++) {
+        Crt2BitGS chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt2BitGS linePtr = chrPtr;
+
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+
+            ///    if (!m_customDraw) {
+                    uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+
+                    for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                        bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                        if (rvv && m_useRvv)
+                            v = !v;
+                        linePtr.set2Bits(pt, v ? fgColor : bgColor);
+                        fntLine <<= 1;
+                    }
+                    if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                        curLten[ln] = true;
+            ///    } else
+            ///        customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+
+///    trimImage(m_fntCharWidth, nLines);
+    graphics_set_1bit_buffer2(m_pixelData, m_pixelData2, m_sizeX, m_sizeY);
+    return;
     }
 
     Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
