@@ -107,7 +107,7 @@ uint8_t ApogeyRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
     case ColorMode::Mono:
         return hglt ? 0b11 : 0b10;
     default:
-        return (gpa0 ? 0 : 0b001) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b100);
+        return (gpa0 ? 0 : 0b100) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b001);
     }
 }
 

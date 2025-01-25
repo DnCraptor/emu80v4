@@ -482,7 +482,7 @@ void PartnerMcpgRenderer::primaryRenderFrame()
         memset(m_pixelData, 0, m_dataSize);
     } else {
         m_pixelData = m_primaryRenderer->m_pixelData;
-        dx = float(m_primaryRenderer->m_sizeX) / m_sizeX;
+        dx = float(m_primaryRenderer->m_sizeX) / m_sizeX; /// TODO: exact sizes
         m_sizeX = m_primaryRenderer->m_sizeX;
     }
     Crt1Bit rowPtr = { m_pixelData, 0 };
@@ -538,7 +538,7 @@ void PartnerMcpgRenderer::primaryRenderFrame()
 
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 
-                if (!m_customDraw) {
+                if (!m_customDraw) { /// TODO: optimize
                     uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
 
                     for (int pt = 0; pt < m_fntCharWidth; pt++) {
