@@ -227,7 +227,6 @@ void Crt8275Renderer::primaryRenderFrame()
         m_pixelData2 = new uint8_t [m_dataSize];
         m_bufSize = m_dataSize;
     }
-
     memcpy(m_pixelData2, m_pixelData, m_dataSize);
     memset(m_pixelData, 0, m_dataSize);
     Crt1Bit rowPtr = { m_pixelData, 0 };
@@ -305,7 +304,8 @@ void Crt8275Renderer::primaryRenderFrame()
     }
 
 ///    trimImage(m_fntCharWidth, nLines);
-    graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
+    if (!m_primaryRenderer) // do not push it from secondary
+        graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
 }
 
 

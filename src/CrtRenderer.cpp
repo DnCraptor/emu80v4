@@ -38,6 +38,8 @@ CrtRenderer::~CrtRenderer()
 void CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer)
 {
     m_secondaryRenderer = renderer;
+    if (renderer)
+        renderer->markSecondary(this);
 }
 
 
