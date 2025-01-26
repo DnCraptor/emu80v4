@@ -246,7 +246,10 @@ again:
         if ((pk.vk == PK_UP || pk.vk == PK_KP_8) && pk.pressed) {
             selected_file_n--;
             if (selected_file_n < 0) {
-                selected_file_n = 0;
+                selected_file_n = fileList.size() - 1;
+                while (selected_file_n >= shift_j + height_in_j) {
+                    shift_j += 10;
+                }
             }
             while (selected_file_n < shift_j) {
                 shift_j--;
@@ -269,6 +272,7 @@ again:
             selected_file_n++;
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = 0;
+                shift_j = 0;
             }
             while (selected_file_n >= shift_j + height_in_j) {
                 shift_j++;

@@ -958,6 +958,9 @@ int main() {
                 selected_file_n--;
                 if (selected_file_n < 0) {
                     selected_file_n = lines - 1;
+                    while (selected_file_n >= shift_j + height_in_j) {
+                        shift_j += 10;
+                    }
                 }
                 while (selected_file_n < shift_j) {
                     shift_j--;
@@ -980,6 +983,7 @@ int main() {
                 selected_file_n++;
                 if (selected_file_n >= lines) {
                     selected_file_n = 0;
+                    shift_j = 0;
                 }
                 while (selected_file_n >= shift_j + height_in_j) {
                     shift_j++;
