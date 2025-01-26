@@ -203,7 +203,6 @@ class PartnerRenderer : public Crt8275Renderer
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         static EmuObject* create(const EmuValuesList&) {return new PartnerRenderer();}
-
     protected:
         const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         const uint8_t* getAltFontPtr(bool gpa0, bool gpa1, bool hglt) override;
@@ -211,6 +210,7 @@ class PartnerRenderer : public Crt8275Renderer
         uint8_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
 
+        void primaryRenderFrame() override;
     private:
         const wchar_t* c_partnerSymbols =
             L" ☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§■↨↑↓→←∟↔▲▼"
@@ -225,7 +225,40 @@ class PartnerRenderer : public Crt8275Renderer
             L"Ёё╭╮╯╰→←↑↓÷±№¤■ ";
 };
 
-
+/// TODO: separate .h file
+typedef struct {
+    uint8_t* ptr1; // R
+    uint8_t* ptr2; // G
+    uint8_t* ptr3; // B
+    uint8_t bit;
+    inline void operator +=(int a) {
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        size_t shift = p - ptr1;
+        ptr1 = p;
+        ptr2 += shift;
+        ptr3 += shift;
+        bit = (p8 & 7);
+    }
+    inline void set3Bit(uint8_t b) { // 0bRGB
+        bitWrite(*ptr1, bit, b & 1);        // R
+        bitWrite(*ptr2, bit, (b >> 1) & 1); // G
+        bitWrite(*ptr3, bit, (b >> 2) & 1); // B
+    }
+    inline void set3Bit(int a, uint8_t b) { // b - 0bRGB
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b & 1); // R
+        size_t shift = p - ptr1;
+        p = ptr2 + shift;
+        bitWrite(*p, bi, (b >> 1) & 1); // G
+        p = ptr3 + shift;
+        bitWrite(*p, bi, (b >> 2) & 1); // B
+    }
+} Crt3Bit;
 // Отрисовщик экрана МЦПГ
 class PartnerMcpgRenderer : public Crt8275Renderer
 {
@@ -238,12 +271,12 @@ class PartnerMcpgRenderer : public Crt8275Renderer
 
         static EmuObject* create(const EmuValuesList&) {return new PartnerMcpgRenderer();}
 
+        void customDrawSymbolLine3(
+            Crt3Bit& oneBitlinePtr, float dx, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt
+        );
     protected:
         uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
         uint8_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
-        void customDrawSymbolLine(
-            Crt1Bit& oneBitlinePtr, float dx, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt
-        );
 
         void primaryRenderFrame() override;
     private:

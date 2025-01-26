@@ -28,6 +28,7 @@ class Crt8275;
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))
 #define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
 #define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
 typedef struct {
     uint8_t* ptr;
@@ -40,6 +41,13 @@ typedef struct {
     }
     inline void setBit(uint8_t b) { /// TODO: b - bool
         bitWrite(*ptr, bit, b);
+    }
+    inline bool getBit(int a) {
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        return bitRead(*p, bi);
     }
     inline void setBit(int a, uint8_t b) { /// TODO: b - bool
         uint64_t p8 = (uint32_t)ptr;
@@ -68,6 +76,13 @@ class Crt8275Renderer : public TextCrtRenderer
 
         void setFontSetNum(int fontNum) {m_fontNumber = fontNum;}
 
+        Crt8275* m_crt = nullptr;
+        bool m_ltenOffset;
+        bool m_hgltOffset;
+        bool m_rvvOffset;
+        bool m_gpaOffset;
+        bool m_dashedLten = false;
+
     protected:
         void toggleCropping() override;
         void setCropping(bool cropping) override;
@@ -79,8 +94,6 @@ class Crt8275Renderer : public TextCrtRenderer
         virtual void customDrawSymbolLine(Crt1Bit&, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
 
-        Crt8275* m_crt = nullptr;
-
         int m_fontNumber = 0;
 
         int m_fntCharHeight;
@@ -89,17 +102,9 @@ class Crt8275Renderer : public TextCrtRenderer
 
         bool m_customDraw = false;
 
-        bool m_ltenOffset;
-        bool m_rvvOffset;
-        bool m_hgltOffset;
-        bool m_gpaOffset;
-
         bool m_useRvv;
-        bool m_dashedLten = false;
 
         int m_visibleOffsetX = 0;
-
-        int m_dataSize = 0;
 
         bool isRasterPresent() override;
 

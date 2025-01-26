@@ -53,13 +53,16 @@ class CrtRenderer : public EmuObject
         void markSecondary(CrtRenderer* v) { m_primaryRenderer = v; }
 
         uint8_t* m_pixelData = nullptr;
+        uint8_t* m_pixelData2 = nullptr;
+        uint8_t* m_pixelData3 = nullptr; /// TODO: optimize (move to only ...)
         int m_sizeX = 0;
         int m_sizeY = 0;
+        int m_nativeSizeX = 6;
+        int m_dataSize = 0;
     protected:
         CrtRenderer* m_secondaryRenderer = nullptr;
         CrtRenderer* m_primaryRenderer = nullptr;
 
-        uint8_t* m_pixelData2 = nullptr;
         int m_bufSize = 0;
 
         int m_prevSizeX = 0;

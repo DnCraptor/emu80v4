@@ -374,15 +374,13 @@ PartnerRenderer::PartnerRenderer()
 
 uint8_t PartnerRenderer::getCurFgColor(bool, bool, bool)
 {
-    return RGB888(0xC0, 0xC0, 0xC0);
+    return 0b111;
 }
-
 
 uint8_t PartnerRenderer::getCurBgColor(bool, bool, bool)
 {
-    return RGB888(0, 0, 0);
+    return 0;
 }
-
 
 const uint8_t* PartnerRenderer::getCurFontPtr(bool gpa0, bool gpa1, bool hglt)
 {
@@ -417,6 +415,149 @@ bool PartnerRenderer::setProperty(const string& propertyName, const EmuValuesLis
     return false;
 }
 
+void PartnerRenderer::primaryRenderFrame()
+{
+    calcAspectRatio(m_fntCharWidth);
+    if (!m_secondaryRenderer) return;
+
+    const Frame* frame = m_crt->getFrame();
+    const Frame* frameB = ((Crt8275Renderer*)m_secondaryRenderer)->m_crt->getFrame();
+    int m_ltenOffsetB = ((Crt8275Renderer*)m_secondaryRenderer)->m_ltenOffset;
+    int m_hgltOffsetB = ((Crt8275Renderer*)m_secondaryRenderer)->m_hgltOffset;
+    int m_rvvOffsetB = ((Crt8275Renderer*)m_secondaryRenderer)->m_rvvOffset;
+    int m_gpaOffsetB = ((Crt8275Renderer*)m_secondaryRenderer)->m_gpaOffset;
+
+    int nRows = frame->nRows;
+    int nLines = frame->nLines;
+    int nChars = frame->nCharsPerRow;
+    int nRowsB = frameB->nRows;
+    int nLinesB = frameB->nLines;
+    int nCharsB = frameB->nCharsPerRow;
+
+    m_sizeX = nChars * m_fntCharWidth;
+    m_nativeSizeX = m_sizeX;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_sizeY = nRows * nLines;
+
+    float dx = float(m_nativeSizeX) / m_secondaryRenderer->m_nativeSizeX;
+
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
+    if (m_dataSize > m_bufSize) {
+        if (m_pixelData)
+            delete[] m_pixelData;
+        if (m_pixelData2)
+            delete[] m_pixelData2;
+        if (m_pixelData3)
+            delete[] m_pixelData3;
+        m_pixelData = new uint8_t [m_dataSize];
+        m_pixelData2 = new uint8_t [m_dataSize];
+        m_pixelData3 = new uint8_t [m_dataSize];
+        m_bufSize = m_dataSize;
+        memset(m_pixelData, 0, m_dataSize);
+        memset(m_pixelData2, 0, m_dataSize);
+        memset(m_pixelData3, 0, m_dataSize);
+    }
+    Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
+
+    bool nnb = dx < 3; // W/A
+    for (int row = 0; row < nRows; row++) {
+        if (row >= nRowsB) nnb = false;
+        Crt3Bit chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
+        for (int chr = 0; chr < nChars; chr++) {
+            if (chr >= nCharsB) nnb = false;
+            const Symbol& symbol = frame->symbols[row][chr];
+            Crt3Bit linePtr = chrPtr;
+            bool hglt, gpa0, gpa1, rvv;
+            bool hgltB, gpa0B, gpa1B, rvvB;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+
+            const Symbol& symbolB = frameB->symbols[row][chr];
+            if (nnb) {
+                if (!m_hgltOffsetB || (chr == nCharsB - 1))
+                    hgltB = symbolB.symbolAttributes.hglt();
+                else
+                    hgltB = frameB->symbols[row][chr+1].symbolAttributes.hglt();
+                if (!m_gpaOffsetB || (chr == nCharsB - 1)) {
+                    gpa0B = symbolB.symbolAttributes.gpa0();
+                    gpa1B = symbolB.symbolAttributes.gpa1();
+                }
+                else {
+                    gpa0B = frameB->symbols[row][chr+1].symbolAttributes.gpa0();
+                    gpa1B = frameB->symbols[row][chr+1].symbolAttributes.gpa1();
+                }
+                if (!m_rvvOffsetB || (chr == nCharsB - 1))
+                    rvvB = symbolB.symbolAttributes.rvv();
+                else
+                    rvvB = frameB->symbols[row][chr+1].symbolAttributes.rvv();
+            }
+
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            for (int ln = 0; ln < nLines; ln++) {
+                if (ln >= nLinesB) nnb = false;
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+                uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+                for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                    bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                    if (rvv && m_useRvv)
+                        v = !v;
+                    linePtr.set3Bit(pt, v ? 0b111 : 0);
+                    fntLine <<= 1;
+                }
+                if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                    curLten[ln] = true;
+
+                if (nnb)
+                {
+                    if (!frameB->isOffsetLineMode)
+                        lc = ln;
+                    else
+                        lc = ln != 0 ? ln - 1 : nLinesB - 1;
+                    vsp = symbolB.symbolLineAttributes[ln].vsp();
+                    if (!m_ltenOffsetB || (chr == nCharsB - 1))
+                        lten = symbolB.symbolLineAttributes[ln].lten();
+                    else
+                        lten = frameB->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    ((PartnerMcpgRenderer*)m_secondaryRenderer)->customDrawSymbolLine3(
+                        linePtr, dx, symbolB.chr, lc, lten, vsp, rvvB, gpa0B, gpa1B, hgltB
+                    );
+                }
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+    graphics_set_1bit_buffer3(m_pixelData, m_pixelData2, m_pixelData3, m_sizeX, m_sizeY);
+}
+
 
 PartnerMcpgRenderer::PartnerMcpgRenderer()
 {
@@ -442,131 +583,71 @@ void PartnerMcpgRenderer::attachMcpgRam(Ram* mcpgRam)
 
 uint8_t PartnerMcpgRenderer::getCurFgColor(bool, bool, bool)
 {
-    return RGB888(0xFF, 0xFF, 0xFF);
+    return 0b111;
 }
 
 
 uint8_t PartnerMcpgRenderer::getCurBgColor(bool, bool, bool)
 {
-    return RGB888(0, 0, 0);
+    return 0;
 }
 
 
 void PartnerMcpgRenderer::primaryRenderFrame()
 {
+    if (!m_primaryRenderer) return;
     calcAspectRatio(m_fntCharWidth);
-
     const Frame* frame = m_crt->getFrame();
 
     int nRows = frame->nRows;
     int nLines = frame->nLines;
     int nChars = frame->nCharsPerRow;
 
-    m_sizeX = nChars * m_fntCharWidth;
-    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_nativeSizeX  = nChars * m_fntCharWidth;
+    m_sizeX = m_primaryRenderer->m_sizeX;
     m_sizeY = nRows * nLines;
 
     m_dataSize = (m_sizeY * m_sizeX) >> 3;
-    float dx = 1;
-    if (!m_primaryRenderer) {
-        if (m_dataSize > m_bufSize) {
-            if (m_pixelData)
-                delete[] m_pixelData;
-            if (m_pixelData2)
-                delete[] m_pixelData2;
-            m_pixelData = new uint8_t [m_dataSize];
-            m_pixelData2 = new uint8_t [m_dataSize];
-            m_bufSize = m_dataSize;
-        }
-        memcpy(m_pixelData2, m_pixelData, m_dataSize);
-        memset(m_pixelData, 0, m_dataSize);
-    } else {
-        m_pixelData = m_primaryRenderer->m_pixelData;
-        dx = float(m_primaryRenderer->m_sizeX) / m_sizeX; /// TODO: exact sizes
-        m_sizeX = m_primaryRenderer->m_sizeX;
-    }
-    Crt1Bit rowPtr = { m_pixelData, 0 };
-
-    for (int row = 0; row < nRows; row++) {
-        Crt1Bit chrPtr = rowPtr;
+/*
+    m_pixelData = m_primaryRenderer->m_pixelData;
+    m_pixelData2 = m_primaryRenderer->m_pixelData2;
+    m_pixelData3 = m_primaryRenderer->m_pixelData3;
+    Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
+    
+    for (int row = 0; row < nRows) {
+        Crt3Bit chrPtr = rowPtr;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            Crt1Bit linePtr = chrPtr;
-
-            bool hglt;
-            if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt();
-            else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
-
-            bool gpa0, gpa1;
-            if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0();
-                gpa1 = symbol.symbolAttributes.gpa1();
-            }
-            else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
-            }
-
-            bool rvv;
-            if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv();
-            else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
-
-            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
-            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
-
-            for (int ln = 0; ln < nLines; ln++) {
-                int lc;
-                if (!frame->isOffsetLineMode)
-                    lc = ln;
-                else
-                    lc = ln != 0 ? ln - 1 : nLines - 1;
-
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
-
-                bool lten;
-                if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
-                else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
-
-                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
-
-                if (!m_customDraw) { /// TODO: optimize
-                    uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
-
-                    for (int pt = 0; pt < m_fntCharWidth; pt++) {
-                        bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
-                        if (rvv && m_useRvv)
-                            v = !v;
-                        int pts = dx * pt; /// TODO: <-- optimise
-                        linePtr.setBit(pts, v ? fgColor : bgColor);
-                        fntLine <<= 1;
-                    }
-                    if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
-                        curLten[ln] = true;
-                } else
-                    customDrawSymbolLine(linePtr, dx, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+            Crt3Bit linePtr = chrPtr;
+            bool hglt, gpa0, gpa1, rvv;
+            int m_fntCharWidthB = m_fntCharWidth * dx;
+            for (int ln = 0; ln < nLines || ln < nLinesB; ln++) {
+                    int lc;
+                    if (!frame->isOffsetLineMode)
+                        lc = ln;
+                    else
+                        lc = ln != 0 ? ln - 1 : nLines - 1;
+                    bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                    bool lten;
+                    if (!m_ltenOffset || (chr == nChars - 1))
+                        lten = symbol.symbolLineAttributes[ln].lten();
+                    else
+                        lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+                    customDrawSymbolLine3(linePtr, dx, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
             }
-            chrPtr += dx * m_fntCharWidth;
+            chrPtr += m_fntCharWidthB;
         }
         rowPtr += nLines * m_sizeX;
     }
-
-///    trimImage(m_fntCharWidth, nLines);
-//    if (!m_primaryRenderer) // do not push it from secondary
-//        graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
+*/
 }
 
-void PartnerMcpgRenderer::customDrawSymbolLine(
-    Crt1Bit& oneBitlinePtr, float dx, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt
+void PartnerMcpgRenderer::customDrawSymbolLine3(
+    Crt3Bit& oneBitlinePtr, float dx, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt
 ) {
     int col[4];
     int fntOffs = (rvv ? 0x400 : 0) + symbol * 8 + (line & 0x7);
@@ -575,24 +656,22 @@ void PartnerMcpgRenderer::customDrawSymbolLine(
     col[3] = m_fontPtr[fntOffs + 0x800] & 0x7;
     col[2] = (m_fontPtr[fntOffs + 0x800] & 0x38) >> 3;
 
-    uint32_t bgColor = (gpa0 ? 0xFF0000 : 0) + (gpa1 ? 0x00FF00 : 0) + (hglt ? 0x0000FF : 0) + 0xFF000000;
+    uint8_t bgColor = (gpa0 ? 0b001 : 0) + (gpa1 ? 0b010 : 0) + (hglt ? 0b100 : 0);
 
-    int prev_pts = 0;
     for (int pt = 0; pt < 4; pt++) {
-        uint32_t color;
+        uint8_t color;
         if (col[pt] == 7 || (vsp & !lten))
             color = bgColor;
         else
-            color = (col[pt] & 1 ? 0 : 0xFF0000) + (col[pt] & 2 ? 0 : 0x00FF00) + (col[pt] & 4 ? 0 : 0x0000FF) + 0xFF000000;
-        if (gpa0 && gpa1 && !hglt && ((symbol & 0xC0) != 0xC0) /*&& ((symbol & 0xC0) != 0x80)*/)
-            color = 0x00000000; //transparent
-        int pts = pt * dx;
-        if (color != 0) {
-            if (pts > prev_pts + 1);
-                oneBitlinePtr.setBit((prev_pts + 1), RGB((color & 0xFFFFFF)));
-            oneBitlinePtr.setBit(pts, RGB((color & 0xFFFFFF)));
+            color = (col[pt] & 1 ? 0 : 0b001) + (col[pt] & 2 ? 0 : 0b010) + (col[pt] & 4 ? 0 : 0b100);
+        if (gpa0 && gpa1 && !hglt && ((symbol & 0xC0) != 0xC0)) {
+            //transparent
+        } else {
+            int pts = pt * dx;
+            int pts2 = (pt + 1) * dx;
+            for (int i = pts; i < pts2; ++i)
+                oneBitlinePtr.set3Bit(i, color);
         }
-        prev_pts = pts;
     }
 }
 

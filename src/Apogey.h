@@ -62,7 +62,6 @@ class ApogeyRenderer : public Crt8275Renderer
         static EmuObject* create(const EmuValuesList&) {return new ApogeyRenderer();}
 
     protected:
-        uint8_t* m_pixelData3 = nullptr;
         const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         const uint8_t* getAltFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
