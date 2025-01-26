@@ -303,7 +303,6 @@ void Crt8275Renderer::primaryRenderFrame()
         rowPtr += nLines * m_sizeX;
     }
 
-///    trimImage(m_fntCharWidth, nLines);
     if (!m_primaryRenderer) // do not push it from secondary
         graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
 }

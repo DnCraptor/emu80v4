@@ -21,6 +21,7 @@
 #include "Globals.h"
 #include "EmuWindow.h"
 #include "SoundMixer.h"
+#include "Crt8275.h"
 
 using namespace std;
 
@@ -90,28 +91,201 @@ Rk86Renderer::Rk86Renderer()
 uint8_t Rk86Renderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
     switch (m_colorMode) {
-        //case RCM_MONO_SIMPLE:
         case RCM_COLOR1:
              {
-                uint8_t res = (gpa1 ? RGB888(0, 0, 0xFF) : RGB888(0, 0, 0)) | (gpa0 ? RGB888(0, 0xFF, 0) : RGB888(0, 0, 0)) | (hglt ? RGB888(0xFF, 0, 0) : RGB888(0, 0, 0));
-                if (res == RGB888(0, 0, 0))
-                    res = RGB888(0xC0, 0xC0, 0xC0);
+                uint8_t res = (gpa1 ? 0b100 : 0) | (gpa0 ? 0b010 : 0) | (hglt ? 0b001 : 0);
+                if (res == 0)
+                    res = 0b111;
                 return res;
              }
         case RCM_COLOR2:
-            return (gpa0 ? RGB888(0, 0, 0) : RGB888(0xFF, 0, 0)) | (gpa1 ? RGB888(0, 0, 0) : RGB888(0, 0xFF, 0)) | (hglt ? RGB888(0, 0, 0) : RGB888(0, 0, 0xFF));
+            return (gpa0 ? 0 : 0b001) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b100);
+        //case RCM_MONO_SIMPLE:
         //case RCM_MONO:
         default:
-            return RGB888(0xC0, 0xC0, 0xC0);
+            return 1;
     }
 }
 
 
 uint8_t Rk86Renderer::getCurBgColor(bool, bool, bool)
 {
-    return RGB888(0, 0, 0);
+    return 0;
 }
 
+void Rk86Renderer::primaryRenderFrame() {
+    calcAspectRatio(m_fntCharWidth);
+
+    const Frame* frame = m_crt->getFrame();
+
+    int nRows = frame->nRows;
+    int nLines = frame->nLines;
+    int nChars = frame->nCharsPerRow;
+
+    m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_sizeY = nRows * nLines;
+
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
+    if (m_dataSize > m_bufSize) {
+        if (m_pixelData)
+            delete[] m_pixelData;
+        if (m_pixelData2)
+            delete[] m_pixelData2;
+        if (m_pixelData3)
+            delete[] m_pixelData3;
+        m_pixelData = new uint8_t [m_dataSize];
+        m_pixelData2 = new uint8_t [m_dataSize];
+        m_pixelData3 = new uint8_t [m_dataSize];
+        memset(m_pixelData, 0, m_dataSize);
+        memset(m_pixelData2, 0, m_dataSize);
+        memset(m_pixelData3, 0, m_dataSize);
+        m_bufSize = m_dataSize;
+    }
+    if (m_colorMode == RCM_COLOR1 || m_colorMode == RCM_COLOR2) {
+        Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
+        for (int row = 0; row < nRows; row++) {
+            Crt3Bit chrPtr = rowPtr;
+            bool curLten[16];
+            memset(curLten, 0, sizeof(curLten));
+            for (int chr = 0; chr < nChars; chr++) {
+                Symbol symbol = frame->symbols[row][chr];
+                Crt3Bit linePtr = chrPtr;
+                bool hglt;
+                if (!m_hgltOffset || (chr == nChars - 1))
+                    hglt = symbol.symbolAttributes.hglt();
+                else
+                    hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+                bool gpa0, gpa1;
+                if (!m_gpaOffset || (chr == nChars - 1)) {
+                    gpa0 = symbol.symbolAttributes.gpa0();
+                    gpa1 = symbol.symbolAttributes.gpa1();
+                }
+                else {
+                    gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                    gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+                }
+                bool rvv;
+                if (!m_rvvOffset || (chr == nChars - 1))
+                    rvv = symbol.symbolAttributes.rvv();
+                else
+                    rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+                const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+                uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+                uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+                for (int ln = 0; ln < nLines; ln++) {
+                    int lc;
+                    if (!frame->isOffsetLineMode)
+                        lc = ln;
+                    else
+                        lc = ln != 0 ? ln - 1 : nLines - 1;
+                    bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                    bool lten;
+                    if (!m_ltenOffset || (chr == nChars - 1))
+                        lten = symbol.symbolLineAttributes[ln].lten();
+                    else
+                        lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+            ///    if (!m_customDraw) {
+                    uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+
+                    for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                        bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                        if (rvv && m_useRvv)
+                            v = !v;
+                        linePtr.set3Bit(pt, v ? fgColor : bgColor);
+                        fntLine <<= 1;
+                    }
+                    if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                        curLten[ln] = true;
+            ///    } else
+            ///        customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                    linePtr += m_sizeX;
+                }
+                chrPtr += m_fntCharWidth;
+            }
+            rowPtr += nLines * m_sizeX;
+        }
+        graphics_set_1bit_buffer3(m_pixelData, m_pixelData2, m_pixelData3, m_sizeX, m_sizeY);
+        return;
+    }
+    memcpy(m_pixelData2, m_pixelData, m_dataSize);
+    memset(m_pixelData, 0, m_dataSize);
+    Crt1Bit rowPtr = { m_pixelData, 0 };
+
+    for (int row = 0; row < nRows; row++) {
+        Crt1Bit chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt1Bit linePtr = chrPtr;
+
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+
+                if (!m_customDraw) {
+                    uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+
+                    for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                        bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                        if (rvv && m_useRvv)
+                            v = !v;
+                        linePtr.setBit(pt, v ? fgColor : bgColor);
+                        fntLine <<= 1;
+                    }
+                    if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                        curLten[ln] = true;
+                } else
+                    customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+    graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
+}
 
 const uint8_t* Rk86Renderer::getCurFontPtr(bool, bool, bool)
 {

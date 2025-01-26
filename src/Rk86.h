@@ -57,6 +57,8 @@ class Rk86Renderer : public Crt8275Renderer
 
         static EmuObject* create(const EmuValuesList&) {return new Rk86Renderer();}
 
+        void primaryRenderFrame() override;
+
     protected:
         enum Rk86ColorMode {
             RCM_MONO_ORIG,
