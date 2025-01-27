@@ -100,6 +100,8 @@ uint8_t Rk86Renderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
              }
         case RCM_COLOR2:
             return (gpa0 ? 0 : 0b001) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b100);
+        case RCM_COLOR3:
+            return (gpa0 ? 0 : 0b100) | (gpa1 ? 0 : 0b010) | (hglt ? 0 : 0b001);
         //case RCM_MONO_SIMPLE:
         //case RCM_MONO:
         default:
@@ -142,7 +144,7 @@ void Rk86Renderer::primaryRenderFrame() {
         memset(m_pixelData3, 0, m_dataSize);
         m_bufSize = m_dataSize;
     }
-    if (m_colorMode == RCM_COLOR1 || m_colorMode == RCM_COLOR2) {
+    if (m_colorMode == RCM_COLOR1 || m_colorMode == RCM_COLOR2 || m_colorMode == RCM_COLOR3) {
         Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
         for (int row = 0; row < nRows; row++) {
             Crt3Bit chrPtr = rowPtr;
@@ -321,6 +323,8 @@ void Rk86Renderer::toggleColorMode()
     else if (m_colorMode == RCM_COLOR1)
         setColorMode(RCM_COLOR2);
     else if (m_colorMode == RCM_COLOR2)
+        setColorMode(RCM_COLOR3);
+    else if (m_colorMode == RCM_COLOR3)
         setColorMode(RCM_MONO_ORIG);
 }
 
@@ -339,6 +343,8 @@ bool Rk86Renderer::setProperty(const string& propertyName, const EmuValuesList& 
             setColorMode(RCM_COLOR1);
         else if (values[0].asString() == "color2")
             setColorMode(RCM_COLOR2);
+        else if (values[0].asString() == "color3")
+            setColorMode(RCM_COLOR3);
         else
             return false;
         return true;

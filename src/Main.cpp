@@ -855,7 +855,6 @@ static const char* argv[3] = {
 int main() {
     static FATFS fs;
 #if !PICO_RP2040
-///    vreg_set_voltage(VREG_VOLTAGE_1_40);
     volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
