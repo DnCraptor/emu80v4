@@ -1735,18 +1735,16 @@ void Cpu8080::operate() {
 
     if (m_waits) {
         int tag;
-        //int opcode = m_addrSpace->readByteEx(PC++, tag);
-        //int clocks = i8080_execute(opcode);
         int opcode = m_addrSpace->readByteEx(PC, tag);
         int clocks = i8080_execute(RD_BYTE(PC++));
         m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(tag, opcode, clocks));
     } else
         m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
 
-    if (m_stepReq) {
-        m_stepReq = false;
-        g_emulation->debugRequest(this);
-    }
+///    if (m_stepReq) {
+///        m_stepReq = false;
+///        g_emulation->debugRequest(this);
+///    }
 }
 
 

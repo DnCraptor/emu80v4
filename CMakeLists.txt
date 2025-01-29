@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.3.5")
+set (PORT_VERSION "0.3.7")
 #set (MURM2 ON)
 
 set(KBDUSB ON)
@@ -218,6 +218,9 @@ IF(MURM2)
         TFT_CLK_PIN=19
 
         DEFAULT_THROTTLING=0
+
+        PK86=1
+        ORION=1
     )
 ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE

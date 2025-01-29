@@ -64,7 +64,7 @@ class Cpu : public ActiveDevice
         void disableHooks() {m_hooksDisabled = true;}
         void enableHooks() {m_hooksDisabled = false;}
 
-        void debugStepRequest() {m_stepReq = true;}
+    ///    void debugStepRequest() {m_stepReq = true;}
 
         AddressableDevice* getAddrSpace() {return m_addrSpace;}
         AddressableDevice* getIoAddrSpace() {return m_ioAddrSpace;}
@@ -82,7 +82,7 @@ class Cpu : public ActiveDevice
         int m_nHooks = 0;
         bool m_hooksDisabled = false;
 
-        bool m_stepReq = false;
+///        bool m_stepReq = false;
 
         bool m_debugOnHalt = false;
         bool m_debugOnIllegalCmd = false;

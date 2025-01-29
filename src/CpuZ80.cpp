@@ -2565,10 +2565,10 @@ void CpuZ80::operate()
     } else
         m_curClock += m_kDiv * simz80();
 
-    if (m_stepReq) {
-        m_stepReq = false;
-        g_emulation->debugRequest(this);
-    }
+///    if (m_stepReq) {
+///        m_stepReq = false;
+///        g_emulation->debugRequest(this);
+///    }
 }
 
 
