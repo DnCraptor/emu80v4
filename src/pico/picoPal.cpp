@@ -152,6 +152,8 @@ void palGetDirContent(const string& d, vector<PalFileInfo*>& fileList)
 
 /// TODO: .h
 extern PalKeyCodeAction getKey();
+extern PalKeyCode pressed_key[256];
+#include "ps2kbd_mrmltr.h"
 #include <algorithm>
 static std::string fdir = "/emu80";
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
@@ -235,6 +237,7 @@ again:
     }
     string res = "";
     while(1) {
+        sleep_ms(100);
         PalKeyCodeAction pk = getKey();
         if (write && pk.pressed) {
             if (pk.vk >= PK_1 && pk.vk <= PK_0) { t2 += '1' + pk.vk - PK_1; goto again; }
@@ -243,7 +246,7 @@ again:
             if (pk.vk == PK_PERIOD) { t2 += '.'; goto again; }
             if (pk.vk == PK_BSP) { t2 = ""; goto again; } /// TODO:
         }
-        if ((pk.vk == PK_UP || pk.vk == PK_KP_8) && pk.pressed) {
+        if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
             selected_file_n--;
             if (selected_file_n < 0) {
                 selected_file_n = fileList.size() - 1;
@@ -257,7 +260,7 @@ again:
             if (shift_j < 0) shift_j = fileList.size() - 1;
             goto again;
         }
-        if ((pk.vk == PK_PGUP || pk.vk == PK_KP_9) && pk.pressed) {
+        if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
             selected_file_n -= 10;
             if (selected_file_n < 0) {
                 selected_file_n = 0;
@@ -268,7 +271,7 @@ again:
             if (shift_j < 0) shift_j = 0;
             goto again;
         }
-        if ((pk.vk == PK_DOWN || pk.vk == PK_KP_2) && pk.pressed) {
+        if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
             selected_file_n++;
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = 0;
@@ -279,7 +282,7 @@ again:
             }
             goto again;
         }
-        if ((pk.vk == PK_PGDN || pk.vk == PK_KP_3) && pk.pressed) {
+            if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
             selected_file_n += 10;
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = fileList.size() - 1;
@@ -294,7 +297,7 @@ again:
             shift_j = 0;
             goto again;
         }
-        if ((pk.vk == PK_END || pk.vk == PK_KP_1) && pk.pressed) {
+        if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
             selected_file_n = fileList.size() - 1;
             while (selected_file_n >= shift_j + height_in_j) {
                 shift_j += 10;
@@ -363,6 +366,7 @@ void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)
 void palExecute() {
     while(1) {
         emuEmulationCycle();
+        sleep_ms(2);
     }
     __unreachable();
 }

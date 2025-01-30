@@ -347,7 +347,8 @@ inline static bool isInReport(hid_keyboard_report_t const *report, const unsigne
     return false;
 }
 
-volatile PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
+
+PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 Emulation* g_emulation = nullptr;
 
