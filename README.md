@@ -1,4 +1,4 @@
-# Emu80 4.x emulator source code
+# Emu80 4.x emulator source code (port for ZX Murmulator dev. board with Raspberry Pi Pico 2 RP2350 SoC)
 
 For license info, see the file "COPYING.txt"
 
