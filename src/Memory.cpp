@@ -144,8 +144,27 @@ uint8_t Ram::readByte(int addr)
 #include "pico/partner_fddrom_bin.h"
 #include "pico/partner_sdrom_bin.h"
 
+#include "pico/kr04_rom0.bin.h"
+#include "pico/kr04_rom1.bin.h"
+#include "pico/kr04_rom2.bin.h"
+
 Rom::Rom(unsigned memSize, string fileName)
 {
+    if (fileName == "kr04/rom0.bin") {
+        m_buf = kr04_rom0_bin;
+        m_size = sizeof(kr04_rom0_bin);
+        return;
+    }
+    if (fileName == "kr04/rom1.bin") {
+        m_buf = kr04_rom1_bin;
+        m_size = sizeof(kr04_rom1_bin);
+        return;
+    }
+    if (fileName == "kr04/rom2.bin") {
+        m_buf = kr04_rom2_bin;
+        m_size = sizeof(kr04_rom2_bin);
+        return;
+    }
     if (fileName == "partner/romp1.bin") {
         m_buf = partner_romp1_bin;
         m_size = sizeof(partner_romp1_bin);

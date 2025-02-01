@@ -59,6 +59,7 @@ void graphics_set_1bit_buffer3(
     const uint16_t width,
     const uint16_t height
 );
+void graphics_set_skip_x_pixels(int);
 
 void graphics_inc_x(void);
 void graphics_dec_x(void);

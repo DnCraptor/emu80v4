@@ -148,6 +148,85 @@ void Kr04Renderer::toggleColorMode()
         setColorMode(KCM_MONO);
 }
 
+void Kr04Renderer::primaryRenderFrame() {
+    calcAspectRatio(m_fntCharWidth);
+
+    const Frame* frame = m_crt->getFrame();
+
+    int nRows = frame->nRows;
+    int nLines = frame->nLines;
+    int nChars = frame->nCharsPerRow;
+
+    m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_sizeY = nRows * nLines;
+
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
+    if (m_dataSize > m_bufSize) {
+        if (m_pixelData)
+            delete[] m_pixelData;
+        if (m_pixelData2)
+            delete[] m_pixelData2;
+        m_pixelData = new uint8_t [m_dataSize];
+        m_pixelData2 = new uint8_t [m_dataSize];
+        m_bufSize = m_dataSize;
+    }
+    memcpy(m_pixelData2, m_pixelData, m_dataSize);
+    memset(m_pixelData, 0, m_dataSize);
+    Crt1Bit rowPtr = { m_pixelData, 0 };
+
+    for (int row = 0; row < nRows; row++) {
+        Crt1Bit chrPtr = rowPtr;
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt1Bit linePtr = chrPtr;
+
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+
+    graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
+    graphics_set_skip_x_pixels(-m_visibleOffsetX);
+}
 
 void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {

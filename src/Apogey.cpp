@@ -81,8 +81,6 @@ bool ApogeyCore::setProperty(const string& propertyName, const EmuValuesList& va
 }
 
 ApogeyRenderer::~ApogeyRenderer() {
-        if (m_pixelData3)
-            delete[] m_pixelData3;
 }
 
 ApogeyRenderer::ApogeyRenderer()

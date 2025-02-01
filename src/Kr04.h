@@ -102,6 +102,9 @@ class Kr04Renderer : public Crt8275Renderer
 
         void setHiRes(bool hiRes) {m_hiRes = hiRes;}
 
+    protected:
+        void primaryRenderFrame() override;
+
     private:
         const uint8_t c_d46[32] = {
             0x35, 0x6F, 0x35, 0x6F, 0x7E, 0x7E, 0x7E, 0x7E, 0x37, 0x7B, 0x6D, 0x7E, 0x37, 0x7B, 0x6D, 0x7E,

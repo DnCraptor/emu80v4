@@ -24,8 +24,8 @@ void palExecute();
 int palReadFromFile(const std::string& fileName, int first, int size, uint8_t* buffer, bool useBasePath = true);
 uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath = true);
 string palMakeFullFileName(string fileName);
-uint64_t palGetCounter();
-uint64_t palGetCounterFreq();
+#define palGetCounter time_us_64
+#define palGetCounterFreq() 1000000
 void palDelay(uint64_t time);
 std::string palGetDefaultPlatform();
 bool palSetVsync(bool vsync);

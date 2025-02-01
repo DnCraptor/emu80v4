@@ -99,16 +99,6 @@ EmuLog& EmuLog::operator<<(int n)
 
 EmuLog emuLog;
 
-uint64_t palGetCounterFreq()
-{
-    return 1000000;
-}
-
-uint64_t palGetCounter()
-{
-    return time_us_64();
-}
-
 string palMakeFullFileName(string fileName)
 {
     if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\')
@@ -282,7 +272,7 @@ again:
             }
             goto again;
         }
-            if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
+        if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
             selected_file_n += 10;
             if (selected_file_n >= fileList.size()) {
                 selected_file_n = fileList.size() - 1;
