@@ -2548,7 +2548,7 @@ void CpuZ80::operate()
 {
     if (!m_hooksDisabled) {
         bool retFlag = false;
-        list<CpuHook*>* hookList = m_hookArray[PC];
+        list<CpuHook*>* hookList = m_hooksMap[PC];
         if (hookList) {
             for (auto it = hookList->begin(); it != hookList->end(); it++)
                 retFlag = retFlag || (*it)->hookProc();
@@ -2565,10 +2565,10 @@ void CpuZ80::operate()
     } else
         m_curClock += m_kDiv * simz80();
 
-    if (m_stepReq) {
-        m_stepReq = false;
-        g_emulation->debugRequest(this);
-    }
+///    if (m_stepReq) {
+///        m_stepReq = false;
+///        g_emulation->debugRequest(this);
+///    }
 }
 
 

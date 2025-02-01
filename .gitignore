@@ -1,12 +1,2 @@
-/obj*
-/bin
-/src/build
-/src/*.layout
-/src/*.depend
-/src/*.pro.user*
-*.o
-/Emu80
-/Emu80lite
-/build*
-.qmake.stash
-Makefile
+build
+bin/

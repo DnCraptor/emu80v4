@@ -105,38 +105,31 @@ Bashkiria2mRenderer::Bashkiria2mRenderer()
     setFrequency(15625);
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
+    m_bufSize =  m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
-
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_pixelData = new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+    m_frameBuf = m_pixelData; ///new uint8_t[maxBufSize];
 }
 
 
 Bashkiria2mRenderer::~Bashkiria2mRenderer()
 {
-    delete[] m_frameBuf;
+///    delete[] m_frameBuf;
 }
 
 
 void Bashkiria2mRenderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+///    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
 
     if (m_showBorder) {
         m_sizeX = 417; m_sizeY = 288;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 384; m_sizeY = 256;
-        m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
-    m_bufSize = m_sizeX * m_sizeY;
-    memset(m_frameBuf, 0, m_bufSize * sizeof(uint32_t));
+    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
 }
 
 
@@ -145,7 +138,7 @@ void Bashkiria2mRenderer::operate()
     if (m_line<256) {
         int addr = (m_page==0 ? 0x1000 : 0x9000) + ((m_line+m_scrollAct)&0xFF);
         int offsetX = m_showBorder?21:0, offsetY = m_showBorder?10:0;
-        uint32_t* nColor = m_palette[m_colorMode ? 1 : 0];
+        uint8_t* nColor = m_palette[m_colorMode ? 1 : 0];
         for (int col = 0; col < 48; col++,addr+=256) {
             uint16_t b1 = m_screenMemory[addr];
             uint16_t b2 = m_screenMemory[addr+0x4000]<<1;
@@ -181,11 +174,12 @@ void Bashkiria2mRenderer::setPalette(int addr, uint8_t value)
     value = ~value;
     for(int i=0; i<2; ++i) {
         uint8_t c = i==0 ? (value&3)*21 : value>>2;
-        uint32_t color = 0, level[4]={0,90,180,255};
-        for(int j=0; j<3; ++j,c>>=2) {
-            color <<= 8; color |= level[c&3];
+        uint32_t color = 0, level[4] = {0, 90, 180, 255};
+        for(int j = 0; j < 3; ++j, c >>=2) {
+            color <<= 8;
+            color |= level[c & 3];
         }
-        m_palette[i][addr&3] = color;
+        m_palette[i][addr & 3] = RGB(color);
     }
 }
 

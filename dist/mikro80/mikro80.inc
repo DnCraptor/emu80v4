@@ -57,14 +57,14 @@ Rom rom = @ROM, 0x800
 
 AddrSpace mainPage = 0x10000
 
-Ram ramDiskPage0 = 0x10000
-Ram ramDiskPage1 = 0x10000
-Ram ramDiskPage2 = 0x10000
-Ram ramDiskPage3 = 0x10000
-Ram ramDiskPage4 = 0x10000
-Ram ramDiskPage5 = 0x10000
-Ram ramDiskPage6 = 0x10000
-Ram ramDiskPage7 = 0x10000
+SRam ramDiskPage0 = 0x10000
+SRam ramDiskPage1 = 0x10000
+SRam ramDiskPage2 = 0x10000
+SRam ramDiskPage3 = 0x10000
+SRam ramDiskPage4 = 0x10000
+SRam ramDiskPage5 = 0x10000
+SRam ramDiskPage6 = 0x10000
+SRam ramDiskPage7 = 0x10000
 
 Cpu8080 cpu
 
@@ -162,7 +162,7 @@ tapeInFile.filter = "Файлы Микро-80 (*.rk8)|*.rk8;*.RK8|Файлы RK-
 
 TapeRedirector tapeOutFile
 tapeOutFile.mode = "w"
-tapeOutFile.filter = "Файлы Микро-80 (*.rk8)|*.rk8|Файлы RK-совместимых ПК (*.rk)|*.rk|Все файлы (*.*)|*"
+tapeOutFile.filter = ".rk8"
 
 RkTapeOutHook tapeOutHook = @C80C_ADDR
 tapeOutHook.outReg = C

@@ -39,11 +39,17 @@
 
 using namespace std;
 
+#include "pico/korvet.mapper.mem.h"
 
 KorvetAddrSpace::KorvetAddrSpace(string fileName)
 {
+    if (fileName == "korvet/mapper.mem") {
+        m_memMap = korvet_mapper_mem;
+        m_memMapFromRom = true;
+        return;
+    }
     m_memMap = new uint8_t[8192];
-    if (palReadFromFile(fileName, 0, 8192, m_memMap) != 8192) {
+    if (palReadFromFile(fileName, 0, 8192, (uint8_t*)m_memMap) != 8192) {
         delete[] m_memMap;
         m_memMap = nullptr;
     }
@@ -52,7 +58,7 @@ KorvetAddrSpace::KorvetAddrSpace(string fileName)
 
 KorvetAddrSpace::~KorvetAddrSpace()
 {
-    delete[] m_memMap;
+    if (!m_memMapFromRom && m_memMap) delete[] m_memMap;
 }
 
 
@@ -201,41 +207,82 @@ bool KorvetCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
+extern uint8_t* tmp_screen; // W/A
 
 KorvetRenderer::KorvetRenderer()
 {
     const int pixelFreq = 10; // MHz
     const int maxBufSize = 521 * 288; // 521 = 704 / 13.5 * pixelFreq
+#if LOG
+    emuLog << "KorvetRenderer::KorvetRenderer()\n";
+#endif
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
 
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / pixelFreq;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_bufSize = m_sizeX * m_sizeY;
+    m_pixelData = tmp_screen; /// new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
 
     memset(m_lut, 0, sizeof(m_lut));
 
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = m_pixelData;///new uint32_t[maxBufSize];
+#if LOG
+    emuLog << "KorvetRenderer::KorvetRenderer() DONE\n";
+#endif
 }
 
+const uint8_t KorvetRenderer::c_korvetColorPalette[16] = {
+            RGB(0x000000), RGB(0x0000C0), RGB(0x00C000), RGB(0x00C0C0),
+            RGB(0xC00000), RGB(0xC000C0), RGB(0xC0C000), RGB(0xC0C0C0),
+            RGB(0x404040), RGB(0x4040FF), RGB(0x40FF40), RGB(0x40FFFF),
+            RGB(0xFF4040), RGB(0xFF40FF), RGB(0xFFFF40), RGB(0xFFFFFF)
+};
+const uint8_t KorvetRenderer::c_korvetBwPalette[16] = {
+            RGB(0x000000), RGB(0x111111), RGB(0x222222), RGB(0x333333),
+            RGB(0x424242), RGB(0x545454), RGB(0x656565), RGB(0x767676),
+            RGB(0x898989), RGB(0x9A9A9A), RGB(0xABABAB), RGB(0xBDBDBD),
+            RGB(0xCCCCCC), RGB(0xDDDDDD), RGB(0xEEEEEE), RGB(0xFFFFFF)
+};
+const wchar_t* KorvetRenderer::c_korvetSymbols =
+            L" ☺☻█████◘█PpLl♫☼►◄↕‼¶§■↨↑↓→←    "
+            L" !\"#$%&'()*+,-./0123456789:;<=>?"
+            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+            L"`abcdefghijklmnopqrstuvwxyz{|}~"
+            L"································"
+            L"································"
+            L"юабцдефгхийклмнопярстужвьызшэщчъ"
+            L"ЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪ"
+            L" ☺☻█████◘█PpLl♫☼►◄↕‼¶§■↨↑↓→←    "
+            L" !\"#$%&'()*+,-./0123456789:;<=>?"
+            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+            L"`abcdefghijklmnopqrstuvwxyz{|}~"
+            L"░▒▓│┤╡╢╖╕╣║╗╝╜╛┐"
+            L"└┴┬├─┼╞╟╚╔╩╦╠═╬╧"
+            L"╨Ё╥╙╘╒╓╫╪┘┌█▄▌▐▀"
+            L"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+            L"абвгдежзийклмнопрстуфхцчшщъыьэюя"
+            L"≡ё≥≤⌠⌡÷≈°•·√ⁿ²■ ";
 
 KorvetRenderer::~KorvetRenderer()
 {
-    if (m_font)
+    if (!m_fontFromRom && m_font)
         delete[] m_font;
 
-    delete[] m_frameBuf;
+  ///  delete[] m_frameBuf;
 }
 
+#include "pico/korvet_font.bin.h"
 
 void KorvetRenderer::setFontFile(std::string fontFileName)
 {
+    if (fontFileName == "korvet/font.bin") {
+        m_fontFromRom = true;
+        m_font = korvet_font_bin;
+        return;
+    }
     m_font = new uint8_t[8192];
-    if (palReadFromFile(fontFileName, 0, 8192, m_font) != 8192) {
+    if (palReadFromFile(fontFileName, 0, 8192, (uint8_t*)m_font) != 8192) {
         delete[] m_font;
         m_font = nullptr;
     }
@@ -277,20 +324,19 @@ void KorvetRenderer::prepareFrame()
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
-        m_aspectRatio = 576.0 * 9 / 704 / 10;
     } else {
         m_sizeX = 521;
         m_sizeY = 288;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     }
 }
 
 
 void KorvetRenderer::renderFrame()
 {
-    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+///    memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     swapBuffers();
     prepareFrame();
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -302,7 +348,7 @@ void KorvetRenderer::renderLine(int nLine)
     if (nLine < 23 || nLine >= 311)
         return;
 
-    uint32_t* linePtr;
+    uint8_t* linePtr;
 
     if (m_showBorder) {
         linePtr = m_frameBuf + m_sizeX * (nLine - 23);
@@ -325,7 +371,7 @@ void KorvetRenderer::renderLine(int nLine)
     }
 
     nLine -= 40;
-    uint8_t* fontPtr = m_font + m_fontNo * 4096;
+    const uint8_t* fontPtr = m_font + m_fontNo * 4096;
 
     for (int nbt = nLine * 64; nbt < (nLine + 1) * 64; nbt++) {
         uint8_t bt0 = m_graphicsAdapter->m_planes[0][nbt + m_displayPage * 0x4000];

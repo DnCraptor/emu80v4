@@ -67,12 +67,9 @@ LvovRenderer::LvovRenderer()
 
     m_sizeX = m_prevSizeX = 256;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_bufSize = m_sizeX * m_sizeY;
+    m_pixelData = new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
 }
 
 
@@ -86,15 +83,13 @@ void LvovRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 261;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 0;
         offsetY = 25;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 256;
         m_sizeY = 256;
         offsetX = offsetY = 0;
-        m_aspectRatio = 576.0 * 9 / 704 / 5;
     }
 
     for (int row = 0; row < 256; row++)
@@ -103,7 +98,7 @@ void LvovRenderer::renderFrame()
             uint8_t bt = m_screenMemory[addr];
             for (int p = 0; p < 4; p++) {
                 int colorBits = ((bt & 0x80) >> 6) | ((bt & 0x08) >> 3);
-                uint32_t color;
+                uint8_t color;
                 if (m_colorMode) {
                     int r, g, b;
                     switch (colorBits) {
@@ -135,6 +130,15 @@ void LvovRenderer::renderFrame()
                 m_pixelData[(row + offsetY) * m_sizeX + col * 4 + p + offsetX] = color;
             }
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
+}
+
+
+void LvovRenderer::operate()
+{
+    renderFrame();
+    m_curClock += g_emulation->getFrequency() * 320 * 312 / 5000000; // 5 MHz pixelclock, 312 (?) scanlines, 320 pixels wide
+    g_emulation->screenUpdateReq(); // transfer to Core
 }
 
 
@@ -638,8 +642,9 @@ bool LvovFileLoader::loadBinary(bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
-        if (cpu) {
+        Cpu* bc = m_platform->getCpu();
+        if (bc)
+          if (Cpu8080Compatible* cpu = bc->asCpu8080Compatible()) {
             cpu->disableHooks();
             g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
             cpu->enableHooks();
@@ -719,8 +724,9 @@ bool LvovFileLoader::loadBasic(bool run)
 void LvovFileLoader::loadDump(bool run)
 {
     m_platform->reset();
-    Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
-    if (cpu) {
+    Cpu* bc = m_platform->getCpu();
+    if (bc)
+      if (Cpu8080Compatible* cpu = bc->asCpu8080Compatible()) {
         cpu->disableHooks();
         g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
         cpu->enableHooks();

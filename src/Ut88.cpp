@@ -58,13 +58,12 @@ Ut88Renderer::Ut88Renderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 288;
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
+    m_bufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize]; // TODO: 1-bit-buffer
+    m_pixelData2 = new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
+    memset(m_pixelData2, 0, m_bufSize);
 }
 
 
@@ -95,34 +94,33 @@ void Ut88Renderer::primaryRenderFrame()
     if (m_useBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
         offset = 417 * 3 + 1;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 384;
         m_sizeY = 280;
-        m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
-
-    memset(m_pixelData, 0, sizeof(uint32_t) * m_sizeX * m_sizeY);
+    m_bufSize = m_sizeX * m_sizeY;
+    memcpy(m_pixelData2, m_pixelData, m_bufSize);
+    memset(m_pixelData, 0, m_bufSize);
 
     for (int row = 0; row < 28; row++)
         for (int col = 0; col < 64; col++) {
             int addr = row * 64 + col;
             bool cursor = col != 63 && m_screenMemory[addr + 1] & 0x80;
-            uint8_t* fontPtr = m_font + (m_screenMemory[addr] & 0x7f) * 8;
+            const uint8_t* fontPtr = m_font + (m_screenMemory[addr] & 0x7f) * 8;
             for (int l = 0; l < 8; l++) {
                 uint8_t bt = fontPtr[l] << 2;
                 for (int pt = 0; pt < 6; pt++) {
                     bool pixel = (bt & 0x80);
                     bt <<= 1;
-                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? 0 : 0xC0C0C0;
+                    m_pixelData[offset + row * m_sizeX * 10 + l * m_sizeX + col * 6 + pt] = pixel ? RGB(0) : RGB(0xC0C0C0);
                 }
             }
             if (cursor)
                 for (int pt = 0; pt < 6; pt++)
-                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = 0xC0C0C0;
+                    m_pixelData[offset + row * m_sizeX * 10 + 8 * m_sizeX + col * 6 + pt] = RGB(0xC0C0C0);
         }
+    graphics_set_buffer(m_pixelData2, m_sizeX, m_sizeY);
 }
 
 

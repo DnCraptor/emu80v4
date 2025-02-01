@@ -23,6 +23,10 @@
   #include "qt/qtPalFile.h"
 #endif // PAL_QT
 
+#ifdef PORT_VERSION
+  #include "pico/ffPalFile.h"
+#endif // PORT_VERSION
+
 #ifdef PAL_SDL
   #ifndef PAL_WASM
     #include "sdl/sdlPalFile.h"

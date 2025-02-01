@@ -175,43 +175,36 @@ void Crt8275::displayBuffer()
             fifoPos &= 0x0f;
         }
 
-        m_frame.symbols[m_curRow][i].chr = chr & 0x7F;
-
-//         if (m_isDmaStoppedForRow || m_isDmaStoppedForFrame) {
-//             m_frame.symbols[m_curRow][i].chr = 0x41;
-//             for (int j = 0; j < m_nLines; j++) {
-//                 m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = false;
-//                 m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = true;
-//             }
-//         } else
-
+        Symbol& si = m_frame.symbols[m_curRow][i];
+        si.chr = chr & 0x7F;
         if (!m_isDisplayStarted || isBlankedToTheEndOfRow || m_isBlankedToTheEndOfScreen || m_wasDmaUnderrun) {
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = false;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = false; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = false; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = false; // ?
+            si.symbolAttributes.rvv(false);
+            si.symbolAttributes.hglt(false); // ?
+            si.symbolAttributes.gpa0(false); // ?
+            si.symbolAttributes.gpa1(false); // ?
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
+                sia.vsp(true);
+                sia.lten(false);
             }
         } else if (chr < 0x80) {
             // Ordinary symbol
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
+            si.symbolAttributes.rvv(m_curReverse);
+            si.symbolAttributes.hglt(m_curHighlight);
+            si.symbolAttributes.gpa0(m_curGpa0);
+            si.symbolAttributes.gpa1(m_curGpa1);
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = m_curBlink && (m_frameCount & 0x10);
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
-
+                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
+                sia.vsp(m_curBlink && (m_frameCount & 0x10));
+                sia.lten(false);
                 if ((m_undLine > 7) && ((j == 0) || (j == m_nLines - 1)))
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = true;
+                    sia.vsp(true);
             }
             if (m_curUnderline) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = true;
+                SymbolLineAttributes& sia = si.symbolLineAttributes[m_undLine];
+                sia.lten(true);
                 if (m_curBlink)
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = !(m_frameCount & 0x10);
-                //_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].vsp = false;
+                    sia.lten(!(m_frameCount & 0x10));
             }
         } else if ((chr & 0xC0) == 0x80) {
             // Field Attribute Code
@@ -221,41 +214,35 @@ void Crt8275::displayBuffer()
             m_curHighlight = chr & 0x01;
             m_curGpa0 = chr & 0x04;
             m_curGpa1 = chr & 0x08;
-
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
+                sia.vsp(true);
+                sia.lten(false);
             }
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = false;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight; // ?
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0; //?? уточнить!!!
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1; //?? уточнить!!!
-
+            si.symbolAttributes.rvv(false);
+            si.symbolAttributes.hglt(m_curHighlight); // ?
+            si.symbolAttributes.gpa0(m_curGpa0); //?? уточнить!!!
+            si.symbolAttributes.gpa1(m_curGpa1); //?? уточнить!!!
         } else if ((chr & 0xC0) == 0xC0 && (chr & 0x30) != 0x30) {
             // Character Attribute
             int cccc = (chr & 0x3C) >> 2;
-
             for (int j = 0; j < m_nLines; j++) {
+                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
                 if (j < m_undLine) {
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10));
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][0];
+                    sia.vsp( m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10)) );
+                    sia.lten( 0 );
                 } else if (j > m_undLine) {
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10));
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = 0;//cCharAttr[cccc][1][2];
+                    sia.vsp ( m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10)) );
+                    sia.lten( 0 );
                 } else {// j == _undLine
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp = (chr & 0x02) && (m_frameCount & 0x10);
-                    m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10));
+                    sia.vsp ( (chr & 0x02) && (m_frameCount & 0x10) );
+                    sia.lten ( m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10)) );
                 }
             }
-
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = chr & 0x01;
-//            _frame.symbols[m_curRow][i].symbolAttributes.gpa0 = chr & 0x04;
-//            _frame.symbols[m_curRow][i].symbolAttributes.gpa1 = chr & 0x08;
-
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
-
+            si.symbolAttributes.hglt(chr & 0x01);
+            si.symbolAttributes.rvv(m_curReverse);
+            si.symbolAttributes.gpa0(m_curGpa0);
+            si.symbolAttributes.gpa1(m_curGpa1);
         } else {
             // Special Control Characters
             if (chr & 0x02) {
@@ -265,28 +252,30 @@ void Crt8275::displayBuffer()
                 // End of Row (stop or not stop DMA)
                 isBlankedToTheEndOfRow = true;
             }
-            m_frame.symbols[m_curRow][i].symbolAttributes.rvv  = m_curReverse;
-            m_frame.symbols[m_curRow][i].symbolAttributes.hglt = m_curHighlight;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa0 = m_curGpa0;
-            m_frame.symbols[m_curRow][i].symbolAttributes.gpa1 = m_curGpa1;
+            si.symbolAttributes.rvv(m_curReverse);
+            si.symbolAttributes.hglt(m_curHighlight);
+            si.symbolAttributes.gpa0(m_curGpa0);
+            si.symbolAttributes.gpa1(m_curGpa1);
             for (int j = 0; j < m_nLines; j++) {
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].vsp  = true;
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[j].lten = false;
+                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
+                sia.vsp  ( true );
+                sia.lten ( false);
             }
             if (m_curUnderline)
-                m_frame.symbols[m_curRow][i].symbolLineAttributes[m_undLine].lten = true;
+                si.symbolLineAttributes[m_undLine].lten ( true);
         }
     }
     if (m_isDisplayStarted && (m_curRow == m_cursorRow) && (m_cursorPos < 80)) {
         if (m_cursorUnderline) {
-            m_frame.symbols[m_cursorRow][m_cursorPos].symbolLineAttributes[m_undLine].lten = !m_cursorBlinking || (m_frameCount & 0x08);
+            m_frame.symbols[m_cursorRow][m_cursorPos].symbolLineAttributes[m_undLine].lten ( !m_cursorBlinking || (m_frameCount & 0x08) );
         } else {
             if (!m_cursorBlinking || (m_frameCount & 0x08))
-                m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv = !(m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv);
+                m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv(
+                    !(m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv())
+                );
         }
     }
 }
-
 
 
 // AddressableDevice Methods Implemantation

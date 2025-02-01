@@ -26,43 +26,52 @@
 class Dma8257;
 class PlatformCore;
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
-/*enum CursorFormat
-{
-    CF_BLINKINGBLOCK = 0,
-    CF_BLINKINGUNDERLINE = 1,
-    CF_BLOCK = 2,
-    CF_UNDERLINE = 3
-};*/
-
-
-
-struct SymbolAttributes {
-    //bool vsp;    // video suppression (per symbol)
-    bool rvv;    // reverse video
-    bool hglt;   // highlight
-    bool gpa0;   // general purpose 1
-    bool gpa1;   // general purpose 2
+struct __packed SymbolAttributes {
+    uint8_t bits;
+    inline bool rvv (void) const { return bitRead(bits, 3); }   // reverse video
+    inline bool hglt(void) const { return bitRead(bits, 2); }   // highlight
+    inline bool gpa0(void) const { return bitRead(bits, 1); }   // general purpose 1
+    inline bool gpa1(void) const { return bitRead(bits, 0); }   // general purpose 2
+    inline void rvv (bool b) { bitWrite(bits, 3, b); }
+    inline void hglt(bool b) { bitWrite(bits, 2, b); }
+    inline void gpa0(bool b) { bitWrite(bits, 1, b); }
+    inline void gpa1(bool b) { bitWrite(bits, 0, b); }
+};
+/*
+struct __packed SymbolLineAttributes {
+    uint16_t bits;
+    inline  int lc  (void) const { return bits & 0b0011111111111111; }   // line counter
+    inline bool vsp (void) const { return bitRead(bits, 15); }   // video suppression
+    inline bool lten(void) const { return bitRead(bits, 14); }   // light enable
+    inline void lc  (int v) {
+        bits &= 0b1100000000000000;
+        bits |= v & 0b0011111111111111;
+    }
+    inline void vsp (bool b) { bitWrite(bits, 15, b); }
+    inline void lten(bool b) { bitWrite(bits, 14, b); }
+};
+*/
+struct __packed SymbolLineAttributes {
+    uint8_t bits;
+    inline bool vsp (void) const { return bitRead(bits, 1); }   // video suppression
+    inline bool lten(void) const { return bitRead(bits, 0); }   // light enable
+    inline void vsp (bool b) { bitWrite(bits, 1, b); }
+    inline void lten(bool b) { bitWrite(bits, 0, b); }
 };
 
-
-
-struct SymbolLineAttributes {
-    int lc;      // line counter
-    bool vsp;    // video suppression
-    bool lten;   // light enable
-};
-
-
-
-struct Symbol {
+struct __packed Symbol {
     uint8_t chr;
     SymbolAttributes symbolAttributes;
     SymbolLineAttributes symbolLineAttributes[16];
 };
 
 
-struct Frame {
+struct __packed Frame {
     int nRows;          // line number from top
     int nCharsPerRow;
     int nLines;

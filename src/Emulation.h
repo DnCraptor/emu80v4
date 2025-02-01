@@ -75,6 +75,7 @@ class Emulation : public ParentObject
         inline bool isDebuggerActive() {return m_debugReqCpu;}
 
         void processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
+        void activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys(EmuWindow* wnd);
         void draw();
         void sysReq(EmuWindow* wnd, SysReq sr);
@@ -139,6 +140,7 @@ class Emulation : public ParentObject
 
         std::list<EmuObject*> m_objectList;
         std::list<Platform*> m_platformList;
+        Platform* m_activePlatform = nullptr;
 
         uint64_t m_curClock = 0;
 

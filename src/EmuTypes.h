@@ -28,14 +28,7 @@ struct EmuPixelData
 {
     int width;
     int height;
-    uint32_t* pixelData;
-    double aspectRatio;
-
-    int prevWidth;
-    int prevHeight;
-    uint32_t* prevPixelData;
-    double prevAspectRatio;
-
+    uint8_t* pixelData;
     unsigned frameNo = 0;
 };
 

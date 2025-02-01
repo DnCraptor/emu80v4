@@ -63,12 +63,9 @@ Mikro80Renderer::Mikro80Renderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 320;
-    m_aspectRatio = m_prevAspectRatio = 12. / 13.;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[512 * 512]; // altRenderer requires more memory
-    m_prevPixelData = new uint32_t[512 * 512];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_bufSize = m_sizeX * m_sizeY;
+    m_pixelData = new uint8_t[512 * 512]; // altRenderer requires more memory
+    memset(m_pixelData, 0, m_bufSize);
 }
 
 
@@ -88,7 +85,7 @@ void Mikro80Renderer::primaryRenderFrame()
         for (int col = 0; col < 64; col++) {
             int addr = row * 64 + col;
             bool rvv = col != 63 && m_screenMemory[addr + 1] & 0x80;
-            uint8_t* fontPtr = m_font + (m_screenMemory[addr + 0x800] & 0x7f) * 8;
+            const uint8_t* fontPtr = m_font + (m_screenMemory[addr + 0x800] & 0x7f) * 8;
             for (int l = 0; l < 8; l++) {
                 uint8_t bt = fontPtr[l] << 2;
                 for (int pt = 0; pt < 6; pt++) {
@@ -96,13 +93,14 @@ void Mikro80Renderer::primaryRenderFrame()
                     if (rvv)
                         pixel = !pixel;
                     bt <<= 1;
-                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = pixel ? 0 : 0xC0C0C0;
+                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = pixel ? RGB(0) : RGB(0xC0C0C0);
                 }
             }
             for (int l = 8; l < 10; l++)
                 for (int pt = 0; pt < 6; pt++)
-                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = rvv ? 0xC0C0C0 : 0;
+                    m_pixelData[row * 384 * 10 + l * 384 + col * 6 + pt] = rvv ? RGB(0xC0C0C0) : RGB(0);
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -116,7 +114,7 @@ void Mikro80Renderer::altRenderFrame()
         for (int col = 0; col < 64; col++) {
             int addr = row * 64 + col;
             bool rvv = col != 63 && m_screenMemory[addr + 1] & 0x80;
-            uint8_t* fontPtr = m_altFont + m_screenMemory[addr + 0x800] * 16;
+            const uint8_t* fontPtr = m_altFont + m_screenMemory[addr + 0x800] * 16;
             for (int l = 0; l < 16; l++) {
                 uint8_t bt = fontPtr[l];
                 for (int pt = 0; pt < 8; pt++) {
@@ -124,10 +122,11 @@ void Mikro80Renderer::altRenderFrame()
                     if (!rvv)
                         pixel = !pixel;
                     bt <<= 1;
-                    m_pixelData[row * 512 * 16 + l * 512 + col * 8 + pt] = pixel ? 0 : 0xC0C0C0;
+                    m_pixelData[row * 512 * 16 + l * 512 + col * 8 + pt] = pixel ? RGB(0) : RGB(0xC0C0C0);
                 }
             }
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 

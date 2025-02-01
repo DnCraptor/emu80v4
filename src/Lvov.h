@@ -26,6 +26,7 @@
 #include "Keyboard.h"
 #include "CpuWaits.h"
 #include "FileLoader.h"
+#include "graphics.h"
 
 class GeneralSoundSource;
 class AddrSpaceMapper;
@@ -37,12 +38,12 @@ class LvovRenderer : public CrtRenderer, public IActive
         0x000000, 0x0000FF, 0x00FF00, 0xFF0000,
     };*/
 
-    const uint32_t lvovPalette[8] = {
-        0x000000, 0x0000FF, 0x00FF00, 0x00FFFF, 0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF
+    const uint8_t lvovPalette[8] = {
+        RGB(0x000000), RGB(0x0000FF), RGB(0x00FF00), RGB(0x00FFFF), RGB(0xFF0000), RGB(0xFF00FF), RGB(0xFFFF00), RGB(0xFFFFFF)
     };
 
-    const uint32_t lvovBwPalette[4] = {
-        0x000000, 0x555555, 0xAAAAAA, 0xFFFFFF
+    const uint8_t lvovBwPalette[4] = {
+        RGB(0x000000), RGB(0x555555), RGB(0xAAAAAA), RGB(0xFFFFFF)
     };
 
 public:

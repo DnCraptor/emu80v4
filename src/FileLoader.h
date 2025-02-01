@@ -27,6 +27,7 @@ class TapeRedirector;
 class FileLoader : public EmuObject
 {
     public:
+        virtual FileLoader* asFileLoader() override { return this; }
         //FileLoader();
         //~FileLoader();
 

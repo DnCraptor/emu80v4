@@ -25,6 +25,7 @@
 #include "Crt8275Renderer.h"
 #include "Emulation.h"
 #include "Crt8275.h"
+#include "graphics.h"
 
 using namespace std;
 
@@ -64,6 +65,7 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
     m_frameRate = m_crt->getFrameRate();
     m_freqMHz = g_emulation->getFrequency() / 1000000.0 / m_crt->getKDiv();
 
+    /**
     int scanLines = m_crt->getNLines() * (m_crt->getNRows() + m_crt->getVrRows());
 
     if (m_frameRate == 0.0)
@@ -81,6 +83,7 @@ void Crt8275Renderer::calcAspectRatio(int charWidth)
         // 480i (NTSC)
         m_aspectRatio = 480.0 * 9 / 704 / charWidth / m_freqMHz; // 480 * 13.5 * 4 / 704 / m_fntCharWidth / freqMHz / 3 / 2
     }
+    */
 }
 
 
@@ -136,8 +139,8 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
         visibleHeight = 240 * charHeight / m_crt->getNLines();
     }
 
-    int visibleDataSize = visibleWidth * visibleHeight;
-    uint32_t* visibleData = new uint32_t[visibleDataSize];
+    int visibleDataSize = (visibleWidth * visibleHeight) >> 3;
+    uint8_t* visibleData = new uint8_t[visibleDataSize];
 
     for (int i = 0; i < visibleDataSize; i++)
         visibleData[i] = 0;
@@ -165,16 +168,21 @@ void Crt8275Renderer::trimImage(int charWidth, int charHeight)
     if (visibleY + copyHeight > m_sizeY)
         copyHeight = m_sizeY - visibleY;
 
-    for (int i = 0; i < copyHeight; i++)
-        memcpy(visibleData + (i + dstY) * visibleWidth + dstX, m_pixelData + (visibleY + i) * m_sizeX + visibleX, copyWidth * sizeof(uint32_t));
+    for (int i = 0; i < copyHeight; i++) {
+        memcpy(
+            visibleData + (((i + dstY) * visibleWidth + dstX) >> 3),
+            m_pixelData + (((visibleY + i) * m_sizeX + visibleX) >> 3),
+            copyWidth >> 3
+        );
+    }
 
     delete[] m_pixelData;
     m_pixelData = visibleData;
     m_sizeX = visibleWidth;
     m_sizeY = visibleHeight;
-    m_dataSize = visibleWidth * visibleHeight;
+    m_dataSize = (visibleWidth * visibleHeight) >> 3;
     m_bufSize = m_dataSize;
-    m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
+///    m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
 
     m_cropX = visibleX;
     m_cropY = visibleY;
@@ -206,52 +214,56 @@ void Crt8275Renderer::primaryRenderFrame()
     int nChars = frame->nCharsPerRow;
 
     m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
     m_sizeY = nRows * nLines;
 
-    m_dataSize = nRows * nLines * nChars * m_fntCharWidth;
+    m_dataSize = (m_sizeY * m_sizeX) >> 3;
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
-        m_pixelData = new uint32_t [m_dataSize];
+        if (m_pixelData2)
+            delete[] m_pixelData2;
+        m_pixelData = new uint8_t [m_dataSize];
+        m_pixelData2 = new uint8_t [m_dataSize];
         m_bufSize = m_dataSize;
     }
-
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    memcpy(m_pixelData2, m_pixelData, m_dataSize);
+    memset(m_pixelData, 0, m_dataSize);
+    Crt1Bit rowPtr = { m_pixelData, 0 };
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        Crt1Bit chrPtr = rowPtr;
         bool curLten[16];
         memset(curLten, 0, sizeof(curLten));
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint32_t* linePtr = chrPtr;
+            Crt1Bit linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt;
+                hglt = symbol.symbolAttributes.hglt();
             else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt;
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
 
             bool gpa0, gpa1;
             if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0;
-                gpa1 = symbol.symbolAttributes.gpa1;
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
             }
             else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0;
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1;
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
             }
 
             bool rvv;
             if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv;
+                rvv = symbol.symbolAttributes.rvv();
             else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv;
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
 
             const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
-            uint32_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint32_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
 
             for (int ln = 0; ln < nLines; ln++) {
                 int lc;
@@ -260,13 +272,13 @@ void Crt8275Renderer::primaryRenderFrame()
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
 
-                bool vsp = symbol.symbolLineAttributes[ln].vsp;
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
 
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten;
+                    lten = symbol.symbolLineAttributes[ln].lten();
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten;
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
 
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 
@@ -277,21 +289,22 @@ void Crt8275Renderer::primaryRenderFrame()
                         bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
                         if (rvv && m_useRvv)
                             v = !v;
-                        linePtr[pt] = v ? fgColor : bgColor;
+                        linePtr.setBit(pt, v ? fgColor : bgColor);
                         fntLine <<= 1;
                     }
                     if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
                         curLten[ln] = true;
                 } else
                     customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
-                linePtr += nChars * m_fntCharWidth;
+                linePtr += m_sizeX;
             }
             chrPtr += m_fntCharWidth;
         }
-    rowPtr += nLines * nChars * m_fntCharWidth;
+        rowPtr += nLines * m_sizeX;
     }
 
-    trimImage(m_fntCharWidth, nLines);
+    if (!m_primaryRenderer) // do not push it from secondary
+        graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
 }
 
 
@@ -312,91 +325,86 @@ void Crt8275Renderer::altRenderFrame()
     else
         nLines = 8;
 
-    m_aspectRatio = m_aspectRatio * nLines / frame->nLines;
+///    m_aspectRatio = m_aspectRatio * nLines / frame->nLines;
 
     m_sizeX = nChars * 8;
     m_sizeY = nRows * nLines;
 
-    m_dataSize = nRows * nLines * nChars * 8;
+    m_dataSize = nRows * nLines * nChars;
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
-        m_pixelData = new uint32_t [m_dataSize];
+        m_pixelData = new uint8_t [m_dataSize];
         m_bufSize = m_dataSize;
     }
 
-    memset(m_pixelData, 0, m_dataSize * sizeof(uint32_t));
-    uint32_t* rowPtr = m_pixelData;
+    memset(m_pixelData, 0, m_dataSize);
+    Crt1Bit rowPtr = { m_pixelData, 0 };
 
     for (int row = 0; row < nRows; row++) {
-        uint32_t* chrPtr = rowPtr;
+        Crt1Bit chrPtr = rowPtr;
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            uint32_t* linePtr = chrPtr;
+            Crt1Bit linePtr = chrPtr;
 
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt;
+                hglt = symbol.symbolAttributes.hglt();
             else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt;
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
 
             bool gpa0, gpa1;
             if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0;
-                gpa1 = symbol.symbolAttributes.gpa1;
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
             }
             else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0;
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1;
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
             }
 
             bool rvv;
             if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv;
+                rvv = symbol.symbolAttributes.rvv();
             else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv;
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
 
-            bool vsp = symbol.symbolLineAttributes[1].vsp; // !!!
+            bool vsp = symbol.symbolLineAttributes[1].vsp(); // !!!
 
             const uint8_t* fntPtr = getAltFontPtr(gpa0, gpa1, hglt);
             if (nLines == 12)
                 fntPtr += 8;
             else if (nLines == 16)
                 fntPtr += (8+12);
-            uint32_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint32_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
 
 
             for (int ln = 0; ln < nLines; ln++) {
                 uint8_t fntLine = fntPtr[symbol.chr * (8+12+16) + ln];
-
-
                 bool lten = false;
-                //bool rvv2 = rvv;
 
                 if (frame->cursorUnderline && frame->cursorRow == row && frame->cursorPos + (m_ltenOffset ? -1 : 0) == chr) {
                     if (ln >= nLines - 2 && (!frame->cursorBlinking || frame->frameCount % 20 < 12 ))
                         lten = true;
-                } //else if (!frame->cursorUnderline && frame->cursorRow == row && frame->cursorPos + (m_rvvOffset ? -1 : 0) == chr) {
-                    //if (!frame->cursorBlinking || (frame->frameCount & 0x10) )
-                        //rvv2 = !rvv2;
-                //}
+                }
 
                 for (int pt = 0; pt < 8; pt++) {
                     bool v = lten || (!vsp && (fntLine & 0x80));
                     if (rvv && m_useRvv)
                         v = !v;
-                    linePtr[pt] = v ? fgColor : bgColor;
+                    linePtr.setBit(pt, v ? fgColor : bgColor);
                     fntLine <<= 1;
                 }
                 linePtr += nChars * 8;
             }
             chrPtr += 8;
         }
-    rowPtr += nLines * nChars * 8;
+        rowPtr += nLines * nChars * 8;
     }
 
-    trimImage(8, nLines);
+///    trimImage(8, nLines);
+    graphics_set_1bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -434,10 +442,10 @@ const char* Crt8275Renderer::getTextScreen()
         for (int x = 0; x < w; x++) {
             Symbol symbol = frame->symbols[y][x];
             uint8_t chr = symbol.chr;
-            bool gpa0 = symbol.symbolAttributes.gpa0;
-            bool gpa1 = symbol.symbolAttributes.gpa1;
-            bool hglt = symbol.symbolAttributes.hglt;
-            bool vsp = symbol.symbolLineAttributes[1].vsp;
+            bool gpa0 = symbol.symbolAttributes.gpa0();
+            bool gpa1 = symbol.symbolAttributes.gpa1();
+            bool hglt = symbol.symbolAttributes.hglt();
+            bool vsp = symbol.symbolLineAttributes[1].vsp();
 
             wchar_t wchr = getUnicodeSymbol(chr, gpa0, gpa1, hglt);
 

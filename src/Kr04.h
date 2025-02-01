@@ -102,6 +102,9 @@ class Kr04Renderer : public Crt8275Renderer
 
         void setHiRes(bool hiRes) {m_hiRes = hiRes;}
 
+    protected:
+        void primaryRenderFrame() override;
+
     private:
         const uint8_t c_d46[32] = {
             0x35, 0x6F, 0x35, 0x6F, 0x7E, 0x7E, 0x7E, 0x7E, 0x37, 0x7B, 0x6D, 0x7E, 0x37, 0x7B, 0x6D, 0x7E,
@@ -114,7 +117,7 @@ class Kr04Renderer : public Crt8275Renderer
 
         void setColorMode(Kr04ColorMode colorMode);
 
-        void customDrawSymbolLine(uint32_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
+        void customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
 
         AddrSpace* m_memory = nullptr   ;

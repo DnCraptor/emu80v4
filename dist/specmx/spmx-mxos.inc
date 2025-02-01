@@ -52,15 +52,15 @@ platform.codePage = rk
 Ram ram0 = 0x9000
 SpecVideoRam videoRam = 0x3000
 Ram upperRam = 0x3FC0
-Ram ramDisk1 = 0xFFC0
+SRam ramDisk1 = 0xFFC0
 ifndef RAMDISK_1BANK
-  Ram ramDisk2 = 0xFFC0
-  Ram ramDisk3 = 0xFFC0
-  Ram ramDisk4 = 0xFFC0
-  Ram ramDisk5 = 0xFFC0
-  Ram ramDisk6 = 0xFFC0
-  Ram ramDisk7 = 0xFFC0
-  Ram ramDisk8 = 0xFFC0
+  SRam ramDisk2 = 0xFFC0
+  SRam ramDisk3 = 0xFFC0
+  SRam ramDisk4 = 0xFFC0
+  SRam ramDisk5 = 0xFFC0
+  SRam ramDisk6 = 0xFFC0
+  SRam ramDisk7 = 0xFFC0
+  SRam ramDisk8 = 0xFFC0
 endif
 Ram sysRam = 0x0020
 

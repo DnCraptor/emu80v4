@@ -25,6 +25,73 @@
 
 class Crt8275;
 
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+
+typedef struct {
+    uint8_t* ptr;
+    uint8_t bit;
+    inline void operator +=(int a) {
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        ptr = (uint8_t*)(p8 >> 3);
+        bit = (p8 & 7);
+    }
+    inline void setBit(uint8_t b) { /// TODO: b - bool
+        bitWrite(*ptr, bit, b);
+    }
+    inline bool getBit(int a) {
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        return bitRead(*p, bi);
+    }
+    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
+        uint64_t p8 = (uint32_t)ptr;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b);
+    }
+} Crt1Bit;
+
+
+typedef struct {
+    uint8_t* ptr1; // R
+    uint8_t* ptr2; // G
+    uint8_t* ptr3; // B
+    uint8_t bit;
+    inline void operator +=(int a) {
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        size_t shift = p - ptr1;
+        ptr1 = p;
+        ptr2 += shift;
+        ptr3 += shift;
+        bit = (p8 & 7);
+    }
+    inline void set3Bit(uint8_t b) { // 0bRGB
+        bitWrite(*ptr1, bit, b & 1);        // R
+        bitWrite(*ptr2, bit, (b >> 1) & 1); // G
+        bitWrite(*ptr3, bit, (b >> 2) & 1); // B
+    }
+    inline void set3Bit(int a, uint8_t b) { // b - 0bRGB
+        uint64_t p8 = (uint32_t)ptr1;
+        p8 = (p8 << 3) + bit + a;
+        uint8_t* p = (uint8_t*)(p8 >> 3);
+        uint8_t bi = p8 & 7;
+        bitWrite(*p, bi, b & 1); // R
+        size_t shift = p - ptr1;
+        p = ptr2 + shift;
+        bitWrite(*p, bi, (b >> 1) & 1); // G
+        p = ptr3 + shift;
+        bitWrite(*p, bi, (b >> 2) & 1); // B
+    }
+} Crt3Bit;
 
 class Crt8275Renderer : public TextCrtRenderer
 {
@@ -44,18 +111,23 @@ class Crt8275Renderer : public TextCrtRenderer
 
         void setFontSetNum(int fontNum) {m_fontNumber = fontNum;}
 
+        Crt8275* m_crt = nullptr;
+        bool m_ltenOffset;
+        bool m_hgltOffset;
+        bool m_rvvOffset;
+        bool m_gpaOffset;
+        bool m_dashedLten = false;
+
     protected:
         void toggleCropping() override;
         void setCropping(bool cropping) override;
 
         virtual const uint8_t* getCurFontPtr(bool, bool, bool) {return nullptr;}
         virtual const uint8_t* getAltFontPtr(bool, bool, bool) {return nullptr;}
-        virtual uint32_t getCurFgColor(bool, bool, bool) {return 0xFFFFFF;}
-        virtual uint32_t getCurBgColor(bool, bool, bool) {return 0x000000;}
-        virtual void customDrawSymbolLine(uint32_t*, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
+        virtual uint8_t getCurFgColor(bool, bool, bool) {return 0xFF;}
+        virtual uint8_t getCurBgColor(bool, bool, bool) {return 0x00;}
+        virtual void customDrawSymbolLine(Crt1Bit&, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
-
-        Crt8275* m_crt = nullptr;
 
         int m_fontNumber = 0;
 
@@ -65,23 +137,16 @@ class Crt8275Renderer : public TextCrtRenderer
 
         bool m_customDraw = false;
 
-        bool m_ltenOffset;
-        bool m_rvvOffset;
-        bool m_hgltOffset;
-        bool m_gpaOffset;
-
         bool m_useRvv;
-        bool m_dashedLten = false;
 
         int m_visibleOffsetX = 0;
-
-        int m_dataSize = 0;
 
         bool isRasterPresent() override;
 
         void primaryRenderFrame() override;
         void altRenderFrame() override;
 
+        void calcAspectRatio(int charWidth);
     private:
         double m_freqMHz;
         double m_frameRate;
@@ -91,7 +156,6 @@ class Crt8275Renderer : public TextCrtRenderer
         int m_cropY = 0;
 
         std::string getCrtMode();
-        void calcAspectRatio(int charWidth);
         void trimImage(int charWidth, int charHeight);
 };
 

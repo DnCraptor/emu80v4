@@ -26,6 +26,7 @@
 #include "Keyboard.h"
 #include "CpuWaits.h"
 #include "Memory.h"
+#include "graphics.h"
 
 class AddrSpaceMapper;
 class Ram;
@@ -70,18 +71,18 @@ class Pk8000Renderer : public CrtRenderer, public IActive
         static EmuObject* create(const EmuValuesList&) {return new Pk8000Renderer();}
 
     private:
-        const uint32_t c_pk8000ColorPalette[16] = {
-            0x000000, 0x000000, 0x00A800, 0x00FF00,
-            0x0000A8, 0x0000FF, 0x00A8A8, 0x00FFFF,
-            0xA80000, 0xFF0000, 0xA8A800, 0xFFFF00,
-            0xA800A8, 0xFF00FF, 0xA8A8A8, 0xFFFFFF
+        const uint8_t c_pk8000ColorPalette[16] = {
+            RGB(0x000000), RGB(0x000000), RGB(0x00A800), RGB(0x00FF00),
+            RGB(0x0000A8), RGB(0x0000FF), RGB(0x00A8A8), RGB(0x00FFFF),
+            RGB(0xA80000), RGB(0xFF0000), RGB(0xA8A800), RGB(0xFFFF00),
+            RGB(0xA800A8), RGB(0xFF00FF), RGB(0xA8A8A8), RGB(0xFFFFFF)
         };
 
-        const uint32_t c_pk8000BwPalette[16] = {
-            0x000000, 0x222222, 0x444444, 0x656565,
-            0x878787, 0xA9A9A9, 0xCBCBCB, 0xEDEDED,
-            0x000000, 0x242424, 0x494949, 0x6D6D6D,
-            0x929292, 0xB6B6B6, 0xDBDBDB, 0xFFFFFF
+        const uint8_t c_pk8000BwPalette[16] = {
+            RGB(0x000000), RGB(0x222222), RGB(0x444444), RGB(0x656565),
+            RGB(0x878787), RGB(0xA9A9A9), RGB(0xCBCBCB), RGB(0xEDEDED),
+            RGB(0x000000), RGB(0x242424), RGB(0x494949), RGB(0x6D6D6D),
+            RGB(0x929292), RGB(0xB6B6B6), RGB(0xDBDBDB), RGB(0xFFFFFF)
         };
 
         enum BlankingState {
@@ -100,8 +101,8 @@ class Pk8000Renderer : public CrtRenderer, public IActive
         uint16_t m_sgBase = 0;
         uint16_t m_grBase = 0;
         uint16_t m_colBase = 0;
-        uint32_t m_fgColor = 0xC0C0C0;
-        uint32_t m_bgColor = 0x000000;
+        uint8_t m_fgColor = RGB(0xC0C0C0);
+        uint8_t m_bgColor = RGB(0x000000);
         uint8_t m_colorRegs[32];
         bool m_showBorder = false;
         bool m_colorMode = true;
@@ -110,7 +111,7 @@ class Pk8000Renderer : public CrtRenderer, public IActive
         unsigned m_ticksPerPixel;
         unsigned m_nextLineBank = 0;
         uint16_t m_nextLineSgBase = 0;
-        const uint32_t* m_palette = c_pk8000ColorPalette;
+        const uint8_t* m_palette = c_pk8000ColorPalette;
 
         uint64_t m_ticksPerScanLineActiveArea;   // тактов на активную часть скан-линии
         uint64_t m_ticksPerScanLineSideBorder;   // тактов на боковой бордюр скан-линии
@@ -119,7 +120,7 @@ class Pk8000Renderer : public CrtRenderer, public IActive
         int m_curLine = 0;
         int m_offsetX = 0;
         int m_offsetY = 0;
-        uint32_t* m_frameBuf;
+        uint8_t* m_frameBuf;
         void prepareFrame();
         void renderLine(int nLine);
 
@@ -128,8 +129,8 @@ class Pk8000Renderer : public CrtRenderer, public IActive
         uint64_t m_curScanlineClock;
         int m_curScanlinePixel = 0;
         int m_curBlankingPixel = 0;
-        uint32_t m_bgScanlinePixels[320];
-        uint32_t m_fgScanlinePixels[320];
+        uint8_t m_bgScanlinePixels[320];
+        uint8_t m_fgScanlinePixels[320];
         BlankingState m_blankingPixels[320];
 };
 

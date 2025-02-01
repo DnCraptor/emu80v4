@@ -235,8 +235,11 @@ void VectorCore::reset()
 
 void VectorCore::draw()
 {
-    m_window->drawFrame(m_crtRenderer->getPixelData());
-    m_window->endDraw();
+///    EmuPixelData pd = m_crtRenderer->getPixelData();
+///    emuLog << "pd: " << pd.width << "x" << pd.height << "\n"; // 626x288
+///    graphics_set_buffer(pd.pixelData, pd.width, pd.height);
+///    m_window->drawFrame(pd);
+///    m_window->endDraw();
 }
 
 
@@ -297,12 +300,8 @@ VectorRenderer::VectorRenderer()
 
     m_sizeX = m_prevSizeX = 512;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 5184. / 704 / pixelFreq;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_bufSize = m_sizeX * m_sizeY;
+    m_pixelData = new uint8_t[maxBufSize];
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
     m_curScanlineClock = m_curClock;
@@ -310,10 +309,10 @@ VectorRenderer::VectorRenderer()
     m_curFramePixel = 0;
     m_curFrameClock = m_curClock;
 
-    m_frameBuf = new uint32_t[maxBufSize];
+    m_frameBuf = m_pixelData; ///new uint8_t[maxBufSize];
 
-    memset(m_colorPalette, 0, sizeof(uint32_t) * 16);
-    memset(m_bwPalette, 0, sizeof(uint32_t) * 16);
+    memset(m_colorPalette, 0, 16);
+    memset(m_bwPalette, 0, 16);
     m_palette = m_colorPalette;
 
     prepareFrame(); // prepare 1st frame dimensions
@@ -322,7 +321,8 @@ VectorRenderer::VectorRenderer()
 
 VectorRenderer::~VectorRenderer()
 {
-    delete[] m_frameBuf;
+///    if (m_frameBuf)
+///        delete[] m_frameBuf;
 }
 
 
@@ -400,12 +400,12 @@ void VectorRenderer::setLineOffset(uint8_t lineOffset)
 void VectorRenderer::setPaletteColor(uint8_t color)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 27);
-
-    m_colorPalette[m_lastColor] = ((color & 0x7) << 21) | ((color & 0x7) << 18) | ((color & 0x6) << 15) |
-                                  ((color & 0x38) << 10) | ((color & 0x38) << 7) | ((color & 0x30) << 4) |
-                                  (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
-    uint8_t bw = c_bwMap[color];
-    m_bwPalette[m_lastColor] = (bw << 16) | (bw << 8) | bw;
+    register uint32_t c = ((color & 0x7) << 21) | ((color & 0x7) << 18) | ((color & 0x6) << 15) |
+                          ((color & 0x38) << 10) | ((color & 0x38) << 7) | ((color & 0x30) << 4) |
+                          (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
+    m_colorPalette[m_lastColor] = RGB888(((c >> 16) & 0xFF), ((c >> 8) & 0xFF), (c & 0xFF));
+    register uint8_t bw = c_bwMap[color];
+    m_bwPalette[m_lastColor] = RGB888((bw << 16), (bw << 8), bw);
 }
 
 
@@ -427,8 +427,8 @@ void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
         return;
     }
 
-    uint32_t* linePtr = m_frameBuf + (nLine - 24) * 626;
-    uint32_t* ptr;
+    uint8_t* linePtr = m_frameBuf + (nLine - 24) * 626;
+    uint8_t* ptr;
 
     if (nLine < 40 || nLine >= 296) {
         // upper and lower borders
@@ -480,18 +480,20 @@ void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
 
 void VectorRenderer::renderFrame()
 {
+    /**
     if (m_showBorder)
-        memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
     else {
-        uint32_t* ptr = m_frameBuf + 626 * 16 + 57;
+        uint8_t* ptr = m_frameBuf + 626 * 16 + 57;
         for (int i = 0; i < 256 * 512; i += 512) {
-            memcpy(m_pixelData + i, ptr, 512 * sizeof(uint32_t));
+            memcpy(m_pixelData + i, ptr, 512);
             ptr += 626;
         }
     }
-
+*/
     swapBuffers();
     prepareFrame();
+    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
 }
 
 
@@ -500,11 +502,11 @@ void VectorRenderer::prepareFrame()
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
-        m_aspectRatio = 576.0 * 9 / 704 / 12;
+///        m_aspectRatio = 576.0 * 9 / 704 / 12;
     } else {
         m_sizeX = 626;
         m_sizeY = 288;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
+///        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     }
 }
 
@@ -631,20 +633,10 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         return true;
     }
 
-    int fileSize;
-    uint8_t* buf = palReadFile(fileName, fileSize, false);
-    if (!buf)
+    FIL f;
+    if (f_open(&f, fileName.c_str(), FA_READ) != FR_OK)
         return false;
-
-    /*if (fileSize > 32768 - 256) {  // review
-        delete[] buf;
-        return false;
-    }*/
-
     bool basFile = false;
-
-    uint8_t* ptr = buf;
-
     uint16_t begAddr = 0x100;
 
     // check for "r0m"
@@ -667,10 +659,13 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     for (unsigned i = 0; i < 0x100; i++)
         m_as->writeByte(i, 0x00);
 
+    UINT br;
     if (!basFile)
-        for (int i = 0; i < fileSize; i++) {
+        for (int i = 0; i < f_size(&f); ++i) {
             uint16_t addr = begAddr + i;
-            m_as->writeByte(addr, *ptr++);
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(addr, v);
             if (!run && (addr & 0xFF) == 0) {
                 // paint block
                 int block = addr >> 8;
@@ -680,20 +675,24 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             }
         }
     else {
+        int fileSize = f_size(&f);
+        uint32_t v;
+        f_read(&f, &v, 4, &br);
         // check for CAS
-        if (fileSize >= 14 && ptr[0] == 0xD3 && ptr[1] == 0xD3 && ptr[2] == 0xD3 && ptr[3] == 0xD3) {
+        if (fileSize >= 14 && v == 0xD3D3D3D3) {
             // Cas file
-            while (fileSize && *ptr != 0xE6) {
-                ptr++;
+            while (fileSize) {
+                uint8_t v;
+                f_read(&f, &v, 1, &br);
+                if (v == 0xE6) break;
                 fileSize--;
             }
 
             if (fileSize < 7) {
-                delete[] buf;
+                f_close(&f);
                 return false;
             }
-
-            ptr += 5;
+            f_lseek(&f, f_tell(&f) + 5);
             fileSize -= 5;
         }
 
@@ -710,9 +709,15 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         uint16_t addr, nextAddr;
         addr = nextAddr = 0x4301;
         for(;;) {
-            if (addr == nextAddr + 1)
-                nextAddr = (ptr[0] << 8) | ptr[-1];
-            m_as->writeByte(addr++, *ptr++);
+            if (addr == nextAddr + 1) {
+                f_lseek(&f, f_tell(&f) - 1);
+                f_read(&f, &nextAddr, 2, &br); // TODO: ensure order of bytes
+                ///nextAddr = (ptr[0] << 8) | ptr[-1];
+                f_lseek(&f, f_tell(&f) - 1);
+            }
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(addr++, v);
             fileSize--;
             if (nextAddr == 0 || fileSize == 0 || addr >= 0x7EFF)
                 break;
@@ -723,7 +728,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         m_as->writeByte(0x4048, addr >> 8);
         m_as->writeByte(0x4049, addr & 0xFF);
         m_as->writeByte(0x404A, addr >> 8);
-        delete[] buf;
+        f_close(&f);
 
         if (run) {
             m_as->writeByte(0x3DBF, 'R');
@@ -739,7 +744,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     }
 
 
-    delete[] buf;
+    f_close(&f);
 
     if (run) {
         as->disableRom();

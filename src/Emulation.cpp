@@ -19,6 +19,9 @@
 #include <sstream>
 #include <algorithm>
 
+#include <hardware/watchdog.h>
+#include <pico/stdlib.h>
+
 #include "Pal.h"
 
 #include "Globals.h"
@@ -34,9 +37,9 @@
 #include "PrnWriter.h"
 #include "FileLoader.h"
 #include "EmuCalls.h"
+#include "Shortcuts.h"
 
 using namespace std;
-
 
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
@@ -72,33 +75,40 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     getConfig()->updateConfig();
 
     if (!m_platformList.empty()) {
+        emuLog << "!m_platformList.empty()\n";
         checkPlatforms();
         return;
     }
 
     // Platforms was not created via command line or run file (SDL version)
     string defPlatformName = palGetDefaultPlatform();
+    emuLog << "defPlatformName: " << defPlatformName << "\n";
     if (!defPlatformName.empty()) {
         // default platform was stored in Qt options file
-        if (runPlatform(defPlatformName))
+        emuLog << "runPlatform: " << defPlatformName << "\n";
+        if (runPlatform(defPlatformName)) {
+            emuLog << "runPlatform: " << defPlatformName << " DONE\n";
             return;
+        }
     }
 
     // first run (SDL or Qt), no default platform
     PlatformInfo pi;
     bool newWnd;
     if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
+        emuLog << "PlatformName: '" << pi.configFileName << "' " << pi.objName << "\n";
         Platform* platform = new Platform(pi.configFileName, pi.objName);
         m_platformList.push_back(platform);
+        emuLog << "getConfig()->updateConfig()\n";
         getConfig()->updateConfig();
-        //m_activePlatform = platform;
+        m_activePlatform = platform;
     } else {
+        emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
         palRequestForQuit();
         return;
     }
-
+    emuLog << "Emulation::Emulation DONE\n";
 }
-
 
 Emulation::~Emulation()
 {
@@ -240,12 +250,13 @@ bool Emulation::runPlatform(const string& platformName)
     const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
     for (unsigned i = 0; i < platformVector->size(); i++)
         if ((*platformVector)[i].objName == platformName) {
-            Platform* newPlatform = new Platform((*platformVector)[i].configFileName, platformName);
-            if (!newPlatform->getWindow()) {
-                delete newPlatform;
+            m_activePlatform = new Platform((*platformVector)[i].configFileName, platformName);
+            if (!m_activePlatform->getWindow()) {
+                delete m_activePlatform;
+                m_activePlatform = nullptr;
                 return false;
             }
-            addChild(newPlatform);
+            addChild(m_activePlatform);
             return true;
         }
     return false;
@@ -303,13 +314,17 @@ EmuObject* Emulation::findObject(string name)
 
 void Emulation::addChild(EmuObject* child)
 {
-    if (Platform* pl = dynamic_cast<Platform*>(child))
-        m_platformList.push_back(pl);
+    if (child)
+        if (Platform* pl = child->asPlatform())
+            m_platformList.push_back(pl);
 };
 
+/// TODO: .h
+extern void processKeys();
 
 void Emulation::exec(uint64_t ticks, bool forced)
 {
+    processKeys();
     if (m_isPaused)
         return;
 
@@ -342,11 +357,13 @@ void Emulation::exec(uint64_t ticks, bool forced)
     if (!forced && m_debugReqCpu) {
         m_clockOffset = 0;
         // show debugger
+        /**
         for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
         if ((*it)->getCpu() == m_debugReqCpu) {
             (*it)->showDebugger();
             break;
         }
+        */
     }
 
 }
@@ -360,10 +377,9 @@ void Emulation::screenUpdateReq()
 
 void Emulation::draw()
 {
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
-        (*it)->draw();
-    }
-
+///    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
+///        (*it)->draw();
+///    }
     m_scrUpdateReq = false;
     m_timeAfterLastDraw = 0;
 }
@@ -379,9 +395,32 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
         wnd->processKey(keyCode, isPressed);
 }
 
+static bool isAltPressed = false;
+static bool isShiftPressed = false;
+static bool isCtrlPressed = false;
+void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
+#if LOG
+    emuLog << to_string(keyCode) << " / " << isPressed << "\n";
+#endif
+    if (m_activePlatform) {
+        if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT) isShiftPressed = isPressed;
+        else if (keyCode == PK_LALT || keyCode == PK_RALT) isAltPressed = isPressed;
+        else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL) isCtrlPressed = isPressed;
+        if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
+            watchdog_enable(100, true);
+            while(true) sleep_ms(20);
+        }
+        SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
+        if (sr) m_activePlatform->sysReq(sr);
+        else m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+    }
+}
 
 void Emulation::resetKeys(EmuWindow* wnd)
 {
+    isAltPressed = false;
+    isShiftPressed = false;
+    isCtrlPressed = false;
     Platform* platform = platformByWindow(wnd);
     if (platform)
         platform->resetKeys();
@@ -542,12 +581,11 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
     }
 }
 
-
 void Emulation::mainLoopCycle()
 {
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
-
+/**
     if (m_scrUpdateReq) {
         if (m_fpsLimit == 0 || m_timeAfterLastDraw > palGetCounterFreq() / m_fpsLimit) {
             draw();
@@ -558,12 +596,12 @@ void Emulation::mainLoopCycle()
             draw();
         }
     }
-
+*/
     m_sysClock = palGetCounter();
     unsigned dt = m_sysClock - m_prevSysClock;
     m_timeAfterLastDraw += dt;
 
-    // provide at least 20 fps when CPU power is not enougt to emulate at 100% speed
+    // provide at least 20 fps when CPU power is not enough to emulate at 100% speed
     if (dt > palGetCounterFreq() / 20) // 1/20 s
         dt = palGetCounterFreq() / 20;
 

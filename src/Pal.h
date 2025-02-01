@@ -34,6 +34,10 @@
 #include "lite/litePal.h"
 #endif // PAL_LITE
 
+#ifdef PORT_VERSION
+#include "pico/picoPal.h"
+#endif // PORT_VERSION
+
 #ifdef PAL_WASM
 #include "wasm/wasmPal.h"
 #endif // PAL_WASM

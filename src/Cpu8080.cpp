@@ -1721,18 +1721,10 @@ Cpu8080::Cpu8080() {
     //reset();
 }
 
-
-/*void Cpu8080::exec(int nCmds)
-{
-    for (int i = 0; i < nCmds; i++)
-        i8080_execute(RD_BYTE(PC++));
-}*/
-
-
 void Cpu8080::operate() {
     if (!m_hooksDisabled) {
         bool retFlag = false;
-        list<CpuHook*>* hookList = m_hookArray[PC];
+        list<CpuHook*>* hookList = m_hooksMap[PC];
         if (hookList) {
             for (auto it = hookList->begin(); it != hookList->end(); it++)
                 retFlag = retFlag || (*it)->hookProc();
@@ -1743,18 +1735,16 @@ void Cpu8080::operate() {
 
     if (m_waits) {
         int tag;
-        //int opcode = m_addrSpace->readByteEx(PC++, tag);
-        //int clocks = i8080_execute(opcode);
         int opcode = m_addrSpace->readByteEx(PC, tag);
         int clocks = i8080_execute(RD_BYTE(PC++));
         m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(tag, opcode, clocks));
     } else
         m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
 
-    if (m_stepReq) {
-        m_stepReq = false;
-        g_emulation->debugRequest(this);
-    }
+///    if (m_stepReq) {
+///        m_stepReq = false;
+///        g_emulation->debugRequest(this);
+///    }
 }
 
 

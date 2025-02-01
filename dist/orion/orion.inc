@@ -55,14 +55,14 @@ platform.fastResetCpuTicks = 3000000
 
 Ram ram0 = 0xF000
 Ram ram1 = 0xF000
-Ram ram2 = 0xF000
-Ram ram3 = 0xF000
+SRam ram2 = 0xF000
+SRam ram3 = 0xF000
 
 ifdef RAM_512K
-  Ram ram4 = 0xF000
-  Ram ram5 = 0xF000
-  Ram ram6 = 0xF000
-  Ram ram7 = 0xF000
+  SRam ram4 = 0xF000
+  SRam ram5 = 0xF000
+  SRam ram6 = 0xF000
+  SRam ram7 = 0xF000
 endif
 
 Ram sysRam = 0x400
@@ -227,7 +227,7 @@ ifdef USE_TAPE
 
   TapeRedirector tapeOutFile
   tapeOutFile.mode = "w"
-  tapeOutFile.filter = "Файлы Ориона (*.rko)|*.rko|Файлы RK-совместимых ПК (*.rk)|*.rk|Файлы BSM (*.bsm)|*.bsm|Файлы EDM (*.edm)|*.edm|Все файлы (*.*)|*"
+  tapeOutFile.filter = ".rko"
 
   RkTapeOutHook tapeOutHook = @F80C_ADDR
   tapeOutHook.tapeRedirector = &tapeOutFile

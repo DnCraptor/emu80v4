@@ -57,18 +57,21 @@ class Rk86Renderer : public Crt8275Renderer
 
         static EmuObject* create(const EmuValuesList&) {return new Rk86Renderer();}
 
+        void primaryRenderFrame() override;
+
     protected:
         enum Rk86ColorMode {
             RCM_MONO_ORIG,
             RCM_MONO,
             RCM_COLOR1,
-            RCM_COLOR2
+            RCM_COLOR2,
+            RCM_COLOR3
         };
 
         const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         const uint8_t* getAltFontPtr(bool gpa0, bool gpa1, bool hglt) override;
-        uint32_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
-        uint32_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
+        uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
+        uint8_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
         Rk86ColorMode m_colorMode = RCM_COLOR1;
 
@@ -84,7 +87,7 @@ class RkPixeltronRenderer : public Crt8275Renderer
         static EmuObject* create(const EmuValuesList&) {return new RkPixeltronRenderer();}
 
     protected:
-        void customDrawSymbolLine(uint32_t* linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
+        void customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
 };
 
 #endif // RK86_H

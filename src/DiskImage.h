@@ -30,6 +30,7 @@ const int DISKIMAGE_NOTIFY_FILECLOSED = 2;
 class DiskImage : public EmuObject
 {
 public:
+    virtual DiskImage* asDiskImage() override { return this; }
     DiskImage();
     virtual ~DiskImage();
 

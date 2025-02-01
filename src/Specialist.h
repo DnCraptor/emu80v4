@@ -26,6 +26,7 @@
 #include "Ppi8255Circuit.h"
 #include "FileLoader.h"
 #include "Pit8253Sound.h"
+#include "graphics.h"
 
 class Fdc1793;
 class AddrSpaceMapper;
@@ -100,20 +101,32 @@ class SpecRenderer : public CrtRenderer, public IActive
         SCM_MX // 16-color MX mode
     };
 
-    const uint32_t spec4ColorPalette[4] = {
-        0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF,
+    const uint8_t spec4ColorPalette[4] = {
+        RGB888(0xFF, 0xFF, 0xFF), RGB888(0xFF, 0, 0), RGB888(0, 0xFF, 0), RGB888(0, 0, 0xFF)
     };
 
-    const uint32_t spec8ColorPalette[8] = {
-        0xFFFFFF, 0xFFFF00, 0xFF00FF, 0xFF0000,
-        0x00FFFF, 0x00FF00, 0x0000FF, 0x000000
+    const uint8_t spec8ColorPalette[8] = {
+        RGB888(0xFF, 0xFF, 0xFF), RGB888(0xFF, 0xFF, 0), RGB888(0xFF, 0, 0xFF), RGB888(0xFF, 0, 0),
+        RGB888(0, 0xFF, 0xFF), RGB888(0, 0xFF, 0), RGB888(0, 0, 0xFF), RGB888(0, 0, 0)
     };
 
-    const uint32_t spec16ColorPalette[16] = {
-        0x000000, 0x0000C0, 0x00C000, 0x00C0C0,
-        0xC00000, 0xC000C0, 0xC0C000, 0xC0C0C0,
-        0x808080, 0x0000FF, 0x00FF00, 0x00FFFF,
-        0xFF0000, 0xFF00FF, 0xFFFF00, 0xFFFFFF
+    const uint8_t spec16ColorPalette[16] = {
+        0b000000, // black
+        0b000010, // blue
+        0b001000, // green
+        0b001010, // gb
+        0b100000, // r
+        0b100010, // rb
+        0b010100, // r-g-
+        0b101010, // rgb
+        0b010101, // grey
+        0b000011, // l blue
+        0b001100, // l green
+        0b001111, // l gb
+        0b110000, // l r
+        0b110011, // l rb
+        0b111100, // l rg
+        0b111111  // l rgb
     };
 
     public:

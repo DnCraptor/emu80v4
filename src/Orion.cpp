@@ -72,13 +72,10 @@ OrionRenderer::OrionRenderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 10;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
+    m_bufSize = m_sizeX * m_sizeY;
     int maxBufSize = 521 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
 }
 
 
@@ -116,15 +113,13 @@ void OrionRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 521;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 76;
         offsetY = 5;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 384;
         m_sizeY = 256;
         offsetX = offsetY = 0;
-        m_aspectRatio = 576.0 * 9 / 704 / 10;
     }
 
     int offset = offsetY * m_sizeX + offsetX;
@@ -167,6 +162,7 @@ void OrionRenderer::renderFrame()
                     }
                 }
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -360,76 +356,84 @@ bool OrionFddQueryRegister::setProperty(const string& propertyName, const EmuVal
     return false;
 }
 
+#include "ff.h"
 
 bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
 {
-    int fileSize;
-    uint8_t* buf = palReadFile(fileName, fileSize, false);
-    if (!buf)
+    FIL f;
+    if (FR_OK != f_open(&f, fileName.c_str(), FA_READ))
         return false;
 
-    if (fileSize < 16) {
-        delete[] buf;
+    if (f_size(&f) < 16) {
+        f_close(&f);
         return false;
     }
-
-    uint8_t* ptr = buf;
-
+    char p16[16];
+    UINT br;
+    f_read(&f, p16, 16, &br);
     int bruOffset = 0;
-    int len = (ptr[0x0b] << 8) | ptr[0x0a];;
+    int len = (p16[0x0b] << 8) | p16[0x0a];;
 
-    if (!memcmp(ptr, "Orion-128 file\r\n", 16)) {
+    if (!memcmp(p16, "Orion-128 file\r\n", 16)) {
         // ORI file
         bruOffset = 16;
+        f_lseek(&f, 0);
     } else if (len == 0)
         // RKO file
         bruOffset = 0x4d;
 
+    int fileSize = f_size(&f);
     if (bruOffset != 0) {
         if (fileSize < bruOffset + 16) {
-            delete[] buf;
+            f_close(&f);
             return false;
         }
-
         fileSize -= bruOffset;
-        ptr += bruOffset;
-        len = (ptr[0x0b] << 8) | ptr[0x0a];
+        f_lseek(&f, bruOffset);
+        f_read(&f, p16, 16, &br);
+        len = (p16[0x0b] << 8) | p16[0x0a];
+        f_lseek(&f, bruOffset);
     }
 
-    //len = (((len - 1) | 0xf ) + 17);
-
     if (fileSize < len) {
-        delete[] buf;
+        f_close(&f);
         return false;
     }
 
     if (run) {
-        uint16_t begAddr = (ptr[0x09] << 8) | ptr[0x08];
-        uint16_t nBytes = (ptr[0x0b] << 8) | ptr[0x0a];
-        ptr += 16;
+        uint16_t begAddr = (p16[0x09] << 8) | p16[0x08];
+        uint16_t nBytes = (p16[0x0b] << 8) | p16[0x0a];
+        bruOffset += 16;
+        f_lseek(&f, bruOffset);
         if (len < nBytes) {
-            delete[] buf;
+            f_close(&f);
             return false;
         }
 
 
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
-        if (cpu) {
+        Cpu* bc = m_platform->getCpu();
+        if (bc)
+        if (Cpu8080Compatible* cpu = bc->asCpu8080Compatible()) {
             g_emulation->exec((uint64_t)cpu->getKDiv() * 3000000, true);
             cpu->setPC(begAddr);
         }
 
-        for (int i = 0; i < nBytes; i++)
-            m_as->writeByte(begAddr++, *ptr++);
+        for (int i = 0; i < nBytes; i++) {
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_as->writeByte(begAddr++, v);
+        }
     } else {
-        for (uint16_t addr = 0; addr < len; addr++)
-            m_ramDisk->writeByte(addr, *ptr++);
+        for (uint16_t addr = 0; addr < len; addr++) {
+            uint8_t v;
+            f_read(&f, &v, 1, &br);
+            m_ramDisk->writeByte(addr, v);
+        }
         m_ramDisk->writeByte(len, 0xff);
     }
 
-    delete[] buf;
-
+    f_close(&f);
     return true;
 }
 

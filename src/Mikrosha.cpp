@@ -172,16 +172,15 @@ MikroshaRenderer::MikroshaRenderer()
     m_customDraw = false;
 }
 
-
-uint32_t MikroshaRenderer::getCurFgColor(bool, bool, bool)
+uint8_t MikroshaRenderer::getCurFgColor(bool, bool, bool)
 {
-    return 0xC0C0C0;
+    return RGB888(0xC0, 0xC0, 0xC0);
 }
 
 
-uint32_t MikroshaRenderer::getCurBgColor(bool, bool, bool)
+uint8_t MikroshaRenderer::getCurBgColor(bool, bool, bool)
 {
-    return 0x000000;
+    return RGB888(0, 0, 0);
 }
 
 

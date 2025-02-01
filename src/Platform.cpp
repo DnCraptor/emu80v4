@@ -33,7 +33,6 @@
 #include "FileLoader.h"
 #include "Keyboard.h"
 #include "RamDisk.h"
-#include "Debugger.h"
 #include "KbdTapper.h"
 
 using namespace std;
@@ -63,40 +62,46 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект-окно, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_window = dynamic_cast<EmuWindow*>(*it)))
-            break;
+        if (*it)
+            if (m_window = (*it)->asEmuWindow())
+                break;
 
     // ищем объект-прцессор, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_cpu = dynamic_cast<Cpu*>(*it)))
-            break;
+        if (*it)
+            if (m_cpu = (*it)->asCpu())
+                break;
 
     // ищем объект-ядро, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_core = dynamic_cast<PlatformCore*>(*it)))
-            break;
+        if (*it)
+            if (m_core = (*it)->asPlatformCore())
+                break;
 
     // ищем объект - раскладку клавиатуры, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_kbdLayout = dynamic_cast<KbdLayout*>(*it)))
-            break;
+        if (*it)
+            if ((m_kbdLayout = (*it)->asKbdLayout()))
+                break;
 
     // ищем объекты - рендереры, может быть два
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        auto renderer = dynamic_cast<CrtRenderer*>(*it);
-        if (renderer) {
-            if (!m_renderer)
-                m_renderer = renderer;
-            else {
-                m_renderer2 = renderer;
-                break;
+        if (*it) {
+            auto renderer = (*it)->asCrtRenderer();
+            if (renderer) {
+                if (!m_renderer)
+                    m_renderer = renderer;
+                else {
+                    m_renderer2 = renderer;
+                    break;
+                }
             }
         }
     }
 
     // ищем объекты - образы дисков A и B
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        DiskImage* img = dynamic_cast<DiskImage*>(*it);
+        DiskImage* img = (*it) ? (*it)->asDiskImage() : nullptr;
         if (img) {
             if (img->getLabel() == "A")
                 m_diskA = img;
@@ -112,14 +117,15 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - загрузчик, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_loader = dynamic_cast<FileLoader*>(*it)))
-            break;
+        if(*it)
+            if ((m_loader = (*it)->asFileLoader()))
+                break;
     }
 
     // ищем объекты - RAM-диски
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
         RamDisk* ramDisk;
-        if ((ramDisk = dynamic_cast<RamDisk*>(*it))) {
+        if ((ramDisk = (*it) ? (*it)->asRamDisk() : nullptr)) {
             if (ramDisk->getLabel() != "EDD2")
                 m_ramDisk = ramDisk;
             else
@@ -129,7 +135,7 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - закладку в окне конфигурации, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuConfigTab* tab = dynamic_cast<EmuConfigTab*>(*it);
+        EmuConfigTab* tab = (*it) ? (*it)->asEmuConfigTab() : nullptr;
         if (tab) {
             m_defConfigTabId = tab->getTabId();
             break;
@@ -138,12 +144,12 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - клавиатуру, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_keyboard = dynamic_cast<Keyboard*>(*it)))
+        if ((m_keyboard = (*it) ? (*it)->asKeyboard() : nullptr))
             break;
 
     // ищем объект - группу tapeGrp
     for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuObjectGroup* grp = dynamic_cast<EmuObjectGroup*>(*it);
+        EmuObjectGroup* grp = (*it) ? (*it)->asEmuObjectGroup() : nullptr;
         if (grp) {
             name = grp->getName();
             if (name.substr(name.find_last_of(".")) == ".tapeGrp") {
@@ -155,7 +161,7 @@ Platform::Platform(string configFileName, string name)
 
     // ищем объект - KbdTapper, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_kbdTapper = dynamic_cast<KbdTapper*>(*it)))
+        if ((m_kbdTapper = (*it) ? (*it)->asKbdTapper() : nullptr))
             break;
 
     Platform::init();
@@ -191,12 +197,8 @@ void Platform::reset()
 Platform::~Platform()
 {
     Platform::shutdown();
-
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
         delete *it;
-
-    if (m_dbgWindow)
-        delete m_dbgWindow;
 }
 
 
@@ -362,11 +364,13 @@ void Platform::sysReq(SysReq sr)
         default:
             break;
     }
+    g_emulation->resetKeys(nullptr);
 }
 
 
 void Platform::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
+    emuLog << "Platform::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (m_kbdLayout)
         m_kbdLayout->processKey(keyCode, isPressed, unicodeKey);
 }
@@ -401,31 +405,16 @@ void Platform::draw()
 {
     if (m_core)
         m_core->draw();
-
-    if (m_dbgWindow)
-        m_dbgWindow->draw();
 }
 
 
 void Platform::showDebugger()
 {
-#ifndef PAL_WASM
-    if (m_cpu->getType() == Cpu::CPU_8080 || m_cpu->getType() == Cpu::CPU_Z80) {
-        if (!m_dbgWindow) {
-            m_dbgWindow = new DebugWindow(this);
-            m_dbgWindow->initDbgWindow();
-            m_dbgWindow->setCaption("Debug: " + m_window->getCaption());
-        }
-        m_dbgWindow->startDebug();
-    }
-#endif
 }
 
 
 void Platform::updateDebugger()
 {
-    if (m_dbgWindow)
-        m_dbgWindow->update();
 }
 
 

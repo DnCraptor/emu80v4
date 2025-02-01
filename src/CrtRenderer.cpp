@@ -30,14 +30,18 @@ CrtRenderer::~CrtRenderer()
 {
     if (m_pixelData)
         delete[] m_pixelData;
-    if (m_prevPixelData)
-        delete[] m_prevPixelData;
+    if (m_pixelData2)
+        delete[] m_pixelData2;
+    if (m_pixelData3)
+        delete[] m_pixelData3;
 }
 
 
 void CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer)
 {
     m_secondaryRenderer = renderer;
+    if (renderer)
+        renderer->markSecondary(this);
 }
 
 
@@ -48,7 +52,6 @@ EmuPixelData CrtRenderer::getPixelData()
     // Проверка "синего экрана"
     if (!isRasterPresent()) {
         pd.pixelData = nullptr;
-        pd.prevPixelData = nullptr;
         return pd;
     }
 
@@ -56,15 +59,7 @@ EmuPixelData CrtRenderer::getPixelData()
     pd.width = m_sizeX;
     pd.height = m_sizeY;
     pd.pixelData = m_pixelData;
-    pd.aspectRatio = m_aspectRatio;
-
-    pd.prevWidth = m_prevSizeX;
-    pd.prevHeight = m_prevSizeY;
-    pd.prevPixelData = m_prevPixelData;
-    pd.prevAspectRatio = m_prevAspectRatio;
-
     pd.frameNo = m_frameNo;
-
     return pd;
 }
 
@@ -75,7 +70,7 @@ void CrtRenderer::swapBuffers()
     if (!reqForSwapBuffers && (g_emulation->getPausedState() || g_emulation->isDebuggerActive()))
         return;
     reqForSwapBuffers = false;
-
+/**
     int w,h, bs;
     uint32_t* buf;
 
@@ -94,7 +89,7 @@ void CrtRenderer::swapBuffers()
     m_sizeY = h;
     m_pixelData = buf;
     m_bufSize = bs;
-
+*/
     ++m_frameNo;
 }
 
@@ -191,22 +186,66 @@ bool CrtRenderer::setProperty(const string& propertyName, const EmuValuesList& v
 
 TextCrtRenderer::~TextCrtRenderer()
 {
-    if (m_font)
+    if (m_font_ram)
         delete[] m_font;
-    if (m_altFont)
+    if (m_altFont_ram)
         delete[] m_altFont;
 }
 
+#if PK86
+#include "pico/rk86_fontr_bin.h"
+#include "pico/rk86_sgr_bin.h"
+#include "pico/apogey_fonta_bin.h"
+#include "pico/apogey_sga_bin.h"
+#endif
+#include "pico/partner_fontp_bin.h"
+#include "pico/partner_sgp_bin.h"
 
 void TextCrtRenderer::setFontFile(string fontFileName)
 {
+    if (fontFileName == "partner/sgp.bin") {
+        m_font = partner_sgp_bin;
+        m_fontSize = sizeof(partner_sgp_bin);
+        return;
+    }
+#if PK86
+    if (fontFileName == "rk86/sgr.bin") {
+        m_font = sgr_bin;
+        m_fontSize = sizeof(sgr_bin);
+        return;
+    }
+    if (fontFileName == "apogey/sga.bin") {
+        m_font = sga_bin;
+        m_fontSize = sizeof(sga_bin);
+        return;
+    }
+#endif
     m_font = palReadFile(fontFileName, m_fontSize);
+    m_font_ram = true;
 }
 
 
 void TextCrtRenderer::setAltFontFile(string fontFileName)
 {
+    if (fontFileName == "partner/fontp.bin") {
+        m_altFont = partner_fontp_bin;
+        m_altFontSize = sizeof(partner_fontp_bin);
+        return;
+    }
+#if PK86
+    if (fontFileName == "rk86/fontr.bin") {
+        m_altFont = fontr_bin;
+        m_altFontSize = sizeof(fontr_bin);
+        return;
+    }
+    if (fontFileName == "apogey/fonta.bin") {
+        m_altFont = fonta_bin;
+        m_altFontSize = sizeof(fonta_bin);
+        return;
+    }
+#endif
     m_altFont = palReadFile(fontFileName, m_altFontSize);
+    m_altFont_ram = true;
 }
 
 

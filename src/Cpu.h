@@ -19,7 +19,7 @@
 #ifndef CPU_H
 #define CPU_H
 
-//#include <vector>
+#include <map>
 #include <list>
 
 #include "EmuObjects.h"
@@ -29,11 +29,13 @@ class CpuHook;
 class CpuWaits;
 class CpuCycleWaits;
 class PlatformCore;
-
+class Cpu8080Compatible;
 
 class Cpu : public ActiveDevice
 {
     public:
+        virtual Cpu8080Compatible* asCpu8080Compatible() { return nullptr; }
+        virtual Cpu* asCpu() override { return this; }
         enum CpuType {
             CPU_8080,
             CPU_Z80
@@ -62,7 +64,7 @@ class Cpu : public ActiveDevice
         void disableHooks() {m_hooksDisabled = true;}
         void enableHooks() {m_hooksDisabled = false;}
 
-        void debugStepRequest() {m_stepReq = true;}
+    ///    void debugStepRequest() {m_stepReq = true;}
 
         AddressableDevice* getAddrSpace() {return m_addrSpace;}
         AddressableDevice* getIoAddrSpace() {return m_ioAddrSpace;}
@@ -80,7 +82,7 @@ class Cpu : public ActiveDevice
         int m_nHooks = 0;
         bool m_hooksDisabled = false;
 
-        bool m_stepReq = false;
+///        bool m_stepReq = false;
 
         bool m_debugOnHalt = false;
         bool m_debugOnIllegalCmd = false;
@@ -89,10 +91,13 @@ class Cpu : public ActiveDevice
         CpuCycleWaits* m_cycleWaits = nullptr;
 };
 
+class CpuZ80;
 
 class Cpu8080Compatible : public Cpu
 {
     public:
+        virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
+        virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
 
         void addHook(CpuHook* hook) override;
@@ -135,7 +140,7 @@ class Cpu8080Compatible : public Cpu
         int io_input(int port);
         void io_output(int port, int value);
 
-        std::list<CpuHook*>* m_hookArray[65536];
+        std::map<uint16_t, std::list<CpuHook*>*> m_hooksMap;
 };
 
 #endif // CPU_H

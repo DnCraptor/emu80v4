@@ -32,6 +32,7 @@ struct ddregs {
 class CpuZ80 : public Cpu8080Compatible
 {
     public:
+        virtual CpuZ80* asCpuZ80() override { return this; }
         CpuZ80();
 
         CpuType getType() override {return Cpu::CPU_Z80;}

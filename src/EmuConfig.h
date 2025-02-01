@@ -48,16 +48,20 @@ class EmuConfig : public EmuObject
         std::map<std::string, std::string> m_extentionMap;
 };
 
+class EmuConfigRadioSelector;
 
 class EmuConfigControl : public EmuObject
 {
-
+    public:
+        virtual EmuConfigRadioSelector* asEmuConfigRadioSelector() { return nullptr; }
+        virtual EmuConfigControl* asEmuConfigControl() override { return this; }
 };
 
 
 class EmuConfigRadioSelector : public EmuConfigControl
 {
     public:
+        virtual EmuConfigRadioSelector* asEmuConfigRadioSelector() override { return this; }
         EmuConfigRadioSelector(std::string objName, std::string propName, std::string caption);
         ~EmuConfigRadioSelector();
 
@@ -92,6 +96,7 @@ struct ControlInfo
 class EmuConfigTab : public EmuObject
 {
     public:
+        virtual EmuConfigTab* asEmuConfigTab() override { return this; }
         EmuConfigTab(std::string tabName);
         ~EmuConfigTab();
 

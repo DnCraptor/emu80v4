@@ -53,6 +53,7 @@ class ApogeyRenderer : public Crt8275Renderer
 {
     public:
         ApogeyRenderer();
+        virtual ~ApogeyRenderer();
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
@@ -63,9 +64,10 @@ class ApogeyRenderer : public Crt8275Renderer
     protected:
         const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
         const uint8_t* getAltFontPtr(bool gpa0, bool gpa1, bool hglt) override;
-        uint32_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
-        uint32_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
+        uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
+        uint8_t getCurBgColor(bool gpa0, bool gpa1, bool hglt) override;
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
+        void primaryRenderFrame() override;
 
     private:
         enum class ColorMode {

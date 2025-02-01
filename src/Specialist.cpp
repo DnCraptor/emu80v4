@@ -69,13 +69,10 @@ SpecRenderer::SpecRenderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 256;
-    m_aspectRatio = m_prevAspectRatio = 576.0 * 9 / 704 / 8;
-    m_bufSize = m_prevBufSize = m_sizeX * m_sizeY;
+    m_bufSize = m_sizeX * m_sizeY;
     int maxBufSize = 417 * 288;
-    m_pixelData = new uint32_t[maxBufSize];
-    m_prevPixelData = new uint32_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize * sizeof(uint32_t));
-    memset(m_prevPixelData, 0, m_prevBufSize * sizeof(uint32_t));
+    m_pixelData = new uint8_t[maxBufSize];
+    memset(m_pixelData, 0, m_bufSize);
 }
 
 
@@ -103,15 +100,13 @@ void SpecRenderer::renderFrame()
     if (m_showBorder) {
         m_sizeX = 417;
         m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY * sizeof(uint32_t));
+        memset(m_pixelData, 0, m_sizeX * m_sizeY);
         offsetX = 21;
         offsetY = 10;
-        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     } else {
         m_sizeX = 384;
         m_sizeY = 256;
         offsetX = offsetY = 0;
-        m_aspectRatio = 576.0 * 9 / 704 / 8;
     }
 
     for (int row = 0; row < 256; row++)
@@ -119,11 +114,11 @@ void SpecRenderer::renderFrame()
             int addr = col * 256 + row;
             uint8_t bt = m_screenMemory[addr];
             uint8_t colorByte = m_colorMemory[addr];
-            uint32_t fgColor;
-            uint32_t bgColor = 0;
+            uint8_t fgColor;
+            uint8_t bgColor = 0;
             switch (m_colorMode) {
                 case SCM_MONO:
-                    fgColor = 0xC0C0C0;
+                    fgColor = RGB888(0xC0, 0xC0, 0xC0);
                     break;
                 case SCM_4COLOR:
                     fgColor = spec4ColorPalette[(colorByte & 0xC0) >> 6];
@@ -139,6 +134,7 @@ void SpecRenderer::renderFrame()
             for (int pt = 0; pt < 8; pt++, bt <<= 1)
                 m_pixelData[(row + offsetY) * m_sizeX + col * 8 + pt + offsetX] = (bt & 0x80) ? fgColor : bgColor;
         }
+    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
 
@@ -711,7 +707,7 @@ EmuKey SpecKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCod
 }
 
 
-    bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
+bool SpecFileLoader::loadFile(const std::string& fileName, bool run)
 {
     int fileSize;
     uint8_t* buf = palReadFile(fileName, fileSize, false);
@@ -774,7 +770,10 @@ bool SpecFileLoader::loadMemFile(uint8_t* data, int fileSize, const std::string&
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu* bc = m_platform->getCpu();
+        Cpu8080Compatible* cpu = nullptr;
+        if (bc)
+            cpu = bc->asCpu8080Compatible();
         if (cpu) {
             g_emulation->exec(int64_t(cpu->getKDiv()) * 2000000, true);
             cpu->setPC(begAddr);
@@ -835,7 +834,10 @@ bool Sp580FileLoader::loadFile(const std::string& fileName, bool run)
 
         if (run) {
             m_platform->reset();
-            Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+            Cpu* bc = m_platform->getCpu();
+            Cpu8080Compatible* cpu = nullptr;
+            if (bc)
+                cpu = bc->asCpu8080Compatible();
             if (cpu) {
                 g_emulation->exec(int64_t(cpu->getKDiv()) * 2000000, true);
 
@@ -990,7 +992,6 @@ bool SpecMxFileLoader::loadFile(const std::string& fileName, bool run)
 
         uint8_t* ptr = monBuf;
         if (monBegAddr != 0) {
-            //Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
             m_pageMapper->setCurPage(1); // switch to RAM page
             //m_as->writeByte(0xFFFC, 0); // switch to RAM page
             for (uint16_t addr = monBegAddr; addr < monBegAddr + fileSize; addr++)
@@ -1002,7 +1003,10 @@ bool SpecMxFileLoader::loadFile(const std::string& fileName, bool run)
 
     if (run) {
         m_platform->reset();
-        Cpu8080Compatible* cpu = dynamic_cast<Cpu8080Compatible*>(m_platform->getCpu());
+        Cpu* bc = m_platform->getCpu();
+        Cpu8080Compatible* cpu = nullptr;
+        if (bc)
+            cpu = bc->asCpu8080Compatible();
         if (!cpu) return false; // на всякий случай
         if (monBegAddr != 0) {
             m_pageMapper->setCurPage(1); // switch to RAM page

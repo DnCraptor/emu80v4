@@ -25,6 +25,7 @@
 class Keyboard : public EmuObject
 {
     public:
+        virtual Keyboard* asKeyboard() override { return this; }
         void reset() override {if (m_keysResetAllowed) resetKeys();}
 
         virtual void resetKeys() = 0;

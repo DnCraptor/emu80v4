@@ -36,14 +36,13 @@ class KbdLayout;
 class CrtRenderer;
 class Keyboard;
 class DiskImage;
-class DebugWindow;
 class KbdTapper;
 
 
 class Platform : public ParentObject
 {
     public:
-        //Platform();
+        virtual Platform* asPlatform() override { return this; }
         Platform(std::string configFileName, std::string name = "");
         virtual ~Platform();
         void addChild(EmuObject* child) override;
@@ -70,8 +69,6 @@ class Platform : public ParentObject
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
-
-        DebugWindow* getDebugger() {return m_dbgWindow;}
 
         void showDebugger();
         void updateDebugger();
@@ -107,8 +104,6 @@ class Platform : public ParentObject
         KbdTapper* m_kbdTapper = nullptr;
 
         int m_defConfigTabId = 0;
-
-        DebugWindow* m_dbgWindow = nullptr;
 
         std::string m_helpFile = "";
         CodePage m_codePage = CP_RK;
