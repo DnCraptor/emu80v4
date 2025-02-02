@@ -389,7 +389,7 @@ RkPixeltronRenderer::RkPixeltronRenderer()
     m_gpaOffset  = false;
 }
 
-void RkPixeltronRenderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
+void RkPixeltronRenderer::customDrawSymbolLine(Crt1Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool /*rvv*/, bool gpa0, bool /*gpa1*/, bool /*hglt*/)
 {
     int offset = (gpa0 ? 0x400 : 0) + symbol * 8 + (line & 7);
     uint8_t bt = ~m_font[offset];

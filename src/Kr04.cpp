@@ -129,6 +129,7 @@ Kr04Renderer::Kr04Renderer()
 
     m_customDraw = true;
     m_ltenOffset = false;
+    graphics_set_mode(GMODE_800_600);
 }
 
 
@@ -167,10 +168,73 @@ void Kr04Renderer::primaryRenderFrame() {
             delete[] m_pixelData;
         if (m_pixelData2)
             delete[] m_pixelData2;
+        if (m_pixelData3)
+            delete[] m_pixelData3;
         m_pixelData = new uint8_t [m_dataSize];
         m_pixelData2 = new uint8_t [m_dataSize];
+        m_pixelData3 = new uint8_t [m_dataSize];
+        memset(m_pixelData, 0, m_dataSize);
+        memset(m_pixelData2, 0, m_dataSize);
+        memset(m_pixelData3, 0, m_dataSize);
         m_bufSize = m_dataSize;
     }
+
+    if (m_colorMode != KCM_MONO) {
+
+    Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
+
+    for (int row = 0; row < nRows; row++) {
+        Crt3Bit chrPtr = rowPtr;
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt3Bit linePtr = chrPtr;
+
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.symbolLineAttributes[ln].lten();
+                else
+                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                customDrawSymbolLine3(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+
+    graphics_set_1bit_buffer3(m_pixelData, m_pixelData2, m_pixelData3, m_sizeX, m_sizeY);
+    } else {
+
     memcpy(m_pixelData2, m_pixelData, m_dataSize);
     memset(m_pixelData, 0, m_dataSize);
     Crt1Bit rowPtr = { m_pixelData, 0 };
@@ -225,10 +289,10 @@ void Kr04Renderer::primaryRenderFrame() {
     }
 
     graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
-    graphics_set_skip_x_pixels(-m_visibleOffsetX);
+    }
 }
 
-void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
+void Kr04Renderer::customDrawSymbolLine(Crt1Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {
     int offset = 0x8000 | (rvv ? 0x4000 : 0) | (hglt ? 0x2000 : 0) | (gpa1 ? 0x1000 : 0) | (gpa0 ? 0x0800 : 0) | ((symbol & 0x40) << 4) | (line << 6) | (symbol & 0x3F);
     uint8_t bt = vsp ? 0 : m_memory->readByte(offset);
@@ -238,20 +302,8 @@ void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int li
     for (int pt = 0; pt < (m_hiRes ? 8 : 4); pt++) {
         int idx = (bt & 1) | (bt >> 3 & 2) | (lten ? 4 : 0) | (!m_hiRes ? 8 : 0) | (p2 ? 0x10 : 0);
         int vidOut = c_d46[idx];
-        uint32_t color;
-        switch (m_colorMode) {
-        case KCM_COLOR:
-            color = (vidOut & 1 ? 0xff0000 : 0) | (vidOut & 2 ? 0x00ff00 : 0) | (vidOut & 4 ? 0x0000ff : 0);
-            break;
-        case KCM_COLORMODULE:
-            color = m_colorCircuit->translateColor(vidOut & 7);
-            break;
-        default:
-        case KCM_MONO:
-            uint8_t amp = c_bwPalette[vidOut >> 4 & 7];
-            color = amp | (amp << 8) | (amp << 16);
-            break;
-        }
+        uint8_t amp = c_bwPalette[vidOut >> 4 & 7];
+        uint32_t color = amp | (amp << 8) | (amp << 16); /// TODO: grayscale
         linePtr.setBit(color);
         linePtr += 1;
         if (!m_hiRes) {
@@ -262,6 +314,34 @@ void Kr04Renderer::customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int li
     }
 }
 
+void Kr04Renderer::customDrawSymbolLine3(Crt3Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
+{
+    int offset = 0x8000 | (rvv ? 0x4000 : 0) | (hglt ? 0x2000 : 0) | (gpa1 ? 0x1000 : 0) | (gpa0 ? 0x0800 : 0) | ((symbol & 0x40) << 4) | (line << 6) | (symbol & 0x3F);
+    uint8_t bt = vsp ? 0 : m_memory->readByte(offset);
+
+    const bool p2 = true; // jumper
+
+    for (int pt = 0; pt < (m_hiRes ? 8 : 4); pt++) {
+        int idx = (bt & 1) | (bt >> 3 & 2) | (lten ? 4 : 0) | (!m_hiRes ? 8 : 0) | (p2 ? 0x10 : 0);
+        int vidOut = c_d46[idx];
+        uint8_t color;
+        switch (m_colorMode) {
+        case KCM_COLOR:
+            color = (vidOut & 1 ? 0b001 : 0) | (vidOut & 2 ? 0b010 : 0) | (vidOut & 4 ? 0b100 : 0);
+            break;
+        default:
+            color = m_colorCircuit->translateColor(vidOut & 7);
+            break;
+        }
+        linePtr.set3Bit(color);
+        linePtr += 1;
+        if (!m_hiRes) {
+            linePtr.set3Bit(color);
+            linePtr += 1;
+        }
+        bt >>= 1;
+    }
+}
 
 wchar_t Kr04Renderer::getUnicodeSymbol(uint8_t chr, bool, bool, bool)
 {
@@ -415,13 +495,14 @@ void Kr04PpiColor8255Circuit::setPortC(uint8_t value)
 }
 
 
-uint32_t Kr04PpiColor8255Circuit::translateColor(int rgb)
+uint8_t Kr04PpiColor8255Circuit::translateColor(int rgb)
 {
     int color2 = (((rgb << 1) | (rgb >> 1)) & 2) | (((rgb << 1) | (rgb << 2)) & 4);
     int b = (m_portA >> color2) & 0x03;
     int g = (m_portB >> color2) & 0x03;
     int r = (m_portC >> color2) & 0x03;
-    return (c_colors[r]) << 16 | (c_colors[g] << 8) | c_colors[b];
+    return r | (g << 1) | (b << 2);
+///    return (c_colors[r]) << 16 | (c_colors[g] << 8) | c_colors[b];
 }
 
 

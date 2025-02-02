@@ -126,7 +126,7 @@ class Crt8275Renderer : public TextCrtRenderer
         virtual const uint8_t* getAltFontPtr(bool, bool, bool) {return nullptr;}
         virtual uint8_t getCurFgColor(bool, bool, bool) {return 0xFF;}
         virtual uint8_t getCurBgColor(bool, bool, bool) {return 0x00;}
-        virtual void customDrawSymbolLine(Crt1Bit&, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
+        virtual void customDrawSymbolLine(Crt1Bit, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
 
         int m_fontNumber = 0;
