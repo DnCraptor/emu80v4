@@ -30,7 +30,6 @@ static uint32_t* lines_pattern[4];
 static uint32_t* lines_pattern_data = NULL;
 static int _SM_VGA = -1;
 
-
 static int N_lines_total = 525;
 static int N_lines_visible = 480;
 static int line_VS_begin = 490;
@@ -52,6 +51,7 @@ static int graphics_buffer_width = 640;
 static int graphics_buffer_height = 480;
 static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
+static bool duplicateLines = true;
 
 static bool is_flash_line = false;
 static bool is_flash_frame = false;
@@ -66,6 +66,10 @@ static uint16_t* txt_palette_fast = NULL;
 //static uint16_t txt_palette_fast[256*4];
 
 enum graphics_mode_t graphics_mode;
+
+void graphics_set_duplicateLines(bool v) {
+    duplicateLines = v;
+}
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
@@ -109,6 +113,7 @@ void __time_critical_func() dma_handler_VGA() {
     int y, line_number;
 
     uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
+    if (duplicateLines)
     switch (graphics_mode) {
         case GRAPHICSMODE_DEFAULT:
         case GMODE_800_600:
@@ -121,6 +126,10 @@ void __time_critical_func() dma_handler_VGA() {
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
             return;
         }
+    }
+    else {
+        line_number = screen_line;
+        y = line_number + graphics_buffer_shift_y;
     }
 
     if (y < 0 || y >= client_buffer_height) {
@@ -247,7 +256,10 @@ static void adjust_shift_x() {
         graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
 }
 static void adjust_shift_y() {
-    graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
+    if (duplicateLines)
+        graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
+    else
+        graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
 }
 
 enum graphics_mode_t graphics_get_mode() {

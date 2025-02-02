@@ -70,6 +70,9 @@ PalmiraRenderer::PalmiraRenderer()
     m_fntCharWidth = 8;
     m_fntCharHeight = 16;
     m_fntLcMask = 0xF;
+
+    graphics_set_duplicateLines(false);
+    graphics_set_mode(GMODE_800_600);
 }
 
 

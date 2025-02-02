@@ -1,6 +1,6 @@
 ﻿/*
  *  Emu80 v. 4.x
- *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
+ *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2025
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Crt8275.h
+// Crt8275.h, simplified implementation
 
 #ifndef CRT8275_H
 #define CRT8275_H
@@ -31,16 +31,26 @@ class PlatformCore;
 #define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
+#define SRVVt  0b1000
+#define SHGLTt 0b0100
+#define SGPA0t 0b0010
+#define SGPA1t 0b0001
+
 struct __packed SymbolAttributes {
     uint8_t bits;
     inline bool rvv (void) const { return bitRead(bits, 3); }   // reverse video
     inline bool hglt(void) const { return bitRead(bits, 2); }   // highlight
     inline bool gpa0(void) const { return bitRead(bits, 1); }   // general purpose 1
     inline bool gpa1(void) const { return bitRead(bits, 0); }   // general purpose 2
+    inline uint8_t attrs() const { bits; }
     inline void rvv (bool b) { bitWrite(bits, 3, b); }
     inline void hglt(bool b) { bitWrite(bits, 2, b); }
     inline void gpa0(bool b) { bitWrite(bits, 1, b); }
     inline void gpa1(bool b) { bitWrite(bits, 0, b); }
+    inline void attrs(uint8_t bits) { this->bits = bits; }
+    inline void attrs(bool b3, bool b2, bool b1, bool b0) {
+        this->bits = (b3 << 3) | (b2 << 2) | (b1 << 1) | b0;
+    }
 };
 /*
 struct __packed SymbolLineAttributes {
@@ -92,10 +102,6 @@ struct __packed Frame {
 };
 
 
-
-class Crt8275Raster;
-
-
 class Crt8275 : public AddressableDevice, public IActive
 {
 
@@ -120,11 +126,7 @@ class Crt8275 : public AddressableDevice, public IActive
     };
 
     public:
-        Crt8275();
-        virtual ~Crt8275();
-
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        void setFrequency(int64_t freq) override;
         void init() override;
         void reset() override;
         std::string getDebugInfo() override;
@@ -155,13 +157,10 @@ class Crt8275 : public AddressableDevice, public IActive
 
         static EmuObject* create(const EmuValuesList&) {return new Crt8275();}
 
-        friend Crt8275Raster;
-
     private:
         Dma8257* m_dma;              // Linked DMA Controller
         int m_dmaChannel;            // DMA channel
         PlatformCore* m_core;        // Linked platform core
-        Crt8275Raster* m_raster;     // Assosiated raster device
         int m_cpuKDiv;               // CPU div factor
 
         int  m_nRows;                // row count
@@ -173,8 +172,6 @@ class Crt8275 : public AddressableDevice, public IActive
         bool m_isTransparentAttr;    // transparent attribute mode
         int  m_nVrRows;              // vertical retrace rows
         int  m_nHrChars;             // horisontal retrace characters
-        int  m_burstCount;           // DMA cycles per burst
-        int  m_burstSpaceCount;      // burst space count
         int  m_cursorPos;            // cursor char position
         int  m_cursorRow;            // cursor row position
         bool m_isIntsEnabled;        // enable interrupts flag
@@ -206,29 +203,19 @@ class Crt8275 : public AddressableDevice, public IActive
         int m_curBufPos;                // current position in buffer
         bool m_isNextCharToFifo;
         int m_curFifoPos;            // current FIFO position
-        int m_curBurstPos;
 
         //bool m_needDmaData;
         bool m_isBurstSpace;
         bool m_isBurst;
         bool m_isDmaStoppedForRow;
         bool m_isDmaStoppedForFrame;
-        //bool m_isDmaUnderrun;
-        bool m_needExtraByte = false;
-        bool m_wasVsync;
 
-        bool m_wasDmaUnderrun;
+        //bool m_wasDmaUnderrun;
         //int m_dmaUnderrunAtRow;
 
 
-        void putCharToBuffer(uint8_t byte);
-        void dmaUnderrun();
-        void nextRow();
-        void nextFrame();
-//        void m_startDisplay();
-        void stopDisplay();
+        bool putCharToBuffer(uint8_t byte); // returns true if the row is full
         void presetCounters();
-        void startRasterIfNotStarted();
 
         // Buffer Display Related Fields
 
@@ -251,32 +238,7 @@ class Crt8275 : public AddressableDevice, public IActive
 
         void prepareFrame();
         void displayBuffer();
-
 };
 
-class Crt8275Raster : public ActiveDevice
-{
-    public:
-        Crt8275Raster();
-
-        // derived from ActiveDevice
-        void operate() override;
-
-        // Crt8275 own methods
-
-        friend Crt8275;
-
-    private:
-        Crt8275* m_crt;              // Master CRT device
-        PlatformCore* m_core;        // Linked platform core
-        //bool _isStarted;
-        bool m_isHrtcActive = false;
-        bool m_isVrtcActive = false;
-        int m_curScanRow = 0;
-        int m_curScanLine = 0;
-
-        void startRaster();
-        void stopRaster();
-};
 
 #endif // CRT75_H

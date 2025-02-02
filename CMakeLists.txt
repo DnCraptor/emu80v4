@@ -28,8 +28,11 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.4.0")
+set (PORT_VERSION "0.4.1")
+
 #set (MURM2 ON)
+#set (PWM_PIN0 10)
+set (PWM_PIN0 26)
 
 set(KBDUSB ON)
 
@@ -218,9 +221,6 @@ IF(MURM2)
         TFT_CLK_PIN=19
 
         DEFAULT_THROTTLING=0
-
-        PK86=1
-        ORION=1
     )
 ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -276,15 +276,13 @@ ELSE()
         DEFAULT_THROTTLING=0
 
         #LOG=1
-        PK86=1
-        ORION=1
     )
 ENDIF()
 
 
 IF(NOT I2S)
     SET(BUILD_NAME "${BUILD_NAME}-PWM")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=26)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=${PWM_PIN0})
 ELSEIF(I2S_CS4334)
     target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
     SET(BUILD_NAME "${BUILD_NAME}-CS4334")

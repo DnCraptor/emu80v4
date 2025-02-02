@@ -40,8 +40,11 @@ ApogeyCore::~ApogeyCore()
 
 void ApogeyCore::vrtc(bool isActive)
 {
+    static uint8_t cnt = 0;
     if (isActive) {
-        m_crtRenderer->renderFrame();
+        if (cnt == 0)
+            m_crtRenderer->renderFrame();
+        cnt = (cnt + 1) & 1;
     }
 
     if (isActive)
