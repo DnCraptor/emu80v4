@@ -52,20 +52,7 @@ struct __packed SymbolAttributes {
         this->bits = (b3 << 3) | (b2 << 2) | (b1 << 1) | b0;
     }
 };
-/*
-struct __packed SymbolLineAttributes {
-    uint16_t bits;
-    inline  int lc  (void) const { return bits & 0b0011111111111111; }   // line counter
-    inline bool vsp (void) const { return bitRead(bits, 15); }   // video suppression
-    inline bool lten(void) const { return bitRead(bits, 14); }   // light enable
-    inline void lc  (int v) {
-        bits &= 0b1100000000000000;
-        bits |= v & 0b0011111111111111;
-    }
-    inline void vsp (bool b) { bitWrite(bits, 15, b); }
-    inline void lten(bool b) { bitWrite(bits, 14, b); }
-};
-*/
+
 struct __packed SymbolLineAttributes {
     uint8_t bits;
     inline bool vsp (void) const { return bitRead(bits, 1); }   // video suppression
@@ -75,9 +62,13 @@ struct __packed SymbolLineAttributes {
 };
 
 struct __packed Symbol {
+    uint32_t symLineAttrs;
     uint8_t chr;
     SymbolAttributes symbolAttributes;
-    SymbolLineAttributes symbolLineAttributes[16];
+    inline bool vsp (uint8_t ln) const { return bitRead(symLineAttrs, 1 + (ln << 1)); }   // video suppression
+    inline bool lten(uint8_t ln) const { return bitRead(symLineAttrs, ln << 1); }         // light enable
+    inline void vsp (uint8_t ln, bool b) { bitWrite(symLineAttrs, 1 + (ln << 1), b); }
+    inline void lten(uint8_t ln, bool b) { bitWrite(symLineAttrs, ln << 1, b); }
 };
 
 

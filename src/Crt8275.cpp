@@ -151,34 +151,24 @@ void Crt8275::displayBuffer()
         si.chr = chr & 0x7F;
         if (!m_isDisplayStarted || isBlankedToTheEndOfRow || m_isBlankedToTheEndOfScreen) {
             si.symbolAttributes.attrs(0);
-//            si.symbolAttributes.rvv(false);
-//            si.symbolAttributes.hglt(false); // ?
-//            si.symbolAttributes.gpa0(false); // ?
-//            si.symbolAttributes.gpa1(false); // ?
             for (int j = 0; j < m_nLines; j++) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
-                sia.vsp(true);
-                sia.lten(false);
+                si.vsp(j, true);
+                si.lten(j, false);
             }
         } else if (chr < 0x80) {
             // Ordinary symbol
             si.symbolAttributes.attrs(m_curReverse, m_curHighlight, m_curGpa0, m_curGpa1);
-            ///si.symbolAttributes.rvv(m_curReverse);
-            ///si.symbolAttributes.hglt(m_curHighlight);
-            ///si.symbolAttributes.gpa0(m_curGpa0);
-            ///si.symbolAttributes.gpa1(m_curGpa1);
             for (int j = 0; j < m_nLines; j++) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
-                sia.vsp(m_curBlink && (m_frameCount & 0x10));
-                sia.lten(false);
                 if ((m_undLine > 7) && ((j == 0) || (j == m_nLines - 1)))
-                    sia.vsp(true);
+                    si.vsp(j, true);
+                else
+                    si.vsp(j, m_curBlink && (m_frameCount & 0x10));
+                si.lten(j, false);
             }
             if (m_curUnderline) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[m_undLine];
-                sia.lten(true);
+                si.lten(m_undLine, true);
                 if (m_curBlink)
-                    sia.lten(!(m_frameCount & 0x10));
+                    si.lten(m_undLine, !(m_frameCount & 0x10));
             }
         } else if ((chr & 0xC0) == 0x80) {
             // Field Attribute Code
@@ -189,35 +179,25 @@ void Crt8275::displayBuffer()
             m_curGpa0 = chr & 0x04;
             m_curGpa1 = chr & 0x08;
             for (int j = 0; j < m_nLines; j++) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
-                sia.vsp(true);
-                sia.lten(false);
+                si.vsp(j, true);
+                si.lten(j, false);
             }
             si.symbolAttributes.attrs(0, m_curHighlight, m_curGpa0, m_curGpa1);
-///            si.symbolAttributes.rvv(false);
-   ///         si.symbolAttributes.hglt(m_curHighlight); // ?
-      ///      si.symbolAttributes.gpa0(m_curGpa0); //?? уточнить!!!
-         ///   si.symbolAttributes.gpa1(m_curGpa1); //?? уточнить!!!
         } else if ((chr & 0xC0) == 0xC0 && (chr & 0x30) != 0x30) {
             // Character Attribute
             int cccc = (chr & 0x3C) >> 2;
             for (int j = 0; j < m_nLines; j++) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
                 if (j < m_undLine) {
-                    sia.vsp( m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10)) );
-                    sia.lten( 0 );
+                    si.vsp(j, m_cCharAttrVsp[cccc][0] || ((chr & 0x02) && (m_frameCount & 0x10)) );
+                    si.lten(j, 0 );
                 } else if (j > m_undLine) {
-                    sia.vsp ( m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10)) );
-                    sia.lten( 0 );
+                    si.vsp (j, m_cCharAttrVsp[cccc][1] || ((chr & 0x02) && (m_frameCount & 0x10)) );
+                    si.lten(j, 0 );
                 } else {// j == _undLine
-                    sia.vsp ( (chr & 0x02) && (m_frameCount & 0x10) );
-                    sia.lten ( m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10)) );
+                    si.vsp (j, (chr & 0x02) && (m_frameCount & 0x10) );
+                    si.lten (j, m_cCharAttrLten[cccc] && !((chr & 0x02) && (m_frameCount & 0x10)) );
                 }
             }
-///            si.symbolAttributes.hglt(chr & 0x01);
-   ///         si.symbolAttributes.rvv(m_curReverse);
-      ///      si.symbolAttributes.gpa0(m_curGpa0);
-         ///   si.symbolAttributes.gpa1(m_curGpa1);
             si.symbolAttributes.attrs(m_curReverse, chr & 0x01, m_curGpa0, m_curGpa1);
         } else {
             // Special Control Characters
@@ -229,22 +209,17 @@ void Crt8275::displayBuffer()
                 isBlankedToTheEndOfRow = true;
             }
             si.symbolAttributes.attrs(m_curReverse, m_curHighlight, m_curGpa0, m_curGpa1);
-            ///si.symbolAttributes.rvv(m_curReverse);
-            ///si.symbolAttributes.hglt(m_curHighlight);
-            ///si.symbolAttributes.gpa0(m_curGpa0);
-            ///si.symbolAttributes.gpa1(m_curGpa1);
             for (int j = 0; j < m_nLines; j++) {
-                SymbolLineAttributes& sia = si.symbolLineAttributes[j];
-                sia.vsp  ( true );
-                sia.lten ( false);
+                si.vsp  (j, true );
+                si.lten (j, false);
             }
             if (m_curUnderline)
-                si.symbolLineAttributes[m_undLine].lten ( true);
+                si.lten ( m_undLine, true);
         }
     }
     if (m_isDisplayStarted && (m_curRow == m_cursorRow) && (m_cursorPos < 80)) {
         if (m_cursorUnderline) {
-            m_frame.symbols[m_cursorRow][m_cursorPos].symbolLineAttributes[m_undLine].lten ( !m_cursorBlinking || (m_frameCount & 0x08) );
+            m_frame.symbols[m_cursorRow][m_cursorPos].lten ( m_undLine, !m_cursorBlinking || (m_frameCount & 0x08) );
         } else {
             if (!m_cursorBlinking || (m_frameCount & 0x08))
                 m_frame.symbols[m_cursorRow][m_cursorPos].symbolAttributes.rvv(

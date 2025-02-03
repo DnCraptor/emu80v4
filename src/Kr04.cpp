@@ -218,12 +218,12 @@ void Kr04Renderer::primaryRenderFrame() {
                     lc = ln;
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    lten = frame->symbols[row][chr+1].lten(ln);
                 customDrawSymbolLine3(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
             }
@@ -274,12 +274,12 @@ void Kr04Renderer::primaryRenderFrame() {
                     lc = ln;
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    lten = frame->symbols[row][chr+1].lten(ln);
                 customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
             }

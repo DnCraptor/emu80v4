@@ -516,12 +516,12 @@ void PartnerRenderer::primaryRenderFrame()
                     lc = ln;
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    lten = frame->symbols[row][chr+1].lten(ln);
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
                 uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
                 for (int pt = 0; pt < m_fntCharWidth; pt++) {
@@ -540,11 +540,11 @@ void PartnerRenderer::primaryRenderFrame()
                         lc = ln;
                     else
                         lc = ln != 0 ? ln - 1 : nLinesB - 1;
-                    vsp = symbolB.symbolLineAttributes[ln].vsp();
-                    if (!m_ltenOffsetB || (chr == nCharsB - 1))
-                        lten = symbolB.symbolLineAttributes[ln].lten();
+                    vsp = symbolB.vsp(ln);
+                    if (!m_ltenOffset || (chr == nChars - 1))
+                        lten = symbolB.lten(ln);
                     else
-                        lten = frameB->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                        lten = frameB->symbols[row][chr+1].lten(ln);
                     ((PartnerMcpgRenderer*)m_secondaryRenderer)->customDrawSymbolLine3(
                         linePtr, dx, symbolB.chr, lc, lten, vsp, rvvB, gpa0B, gpa1B, hgltB
                     );
@@ -629,12 +629,12 @@ void PartnerMcpgRenderer::primaryRenderFrame()
                         lc = ln;
                     else
                         lc = ln != 0 ? ln - 1 : nLines - 1;
-                    bool vsp = symbol.symbolLineAttributes[ln].vsp();
+                    bool vsp = symbol.vsp(ln);
                     bool lten;
                     if (!m_ltenOffset || (chr == nChars - 1))
-                        lten = symbol.symbolLineAttributes[ln].lten();
+                        lten = symbol.lten(ln);
                     else
-                        lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                        lten = frame->symbols[row][chr+1].lten(ln);
                     curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
                     customDrawSymbolLine3(linePtr, dx, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
