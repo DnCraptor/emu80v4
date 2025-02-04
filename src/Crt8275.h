@@ -53,14 +53,6 @@ struct __packed SymbolAttributes {
     }
 };
 
-struct __packed SymbolLineAttributes {
-    uint8_t bits;
-    inline bool vsp (void) const { return bitRead(bits, 1); }   // video suppression
-    inline bool lten(void) const { return bitRead(bits, 0); }   // light enable
-    inline void vsp (bool b) { bitWrite(bits, 1, b); }
-    inline void lten(bool b) { bitWrite(bits, 0, b); }
-};
-
 struct __packed Symbol {
     uint32_t symLineAttrs;
     uint8_t chr;
