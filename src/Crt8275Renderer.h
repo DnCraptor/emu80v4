@@ -30,33 +30,31 @@ class Crt8275;
 #define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
-typedef struct {
-    uint8_t* ptr;
-    uint8_t bit;
+class Crt1Bit {
+    uint64_t p8;
+public:
+    inline Crt1Bit(uint8_t* p) : p8((uint64_t)p << 3) {}
     inline void operator +=(int a) {
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
-        ptr = (uint8_t*)(p8 >> 3);
-        bit = (p8 & 7);
+        p8 += a;
     }
     inline void setBit(uint8_t b) { /// TODO: b - bool
-        bitWrite(*ptr, bit, b);
-    }
-    inline bool getBit(int a) {
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
-        uint8_t* p = (uint8_t*)(p8 >> 3);
-        uint8_t bi = p8 & 7;
-        return bitRead(*p, bi);
-    }
-    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
         uint8_t* p = (uint8_t*)(p8 >> 3);
         uint8_t bi = p8 & 7;
         bitWrite(*p, bi, b);
     }
-} Crt1Bit;
+    inline bool getBit(int a) {
+        uint64_t p82 = p8 + a;
+        uint8_t* p = (uint8_t*)(p82 >> 3);
+        uint8_t bi = p82 & 7;
+        return bitRead(*p, bi);
+    }
+    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
+        uint64_t p82 = p8 + a;
+        uint8_t* p = (uint8_t*)(p82 >> 3);
+        uint8_t bi = p82 & 7;
+        bitWrite(*p, bi, b);
+    }
+};
 
 
 typedef struct {

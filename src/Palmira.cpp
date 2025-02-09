@@ -22,6 +22,7 @@
 #include "EmuWindow.h"
 #include "Memory.h"
 #include "AddrSpace.h"
+#include "Crt8275.h"
 
 using namespace std;
 
@@ -72,9 +73,118 @@ PalmiraRenderer::PalmiraRenderer()
     m_fntLcMask = 0xF;
 
     graphics_set_duplicateLines(false);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode(GMODE_640_480);
 }
 
+class Crt4Bit {
+    uint32_t p8;
+public:
+    inline Crt4Bit(uint8_t* p) : p8((uint32_t)p << 1) {}
+    inline void operator +=(int a) {
+        p8 += a;
+    }
+    inline void set4Bit(int a, uint8_t b) { /// b - 0xARGB
+        register uint32_t p82 = p8 + a;
+        register uint8_t* p = (uint8_t*)(p82 >> 1);
+        if (p82 & 1) { // high 4-bits
+            *p = (*p & 0b00001111) | (b << 4);
+        } else { // low 4-bits
+            *p = (*p & 0b11110000) | b;
+        }
+    }
+};
+
+uint8_t PalmiraRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
+{
+    uint8_t res = (gpa1 ? 0b100 : 0) | (gpa0 ? 0b010 : 0) | (hglt ? 0b001 : 0);
+    return res == 0 ? 0b111 : res;
+}
+
+void PalmiraRenderer::primaryRenderFrame() {
+    calcAspectRatio(m_fntCharWidth);
+
+    const Frame* frame = m_crt->getFrame();
+
+    int nRows = frame->nRows;
+    int nLines = frame->nLines;
+    int nChars = frame->nCharsPerRow;
+
+    m_sizeX = nChars * m_fntCharWidth;
+    if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
+    m_sizeY = nRows * nLines;
+
+    m_dataSize = (m_sizeY * m_sizeX) >> 1;
+    if (m_dataSize > m_bufSize) {
+#if LOG
+    emuLog << "m_dataSize: " << to_string(m_dataSize) << "; m_sizeX: " << to_string(m_sizeX) << "; m_sizeY: " << to_string(m_sizeY) << "\n";
+#endif
+        if (m_pixelData)
+            delete[] m_pixelData;
+        m_pixelData = new uint8_t [m_dataSize];
+        memset(m_pixelData, 0, m_dataSize);
+        m_bufSize = m_dataSize;
+    }
+    Crt4Bit rowPtr(m_pixelData);
+
+    for (int row = 0; row < nRows; row++) {
+        Crt4Bit chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
+        for (int chr = 0; chr < nChars; chr++) {
+            Symbol symbol = frame->symbols[row][chr];
+            Crt4Bit linePtr = chrPtr;
+            bool hglt;
+            if (!m_hgltOffset || (chr == nChars - 1))
+                hglt = symbol.symbolAttributes.hglt();
+            else
+                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
+            bool gpa0, gpa1;
+            if (!m_gpaOffset || (chr == nChars - 1)) {
+                gpa0 = symbol.symbolAttributes.gpa0();
+                gpa1 = symbol.symbolAttributes.gpa1();
+            }
+            else {
+                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
+                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
+            }
+            bool rvv;
+            if (!m_rvvOffset || (chr == nChars - 1))
+                rvv = symbol.symbolAttributes.rvv();
+            else
+                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
+            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
+            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
+            for (int ln = 0; ln < nLines; ln++) {
+                int lc;
+                if (!frame->isOffsetLineMode)
+                    lc = ln;
+                else
+                    lc = ln != 0 ? ln - 1 : nLines - 1;
+                bool vsp = symbol.vsp(ln);
+                bool lten;
+                if (!m_ltenOffset || (chr == nChars - 1))
+                    lten = symbol.lten(ln);
+                else
+                    lten = frame->symbols[row][chr+1].lten(ln);
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
+                uint16_t fntLine = fntPtr[symbol.chr * m_fntCharHeight + (lc & m_fntLcMask)] << (8 - m_fntCharWidth);
+                for (int pt = 0; pt < m_fntCharWidth; pt++) {
+                    bool v = curLten[ln] || !(vsp || (fntLine & 0x80));
+                    if (rvv && m_useRvv)
+                        v = !v;
+                    linePtr.set4Bit(pt, v ? fgColor : 0);
+                    fntLine <<= 1;
+                }
+                if (m_dashedLten && (curLten[ln] || !(vsp || (fntLine & 0x400))))
+                    curLten[ln] = true;
+                linePtr += m_sizeX;
+            }
+            chrPtr += m_fntCharWidth;
+        }
+        rowPtr += nLines * m_sizeX;
+    }
+    graphics_set_4bit_buffer(m_pixelData, m_sizeX, m_sizeY);
+}
 
 const uint8_t* PalmiraRenderer::getCurFontPtr(bool, bool, bool)
 {

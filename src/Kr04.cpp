@@ -237,7 +237,7 @@ void Kr04Renderer::primaryRenderFrame() {
 
     memcpy(m_pixelData2, m_pixelData, m_dataSize);
     memset(m_pixelData, 0, m_dataSize);
-    Crt1Bit rowPtr = { m_pixelData, 0 };
+    Crt1Bit rowPtr(m_pixelData);
 
     for (int row = 0; row < nRows; row++) {
         Crt1Bit chrPtr = rowPtr;

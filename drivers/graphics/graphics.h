@@ -47,6 +47,7 @@ void graphics_set_mode(enum graphics_mode_t mode);
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
+void graphics_set_4bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
 void graphics_set_1bit_buffer2(
     uint8_t* buffer1,
     uint8_t* buffer2,

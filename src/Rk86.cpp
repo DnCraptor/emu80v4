@@ -130,6 +130,9 @@ void Rk86Renderer::primaryRenderFrame() {
 
     m_dataSize = (m_sizeY * m_sizeX) >> 3;
     if (m_dataSize > m_bufSize) {
+#if LOG
+    emuLog << "m_dataSize: " << to_string(m_dataSize) << "; m_sizeX: " << to_string(m_sizeX) << "; m_sizeY: " << to_string(m_sizeY) << "\n";
+#endif
         if (m_pixelData)
             delete[] m_pixelData;
         if (m_pixelData2)
@@ -213,7 +216,7 @@ void Rk86Renderer::primaryRenderFrame() {
     }
     memcpy(m_pixelData2, m_pixelData, m_dataSize);
     memset(m_pixelData, 0, m_dataSize);
-    Crt1Bit rowPtr = { m_pixelData, 0 };
+    Crt1Bit rowPtr = (m_pixelData);
 
     for (int row = 0; row < nRows; row++) {
         Crt1Bit chrPtr = rowPtr;
