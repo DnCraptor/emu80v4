@@ -117,8 +117,7 @@ class Kr04Renderer : public Crt8275Renderer
 
         void setColorMode(Kr04ColorMode colorMode);
 
-        void customDrawSymbolLine(Crt1Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
-        void customDrawSymbolLine3(Crt3Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt);
+        void customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt);
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
 
         AddrSpace* m_memory = nullptr   ;

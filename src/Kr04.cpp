@@ -129,6 +129,7 @@ Kr04Renderer::Kr04Renderer()
 
     m_customDraw = true;
     m_ltenOffset = false;
+    graphics_set_duplicateLines(false);
     graphics_set_mode(GMODE_800_600);
 }
 
@@ -162,39 +163,26 @@ void Kr04Renderer::primaryRenderFrame() {
     if (m_sizeX & 7) m_sizeX += 8 - (m_sizeX & 7); // adjust X to be divisionable to 8
     m_sizeY = nRows * nLines;
 
-    m_dataSize = (m_sizeY * m_sizeX) >> 3;
+    m_dataSize = (m_sizeY * m_sizeX) >> 1;
     if (m_dataSize > m_bufSize) {
         if (m_pixelData)
             delete[] m_pixelData;
-        if (m_pixelData2)
-            delete[] m_pixelData2;
-        if (m_pixelData3)
-            delete[] m_pixelData3;
         m_pixelData = new uint8_t [m_dataSize];
-        m_pixelData2 = new uint8_t [m_dataSize];
-        m_pixelData3 = new uint8_t [m_dataSize];
         memset(m_pixelData, 0, m_dataSize);
-        memset(m_pixelData2, 0, m_dataSize);
-        memset(m_pixelData3, 0, m_dataSize);
         m_bufSize = m_dataSize;
     }
 
-    if (m_colorMode != KCM_MONO) {
-
-    Crt3Bit rowPtr = { m_pixelData, m_pixelData2, m_pixelData3, 0 };
-
+    Crt4Bit rowPtr(m_pixelData);
     for (int row = 0; row < nRows; row++) {
-        Crt3Bit chrPtr = rowPtr;
+        Crt4Bit chrPtr = rowPtr;
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
-            Crt3Bit linePtr = chrPtr;
-
+            Crt4Bit linePtr = chrPtr;
             bool hglt;
             if (!m_hgltOffset || (chr == nChars - 1))
                 hglt = symbol.symbolAttributes.hglt();
             else
                 hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
-
             bool gpa0, gpa1;
             if (!m_gpaOffset || (chr == nChars - 1)) {
                 gpa0 = symbol.symbolAttributes.gpa0();
@@ -209,9 +197,6 @@ void Kr04Renderer::primaryRenderFrame() {
                 rvv = symbol.symbolAttributes.rvv();
             else
                 rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
-            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
-            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
             for (int ln = 0; ln < nLines; ln++) {
                 int lc;
                 if (!frame->isOffsetLineMode)
@@ -224,97 +209,17 @@ void Kr04Renderer::primaryRenderFrame() {
                     lten = symbol.lten(ln);
                 else
                     lten = frame->symbols[row][chr+1].lten(ln);
-                customDrawSymbolLine3(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
+                customDrawSymbolLine4(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
             }
             chrPtr += m_fntCharWidth;
         }
         rowPtr += nLines * m_sizeX;
     }
-
-    graphics_set_1bit_buffer3(m_pixelData, m_pixelData2, m_pixelData3, m_sizeX, m_sizeY);
-    } else {
-
-    memcpy(m_pixelData2, m_pixelData, m_dataSize);
-    memset(m_pixelData, 0, m_dataSize);
-    Crt1Bit rowPtr(m_pixelData);
-
-    for (int row = 0; row < nRows; row++) {
-        Crt1Bit chrPtr = rowPtr;
-        for (int chr = 0; chr < nChars; chr++) {
-            Symbol symbol = frame->symbols[row][chr];
-            Crt1Bit linePtr = chrPtr;
-
-            bool hglt;
-            if (!m_hgltOffset || (chr == nChars - 1))
-                hglt = symbol.symbolAttributes.hglt();
-            else
-                hglt = frame->symbols[row][chr+1].symbolAttributes.hglt();
-
-            bool gpa0, gpa1;
-            if (!m_gpaOffset || (chr == nChars - 1)) {
-                gpa0 = symbol.symbolAttributes.gpa0();
-                gpa1 = symbol.symbolAttributes.gpa1();
-            }
-            else {
-                gpa0 = frame->symbols[row][chr+1].symbolAttributes.gpa0();
-                gpa1 = frame->symbols[row][chr+1].symbolAttributes.gpa1();
-            }
-            bool rvv;
-            if (!m_rvvOffset || (chr == nChars - 1))
-                rvv = symbol.symbolAttributes.rvv();
-            else
-                rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
-            const uint8_t* fntPtr = getCurFontPtr(gpa0, gpa1, hglt);
-            uint8_t fgColor = getCurFgColor(gpa0, gpa1, hglt);
-            uint8_t bgColor = getCurBgColor(gpa0, gpa1, hglt);
-            for (int ln = 0; ln < nLines; ln++) {
-                int lc;
-                if (!frame->isOffsetLineMode)
-                    lc = ln;
-                else
-                    lc = ln != 0 ? ln - 1 : nLines - 1;
-                bool vsp = symbol.vsp(ln);
-                bool lten;
-                if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.lten(ln);
-                else
-                    lten = frame->symbols[row][chr+1].lten(ln);
-                customDrawSymbolLine(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
-                linePtr += m_sizeX;
-            }
-            chrPtr += m_fntCharWidth;
-        }
-        rowPtr += nLines * m_sizeX;
-    }
-
-    graphics_set_1bit_buffer(m_pixelData2, m_sizeX, m_sizeY);
-    }
+    graphics_set_4bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
 
-void Kr04Renderer::customDrawSymbolLine(Crt1Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
-{
-    int offset = 0x8000 | (rvv ? 0x4000 : 0) | (hglt ? 0x2000 : 0) | (gpa1 ? 0x1000 : 0) | (gpa0 ? 0x0800 : 0) | ((symbol & 0x40) << 4) | (line << 6) | (symbol & 0x3F);
-    uint8_t bt = vsp ? 0 : m_memory->readByte(offset);
-
-    const bool p2 = true; // jumper
-
-    for (int pt = 0; pt < (m_hiRes ? 8 : 4); pt++) {
-        int idx = (bt & 1) | (bt >> 3 & 2) | (lten ? 4 : 0) | (!m_hiRes ? 8 : 0) | (p2 ? 0x10 : 0);
-        int vidOut = c_d46[idx];
-        uint8_t amp = c_bwPalette[vidOut >> 4 & 7];
-        uint32_t color = amp | (amp << 8) | (amp << 16); /// TODO: grayscale
-        linePtr.setBit(color);
-        linePtr += 1;
-        if (!m_hiRes) {
-            linePtr.setBit(color);
-            linePtr += 1;
-        }
-        bt >>= 1;
-    }
-}
-
-void Kr04Renderer::customDrawSymbolLine3(Crt3Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
+void Kr04Renderer::customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {
     int offset = 0x8000 | (rvv ? 0x4000 : 0) | (hglt ? 0x2000 : 0) | (gpa1 ? 0x1000 : 0) | (gpa0 ? 0x0800 : 0) | ((symbol & 0x40) << 4) | (line << 6) | (symbol & 0x3F);
     uint8_t bt = vsp ? 0 : m_memory->readByte(offset);
@@ -333,10 +238,10 @@ void Kr04Renderer::customDrawSymbolLine3(Crt3Bit linePtr, uint8_t symbol, int li
             color = m_colorCircuit->translateColor(vidOut & 7);
             break;
         }
-        linePtr.set3Bit(color);
+        linePtr.set4Bit(color);
         linePtr += 1;
         if (!m_hiRes) {
-            linePtr.set3Bit(color);
+            linePtr.set4Bit(color);
             linePtr += 1;
         }
         bt >>= 1;

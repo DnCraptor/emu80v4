@@ -91,6 +91,32 @@ typedef struct {
     }
 } Crt3Bit;
 
+class Crt4Bit {
+    uint32_t p8;
+public:
+    inline Crt4Bit(uint8_t* p) : p8((uint32_t)p << 1) {}
+    inline void operator +=(int a) {
+        p8 += a;
+    }
+    inline void set4Bit(uint8_t b) { /// b - 0xARGB
+        register uint8_t* p = (uint8_t*)(p8 >> 1);
+        if (p8 & 1) { // high 4-bits
+            *p = (*p & 0b00001111) | (b << 4);
+        } else { // low 4-bits
+            *p = (*p & 0b11110000) | (b & 0b1111);
+        }
+    }
+    inline void set4Bit(int a, uint8_t b) { /// b - 0xARGB
+        register uint32_t p82 = p8 + a;
+        register uint8_t* p = (uint8_t*)(p82 >> 1);
+        if (p82 & 1) { // high 4-bits
+            *p = (*p & 0b00001111) | (b << 4);
+        } else { // low 4-bits
+            *p = (*p & 0b11110000) | b;
+        }
+    }
+};
+
 class Crt8275Renderer : public TextCrtRenderer
 {
 

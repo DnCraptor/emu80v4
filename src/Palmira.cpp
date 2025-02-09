@@ -29,8 +29,11 @@ using namespace std;
 
 void PalmiraCore::vrtc(bool isActive)
 {
+    static uint8_t cnt = 0;
     if (isActive) {
-        m_crtRenderer->renderFrame();
+        if (cnt == 0)
+            m_crtRenderer->renderFrame();
+        cnt = (cnt + 1) & 1;
     }
 
     if (isActive)
@@ -76,27 +79,9 @@ PalmiraRenderer::PalmiraRenderer()
     graphics_set_mode(GMODE_640_480);
 }
 
-class Crt4Bit {
-    uint32_t p8;
-public:
-    inline Crt4Bit(uint8_t* p) : p8((uint32_t)p << 1) {}
-    inline void operator +=(int a) {
-        p8 += a;
-    }
-    inline void set4Bit(int a, uint8_t b) { /// b - 0xARGB
-        register uint32_t p82 = p8 + a;
-        register uint8_t* p = (uint8_t*)(p82 >> 1);
-        if (p82 & 1) { // high 4-bits
-            *p = (*p & 0b00001111) | (b << 4);
-        } else { // low 4-bits
-            *p = (*p & 0b11110000) | b;
-        }
-    }
-};
-
 uint8_t PalmiraRenderer::getCurFgColor(bool gpa0, bool gpa1, bool hglt)
 {
-    uint8_t res = (gpa1 ? 0b100 : 0) | (gpa0 ? 0b010 : 0) | (hglt ? 0b001 : 0);
+    uint8_t res = (gpa1 ? 0b001 : 0) | (gpa0 ? 0b010 : 0) | (hglt ? 0b100 : 0);
     return res == 0 ? 0b111 : res;
 }
 
