@@ -225,9 +225,19 @@ void __time_critical_func() dma_handler_VGA() {
                     0b11111100, // 0b110 6
                     0b11111111  // 0b111 7
                 };
-                for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                    register uint8_t v = input_buffer_8bit[x >> 1]; 
-                    *output_buffer_8bit++ = c[(v >> ((x & 1) << 2)) & 0b111];
+                if (duplicatePixels) {
+                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                        register uint8_t v = input_buffer_8bit[x >> 1];
+                        register uint8_t cx = c[(v >> ((x & 1) << 2)) & 0b111];
+                        *output_buffer_8bit++ = cx;
+                        *output_buffer_8bit++ = cx;
+                    }
+                } else {
+                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+                        register uint8_t v = input_buffer_8bit[x >> 1];
+                        register uint8_t cx = c[(v >> ((x & 1) << 2)) & 0b111];
+                        *output_buffer_8bit++ = cx;
+                    }
                 }
             } else {
                 if (duplicatePixels) {

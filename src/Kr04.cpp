@@ -35,8 +35,11 @@ using namespace std;
 
 void Kr04Core::vrtc(bool isActive)
 {
+    static uint8_t cnt = 0;
     if (isActive) {
-        m_crtRenderer->renderFrame();
+        if (cnt == 0)
+            m_crtRenderer->renderFrame();
+        cnt = (cnt + 1) & 1;
     }
 
     if (isActive)
@@ -129,28 +132,13 @@ Kr04Renderer::Kr04Renderer()
 
     m_customDraw = true;
     m_ltenOffset = false;
+
     graphics_set_duplicateLines(false);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode(GMODE_1024_768);
 }
 
-
-void Kr04Renderer::setColorMode(Kr04ColorMode colorMode)
+void Kr04Renderer::primaryRenderFrame()
 {
-    m_colorMode = colorMode;
-}
-
-
-void Kr04Renderer::toggleColorMode()
-{
-    if (m_colorMode == KCM_MONO)
-        setColorMode(KCM_COLOR);
-    else if (m_colorMode == KCM_COLOR)
-        setColorMode(KCM_COLORMODULE);
-    else if (m_colorMode == KCM_COLORMODULE)
-        setColorMode(KCM_MONO);
-}
-
-void Kr04Renderer::primaryRenderFrame() {
     calcAspectRatio(m_fntCharWidth);
 
     const Frame* frame = m_crt->getFrame();
@@ -171,10 +159,12 @@ void Kr04Renderer::primaryRenderFrame() {
         memset(m_pixelData, 0, m_dataSize);
         m_bufSize = m_dataSize;
     }
-
     Crt4Bit rowPtr(m_pixelData);
+
     for (int row = 0; row < nRows; row++) {
         Crt4Bit chrPtr = rowPtr;
+        bool curLten[16];
+        memset(curLten, 0, sizeof(curLten));
         for (int chr = 0; chr < nChars; chr++) {
             Symbol symbol = frame->symbols[row][chr];
             Crt4Bit linePtr = chrPtr;
@@ -209,6 +199,7 @@ void Kr04Renderer::primaryRenderFrame() {
                     lten = symbol.lten(ln);
                 else
                     lten = frame->symbols[row][chr+1].lten(ln);
+                curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
                 customDrawSymbolLine4(linePtr, symbol.chr, lc, lten, vsp, rvv, gpa0, gpa1, hglt);
                 linePtr += m_sizeX;
             }
@@ -218,6 +209,18 @@ void Kr04Renderer::primaryRenderFrame() {
     }
     graphics_set_4bit_buffer(m_pixelData, m_sizeX, m_sizeY);
 }
+
+void Kr04Renderer::setColorMode(Kr04ColorMode colorMode)
+{
+    m_colorMode = colorMode;
+}
+
+
+void Kr04Renderer::toggleColorMode()
+{
+    setColorMode(KCM_COLOR);
+}
+
 
 void Kr04Renderer::customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt)
 {
@@ -229,15 +232,7 @@ void Kr04Renderer::customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int li
     for (int pt = 0; pt < (m_hiRes ? 8 : 4); pt++) {
         int idx = (bt & 1) | (bt >> 3 & 2) | (lten ? 4 : 0) | (!m_hiRes ? 8 : 0) | (p2 ? 0x10 : 0);
         int vidOut = c_d46[idx];
-        uint8_t color;
-        switch (m_colorMode) {
-        case KCM_COLOR:
-            color = (vidOut & 1 ? 0b001 : 0) | (vidOut & 2 ? 0b010 : 0) | (vidOut & 4 ? 0b100 : 0);
-            break;
-        default:
-            color = m_colorCircuit->translateColor(vidOut & 7);
-            break;
-        }
+        uint8_t color = (vidOut & 1 ? 0b001 : 0) | (vidOut & 2 ? 0b010 : 0) | (vidOut & 4 ? 0b100 : 0);
         linePtr.set4Bit(color);
         linePtr += 1;
         if (!m_hiRes) {
@@ -248,9 +243,9 @@ void Kr04Renderer::customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int li
     }
 }
 
+
 wchar_t Kr04Renderer::getUnicodeSymbol(uint8_t chr, bool, bool, bool)
 {
-    ;
     return m_crt->getFrame()->nLines <= 10 ? c_rkSymbols[chr] : 0;
 }
 
@@ -267,15 +262,7 @@ bool Kr04Renderer::setProperty(const string& propertyName, const EmuValuesList& 
         m_colorCircuit = static_cast<Kr04PpiColor8255Circuit*>(g_emulation->findObject(values[0].asString()));
         return true;
     } else if (propertyName == "colorMode") {
-        if (values[0].asString() == "mono")
-            setColorMode(KCM_MONO);
-        else if (values[0].asString() == "color")
-            setColorMode(KCM_COLOR);
-        else if (values[0].asString() == "colorModule")
-            setColorMode(KCM_COLORMODULE);
-        else
-            return false;
-
+        setColorMode(KCM_COLOR);
         return true;
     }
 
@@ -292,14 +279,7 @@ string Kr04Renderer::getPropertyStringValue(const string& propertyName)
         return res;
 
     if (propertyName == "colorMode")
-        switch (m_colorMode) {
-        case KCM_MONO:
-            return "mono";
-        case KCM_COLOR:
-            return "color";
-        case KCM_COLORMODULE:
-            return "colorModule";
-        }
+        return "color";
 
     return "";
 }
@@ -397,17 +377,6 @@ void Kr04PpiColor8255Circuit::setPortB(uint8_t value)
 void Kr04PpiColor8255Circuit::setPortC(uint8_t value)
 {
     m_portC = value;
-}
-
-
-uint8_t Kr04PpiColor8255Circuit::translateColor(int rgb)
-{
-    int color2 = (((rgb << 1) | (rgb >> 1)) & 2) | (((rgb << 1) | (rgb << 2)) & 4);
-    int b = (m_portA >> color2) & 0x03;
-    int g = (m_portB >> color2) & 0x03;
-    int r = (m_portC >> color2) & 0x03;
-    return r | (g << 1) | (b << 2);
-///    return (c_colors[r]) << 16 | (c_colors[g] << 8) | c_colors[b];
 }
 
 
