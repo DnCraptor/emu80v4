@@ -28,7 +28,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.4.3")
+set (PORT_VERSION "0.4.4")
 
 #set (MURM2 ON)
 #set (PWM_PIN0 10)
