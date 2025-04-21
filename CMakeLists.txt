@@ -4,9 +4,9 @@ if(WIN32)
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(sdkVersion 2.0.0)
-set(toolchainVersion 13_2_Rel1)
-set(picotoolVersion 2.0.0)
+set(sdkVersion 2.1.1)
+set(toolchainVersion 14_2_Rel1)
+set(picotoolVersion 2.1.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
@@ -14,7 +14,8 @@ endif()
 # ====================================================================================
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.13)
-
+#set(PIMO ON CACHE STRING "Pimoroni Pico Plus 2")
+#set(m1p2-launcher ON)
 #set(I2S ON)
 
 #set(SOFTTV ON)
@@ -28,11 +29,11 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 378)
 #set(CPU_MHZ 444)
 set(CPU_MHZ 460)
-set (PORT_VERSION "0.4.4")
+set (PORT_VERSION "0.4.5")
 
-#set (MURM2 ON)
-#set (PWM_PIN0 10)
-set (PWM_PIN0 26)
+set (MURM2 ON)
+set (PWM_PIN0 10)
+#set (PWM_PIN0 26)
 
 set(KBDUSB ON)
 
@@ -116,6 +117,7 @@ target_link_libraries(p2-emu80 PRIVATE
     hardware_clocks
     hardware_pwm
     hardware_flash
+    hardware_exception
     stdc++
     
     tinyusb_host tinyusb_board
@@ -136,7 +138,9 @@ endif()
 pico_add_extra_outputs(${PROJECT_NAME})
 
 # add url via pico_set_program_url
-pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.ld")
+if (m1p2-launcher)
+    pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.ld")
+endif()
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
 
@@ -168,6 +172,13 @@ ELSE()
 ENDIF()
 
 IF(MURM2)
+    if (PIMO)
+        target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=47)
+        SET(BUILD_NAME "${BUILD_NAME}-GP47")
+    else()
+        target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=8)
+        SET(BUILD_NAME "${BUILD_NAME}-GP8")
+    endif()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         PORT_VERSION="${PORT_VERSION}"
         CPU_MHZ=${CPU_MHZ}
@@ -223,9 +234,18 @@ IF(MURM2)
         DEFAULT_THROTTLING=0
     )
 ELSE()
+    if (PIMO)
+        target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=47)
+        SET(BUILD_NAME "${BUILD_NAME}-GP47")
+    else()
+        target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=19)
+        SET(BUILD_NAME "${BUILD_NAME}-GP19")
+    endif()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         PORT_VERSION="${PORT_VERSION}"
         CPU_MHZ=${CPU_MHZ}
+
+        BUTTER_PSRAM_GPIO=47
 
         KBD_CLOCK_PIN=0
         KBD_DATA_PIN=1

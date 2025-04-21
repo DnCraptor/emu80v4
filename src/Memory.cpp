@@ -46,8 +46,13 @@ SRam::~SRam() {
 }
 
 void SRam::writeByte(int addr, uint8_t value) {
-    if (psram_size() > m_offset + addr) {
-        write8psram(m_offset + addr, value);
+    size_t off = m_offset + addr;
+    if (butter_psram_size() > off) {
+        PSRAM_DATA[off] = value;
+        return;
+    }
+    if (psram_size() > off) {
+        write8psram(off, value);
         return;
     }
     UINT br;
@@ -57,8 +62,12 @@ void SRam::writeByte(int addr, uint8_t value) {
 }
 
 uint8_t SRam::readByte(int addr) {
-    if (psram_size() > m_offset + addr) {
-        return read8psram(m_offset + addr);
+    size_t off = m_offset + addr;
+    if (butter_psram_size() > off) {
+        return PSRAM_DATA[off];
+    }
+    if (psram_size() > off) {
+        return read8psram(off);
     }
     UINT br;
     FSIZE_t lba = m_offset;
