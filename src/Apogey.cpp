@@ -40,8 +40,11 @@ ApogeyCore::~ApogeyCore()
 
 void ApogeyCore::vrtc(bool isActive)
 {
+    static uint8_t cnt = 0;
     if (isActive) {
-        m_crtRenderer->renderFrame();
+        if (cnt == 0)
+            m_crtRenderer->renderFrame();
+        cnt = (cnt + 1) & 1;
     }
 
     if (isActive)
@@ -232,15 +235,12 @@ void ApogeyRenderer::primaryRenderFrame()
                     lc = ln;
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
-
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
-
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
-
+                    lten = frame->symbols[row][chr+1].lten(ln);
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 
             ///    if (!m_customDraw) {
@@ -312,13 +312,12 @@ void ApogeyRenderer::primaryRenderFrame()
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
 
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
-
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    lten = frame->symbols[row][chr+1].lten(ln);
 
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 

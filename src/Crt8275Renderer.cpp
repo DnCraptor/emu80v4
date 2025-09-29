@@ -229,7 +229,7 @@ void Crt8275Renderer::primaryRenderFrame()
     }
     memcpy(m_pixelData2, m_pixelData, m_dataSize);
     memset(m_pixelData, 0, m_dataSize);
-    Crt1Bit rowPtr = { m_pixelData, 0 };
+    Crt1Bit rowPtr(m_pixelData);
 
     for (int row = 0; row < nRows; row++) {
         Crt1Bit chrPtr = rowPtr;
@@ -272,13 +272,12 @@ void Crt8275Renderer::primaryRenderFrame()
                 else
                     lc = ln != 0 ? ln - 1 : nLines - 1;
 
-                bool vsp = symbol.symbolLineAttributes[ln].vsp();
-
+                bool vsp = symbol.vsp(ln);
                 bool lten;
                 if (!m_ltenOffset || (chr == nChars - 1))
-                    lten = symbol.symbolLineAttributes[ln].lten();
+                    lten = symbol.lten(ln);
                 else
-                    lten = frame->symbols[row][chr+1].symbolLineAttributes[ln].lten();
+                    lten = frame->symbols[row][chr+1].lten(ln);
 
                 curLten[ln] = m_dashedLten ? lten && !curLten[ln] : lten;
 
@@ -339,7 +338,7 @@ void Crt8275Renderer::altRenderFrame()
     }
 
     memset(m_pixelData, 0, m_dataSize);
-    Crt1Bit rowPtr = { m_pixelData, 0 };
+    Crt1Bit rowPtr(m_pixelData);
 
     for (int row = 0; row < nRows; row++) {
         Crt1Bit chrPtr = rowPtr;
@@ -369,7 +368,7 @@ void Crt8275Renderer::altRenderFrame()
             else
                 rvv = frame->symbols[row][chr+1].symbolAttributes.rvv();
 
-            bool vsp = symbol.symbolLineAttributes[1].vsp(); // !!!
+            bool vsp = symbol.vsp(1); // !!!
 
             const uint8_t* fntPtr = getAltFontPtr(gpa0, gpa1, hglt);
             if (nLines == 12)
@@ -445,7 +444,7 @@ const char* Crt8275Renderer::getTextScreen()
             bool gpa0 = symbol.symbolAttributes.gpa0();
             bool gpa1 = symbol.symbolAttributes.gpa1();
             bool hglt = symbol.symbolAttributes.hglt();
-            bool vsp = symbol.symbolLineAttributes[1].vsp();
+            bool vsp = symbol.vsp(1);
 
             wchar_t wchr = getUnicodeSymbol(chr, gpa0, gpa1, hglt);
 

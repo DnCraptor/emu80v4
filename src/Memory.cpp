@@ -46,8 +46,13 @@ SRam::~SRam() {
 }
 
 void SRam::writeByte(int addr, uint8_t value) {
-    if (psram_size() > m_offset + addr) {
-        write8psram(m_offset + addr, value);
+    size_t off = m_offset + addr;
+    if (butter_psram_size() > off) {
+        PSRAM_DATA[off] = value;
+        return;
+    }
+    if (psram_size() > off) {
+        write8psram(off, value);
         return;
     }
     UINT br;
@@ -57,8 +62,12 @@ void SRam::writeByte(int addr, uint8_t value) {
 }
 
 uint8_t SRam::readByte(int addr) {
-    if (psram_size() > m_offset + addr) {
-        return read8psram(m_offset + addr);
+    size_t off = m_offset + addr;
+    if (butter_psram_size() > off) {
+        return PSRAM_DATA[off];
+    }
+    if (psram_size() > off) {
+        return read8psram(off);
     }
     UINT br;
     FSIZE_t lba = m_offset;
@@ -122,22 +131,18 @@ uint8_t Ram::readByte(int addr)
 #include "pico/korvet_rom1_bin.h"
 #include "pico/korvet_rom2_bin.h"
 #include "pico/korvet_rom3_bin.h"
-#if ORION
 #include "pico/orion_m1rk_bin.h"
 #include "pico/orion_m2rk_bin.h"
 #include "pico/orion_m31rk_bin.h"
 #include "pico/orion_m32zrk_bin.h"
-#endif
 #if PK8000
 #include "pico/pk8000_fdc.rom.h"
 #include "pico/pk8000_hdd.rom.h"
 #include "pico/pk8000_v12.rom.h"
 #endif
 #include "pico/ut88.rom.h"
-#if PK86
 #include "pico/rk86_dos29_bin.h"
 #include "pico/rk86_rom.h"
-#endif
 #include "pico/partner_romp1_bin.h"
 #include "pico/partner_romp2_bin.h"
 #include "pico/partner_mcpgrom_bin.h"
@@ -148,8 +153,15 @@ uint8_t Ram::readByte(int addr)
 #include "pico/kr04_rom1.bin.h"
 #include "pico/kr04_rom2.bin.h"
 
+#include "pico/palmbios.bin.h"
+
 Rom::Rom(unsigned memSize, string fileName)
 {
+    if (fileName == "palmira/palmbios.bin") {
+        m_buf = palmbios_bin;
+        m_size = sizeof(palmbios_bin);
+        return;
+    }
     if (fileName == "kr04/rom0.bin") {
         m_buf = kr04_rom0_bin;
         m_size = sizeof(kr04_rom0_bin);
@@ -225,7 +237,6 @@ Rom::Rom(unsigned memSize, string fileName)
         m_size = sizeof(ut88_rom);
         return;
     }
-    #if ORION
     if (fileName == "orion/rom/m1rk.bin") {
         m_buf = orion_m1rk_bin;
         m_size = sizeof(orion_m1rk_bin);
@@ -246,7 +257,6 @@ Rom::Rom(unsigned memSize, string fileName)
         m_size = sizeof(orion_m32zrk_bin);
         return;
     }
-    #endif
     #if PK8000
     if (fileName == "pk8000/pk8000_v12.rom") {
         m_buf = pk8000_v12_rom;
@@ -264,7 +274,6 @@ Rom::Rom(unsigned memSize, string fileName)
         return;
     }
     #endif
-    #if PK86
     if (fileName == "rk86/rk86.rom") {
         m_buf = rk86_rom;
         m_size = sizeof(rk86_rom);
@@ -275,7 +284,6 @@ Rom::Rom(unsigned memSize, string fileName)
         m_size = sizeof(dos29_bin);
         return;
     }
-    #endif
     m_buf = new uint8_t [memSize];
     memset((uint8_t*)m_buf, 0xFF, memSize);
     m_size = memSize;

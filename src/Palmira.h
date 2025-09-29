@@ -54,9 +54,12 @@ public:
 
     static EmuObject* create(const EmuValuesList&) {return new PalmiraRenderer();}
 
+    void primaryRenderFrame() override;
+
 protected:
     const uint8_t* getCurFontPtr(bool gpa0, bool gpa1, bool hglt) override;
     void setColorMode(Rk86ColorMode) override;
+    uint8_t getCurFgColor(bool gpa0, bool gpa1, bool hglt) override;
 
 private:
     bool m_useExtFont = false;

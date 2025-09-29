@@ -72,8 +72,6 @@ class Kr04PpiColor8255Circuit : public Ppi8255Circuit
 
         static EmuObject* create(const EmuValuesList&) {return new Kr04PpiColor8255Circuit();}
 
-        uint32_t translateColor(int rgb);
-
     private:
         const uint8_t c_colors[4] = {0, 85, 170, 255};
 
@@ -86,9 +84,7 @@ class Kr04PpiColor8255Circuit : public Ppi8255Circuit
 class Kr04Renderer : public Crt8275Renderer
 {
     enum Kr04ColorMode {
-        KCM_MONO,
-        KCM_COLOR,
-        KCM_COLORMODULE
+        KCM_COLOR
     };
 
     public:
@@ -111,19 +107,15 @@ class Kr04Renderer : public Crt8275Renderer
             0x30, 0x6A, 0x30, 0x6A, 0x79, 0x79, 0x79, 0x79, 0x30, 0x7C, 0x6A, 0x79, 0x30, 0x7C, 0x6A, 0x79
         };
 
-        //const uint8_t c_bwPalette[8] = {84, 112, 136, 165, 203, 231, 255, 0};
-        //const uint8_t c_bwPalette[8] = {0, 36, 67, 103, 152, 188, 219, 255};
-        const uint8_t c_bwPalette[8] = {0, 0, 0, 0, 82, 143, 194, 255};
-
         void setColorMode(Kr04ColorMode colorMode);
 
-        void customDrawSymbolLine(Crt1Bit& linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt) override;
+        void customDrawSymbolLine4(Crt4Bit linePtr, uint8_t symbol, int line, bool lten, bool vsp, bool rvv, bool gpa0, bool gpa1, bool hglt);
         wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt) override;
 
         AddrSpace* m_memory = nullptr   ;
         Kr04PpiColor8255Circuit* m_colorCircuit = nullptr;
 
-        Kr04ColorMode m_colorMode = KCM_COLORMODULE;
+        Kr04ColorMode m_colorMode = KCM_COLOR;
         bool m_hiRes = false;
 };
 

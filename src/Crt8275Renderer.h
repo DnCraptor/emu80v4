@@ -30,33 +30,31 @@ class Crt8275;
 #define bitWrite(value, bit, bitvalue) ((bitvalue) ? bitSet(value, bit) : bitClear(value, bit))
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
-typedef struct {
-    uint8_t* ptr;
-    uint8_t bit;
+class Crt1Bit {
+    uint64_t p8;
+public:
+    inline Crt1Bit(uint8_t* p) : p8((uint64_t)p << 3) {}
     inline void operator +=(int a) {
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
-        ptr = (uint8_t*)(p8 >> 3);
-        bit = (p8 & 7);
+        p8 += a;
     }
     inline void setBit(uint8_t b) { /// TODO: b - bool
-        bitWrite(*ptr, bit, b);
-    }
-    inline bool getBit(int a) {
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
-        uint8_t* p = (uint8_t*)(p8 >> 3);
-        uint8_t bi = p8 & 7;
-        return bitRead(*p, bi);
-    }
-    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
-        uint64_t p8 = (uint32_t)ptr;
-        p8 = (p8 << 3) + bit + a;
         uint8_t* p = (uint8_t*)(p8 >> 3);
         uint8_t bi = p8 & 7;
         bitWrite(*p, bi, b);
     }
-} Crt1Bit;
+    inline bool getBit(int a) {
+        uint64_t p82 = p8 + a;
+        uint8_t* p = (uint8_t*)(p82 >> 3);
+        uint8_t bi = p82 & 7;
+        return bitRead(*p, bi);
+    }
+    inline void setBit(int a, uint8_t b) { /// TODO: b - bool
+        uint64_t p82 = p8 + a;
+        uint8_t* p = (uint8_t*)(p82 >> 3);
+        uint8_t bi = p82 & 7;
+        bitWrite(*p, bi, b);
+    }
+};
 
 
 typedef struct {
@@ -93,6 +91,32 @@ typedef struct {
     }
 } Crt3Bit;
 
+class Crt4Bit {
+    uint32_t p8;
+public:
+    inline Crt4Bit(uint8_t* p) : p8((uint32_t)p << 1) {}
+    inline void operator +=(int a) {
+        p8 += a;
+    }
+    inline void set4Bit(uint8_t b) { /// b - 0xARGB
+        register uint8_t* p = (uint8_t*)(p8 >> 1);
+        if (p8 & 1) { // high 4-bits
+            *p = (*p & 0b00001111) | (b << 4);
+        } else { // low 4-bits
+            *p = (*p & 0b11110000) | (b & 0b1111);
+        }
+    }
+    inline void set4Bit(int a, uint8_t b) { /// b - 0xARGB
+        register uint32_t p82 = p8 + a;
+        register uint8_t* p = (uint8_t*)(p82 >> 1);
+        if (p82 & 1) { // high 4-bits
+            *p = (*p & 0b00001111) | (b << 4);
+        } else { // low 4-bits
+            *p = (*p & 0b11110000) | b;
+        }
+    }
+};
+
 class Crt8275Renderer : public TextCrtRenderer
 {
 
@@ -126,7 +150,7 @@ class Crt8275Renderer : public TextCrtRenderer
         virtual const uint8_t* getAltFontPtr(bool, bool, bool) {return nullptr;}
         virtual uint8_t getCurFgColor(bool, bool, bool) {return 0xFF;}
         virtual uint8_t getCurBgColor(bool, bool, bool) {return 0x00;}
-        virtual void customDrawSymbolLine(Crt1Bit&, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
+        virtual void customDrawSymbolLine(Crt1Bit, uint8_t, int, bool, bool, bool, bool, bool, bool) {}
         virtual wchar_t getUnicodeSymbol(uint8_t chr, bool gpa0, bool gpa1, bool hglt);
 
         int m_fontNumber = 0;
