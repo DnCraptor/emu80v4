@@ -142,14 +142,6 @@ void LvovRenderer::operate()
 }
 
 
-void LvovRenderer::operate()
-{
-    renderFrame();
-    m_curClock += g_emulation->getFrequency() * 320 * 312 / 5000000; // 5 MHz pixelclock, 312 (?) scanlines, 320 pixels wide
-    g_emulation->screenUpdateReq(); // transfer to Core
-}
-
-
 void LvovRenderer::toggleColorMode()
 {
     m_colorMode = !m_colorMode;

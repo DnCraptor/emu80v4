@@ -619,7 +619,7 @@ void graphics_init() {
     );
 
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-    graphics_set_mode(GMODE_1024_768);
+    graphics_set_mode(GMODE_800_600);
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);

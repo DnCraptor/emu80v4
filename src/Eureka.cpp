@@ -167,14 +167,6 @@ void EurekaRenderer::operate()
 }
 
 
-void EurekaRenderer::operate()
-{
-    renderFrame();
-    m_curClock += g_emulation->getFrequency() * 512 * 312 / 8000000; // 8 MHz pixelclock, 312 scanlines, 512 pixels wide
-    g_emulation->screenUpdateReq(); // transfer to Core
-}
-
-
 void EurekaRenderer::toggleCropping()
 {
     m_showBorder = !m_showBorder;

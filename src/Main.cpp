@@ -9,7 +9,13 @@
 #include <hardware/vreg.h>
 #include <hardware/sync.h>
 #include <hardware/flash.h>
-
+#ifdef PICO_RP2350
+#include <hardware/regs/qmi.h>
+#include <hardware/exception.h>
+#include <hardware/structs/qmi.h>
+#include <hardware/structs/xip.h>
+#include <hardware/regs/sysinfo.h>
+#endif
 #include "audio.h"
 #include "ff.h"
 #include "psram_spi.h"
@@ -856,45 +862,30 @@ static const char* argv[3] = {
     0
 };
 
-#ifdef BUTTER_PSRAM_GPIO
-
-#include <hardware/exception.h>
-#include <hardware/structs/qmi.h>
-#include <hardware/structs/xip.h>
-
+static int BUTTER_PSRAM_SIZE = -1;
+#ifdef PICO_RP2350
 #define MB16 (16ul << 20)
 #define MB8 (8ul << 20)
 #define MB4 (4ul << 20)
 #define MB1 (1ul << 20)
 volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
 uint32_t __not_in_flash_func(butter_psram_size)() {
-    static int BUTTER_PSRAM_SIZE = -1;
     if (BUTTER_PSRAM_SIZE != -1) return BUTTER_PSRAM_SIZE;
-
-    for(register int i = MB16 - MB1; i < MB16; ++i)
-        PSRAM_DATA[i] = i & 0xFF;
-    register uint32_t res = 0;
-    for(register int i = MB4 - MB1; i < MB4; ++i) {
-        if (PSRAM_DATA[i] != (i & 0xFF)) {
-            for(register int i = MB8 - MB1; i < MB8; ++i) {
-                if (PSRAM_DATA[i] != (i & 0xFF)) {
-                    for(register int i = MB16 - MB1; i < MB16; ++i) {
-                        if (PSRAM_DATA[i] != (i & 0xFF)) {
-                            goto e0;
-                        }
-                    }
-                    res = MB16;
-                    goto e0;
-                }
-            }
-            res = MB8;
-            goto e0;
-        }
+    for(register int i = MB8; i < MB16; i += 4096)
+        PSRAM_DATA[i] = 16;
+    for(register int i = MB4; i < MB8; i += 4096)
+        PSRAM_DATA[i] = 8;
+    for(register int i = MB1; i < MB4; i += 4096)
+        PSRAM_DATA[i] = 4;
+    for(register int i = 0; i < MB1; i += 4096)
+        PSRAM_DATA[i] = 1;
+    register uint32_t res = PSRAM_DATA[MB16 - 4096];
+    for (register int i = MB16 - MB1; i < MB16; i += 4096) {
+        if (res != PSRAM_DATA[i])
+            return 0;
     }
-    res = MB4;
-e0:
-    BUTTER_PSRAM_SIZE = res;
-    return res;
+    BUTTER_PSRAM_SIZE = res << 20;
+    return BUTTER_PSRAM_SIZE;
 }
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
@@ -969,6 +960,8 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
 
     // Enable writes to PSRAM
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
+
+    butter_psram_size();
 }
 void sigbus(void) {
     printf("SIGBUS exception caught...\n");
@@ -984,26 +977,44 @@ static uint8_t* PSRAM_DATA = (uint8_t*)0;
 uint32_t butter_psram_size() { return 0; }
 #endif
 
+#ifndef PICO_RP2040
+void __not_in_flash() flash_timings() {
+    const int max_flash_freq = 88 * MHZ;
+    const int clock_hz = CPU_MHZ * MHZ;
+    int divisor = (clock_hz + max_flash_freq - 1) / max_flash_freq;
+    if (divisor == 1 && clock_hz > 100000000) {
+        divisor = 2;
+    }
+    int rxdelay = divisor;
+    if (clock_hz / divisor > 100000000) {
+        rxdelay += 1;
+    }
+    qmi_hw->m[0].timing = 0x60007000 |
+                        rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
+                        divisor << QMI_M0_TIMING_CLKDIV_LSB;
+}
+#endif
+
 int main() {
     static FATFS fs;
 #if !PICO_RP2040
-    volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     sleep_ms(33);
-    *qmi_m0_timing = 0x60007204;
+    bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
+    flash_timings();
     set_sys_clock_khz(CPU_MHZ * KHZ, 0);
-//    *qmi_m0_timing = 0x60007204;
-    *qmi_m0_timing = 0x60007303;
+    #if MURM2
+    uint BUTTER_PSRAM_GPIO = rp2350a ? 8 : 47;
+    #else
+    uint BUTTER_PSRAM_GPIO = rp2350a ? 19 : 47;
+    #endif
+    psram_init(BUTTER_PSRAM_GPIO);
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, sigbus);
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
     set_sys_clock_khz(CPU_MHZ * KHZ, true);
-#endif
-
-#ifdef BUTTER_PSRAM_GPIO
-    psram_init(BUTTER_PSRAM_GPIO);
-    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, sigbus);
 #endif
 
 #ifdef KBDUSB
@@ -1034,7 +1045,8 @@ int main() {
     init_sound();
 ///    pcm_setup(SOUND_FREQUENCY, SOUND_FREQUENCY * 2 / 50); // 882 * 2  = 1764
 #ifdef PSRAM
-    init_psram();
+    if (BUTTER_PSRAM_SIZE <= 0)
+        init_psram();
 #endif
     // send kbd reset only after initial process passed
 #ifndef KBDUSB
