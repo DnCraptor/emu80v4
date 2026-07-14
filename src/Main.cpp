@@ -1006,11 +1006,8 @@ int main() {
     bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
     flash_timings();
     set_sys_clock_khz(CPU_MHZ * KHZ, 0);
-    #if MURM2
-    uint BUTTER_PSRAM_GPIO = rp2350a ? 8 : 47;
-    #else
-    uint BUTTER_PSRAM_GPIO = rp2350a ? 19 : 47;
-    #endif
+    uint BUTTER_PSRAM_GPIO = rp2350a ? BUTTER_PSRAM_GPIO_RP2350A
+                                      : BUTTER_PSRAM_GPIO_RP2350B;
     psram_init(BUTTER_PSRAM_GPIO);
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, sigbus);
 #else

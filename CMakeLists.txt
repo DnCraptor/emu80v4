@@ -12,8 +12,15 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.13)
+set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
+#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
+set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
+#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+#set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
+#set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
+#set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 #set(I2S ON)
@@ -32,11 +39,8 @@ set(CPU_MHZ 440)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set (PORT_VERSION "0.4.6")
+set (PORT_VERSION "0.4.7")
 
-#set (MURM2 ON)
-#set (PWM_PIN0 10)
-set (PWM_PIN0 26)
 
 set(KBDUSB ON)
 
@@ -47,21 +51,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME p2-emu80)
+SET(PROJECT_NAME emu80)
 set(FLASH_SIZE 4096)
-
-IF(MURM2)
-    SET(BUILD_NAME "m2${PROJECT_NAME}-${CPU_MHZ}")
-ELSE()
-    SET(BUILD_NAME "m1${PROJECT_NAME}-${CPU_MHZ}")
-ENDIF()
+set(BUILD_NAME "${PROJECT_NAME}")
 
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(p2-emu80 C CXX ASM)
+project(emu80 C CXX ASM)
+
+message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
+message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
+message(STATUS ">>> PICO_BOARD_HEADER_DIRS=${PICO_BOARD_HEADER_DIRS}")
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -99,7 +102,7 @@ message(STATUS "")
 add_executable(${PROJECT_NAME} ${SRC})
 
 # pull in common dependencies
-target_link_libraries(p2-emu80 PRIVATE
+target_link_libraries(${PROJECT_NAME} PRIVATE
     psram
     audio
     graphics
@@ -131,7 +134,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 if (PICO_CYW43_SUPPORTED)
-    target_link_libraries(p2-emu80 pico_cyw43_arch_none)
+    target_link_libraries(${PROJECT_NAME} pico_cyw43_arch_none)
 endif()
 
 ##pico_enable_stdio_uart(${PROJECT_NAME} 0)
@@ -174,123 +177,40 @@ ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE KBDPS2)
 ENDIF()
 
-IF(MURM2)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        MURM2=1
-        PORT_VERSION="${PORT_VERSION}"
-        CPU_MHZ=${CPU_MHZ}
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    PORT_VERSION="${PORT_VERSION}"
+    CPU_MHZ=${CPU_MHZ}
+)
 
-        KBD_CLOCK_PIN=2
-        KBD_DATA_PIN=3
-
-        LOAD_WAV_PIO=22
-
-        BEEPER_PIN=9
-        PWM_PIN0=10
-        PWM_PIN1=11
-        SOUND_FREQUENCY=44100
-        I2S_FREQUENCY=96000
-
-        # SDCARD
-        SDCARD_PIN_SPI0_CS=5
-        SDCARD_PIN_SPI0_SCK=6
-        SDCARD_PIN_SPI0_MOSI=7
-        SDCARD_PIN_SPI0_MISO=4
-
-    #    PSRAM
-        # PSRAM_MUTEX=1
-        PSRAM_SPINLOCK=1
-        PSRAM_ASYNC=1
-
-        PSRAM_PIN_CS=18
-        PSRAM_PIN_SCK=19
-        PSRAM_PIN_MOSI=20
-        PSRAM_PIN_MISO=21
-
-        # NES Gamepad
-       # USE_NESPAD
-        NES_GPIO_CLK=20
-        NES_GPIO_LAT=21
-        NES_GPIO_DATA=26
-
-        # VGA 8 pins starts from pin:
-        VGA_BASE_PIN=12
-
-        # HDMI 8 pins starts from pin:
-        HDMI_BASE_PIN=12
-
-
-        # TFT
-        TFT_CS_PIN=12
-        TFT_RST_PIN=14
-        TFT_LED_PIN=15
-        TFT_DC_PIN=16
-        TFT_DATA_PIN=18
-        TFT_CLK_PIN=19
-
-        DEFAULT_THROTTLING=0
-    )
-ELSE()
-    target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PORT_VERSION="${PORT_VERSION}"
-        CPU_MHZ=${CPU_MHZ}
-
-        KBD_CLOCK_PIN=0
-        KBD_DATA_PIN=1
-
-        LOAD_WAV_PIO=22
-        PWM_PIN0=26
-        PWM_PIN1=27
-        BEEPER_PIN=28
-        SOUND_FREQUENCY=50000
-        I2S_FREQUENCY=96000
-
-        # SDCARD
-        SDCARD_PIN_SPI0_CS=5
-        SDCARD_PIN_SPI0_SCK=2
-        SDCARD_PIN_SPI0_MOSI=3
-        SDCARD_PIN_SPI0_MISO=4
-
-        PSRAM
-        # PSRAM_MUTEX=1
-        PSRAM_SPINLOCK=1
-        PSRAM_ASYNC=1
-
-        PSRAM_PIN_CS=18
-        PSRAM_PIN_SCK=19
-        PSRAM_PIN_MOSI=20
-        PSRAM_PIN_MISO=21
-
-        # NES Gamepad
-        USE_NESPAD
-        NES_GPIO_CLK=14
-        NES_GPIO_DATA=16
-        NES_GPIO_LAT=15
-
-        # VGA 8 pins starts from pin:
-        VGA_BASE_PIN=6
-
-        # HDMI 8 pins starts from pin:
-        HDMI_BASE_PIN=6
-
-        # TFT
-        TFT_CS_PIN=6
-        TFT_RST_PIN=8
-        TFT_LED_PIN=9
-        TFT_DC_PIN=10
-        TFT_DATA_PIN=12
-        TFT_CLK_PIN=13
-
-        DEFAULT_THROTTLING=0
-
-        #LOG=1
-    )
-ENDIF()
+if(${PICO_PLATFORM} MATCHES "rp2040")
+    pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+    target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+    pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
+    if(${PICO_BOARD} MATCHES "murmulator2")
+        SET(BUILD_NAME "m2p1-${PROJECT_NAME}-${CPU_MHZ}")
+    elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
+        SET(BUILD_NAME "PCp1-${PROJECT_NAME}-${CPU_MHZ}")
+    elseif(${PICO_BOARD} MATCHES "waveshare_rp2040_pizero")
+        SET(BUILD_NAME "z0p1-${PROJECT_NAME}-${CPU_MHZ}")
+    else()
+        SET(BUILD_NAME "m1p1-${PROJECT_NAME}-${CPU_MHZ}")
+    endif()
+else()
+    if(${PICO_BOARD} MATCHES "murmulator2")
+        SET(BUILD_NAME "m2p2-${PROJECT_NAME}-${CPU_MHZ}")
+    elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
+        SET(BUILD_NAME "PCp2-${PROJECT_NAME}-${CPU_MHZ}")
+    elseif(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
+        SET(BUILD_NAME "z0p2-${PROJECT_NAME}-${CPU_MHZ}")
+    else()
+        SET(BUILD_NAME "m1p2-${PROJECT_NAME}-${CPU_MHZ}")
+    endif()
+endif()
 
 
 IF(NOT I2S)
     SET(BUILD_NAME "${BUILD_NAME}-PWM")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=${PWM_PIN0})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM)
 ELSEIF(I2S_CS4334)
     target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
     SET(BUILD_NAME "${BUILD_NAME}-CS4334")
@@ -325,5 +245,16 @@ ELSE()
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
     SET(BUILD_NAME "${BUILD_NAME}-VGA-${PORT_VERSION}")
 ENDIF()
+
+if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
+    pico_set_program_name(${PROJECT_NAME} "Emu80 for RP2350-PiZero")
+elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
+    pico_set_program_name(${PROJECT_NAME} "Emu80 for Olimex RP2040-PICO-PC")
+elseif(${PICO_BOARD} MATCHES "murmulator2")
+    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 2.0")
+else()
+    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 1.x")
+endif()
+pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
