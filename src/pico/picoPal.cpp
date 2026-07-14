@@ -155,176 +155,197 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     int32_t y = (sh - h) / 2;
     uint32_t fntw = graphics_get_font_width();
     uint32_t fnth = graphics_get_font_height();
-    graphics_rect(x, y, w, h, RGB888(0, 0, 0)); // outer rect
+    uint32_t msi = fnth + 1;
+    uint32_t xb = x + 2;
+    uint32_t yb = y + fnth + 5;
+    const uint32_t scrollW = 4;
+    const uint32_t listW = w - 2 - scrollW;
+    const uint32_t scrollX = x + w - 1 - scrollW;
+    const char back[] = "..";
+
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
+    graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+
+    string t2;
+    if (write) {
+        t2 = "Type a name of ext: " + filter;
+        graphics_fill(x + 1, yb, w - 2, fnth + 1, RGB888(207, 255, 255));
+        yb += fnth + 1;
+    }
 
     DIR f_dir;
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK) {
+    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
         fdir = "/";
-    } else {
+    else
         f_closedir(&f_dir);
-    }
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK) {
+    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
         return "";
-    }
+    f_closedir(&f_dir);
 
     vector<PalFileInfo*> fileList;
     int selected_file_n = 0;
     int shift_j = 0;
-    uint32_t height_in_j = 0;
+    int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
+    if (visibleRows < 1) visibleRows = 1;
     PalFileInfo* selected_fi = nullptr;
-    uint32_t yt = y+2+1;
-    const char back[] = "..";
-    string t2;
-    if (write) t2 = "Type a name of ext: " + filter;
-again:
-    graphics_fill(x+1, y+1, w-2, fnth+2, 0b000101); // Title background
-    graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
-    string t = title + ": " + fdir; // include dir into title
-    uint32_t xt = (w-2 - t.length() * fntw) / 2; // center title
-    graphics_type(xt, yt, 0b101010, t.c_str(), t.length()); // print title
-    for (auto i = fileList.begin(); i != fileList.end(); ++i) { // cleanup files list
-        delete *i;
-    }
-    fileList.clear();
-    // add virtual dir for back action
-    if (fdir.length() > 1) {
-        PalFileInfo* newFile = new PalFileInfo;
-        newFile->fileName = back;
-        newFile->isDir = 1;
-        fileList.push_back(newFile);
-    }
-    palGetDirContent(fdir, fileList);
-    sort(fileList.begin(), fileList.end(), [](const PPalFileInfo& a, const PPalFileInfo& b) {
-        if ((a->isDir && b->isDir) || (!a->isDir && !b->isDir)) return a->fileName < b->fileName;
-        return b->isDir < a->isDir;
-    });
-    int j = 0;
-    uint32_t xb = x + 2;
-    uint32_t yb = y + fnth + 5;
-    if (write) {
-        graphics_fill(x+1, yb+1, w-2, yb+fnth+1, RGB888(207, 255, 255)); // Title2 background
-        xt = x+2;
-        graphics_type(xt, yb+1, RGB888(0, 0, 0), t2.c_str(), t2.length()); // print title2
-        yb += fnth+1;
-    }
-    graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
-    uint32_t msi = fnth + 1; // height of one file line
-    height_in_j = 0;
-    for (auto i = fileList.begin(); i != fileList.end(); ++i, ++j) {
-        if (j < shift_j) continue;
-        PalFileInfo* fi = *i;
-        uint32_t ybj = yb + (j - shift_j) * msi;
-        if (ybj > y + h - fnth) break;
-        height_in_j++;
-        string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
-        if (selected_file_n == j) {
-            selected_fi = fi;
-            graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
-            graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name.c_str(), name.length());
-        } else {
-            graphics_type(xb, ybj, RGB888(0, 0, 0), name.c_str(), name.length());
+
+    auto freeFileList = [&]() {
+        for (auto* fi : fileList) delete fi;
+        fileList.clear();
+    };
+
+    auto loadDirectory = [&]() {
+        freeFileList();
+        if (fdir.length() > 1) {
+            PalFileInfo* newFile = new PalFileInfo;
+            newFile->fileName = back;
+            newFile->isDir = 1;
+            fileList.push_back(newFile);
         }
-    }
-    string res = "";
-    while(1) {
+        palGetDirContent(fdir, fileList);
+        sort(fileList.begin(), fileList.end(), [](const PPalFileInfo& a, const PPalFileInfo& b) {
+            if (a->isDir == b->isDir) return a->fileName < b->fileName;
+            return a->isDir > b->isDir;
+        });
+    };
+
+    auto drawTitle = [&]() {
+        graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
+        string t = title + ": " + fdir;
+        uint32_t xt = x + 1;
+        if (t.length() * fntw < w - 2)
+            xt = x + 1 + (w - 2 - t.length() * fntw) / 2;
+        graphics_type(xt, y + 3, 0b101010, t.c_str(), t.length());
+    };
+
+    auto drawInput = [&]() {
+        if (!write) return;
+        graphics_fill(x + 1, y + fnth + 5, w - 2, fnth + 1, RGB888(207, 255, 255));
+        graphics_type(x + 2, y + fnth + 6, RGB888(0, 0, 0), t2.c_str(), t2.length());
+    };
+
+    auto drawRow = [&](int itemIndex) {
+        if (itemIndex < shift_j || itemIndex >= shift_j + visibleRows) return;
+        int row = itemIndex - shift_j;
+        uint32_t rowY = yb + row * msi;
+        bool selected = itemIndex == selected_file_n;
+        uint32_t bg = selected ? RGB888(114, 114, 224) : RGB888(255, 255, 255);
+        uint32_t fg = selected ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+        graphics_fill(x + 1, rowY, listW, fnth, bg);
+        if (itemIndex >= 0 && itemIndex < (int)fileList.size()) {
+            PalFileInfo* fi = fileList[itemIndex];
+            string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
+            size_t maxChars = listW > 2 ? (listW - 2) / fntw : 0;
+            if (name.length() > maxChars) name.resize(maxChars);
+            graphics_type(xb, rowY, fg, name.c_str(), name.length());
+        }
+    };
+
+    auto drawScrollbar = [&]() {
+        uint32_t trackY = yb;
+        uint32_t trackH = y + h - 1 - trackY;
+        graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
+        int total = (int)fileList.size();
+        if (total <= visibleRows || trackH == 0) return;
+        uint32_t thumbH = (uint32_t)((uint64_t)trackH * visibleRows / total);
+        if (thumbH < 4) thumbH = 4;
+        if (thumbH > trackH) thumbH = trackH;
+        int maxShift = total - visibleRows;
+        uint32_t thumbY = trackY + (uint32_t)((uint64_t)(trackH - thumbH) * shift_j / maxShift);
+        graphics_fill(scrollX, thumbY, scrollW, thumbH, RGB888(96, 96, 96));
+    };
+
+    auto drawWindow = [&]() {
+        for (int row = 0; row < visibleRows; ++row)
+            drawRow(shift_j + row);
+        drawScrollbar();
+    };
+
+    loadDirectory();
+    drawTitle();
+    drawInput();
+    drawWindow();
+
+    string res;
+    while (1) {
         sleep_ms(100);
         PalKeyCodeAction pk = getKey();
+
         if (write && pk.pressed) {
-            if (pk.vk >= PK_1 && pk.vk <= PK_0) { t2 += '1' + pk.vk - PK_1; goto again; }
-            if (pk.vk >= PK_A && pk.vk <= PK_Z) { t2 += 'a' + pk.vk - PK_A; goto again; } // TODO: shift, caps lock
-            if (pk.vk == PK_SPACE) { t2 += ' '; goto again; }
-            if (pk.vk == PK_PERIOD) { t2 += '.'; goto again; }
-            if (pk.vk == PK_BSP) { t2 = ""; goto again; } /// TODO:
+            bool changed = true;
+            if (pk.vk >= PK_1 && pk.vk <= PK_0) t2 += '1' + pk.vk - PK_1;
+            else if (pk.vk >= PK_A && pk.vk <= PK_Z) t2 += 'a' + pk.vk - PK_A;
+            else if (pk.vk == PK_SPACE) t2 += ' ';
+            else if (pk.vk == PK_PERIOD) t2 += '.';
+            else if (pk.vk == PK_BSP) t2.clear();
+            else changed = false;
+            if (changed) drawInput();
         }
+
+        int oldSelected = selected_file_n;
+        int oldShift = shift_j;
+        int count = (int)fileList.size();
+        if (count == 0) {
+            if (pk.vk == PK_ESC && pk.pressed) break;
+            continue;
+        }
+
         if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
-            selected_file_n--;
-            if (selected_file_n < 0) {
-                selected_file_n = fileList.size() - 1;
-                while (selected_file_n >= shift_j + height_in_j) {
-                    shift_j += 10;
-                }
-            }
-            while (selected_file_n < shift_j) {
-                shift_j--;
-            }
-            if (shift_j < 0) shift_j = fileList.size() - 1;
-            goto again;
-        }
-        if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
-            selected_file_n -= 10;
-            if (selected_file_n < 0) {
-                selected_file_n = 0;
-            }
-            while (selected_file_n < shift_j) {
-                shift_j -= 10;
-            }
-            if (shift_j < 0) shift_j = 0;
-            goto again;
-        }
-        if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
-            selected_file_n++;
-            if (selected_file_n >= fileList.size()) {
-                selected_file_n = 0;
-                shift_j = 0;
-            }
-            while (selected_file_n >= shift_j + height_in_j) {
-                shift_j++;
-            }
-            goto again;
-        }
-        if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
-            selected_file_n += 10;
-            if (selected_file_n >= fileList.size()) {
-                selected_file_n = fileList.size() - 1;
-            }
-            while (selected_file_n >= shift_j + height_in_j) {
-                shift_j += 10;
-            }
-            goto again;
-        }
-        if ((pk.vk == PK_HOME || pk.vk == PK_KP_7) && pk.pressed) {
+            selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : count - 1;
+        } else if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
+            selected_file_n = std::max(0, selected_file_n - visibleRows);
+        } else if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
+            selected_file_n = selected_file_n + 1 < count ? selected_file_n + 1 : 0;
+        } else if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
+            selected_file_n = std::min(count - 1, selected_file_n + visibleRows);
+        } else if ((pk.vk == PK_HOME || pk.vk == PK_KP_7) && pk.pressed) {
             selected_file_n = 0;
-            shift_j = 0;
-            goto again;
-        }
-        if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
-            selected_file_n = fileList.size() - 1;
-            while (selected_file_n >= shift_j + height_in_j) {
-                shift_j += 10;
-            }
-            goto again;
-        }
-        if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed && selected_fi) {
-            if (write) { // TODO: 
+        } else if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
+            selected_file_n = count - 1;
+        } else if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
+            selected_fi = fileList[selected_file_n];
+            if (write) {
                 res = fdir + "/" + t2;
                 break;
             }
-            selected_file_n = 0;
-            shift_j = 0;
             if (selected_fi->isDir) {
                 if (selected_fi->fileName == back) {
-                    fdir = fdir.substr(0, fdir.find_last_of("/"));
+                    fdir = fdir.substr(0, fdir.find_last_of('/'));
                     if (fdir.empty()) fdir = "/";
                 } else {
-                    if (fdir.length() == 1) {
-                        fdir = fdir + "/" + selected_fi->fileName;
-                    } else {
-                        fdir = fdir + "/" + selected_fi->fileName;
-                    }
+                    if (fdir.length() > 1) fdir += "/";
+                    fdir += selected_fi->fileName;
                 }
-                goto again;
+                selected_file_n = 0;
+                shift_j = 0;
+                loadDirectory();
+                drawTitle();
+                drawWindow();
+                continue;
             }
             res = fdir + "/" + selected_fi->fileName;
             break;
-        }
-        if (pk.vk == PK_ESC && pk.pressed) {
-            res = "";
+        } else if (pk.vk == PK_ESC && pk.pressed) {
             break;
-        };
+        } else {
+            continue;
+        }
+
+        if (selected_file_n < shift_j) shift_j = selected_file_n;
+        if (selected_file_n >= shift_j + visibleRows) shift_j = selected_file_n - visibleRows + 1;
+        int maxShift = std::max(0, count - visibleRows);
+        if (shift_j > maxShift) shift_j = maxShift;
+
+        if (shift_j != oldShift) {
+            drawWindow();
+        } else if (selected_file_n != oldSelected) {
+            drawRow(oldSelected);
+            drawRow(selected_file_n);
+        }
     }
-    for (auto i = fileList.begin(); i != fileList.end(); ++i) {
-        delete *i;
-    }
+
+    freeFileList();
     return res;
 }
 

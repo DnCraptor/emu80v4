@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
+#include <algorithm>
 
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -999,7 +1000,8 @@ int main() {
     static FATFS fs;
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
-    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    vreg_set_voltage(VREG_VOLTAGE_1_50);
+//    vreg_set_voltage(VREG_VOLTAGE_1_60); // TODO: dynamic per CPU freq.
     sleep_ms(33);
     bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
     flash_timings();
@@ -1060,7 +1062,6 @@ int main() {
     {
         int selected_file_n = 0;
         int shift_j = 0;
-        uint32_t height_in_j = 0;
         uint32_t sw = graphics_get_width();
         uint32_t sh = graphics_get_height();
         uint32_t w = sw - 10;
@@ -1069,100 +1070,101 @@ int main() {
         int32_t y = (sh - h) / 2;
         uint32_t fntw = graphics_get_font_width();
         uint32_t fnth = graphics_get_font_height();
-        graphics_rect(x, y, w, h, RGB888(0, 0, 0)); // outer rect
-
-        uint32_t yt = y+2+1;
-        graphics_fill(x+1, y+1, w-2, fnth+2, RGB888(107, 216, 231)); // Title background
-        graphics_rect(x, y, w, fnth+4, RGB888(0, 0, 0));
-        string t = "Select platform";
-        uint32_t xt = (w-2 - t.length() * fntw) / 2; // center title
-        graphics_type(xt, yt, RGB888(0, 0, 0), t.c_str(), t.length()); // print title
-        
-    again:
-        int j = 0;
-        uint32_t xb = x + 2;
+        uint32_t msi = fnth + 1;
         uint32_t yb = y + fnth + 5;
-        graphics_fill(x + 1, yb, w-2, h-2-fnth-2-2, RGB888(0xFF, 0xFF, 0xFF)); // cleanup (prpepare background) in the rect
-        uint32_t msi = fnth + 1; // height of one file line
-        size_t lines = sizeof(platforms) / sizeof(char*);
-        const char* pls = (const char*)platforms_list_cp866;
-        height_in_j = 0;
-        for (auto i = 0; i < lines; ++i, ++j) {
-            const char* name = pls; ///pls[i].c_str();
-            while(*pls++); ++pls;
-            if (j < shift_j) continue;
-            uint32_t ybj = yb + (j - shift_j) * msi;
-            if (ybj > y + h - fnth) break;
-            height_in_j++;
-            if (selected_file_n == j) {
-                graphics_fill(xb-1, ybj, w-2, fnth, RGB888(114, 114, 224));
-                graphics_type(xb, ybj, RGB888(0xFF, 0xFF, 0xFF), name, strlen(name));
-            } else {
-                graphics_type(xb, ybj, RGB888(0, 0, 0), name, strlen(name));
+        const uint32_t scrollW = 4;
+        const uint32_t listW = w - 2 - scrollW;
+        const uint32_t scrollX = x + w - 1 - scrollW;
+        int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
+        if (visibleRows < 1) visibleRows = 1;
+        const int lines = (int)(sizeof(platforms) / sizeof(char*));
+
+        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+        graphics_fill(x + 1, y + 1, w - 2, fnth + 2, RGB888(107, 216, 231));
+        graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+        string t = "Select platform";
+        uint32_t xt = x + 1 + (w - 2 - t.length() * fntw) / 2;
+        graphics_type(xt, y + 3, RGB888(0, 0, 0), t.c_str(), t.length());
+
+        auto platformName = [&](int index) -> const char* {
+            const char* p = (const char*)platforms_list_cp866;
+            while (index-- > 0) {
+                while (*p++) {}
+                ++p;
             }
-        }
-        while(1) {
+            return p;
+        };
+
+        auto drawRow = [&](int itemIndex) {
+            if (itemIndex < shift_j || itemIndex >= shift_j + visibleRows) return;
+            int row = itemIndex - shift_j;
+            uint32_t rowY = yb + row * msi;
+            bool selected = itemIndex == selected_file_n;
+            uint32_t bg = selected ? RGB888(114, 114, 224) : RGB888(255, 255, 255);
+            uint32_t fg = selected ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+            graphics_fill(x + 1, rowY, listW, fnth, bg);
+            if (itemIndex >= 0 && itemIndex < lines) {
+                const char* name = platformName(itemIndex);
+                size_t len = strlen(name);
+                size_t maxChars = listW > 2 ? (listW - 2) / fntw : 0;
+                if (len > maxChars) len = maxChars;
+                graphics_type(x + 2, rowY, fg, name, len);
+            }
+        };
+
+        auto drawScrollbar = [&]() {
+            uint32_t trackY = yb;
+            uint32_t trackH = y + h - 1 - trackY;
+            graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
+            if (lines <= visibleRows || trackH == 0) return;
+            uint32_t thumbH = (uint32_t)((uint64_t)trackH * visibleRows / lines);
+            if (thumbH < 4) thumbH = 4;
+            if (thumbH > trackH) thumbH = trackH;
+            int maxShift = lines - visibleRows;
+            uint32_t thumbY = trackY + (uint32_t)((uint64_t)(trackH - thumbH) * shift_j / maxShift);
+            graphics_fill(scrollX, thumbY, scrollW, thumbH, RGB888(96, 96, 96));
+        };
+
+        auto drawWindow = [&]() {
+            for (int row = 0; row < visibleRows; ++row)
+                drawRow(shift_j + row);
+            drawScrollbar();
+        };
+
+        drawWindow();
+        while (1) {
             sleep_ms(100);
+            int oldSelected = selected_file_n;
+            int oldShift = shift_j;
+
             if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
-                selected_file_n--;
-                if (selected_file_n < 0) {
-                    selected_file_n = lines - 1;
-                    while (selected_file_n >= shift_j + height_in_j) {
-                        shift_j += 10;
-                    }
-                }
-                while (selected_file_n < shift_j) {
-                    shift_j--;
-                }
-                if (shift_j < 0) shift_j = lines - 1;
-                goto again;
-            }
-            if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
-                selected_file_n -= 10;
-                if (selected_file_n < 0) {
-                    selected_file_n = 0;
-                }
-                while (selected_file_n < shift_j) {
-                    shift_j -= 10;
-                }
-                if (shift_j < 0) shift_j = 0;
-                goto again;
-            }
-            if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
-                selected_file_n++;
-                if (selected_file_n >= lines) {
-                    selected_file_n = 0;
-                    shift_j = 0;
-                }
-                while (selected_file_n >= shift_j + height_in_j) {
-                    shift_j++;
-                }
-                goto again;
-            }
-            if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
-                selected_file_n += 10;
-                if (selected_file_n >= lines) {
-                    selected_file_n = lines - 1;
-                }
-                while (selected_file_n >= shift_j + height_in_j) {
-                    shift_j += 10;
-                }
-                goto again;
-            }
-            if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_KEYPAD_7]) {
+                selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : lines - 1;
+            } else if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
+                selected_file_n = std::max(0, selected_file_n - visibleRows);
+            } else if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
+                selected_file_n = selected_file_n + 1 < lines ? selected_file_n + 1 : 0;
+            } else if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
+                selected_file_n = std::min(lines - 1, selected_file_n + visibleRows);
+            } else if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_KEYPAD_7]) {
                 selected_file_n = 0;
-                shift_j = 0;
-                goto again;
-            }
-            if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
+            } else if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
                 selected_file_n = lines - 1;
-                while (selected_file_n >= shift_j + height_in_j) {
-                    shift_j += 10;
-                }
-                goto again;
-            }
-            if (pressed_key[HID_KEY_ENTER] || pressed_key[HID_KEY_KEYPAD_ENTER]) {
+            } else if (pressed_key[HID_KEY_ENTER] || pressed_key[HID_KEY_KEYPAD_ENTER]) {
                 break;
+            } else {
+                continue;
+            }
+
+            if (selected_file_n < shift_j) shift_j = selected_file_n;
+            if (selected_file_n >= shift_j + visibleRows) shift_j = selected_file_n - visibleRows + 1;
+            int maxShift = std::max(0, lines - visibleRows);
+            if (shift_j > maxShift) shift_j = maxShift;
+
+            if (shift_j != oldShift) {
+                drawWindow();
+            } else if (selected_file_n != oldSelected) {
+                drawRow(oldSelected);
+                drawRow(selected_file_n);
             }
         }
         graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);

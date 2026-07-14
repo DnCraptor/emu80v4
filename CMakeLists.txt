@@ -14,6 +14,7 @@ endif()
 # ====================================================================================
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.13)
+
 #set(m1p2-launcher ON)
 #set(I2S ON)
 
@@ -26,9 +27,11 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 366)
 #set(CPU_MHZ 372)
 #set(CPU_MHZ 378)
+set(CPU_MHZ 440)
 #set(CPU_MHZ 444)
+#set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
-set(CPU_MHZ 512)
+#set(CPU_MHZ 512)
 set (PORT_VERSION "0.4.6")
 
 #set (MURM2 ON)
