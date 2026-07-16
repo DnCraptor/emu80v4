@@ -64,9 +64,19 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_prnWriter = new PrnWriter;
     m_prnWriter->setName("prnWriter");
 
-    ConfigReader cr("emu80.conf");
-    cr.processConfigFile(this);
+    setFrequency(1680000000);
+    setSampleRate(96000);
+    m_mixer->setVolume(6);
+    setFrameRate(100);
+    setVsync(true);
 
+    m_debuggerOptions.swapF5F9 = true;
+    m_debuggerOptions.mnemo8080UpperCase = true;
+    m_debuggerOptions.mnemoZ80UpperCase = false;
+    m_debuggerOptions.forceZ80Mnemonics = false;
+    m_debuggerOptions.resetKeys = true;
+
+    processCmdLine();
     checkPlatforms();
 }
 
