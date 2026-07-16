@@ -35,7 +35,6 @@
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "PrnWriter.h"
-#include "FileLoader.h"
 #include "EmuCalls.h"
 #include "Shortcuts.h"
 
@@ -76,7 +75,7 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    processCmdLine();
+    runPlatform("vector");
     checkPlatforms();
 }
 
@@ -112,73 +111,6 @@ void Emulation::checkPlatforms()
         palMsgBox("Error: Can't create platform, exiting.\nRun again to select another one.", true);
         palRequestForQuit();
     }
-}
-
-
-void Emulation::processCmdLine()
-{
-    const string platformName = "vector";
-
-    string cmdLineFileName = m_cmdLine["run"];
-    bool loadOnly = m_cmdLine.checkParam("load");
-    if (loadOnly)
-        cmdLineFileName = m_cmdLine["load"];
-
-    m_platformCreatedFromCmdLine = runPlatform(platformName);
-
-    if (m_platformList.empty())
-        return; // Platform was not created
-
-    // Post-config file
-    string postCfgFile = m_cmdLine["post-conf"];
-    if (!postCfgFile.empty()) {
-        ConfigReader cr(postCfgFile, platformName);
-        cr.processConfigFile(this);
-        getConfig()->updateConfig();
-    }
-
-    // Load file
-    if (!cmdLineFileName.empty()) {
-        Platform* platform = *m_platformList.begin();
-        FileLoader* loader = platform->getLoader();
-        if (loader)
-            loader->loadFile(cmdLineFileName, !loadOnly);
-    }
-
-    // Disk A
-    string diskA = m_cmdLine["disk-a"];
-    if (!diskA.empty())
-        emuSetPropertyValue(platformName + ".diskA", "fileName", diskA);
-
-    // Disk B
-    string diskB = m_cmdLine["disk-b"];
-    if (!diskB.empty())
-        emuSetPropertyValue(platformName + ".diskB", "fileName", diskB);
-
-    // Disk C
-    string diskC = m_cmdLine["disk-c"];
-    if (!diskC.empty())
-        emuSetPropertyValue(platformName + ".diskC", "fileName", diskC);
-
-    // Disk D
-    string diskD = m_cmdLine["disk-d"];
-    if (!diskD.empty())
-        emuSetPropertyValue(platformName + ".diskD", "fileName", diskD);
-
-    // HDD
-    string hdd = m_cmdLine["hdd"];
-    if (!hdd.empty())
-        emuSetPropertyValue(platformName + ".hdd", "fileName", hdd);
-
-    // EDD
-    string edd = m_cmdLine["edd"];
-    if (!edd.empty())
-        emuSetPropertyValue(platformName + ".edd", "fileName", edd);
-
-    // EDD2
-    string edd2 = m_cmdLine["edd2"];
-    if (!edd2.empty())
-        emuSetPropertyValue(platformName + ".edd2", "fileName", edd2);
 }
 
 
@@ -696,13 +628,6 @@ bool Emulation::setProperty(const string& propertyName, const EmuValuesList& val
         return true;
     } else if (propertyName == "volume" && values[0].isInt()) {
         m_mixer->setVolume(values[0].asInt());
-        return true;
-    } else if (propertyName == "runPlatform") {
-        if (!m_platformCreatedFromCmdLine) // если уже было создано окно из командной строки, больше не создаем
-            runPlatform(values[0].asString());
-        return true;
-    } else if (propertyName == "processCmdLine") {
-        processCmdLine();
         return true;
     } else if (propertyName == "debug8080MnemoUpperCase") {
         if (values[0].asString() == "yes" || values[0].asString() == "no") {

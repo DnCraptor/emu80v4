@@ -110,7 +110,6 @@ class Emulation : public ParentObject
         bool getPausedState() {return m_isPaused;}
         bool getFullThrottleState() {return m_fullThrottle;}
 
-        void processCmdLine();
 
         const DebuggerOptions& getDebuggerOptions() {return m_debuggerOptions;}
 
@@ -158,7 +157,6 @@ class Emulation : public ParentObject
         // параметры командной строки
         CmdLine& m_cmdLine;
 
-        bool m_platformCreatedFromCmdLine = false;
         bool runPlatform (const std::string& platformName);
 
         DebuggerOptions m_debuggerOptions;
