@@ -147,47 +147,14 @@ void Emulation::checkPlatforms()
 
 void Emulation::processCmdLine()
 {
-    m_cmdLine.processPlatforms(*m_config->getPlatformInfos());
+    const string platformName = "vector";
 
     string cmdLineFileName = m_cmdLine["run"];
     bool loadOnly = m_cmdLine.checkParam("load");
     if (loadOnly)
         cmdLineFileName = m_cmdLine["load"];
 
-    // Configuration file
-    string cfgFile = m_cmdLine["conf-file"];
-
-    // Command line platform options
-    string platformName = m_cmdLine["platform"];
-
-    if (!cfgFile.empty()) {
-        if (platformName.empty())
-            platformName = "userconfig";
-        Platform* newPlatform = new Platform(cfgFile, platformName);
-        addChild(newPlatform);
-        m_platformCreatedFromCmdLine = true;
-    } else {
-        // Extention based platform
-        string cmdLineFileExt = "";
-        if (platformName == "") {
-            string::size_type dotPos = cmdLineFileName.find_last_of(".");
-            if (dotPos != string::npos) {
-                cmdLineFileExt = cmdLineFileName.substr(dotPos + 1);
-                for (unsigned i = 0; i < cmdLineFileExt.size(); i++)
-                    cmdLineFileExt[i] = tolower(cmdLineFileExt[i]);
-            }
-        }
-        if (cmdLineFileExt != "") {
-            std::map<std::string, std::string>* extentionMap = m_config->getExtentionMap();
-            auto it = extentionMap->find(cmdLineFileExt);
-            if (it != extentionMap->end())
-                platformName = it->second;
-        }
-
-        if (platformName != "") {
-            m_platformCreatedFromCmdLine = runPlatform(platformName);
-        }
-    }
+    m_platformCreatedFromCmdLine = runPlatform(platformName);
 
     if (m_platformList.empty())
         return; // Platform was not created

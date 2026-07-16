@@ -618,12 +618,9 @@ void /// __scratch_x("render")
 #endif
 }
 
-uint8_t* tmp_screen = nullptr;
-
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
-    graphics_set_buffer((uint8_t*)tmp_screen, DISP_WIDTH, DISP_HEIGHT);
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
     sem_acquire_blocking(&vga_start_semaphore);
@@ -714,10 +711,8 @@ void init_sound() {
 #endif
 }
 
-static const char* argv[3] = {
-    "emu80",
-    "--platform",
-    "vector"
+static const char* argv[1] = {
+    "emu80"
 };
 
 static int BUTTER_PSRAM_SIZE = -1;
@@ -879,9 +874,6 @@ int main() {
 #else
     keyboard_init();
 #endif
-    tmp_screen = new uint8_t[DISP_WIDTH*DISP_HEIGHT];
-    memset((void*)tmp_screen, RGB(0xFFFF00), DISP_WIDTH*DISP_HEIGHT);
-
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     for (int i = 0; i < 6; i++) {
@@ -913,10 +905,7 @@ int main() {
 #if LOG
     f_unlink("/emu80.log");
 #endif
-    graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
-    delete[] tmp_screen;
-    tmp_screen = nullptr;
-    int argc = 3;
+    int argc = 1;
     palInit(argc, (char**)argv);
     CmdLine cmdLine(argc, (char**)argv);
     new Emulation(cmdLine); // g_emulation присваивается в конструкторе
