@@ -27,7 +27,6 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "CmdLine.h"
 #include "ConfigReader.h"
 #include "Platform.h"
 #include "EmuWindow.h"
@@ -40,7 +39,7 @@
 
 using namespace std;
 
-Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
+Emulation::Emulation()
 {
     m_fpsLimit = 0;
     m_vsync = true;
@@ -75,7 +74,10 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    if (!runPlatform()) {
+    m_activePlatform = new Platform("vector/vector.conf", "vector");
+    if (!m_activePlatform->getWindow()) {
+        delete m_activePlatform;
+        m_activePlatform = nullptr;
         palMsgBox("Error: Can't create Vector-06C platform.", true);
         palRequestForQuit();
     }
@@ -96,17 +98,6 @@ Emulation::~Emulation()
             delete (*it);
 }
 
-
-bool Emulation::runPlatform()
-{
-    m_activePlatform = new Platform("vector/vector.conf", "vector");
-    if (!m_activePlatform->getWindow()) {
-        delete m_activePlatform;
-        m_activePlatform = nullptr;
-        return false;
-    }
-    return true;
-}
 
 void Emulation::registerActiveDevice(IActive* device)
 {

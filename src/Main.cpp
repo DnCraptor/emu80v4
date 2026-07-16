@@ -31,7 +31,6 @@
 #endif
 
 #include "Pal.h"
-#include "CmdLine.h"
 #include "Emulation.h"
 
 #pragma GCC optimize("Ofast")
@@ -907,8 +906,7 @@ int main() {
 #endif
     int argc = 1;
     palInit(argc, (char**)argv);
-    CmdLine cmdLine(argc, (char**)argv);
-    new Emulation(cmdLine); // g_emulation присваивается в конструкторе
+    new Emulation; // g_emulation присваивается в конструкторе
     palExecute();
     __unreachable();
 }

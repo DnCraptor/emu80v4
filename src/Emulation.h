@@ -27,7 +27,6 @@
 #include "EmuTypes.h"
 #include "EmuObjects.h"
 
-class CmdLine;
 class Cpu;
 class EmuWindow;
 class SoundMixer;
@@ -55,7 +54,7 @@ struct DebuggerOptions {
 class Emulation : public ParentObject
 {
     public:
-        Emulation(CmdLine& cmdLine); //: EmuObject();
+        Emulation(); //: EmuObject();
 
         virtual ~Emulation();
 
@@ -145,11 +144,6 @@ class Emulation : public ParentObject
         SoundMixer* m_mixer;
         WavReader* m_wavReader;
         PrnWriter* m_prnWriter;
-
-        // параметры командной строки
-        CmdLine& m_cmdLine;
-
-        bool runPlatform ();
 
         DebuggerOptions m_debuggerOptions;
 
