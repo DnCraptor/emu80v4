@@ -2735,15 +2735,6 @@ void MainWindow::onSmoothingSelect()
 
 void MainWindow::onPlatformSelect()
 {
-    QAction* action = (QAction*)sender();
-    std::string platform(action->data().toString().toUtf8().constData());
-
-    // Set as default
-    QSettings settings;
-    settings.beginGroup("system");
-    settings.setValue("platform", action->data().toString().toUtf8().constData());
-
-    emuSelectPlatform(platform);
 }
 
 

@@ -75,15 +75,15 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    runPlatform("vector");
-    checkPlatforms();
+    if (!runPlatform()) {
+        palMsgBox("Error: Can't create Vector-06C platform.", true);
+        palRequestForQuit();
+    }
 }
 
 Emulation::~Emulation()
 {
-    // Удяляем платформы с дочерними объектами
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        delete (*it);
+    delete m_activePlatform;
 
     delete m_config;
     delete m_wavReader; // перед m_mixer!
@@ -97,47 +97,15 @@ Emulation::~Emulation()
 }
 
 
-void Emulation::checkPlatforms()
+bool Emulation::runPlatform()
 {
-    // Delete platforms without windows (missing conf files)
-    // and request for quit if no platform left
-    for (auto it = m_platformList.begin(); it != m_platformList.end();)
-        if (!(*it)->getWindow())
-            m_platformList.erase(it++);
-        else
-            it++;
-
-    if (m_platformList.empty()) {
-        palMsgBox("Error: Can't create platform, exiting.\nRun again to select another one.", true);
-        palRequestForQuit();
-    }
-}
-
-
-bool Emulation::runPlatform(const string& platformName)
-{
-    if (platformName != "vector")
-        return false;
-
     m_activePlatform = new Platform("vector/vector.conf", "vector");
     if (!m_activePlatform->getWindow()) {
         delete m_activePlatform;
         m_activePlatform = nullptr;
         return false;
     }
-    addChild(m_activePlatform);
     return true;
-}
-
-
-void Emulation::newPlatform(const string& platformName)
-{
-    // Удаляем все платформы
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        delete (*it);
-    m_platformList.clear();
-    runPlatform(platformName);
-    checkPlatforms();
 }
 
 void Emulation::registerActiveDevice(IActive* device)
@@ -182,9 +150,9 @@ EmuObject* Emulation::findObject(string name)
 void Emulation::addChild(EmuObject* child)
 {
     if (child)
-        if (Platform* pl = child->asPlatform())
-            m_platformList.push_back(pl);
-};
+        if (Platform* platform = child->asPlatform())
+            m_activePlatform = platform;
+}
 
 /// TODO: .h
 extern void processKeys();
@@ -255,9 +223,8 @@ void Emulation::draw()
 void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
     // нужно отправлять клавишу только активной платформе
-    Platform* platform = platformByWindow(wnd);
-    if (platform)
-        platform->processKey(keyCode, isPressed, unicodeKey);
+    if (m_activePlatform && wnd == m_activePlatform->getWindow())
+        m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
     else if (keyCode != PK_NONE)
         wnd->processKey(keyCode, isPressed);
 }
@@ -288,15 +255,15 @@ void Emulation::resetKeys(EmuWindow* wnd)
     isAltPressed = false;
     isShiftPressed = false;
     isCtrlPressed = false;
-    Platform* platform = platformByWindow(wnd);
-    if (platform)
-        platform->resetKeys();
+    if (m_activePlatform && wnd == m_activePlatform->getWindow())
+        m_activePlatform->resetKeys();
 }
 
 
 void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 {
-    Platform* platform = platformByWindow(wnd);
+    Platform* platform = m_activePlatform && wnd == m_activePlatform->getWindow()
+        ? m_activePlatform : nullptr;
 
     // enable debug if in paused state
     if (sr == SR_DEBUG)
@@ -311,11 +278,9 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             break;
         case SR_CLOSE:
             if (platform) {
-                m_platformList.remove(platform);
-                delete platform;
-                m_lastActivePlatform = nullptr;
-                if (m_platformList.empty())
-                    palRequestForQuit();
+                delete m_activePlatform;
+                m_activePlatform = nullptr;
+                palRequestForQuit();
             } else
                 wnd->closeRequest();
             break;
@@ -328,52 +293,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             }
         case SR_HELP:
             m_config->showConfigWindow(TABID_HELP);
-            break;
-        case SR_CHPLATFORM:
-            {
-                PlatformInfo pi;
-                string curPlatformName = "";
-                if (!platform)
-                    platform = m_lastActivePlatform;
-                if (platform)
-                    curPlatformName = platform->getBaseName();
-                bool newWnd;
-                if (m_config->choosePlatform(pi, curPlatformName, newWnd, false, wnd)) {
-                    // Удяляем активную платформу (как опция можно все - закомментировано)
-                    if (!newWnd) {
-                        m_platformList.remove(platform);
-                        delete platform;
-                        //for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-                            //delete (*it);
-                        //m_platformList.clear();
-                    }
-                    Platform* newPlatform = new Platform(pi.configFileName, pi.objName);
-                    m_platformList.push_back(newPlatform);
-                    //m_activePlatform = platform;
-                    checkPlatforms();
-                }
-            }
-            break;
-        case SR_CHCONFIG:
-            {
-                if (!platform)
-                break;
-
-                string curPlatformName = platform->getBaseName();
-                if (palChooseConfiguration(curPlatformName, wnd)) {
-                    m_platformList.remove(platform);
-                    delete platform;
-
-                    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-                    for (unsigned i = 0; i < platformVector->size(); i++)
-                        if ((*platformVector)[i].objName == curPlatformName) {
-                            Platform* newPlatform = new Platform((*platformVector)[i].configFileName, curPlatformName);
-                            m_platformList.push_back(newPlatform);
-                            checkPlatforms();
-                            break;
-                        }
-                }
-            }
             break;
         case SR_PAUSEON:
             m_isPaused = true;
@@ -530,22 +449,19 @@ void Emulation::setSampleRate(int sampleRate)
 void Emulation::setWndFocus(EmuWindow* wnd)
 {
     wnd->focusChanged(true);
-    if (Platform* platform = platformByWindow(wnd))
-        m_lastActivePlatform = platform;
 }
 
 void Emulation::restoreFocus()
 {
-    if (m_lastActivePlatform)
-        m_lastActivePlatform->getWindow()->bringToFront();
+    if (m_activePlatform)
+        m_activePlatform->getWindow()->bringToFront();
 }
 
 
 void Emulation::dropFile(EmuWindow* wnd, const string& fileName)
 {
-    Platform* platform = platformByWindow(wnd);
-    if (platform)
-        platform->loadFile(fileName);
+    if (m_activePlatform && wnd == m_activePlatform->getWindow())
+        m_activePlatform->loadFile(fileName);
 }
 
 
@@ -590,19 +506,6 @@ void Emulation::setSpeedByGrade(int speedGrade)
 
     m_speedUpFactor = m_currentSpeedUpFactor = slowDown ? (1 / k) : k;
     updateFrequency();
-}
-
-
-Platform* Emulation::platformByWindow(EmuWindow* window)
-{
-    if (!window)
-        return nullptr;
-
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        if (window == (*it)->getWindow())
-            return (*it);
-
-    return nullptr;
 }
 
 

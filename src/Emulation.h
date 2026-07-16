@@ -82,7 +82,6 @@ class Emulation : public ParentObject
         void setWndFocus(EmuWindow* wnd);
         void dropFile(EmuWindow* wnd, const std::string& fileName);
         void restoreFocus();
-        void newPlatform(const std::string& platformName);
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
@@ -138,7 +137,6 @@ class Emulation : public ParentObject
         unsigned m_sampleRate = 48000;
 
         std::list<EmuObject*> m_objectList;
-        std::list<Platform*> m_platformList;
         Platform* m_activePlatform = nullptr;
 
         uint64_t m_curClock = 0;
@@ -148,16 +146,10 @@ class Emulation : public ParentObject
         WavReader* m_wavReader;
         PrnWriter* m_prnWriter;
 
-        Platform* m_lastActivePlatform = nullptr;
-
-        Platform* platformByWindow(EmuWindow* window);
-
-        void checkPlatforms();
-
         // параметры командной строки
         CmdLine& m_cmdLine;
 
-        bool runPlatform (const std::string& platformName);
+        bool runPlatform ();
 
         DebuggerOptions m_debuggerOptions;
 

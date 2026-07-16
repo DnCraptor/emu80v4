@@ -96,13 +96,6 @@ const std::vector<PlatformInfo>* emuGetPlatforms()
     return config->getPlatformInfos();
 }
 
-
-// Run specified platform
-void emuSelectPlatform(const std::string& platform)
-{
-    g_emulation->newPlatform(platform);
-}
-
 // Returns current emulation speed factor
 double emuGetEmulationSpeedFactor()
 {

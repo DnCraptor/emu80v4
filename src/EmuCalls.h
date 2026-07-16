@@ -35,7 +35,6 @@ void emuEmulationCycle();
 bool emuSetPropertyValue(const std::string& objName, const std::string& propName, const std::string& value);
 std::string emuGetPropertyValue(const std::string& objName, const std::string& propName);
 const std::vector<PlatformInfo>* emuGetPlatforms();
-void emuSelectPlatform(const std::string& platform);
 double emuGetEmulationSpeedFactor();
 
 void emuExitFullscreenMode(PalWindow* wnd);

@@ -75,7 +75,7 @@ void wasmEmuExitFullscreenMode()
 
 void wasmEmuRunPlatform(const char* platform)
 {
-    emuSelectPlatform(platform);
+    (void)platform;
 }
 
 
