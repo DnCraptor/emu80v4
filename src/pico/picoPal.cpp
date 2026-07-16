@@ -103,7 +103,7 @@ string palMakeFullFileName(string fileName)
 {
     if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\')
         return fileName;
-    string fullFileName("/emu80/");
+    string fullFileName("/vector06c/");
     fullFileName += fileName;
     return fullFileName;
 }
@@ -145,7 +145,7 @@ extern PalKeyCodeAction getKey();
 extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
 #include <algorithm>
-static std::string fdir = "/emu80";
+static std::string fdir = "/vector06c";
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();

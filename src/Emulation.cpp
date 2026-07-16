@@ -65,49 +65,9 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_prnWriter->setName("prnWriter");
 
     ConfigReader cr("emu80.conf");
+    cr.processConfigFile(this);
 
-    if (!cr.processConfigFile(this)) {
-        palMsgBox("Error: emu80.conf not found!", true);
-        palRequestForQuit();
-        return;
-    }
-
-    getConfig()->updateConfig();
-
-    if (!m_platformList.empty()) {
-        emuLog << "!m_platformList.empty()\n";
-        checkPlatforms();
-        return;
-    }
-
-    // Platforms was not created via command line or run file (SDL version)
-    string defPlatformName = palGetDefaultPlatform();
-    emuLog << "defPlatformName: " << defPlatformName << "\n";
-    if (!defPlatformName.empty()) {
-        // default platform was stored in Qt options file
-        emuLog << "runPlatform: " << defPlatformName << "\n";
-        if (runPlatform(defPlatformName)) {
-            emuLog << "runPlatform: " << defPlatformName << " DONE\n";
-            return;
-        }
-    }
-
-    // first run (SDL or Qt), no default platform
-    PlatformInfo pi;
-    bool newWnd;
-    if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
-        emuLog << "PlatformName: '" << pi.configFileName << "' " << pi.objName << "\n";
-        Platform* platform = new Platform(pi.configFileName, pi.objName);
-        m_platformList.push_back(platform);
-        emuLog << "getConfig()->updateConfig()\n";
-        getConfig()->updateConfig();
-        m_activePlatform = platform;
-    } else {
-        emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
-        palRequestForQuit();
-        return;
-    }
-    emuLog << "Emulation::Emulation DONE\n";
+    checkPlatforms();
 }
 
 Emulation::~Emulation()
@@ -214,19 +174,17 @@ void Emulation::processCmdLine()
 
 bool Emulation::runPlatform(const string& platformName)
 {
-    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-    for (unsigned i = 0; i < platformVector->size(); i++)
-        if ((*platformVector)[i].objName == platformName) {
-            m_activePlatform = new Platform((*platformVector)[i].configFileName, platformName);
-            if (!m_activePlatform->getWindow()) {
-                delete m_activePlatform;
-                m_activePlatform = nullptr;
-                return false;
-            }
-            addChild(m_activePlatform);
-            return true;
-        }
-    return false;
+    if (platformName != "vector")
+        return false;
+
+    m_activePlatform = new Platform("vector/vector.conf", "vector");
+    if (!m_activePlatform->getWindow()) {
+        delete m_activePlatform;
+        m_activePlatform = nullptr;
+        return false;
+    }
+    addChild(m_activePlatform);
+    return true;
 }
 
 
