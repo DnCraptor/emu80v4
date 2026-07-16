@@ -174,6 +174,7 @@ class VectorAddrSpace : public AddressableDevice
 
         void attachRam(AddressableDevice* mem) {m_mainMemory = mem;}
         void attachRom(Rom* rom) {m_rom = rom;}
+        void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu;}
         void attachRamDisk(int diskNum, AddressableDevice* ramDisk);
         void attachCrtRenderer(VectorRenderer* crtRenderer) {m_crtRenderer = crtRenderer;};
         void enableRom() {m_romEnabled = true;}

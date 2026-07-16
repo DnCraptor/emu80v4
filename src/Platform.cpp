@@ -25,7 +25,11 @@
 #include "ConfigReader.h"
 #include "EmuConfig.h"
 #include "EmuWindow.h"
+#include "Memory.h"
 #include "Cpu.h"
+#include "Cpu8080.h"
+#include "AddrSpace.h"
+#include "Vector.h"
 #include "PlatformCore.h"
 #include "KbdLayout.h"
 #include "CrtRenderer.h"
@@ -35,9 +39,7 @@
 #include "RamDisk.h"
 #include "KbdTapper.h"
 
-#ifdef PICO_RP2350
 #include "pico/vector06c_config.h"
-#endif
 
 using namespace std;
 
@@ -61,11 +63,49 @@ Platform::Platform(string configFileName, string name)
 
     setName(name);
 
-#ifdef PICO_RP2350
+    EmuWindow* window = new EmuWindow;
+    window->setName(getName() + ".window");
+    window->setPlatform(this);
+    window->setCaption("Вектор-06Ц");
+    window->setDefaultWindowSize(800, 600);
+    window->setWindowStyle(WS_AUTOSIZE);
+    window->setFrameScale(FS_FIXED);
+    window->setFixedYScale(2.0);
+    window->setSmoothing(ST_SHARP);
+    window->setAspectCorrection(true);
+    window->setWideScreen(false);
+    window->setCustomScreenFormatValue(1.111);
+    addChild(window);
+
+    Ram* ram = new Ram(0x10000);
+    ram->setName(getName() + ".ram");
+    addChild(ram);
+
+    Rom* rom = new Rom(0x8000, "vector/loader.rom");
+    rom->setName(getName() + ".rom");
+    addChild(rom);
+
+    Cpu8080* cpu = new Cpu8080;
+    cpu->setName(getName() + ".cpu");
+    cpu->setFrequency(3000000);
+    cpu->setStartAddr(0x0000);
+    addChild(cpu);
+
+    VectorAddrSpace* addrSpace = new VectorAddrSpace;
+    addrSpace->setName(getName() + ".addrSpace");
+    addrSpace->attachRam(ram);
+    addrSpace->attachRom(rom);
+    addrSpace->attachCpu(cpu);
+    addChild(addrSpace);
+
+    AddrSpace* ioAddrSpace = new AddrSpace;
+    ioAddrSpace->setName(getName() + ".ioAddrSpace");
+    addChild(ioAddrSpace);
+
+    cpu->attachAddrSpace(addrSpace);
+    cpu->attachIoAddrSpace(ioAddrSpace);
+
     ConfigReader cr(configFileName, getName(), vector06c_config);
-#else
-    ConfigReader cr(configFileName, getName());
-#endif
     cr.processConfigFile(this);
 
     // ищем объект-окно, должен быть единственным
