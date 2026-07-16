@@ -35,6 +35,10 @@
 #include "RamDisk.h"
 #include "KbdTapper.h"
 
+#ifdef PICO_RP2350
+#include "pico/vector06c_config.h"
+#endif
+
 using namespace std;
 
 Platform::Platform(string configFileName, string name)
@@ -57,7 +61,11 @@ Platform::Platform(string configFileName, string name)
 
     setName(name);
 
+#ifdef PICO_RP2350
+    ConfigReader cr(configFileName, getName(), vector06c_config);
+#else
     ConfigReader cr(configFileName, getName());
+#endif
     cr.processConfigFile(this);
 
     // ищем объект-окно, должен быть единственным

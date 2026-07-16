@@ -38,7 +38,7 @@
 
 using namespace std;
 
-ConfigReader::ConfigReader(string configFileName, string platformName)
+ConfigReader::ConfigReader(string configFileName, string platformName, const char* configText)
 {
     if (platformName == "")
         m_prefix = platformName;
@@ -59,7 +59,11 @@ ConfigReader::ConfigReader(string configFileName, string platformName)
             m_varMap[it->first] = it->second;
     }
 
-    openFile();
+    if (configText) {
+        m_curLine = 0;
+        m_inputStream = new istringstream(configText);
+    } else
+        openFile();
 }
 
 

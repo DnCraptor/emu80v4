@@ -1,4 +1,8 @@
-﻿ifndef Z80
+#ifndef VECTOR06C_CONFIG_H
+#define VECTOR06C_CONFIG_H
+
+static const char vector06c_config[] = R"VECTOR06C_CONF(
+ifndef Z80
   @NAME = "Вектор-06Ц"
 else
   @NAME = "Вектор-06Ц Z80"
@@ -368,3 +372,6 @@ tapeGrp.addItem = &skipHookMon
 ifdef WX
   include "vector/vector_wx.inc"
 endif
+)VECTOR06C_CONF";
+
+#endif

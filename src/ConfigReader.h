@@ -31,7 +31,7 @@ static EmuValuesList emptyValues("", "", "");
 class ConfigReader : public EmuObject
 {
     public:
-        ConfigReader(std::string configFileName, std::string platformName = "");
+        ConfigReader(std::string configFileName, std::string platformName = "", const char* configText = nullptr);
         virtual ~ConfigReader();
 
         //bool setProperty(const string& propertyName, const EmuValuesList& values) override;

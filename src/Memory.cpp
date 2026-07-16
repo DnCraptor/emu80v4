@@ -157,6 +157,11 @@ uint8_t Ram::readByte(int addr)
 
 Rom::Rom(unsigned memSize, string fileName)
 {
+    if (fileName == "vector/loader.rom") {
+        m_buf = vector_loader_rom;
+        m_size = sizeof(vector_loader_rom);
+        return;
+    }
     if (fileName == "palmira/palmbios.bin") {
         m_buf = palmbios_bin;
         m_size = sizeof(palmbios_bin);
