@@ -24,25 +24,19 @@
 
 #include "EmuObjects.h"
 
-class KbdLayout;
-class Keyboard;
 class EmuWindow;
 
 
 class PlatformCore : public EmuObject
 {
     public:
-        PlatformCore();
-        virtual ~PlatformCore();
+        PlatformCore() = default;
+        ~PlatformCore() override = default;
 
-
-        void attachWindow(EmuWindow* win);
-        void attachKeyboard(Keyboard* kbd);
-        void attachKbdLayout(KbdLayout* lt);
+        void attachWindow(EmuWindow* win) {m_window = win;}
 
         virtual void vrtc(bool) {}
         virtual void inte(bool) {}
-        virtual void timer(int /*id*/, bool /*isActive*/) {}
         virtual void tapeOut(bool isActive) {m_tapeOut = isActive;}
 
         virtual bool getTapeOut() {return m_tapeOut;}

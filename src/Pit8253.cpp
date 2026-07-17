@@ -22,7 +22,6 @@
 
 #include "Globals.h"
 #include "Emulation.h"
-#include "PlatformCore.h"
 #include "Pit8253.h"
 
 using namespace std;
@@ -37,7 +36,6 @@ Pit8253Counter::Pit8253Counter(Pit8253* pit, int number)
     m_isCounting = false;
     m_gate = true;
     m_out = false;
-    m_prevOut = false;
     m_counterInitValue = 0xffff;
     m_counter = 0xffff;
     m_mode = 0;
@@ -63,19 +61,6 @@ void Pit8253Counter::planIrq()
         m_helper->updateAndScheduleNext((g_emulation->getCurClock() / m_kDiv + ticksToUpdate) * m_kDiv);
     else
         m_helper->updateAndScheduleNext(0); // don't schedule, just update and generate int if necessary
-}
-
-
-void Pit8253Counter::outChangeNotify()
-{
-    if (m_prevOut == m_out)
-        return;
-
-    m_prevOut = m_out;
-
-    if (m_core) {
-        m_core->timer(m_number, m_out);
-    }
 }
 
 
@@ -197,7 +182,6 @@ void Pit8253Counter::operateForTicks(int ticks)
             break;
     }
 
-        outChangeNotify();
 }
 
 void Pit8253Counter::updateState()
@@ -308,7 +292,6 @@ void Pit8253Counter::setMode(int mode)
         default:
             break;
     }
-        outChangeNotify();
     planIrq();
 }
 
@@ -365,7 +348,6 @@ void Pit8253Counter::setCounter(uint16_t counter)
             break;
     }
 
-        outChangeNotify();
     planIrq();
 }
 
@@ -394,7 +376,6 @@ void Pit8253Counter::setGate(bool gate)
             break;
     }
 
-        outChangeNotify();
     planIrq();
 }
 

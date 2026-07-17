@@ -31,7 +31,6 @@
 
 class Pit8253;
 class Pit8253Helper;
-class PlatformCore;
 
 class Pit8253Counter : public EmuObject //PassiveDevice
 {
@@ -62,7 +61,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         Pit8253Helper* m_helper = nullptr;
         bool m_extClockMode = false;
 
-        PlatformCore* m_core = nullptr;
 
         uint64_t m_prevClock = 0;
         uint64_t m_sampleClock = 0;
@@ -79,7 +77,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         bool m_gate;
         bool m_out;
 
-        bool m_prevOut;
 
         int m_counter;
         int m_counterInitValue;
@@ -94,7 +91,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         void stopCount();
 
         void planIrq();
-        void outChangeNotify();
 };
 
 class Pit8253 : public AddressableDevice
