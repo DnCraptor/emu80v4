@@ -71,7 +71,6 @@ class Emulation : public EmuObject
         void processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys(EmuWindow* wnd);
-        void draw();
         void sysReq(EmuWindow* wnd, SysReq sr);
         void setWndFocus(EmuWindow* wnd);
         void dropFile(EmuWindow* wnd, const std::string& fileName);
@@ -79,7 +78,6 @@ class Emulation : public EmuObject
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
-        void screenUpdateReq();
 
         //inline Platform* getPlatform() {return m_platform;} //!!!
         inline uint64_t getCurClock() {return m_curClock;}
@@ -91,7 +89,6 @@ class Emulation : public EmuObject
         int64_t getFrequency() {return m_frequency;}
         void setSampleRate(int sampleRate);             // установка частоты дискретизации звуковой карты
         int getSampleRate() {return m_sampleRate;}
-        void setFrameRate(int frameRate);               // установка частоты кадров, 0 - max
         void setVsync(bool vsync);                      // установка vsync
         bool getVsync() {return m_vsync;}
         void setTemporarySpeedUpFactor(unsigned speed);
@@ -113,9 +110,7 @@ class Emulation : public EmuObject
         uint64_t m_clockOffset = 0;
         uint64_t m_sysClock;
         uint64_t m_prevSysClock = 0;
-        uint64_t m_timeAfterLastDraw = 0;
         Cpu* m_debugReqCpu = nullptr;
-        bool m_scrUpdateReq = false;
         bool m_fullThrottle = false;
 
         bool m_isPaused = false;
@@ -125,7 +120,6 @@ class Emulation : public EmuObject
 
         uint64_t m_frequency;
         uint64_t m_curFrequency;
-        unsigned m_fpsLimit = 0;
         bool m_vsync = true;
         unsigned m_sampleRate = 48000;
 

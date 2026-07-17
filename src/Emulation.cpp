@@ -39,7 +39,6 @@ using namespace std;
 
 Emulation::Emulation()
 {
-    m_fpsLimit = 0;
     m_vsync = true;
     m_sampleRate = 48000;
 
@@ -54,7 +53,6 @@ Emulation::Emulation()
     setFrequency(1680000000);
     setSampleRate(96000);
     m_mixer->setVolume(6);
-    setFrameRate(100);
     setVsync(true);
 
     m_debuggerOptions.swapF5F9 = true;
@@ -138,19 +136,6 @@ void Emulation::exec(uint64_t ticks, bool forced)
     if (!forced && m_debugReqCpu)
         m_clockOffset = 0;
 
-}
-
-
-void Emulation::screenUpdateReq()
-{
-    m_scrUpdateReq = true;
-}
-
-
-void Emulation::draw()
-{
-    m_scrUpdateReq = false;
-    m_timeAfterLastDraw = 0;
 }
 
 
@@ -280,21 +265,8 @@ void Emulation::mainLoopCycle()
 {
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
-/**
-    if (m_scrUpdateReq) {
-        if (m_fpsLimit == 0 || m_timeAfterLastDraw > palGetCounterFreq() / m_fpsLimit) {
-            draw();
-        }
-    } else {
-        // min 30 fps when there are no requests for screen update from emulation core
-        if (m_timeAfterLastDraw > palGetCounterFreq() / 30) {
-            draw();
-        }
-    }
-*/
     m_sysClock = palGetCounter();
     unsigned dt = m_sysClock - m_prevSysClock;
-    m_timeAfterLastDraw += dt;
 
     // provide at least 20 fps when CPU power is not enough to emulate at 100% speed
     if (dt > palGetCounterFreq() / 20) // 1/20 s
@@ -325,15 +297,6 @@ void Emulation::setFrequency(int64_t freq)
 {
     m_frequency = freq;
     updateFrequency();
-}
-
-
-// установка частоты кадров, 0 - max
-void Emulation::setFrameRate(int frameRate)
-{
-    m_fpsLimit = frameRate;
-    // для изменения "на лету" добавить перебор всех окон и пересоздание рендерера при необходимости
-    //palSetFrameRate(frameRate);
 }
 
 
