@@ -88,13 +88,10 @@ class Cpu : public ActiveDevice
         CpuCycleWaits* m_cycleWaits = nullptr;
 };
 
-class CpuZ80;
-
 class Cpu8080Compatible : public Cpu
 {
     public:
         virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
-        virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
 
         void addHook(CpuHook* hook) override;

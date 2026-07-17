@@ -7,13 +7,9 @@
 #include "../EmuTypes.h"
 #include "../PalKeys.h"
 
-class DebugWindow;
-
 class PalWindow
 {
     public:
-    virtual DebugWindow* asDebugWindow() { return nullptr; }
-
     enum PalWindowStyle {
         PWS_FIXED,
         PWS_RESIZABLE,
