@@ -22,8 +22,6 @@
 #ifndef EMUCALLS_H
 #define EMUCALLS_H
 
-#include <vector>
-
 #include "PalWindow.h"
 
 void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicodeKey = 0);
@@ -34,9 +32,6 @@ void emuDropFile(PalWindow* wnd, const char* fileName);
 void emuEmulationCycle();
 bool emuSetPropertyValue(const std::string& objName, const std::string& propName, const std::string& value);
 std::string emuGetPropertyValue(const std::string& objName, const std::string& propName);
-const std::vector<PlatformInfo>* emuGetPlatforms();
 double emuGetEmulationSpeedFactor();
-
-void emuExitFullscreenMode(PalWindow* wnd);
 
 #endif // EMUCALLS_H

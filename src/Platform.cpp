@@ -74,8 +74,6 @@ Platform::Platform(string name)
     window->setCaption("Вектор-06Ц");
     window->setDefaultWindowSize(800, 600);
     window->setWindowStyle(WS_AUTOSIZE);
-    window->setFrameScale(FS_FIXED);
-    window->setFixedYScale(2.0);
     window->setSmoothing(ST_SHARP);
     window->setAspectCorrection(true);
     window->setWideScreen(false);

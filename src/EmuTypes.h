@@ -44,7 +44,6 @@ enum SysReq
     SR_LOADRUN,
     SR_LOADWAV,
     SR_ABOUT,
-    SR_FULLSCREEN,
     SR_CHPLATFORM,
     SR_CHCONFIG,
     SR_CONFIG,
@@ -59,16 +58,6 @@ enum SysReq
     SR_HDD,
     SR_FONT,
     SR_COLOR,
-    SR_1X,
-    SR_2X,
-    SR_3X,
-    SR_4X,
-    SR_5X,
-    SR_1_5X,
-    SR_2_5X,
-    SR_4X6, // unused for now
-    SR_FIT,
-    SR_MAXIMIZE,
     SR_CROPTOVISIBLE,
     SR_ASPECTCORRECTION,
     SR_WIDESCREEN,
@@ -115,14 +104,6 @@ enum SmoothingType {
     ST_NEAREST,
     ST_BILINEAR,
     ST_SHARP
-};
-
-struct PlatformInfo
-{
-    std::string platformName;
-    std::string configFileName;
-    std::string objName;
-    std::string cmdLineOption;
 };
 
 

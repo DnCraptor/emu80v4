@@ -26,8 +26,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
         switch (key) {
             case PK_F11:
                 return SR_RESET;
-            case PK_ENTER:
-                return SR_FULLSCREEN;
             case PK_F10:
                 return SR_CLOSE;
             case PK_F8:
@@ -68,24 +66,8 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return isShiftPressed ? SR_OPENRAMDISK2 : SR_OPENRAMDISK;
             case PK_O:
                 return isShiftPressed ? SR_SAVERAMDISK2AS : SR_SAVERAMDISKAS;
-            case PK_1:
-                return SR_1X;
-            case PK_2:
-                return SR_2X;
-            case PK_3:
-                return SR_3X;
-            case PK_4:
-                return SR_4X;
-            case PK_5:
-                return SR_5X;
-            case PK_8:
-                return SR_1_5X;
-            case PK_9:
-                return SR_2_5X;
-            case PK_0:
-                return SR_FIT;
             case PK_M:
-                return isShiftPressed ? SR_MAXIMIZE : SR_MUTE;
+                return SR_MUTE;
             case PK_S:
                 return SR_SMOOTHING;
             case PK_R:

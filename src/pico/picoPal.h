@@ -4,8 +4,8 @@
 #define PICOPAL_H
 
 #include <string>
-#include <vector>
 #include <list>
+#include <vector>
 #include <map>
 
 #include <cstring>
@@ -39,7 +39,6 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
 void palUpdateConfig();
 #endif //!PAL_WASM
 
-bool palChoosePlatform(std::vector<PlatformInfo>& pi, int& pos, bool& newWnd, bool setDef = false, PalWindow* wnd = nullptr);
 bool palChooseConfiguration(std::string platformName, PalWindow* wnd);
 void palSetRunFileName(std::string runFileName);
 void palShowConfigWindow(int curTabId = 0);

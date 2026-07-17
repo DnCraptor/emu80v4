@@ -73,26 +73,12 @@ void EmuWindow::setDefaultWindowSize(int width, int height)
 {
     m_defWindowWidth = width;
     m_defWindowHeight = height;
-    if (m_frameScale == FS_BEST_FIT || m_frameScale == FS_FIT /*|| m_frameScale == FS_FIT_KEEP_AR*/) {
-        m_params.width = m_defWindowWidth;
-        m_params.height = m_defWindowHeight;
-        applyParams();
+    m_params.width = m_defWindowWidth;
+    m_params.height = m_defWindowHeight;
+    applyParams();
 
-        m_curWindowWidth = m_defWindowWidth;
-        m_curWindowHeight = m_defWindowHeight;
-    }
-}
-
-
-void EmuWindow::setFrameScale(FrameScale fs)
-{
-    m_frameScale = fs;
-}
-
-
-void EmuWindow::setFixedYScale(double yScale)
-{
-    m_scaleY = yScale;
+    m_curWindowWidth = m_defWindowWidth;
+    m_curWindowHeight = m_defWindowHeight;
 }
 
 
@@ -112,7 +98,6 @@ string EmuWindow::getCaption()
 
 void EmuWindow::setWindowStyle(WindowStyle ws)
 {
-    m_isFullscreenMode = false;
     if (ws == WS_FIXED || ws == WS_AUTOSIZE)
         m_params.style = PWS_FIXED;
     else // if (ws == WS_RESIZABLE)
@@ -126,25 +111,6 @@ void EmuWindow::setWindowStyle(WindowStyle ws)
     applyParams();
 
     m_windowStyle = ws;
-}
-
-
-void EmuWindow::setFullScreen(bool fullscreen)
-{
-    if (fullscreen) {
-        m_params.style = PWS_FULLSCREEN;
-    } else
-        setWindowStyle(m_windowStyle);
-    applyParams();
-
-    m_isFullscreenMode = fullscreen;
-}
-
-
-// Переписать - запоминать предыдущий режим!
-void EmuWindow::toggleFullScreen()
-{
-    setFullScreen(!m_isFullscreenMode);
 }
 
 
@@ -239,77 +205,14 @@ void EmuWindow::calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio,
     if (m_fieldsMixing == FM_INTERLACE || m_fieldsMixing == FM_SCANLINE)
         srcHeight /= 2;
 
-    double aspectRatio = 1.0;
-    if (m_aspectCorrection)
-        aspectRatio = m_useCustomScreenFormat ? srcAspectRatio * 0.75 * m_customScreenFormat : m_wideScreen ? srcAspectRatio / 0.75 : srcAspectRatio;
-    else if (!m_isFullscreenMode && m_frameScale == FS_FIXED)
-        aspectRatio = calcBestAspectRatio(srcAspectRatio, m_scaleY);
+    double aspectRatio = m_aspectCorrection
+        ? (m_useCustomScreenFormat ? srcAspectRatio * 0.75 * m_customScreenFormat : m_wideScreen ? srcAspectRatio / 0.75 : srcAspectRatio)
+        : calcBestAspectRatio(srcAspectRatio, 2.0);
 
-    FrameScale tempFs = m_frameScale;
-
-    bool keepAR = false;
-    if (m_isFullscreenMode && m_frameScale == FS_FIXED) {
-        tempFs = m_smoothing != ST_NEAREST ? FS_FIT/*_KEEP_AR*/ : FS_BEST_FIT;
-        keepAR = m_aspectCorrection;
-    }
-
-    switch(tempFs) {
-        case FS_FIXED:
-            dstWidth = srcWidth * m_scaleY * aspectRatio + .5;
-            dstHeight = srcHeight * m_scaleY;
-            dstX = (wndWidth - dstWidth) / 2;
-            dstY = (wndHeight - dstHeight) / 2;
-            break;
-        case FS_BEST_FIT: {
-            int timesY = wndHeight / (srcHeight);
-
-            if (/*timesX == 0 ||*/ timesY == 0) {
-                dstWidth = wndWidth;
-                dstHeight = wndHeight;
-                dstX = 0;
-                dstY = 0;
-                break;
-            }
-
-            aspectRatio = m_aspectCorrection ? srcAspectRatio : calcBestAspectRatio(srcAspectRatio, timesY);
-            dstWidth = srcWidth * timesY * aspectRatio + .5;
-            while (dstWidth > wndWidth) {
-                timesY--;
-                aspectRatio = m_aspectCorrection ? srcAspectRatio : calcBestAspectRatio(srcAspectRatio, timesY);
-                dstWidth = srcWidth * timesY * aspectRatio + .5;
-            }
-
-            int dx = int((wndWidth - dstWidth)) / 2;
-            int dy = (wndHeight - srcHeight * timesY) / 2;
-            dstX = dx;
-            dstY = dy;
-            dstHeight = srcHeight * timesY;
-            break;
-        }
-        case FS_FIT:
-            if (!m_aspectCorrection && !keepAR) {
-                dstWidth = wndWidth;
-                dstHeight = wndHeight;
-                dstX = 0;
-                dstY = 0;
-            } else {
-                double ar = aspectRatio;
-                int newW = wndHeight * srcWidth * ar / srcHeight + .5;
-                int newH = wndWidth * srcHeight / ar / srcWidth + .5;
-                if (newW <= wndWidth) {
-                    dstWidth = newW;
-                    dstHeight = wndHeight;
-                    dstX = (wndWidth - newW) / 2;
-                    dstY = 0;
-                } else {
-                    dstWidth = wndWidth;
-                    dstHeight = newH;
-                    dstX = 0;
-                    dstY = (wndHeight - newH) / 2;
-                }
-            }
-            break;
-    }
+    dstWidth = srcWidth * 2.0 * aspectRatio + .5;
+    dstHeight = srcHeight * 2;
+    dstX = (wndWidth - dstWidth) / 2;
+    dstY = (wndHeight - dstHeight) / 2;
 }
 
 
@@ -390,9 +293,7 @@ void EmuWindow::drawFrame(EmuPixelData frame)
         calcDstRect(frame.width, frame.height * 2, frame.aspectRatio, m_curWindowWidth, m_curWindowHeight, m_dstWidth, m_dstHeight, m_dstX, m_dstY);
 
 
-    if ((m_windowStyle == WS_AUTOSIZE) && !m_isFullscreenMode
-          //&& (m_frameScale == FS_1X || m_frameScale == FS_2X || m_frameScale == FS_3X || m_frameScale == FS_4X || m_frameScale == FS_5X || m_frameScale == FS_2X3 || m_frameScale == FS_3X5 || m_frameScale == FS_4X6)
-          && (m_frameScale == FS_FIXED)
+    if ((m_windowStyle == WS_AUTOSIZE)
           && (m_curWindowWidth != m_dstWidth || m_curWindowHeight != m_dstHeight)) {
         m_curWindowHeight = m_dstHeight;
         m_curWindowWidth = m_dstWidth;
@@ -454,63 +355,6 @@ void EmuWindow::endDraw()
 void EmuWindow::sysReq(SysReq sr)
 {
     switch (sr) {
-        case SR_FULLSCREEN:
-            toggleFullScreen();
-            break;
-        case SR_1X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(1.);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_2X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(2.);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_3X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(3.);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_4X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(4.);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_5X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(5.);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_1_5X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(1.5);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_2_5X:
-            setWindowStyle(WS_AUTOSIZE);
-            setFrameScale(FS_FIXED);
-            setFixedYScale(2.5);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_FIT:
-            if (!m_isFullscreenMode)
-                setWindowStyle(WS_RESIZABLE);
-            setFrameScale(FS_FIT);
-            m_platform->updateScreenOnce();
-            break;
-        case SR_MAXIMIZE:
-            setWindowStyle(WS_RESIZABLE);
-            setFrameScale(FS_FIT/*_KEEP_AR*/);
-            maximize();
-            m_platform->updateScreenOnce();
-            break;
         case SR_ASPECTCORRECTION:
             m_aspectCorrection = !m_aspectCorrection;
             m_platform->updateScreenOnce();
@@ -572,64 +416,6 @@ bool EmuWindow::setProperty(const string& propertyName, const EmuValuesList& val
             return true;
         } else
             return false;
-    } else if (propertyName == "frameScale") {
-        if (values[0].asString() == "bestFit") {
-            setFrameScale(FS_BEST_FIT);
-            return true;
-        } else if (values[0].asString() == "1x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(1.);
-            return true;
-        } else if (values[0].asString() == "1.5x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(1.5);
-            return true;
-        } else if (values[0].asString() == "2x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(2.);
-            return true;
-        } else if (values[0].asString() == "2.5x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(2.5);
-            return true;
-        } else if (values[0].asString() == "3x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(3.);
-            return true;
-        } else if (values[0].asString() == "4x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(4.);
-            return true;
-        } else if (values[0].asString() == "5x") {
-            setFrameScale(FS_FIXED);
-            setFixedYScale(5.);
-            return true;
-        } else if (values[0].asString() == "2x3") {
-            // compatibility
-            setFrameScale(FS_FIXED);
-            setFixedYScale(2.);
-            return true;
-        } else if (values[0].asString() == "3x5") {
-            // compatibility
-            setFrameScale(FS_FIXED);
-            setFixedYScale(3.);
-            return true;
-        } else if (values[0].asString() == "4x6") {
-            // compatibility
-            setFrameScale(FS_FIXED);
-            setFixedYScale(4.);
-            return true;
-        } else if (values[0].asString() == "fixed") {
-            setFrameScale(FS_FIXED);
-            return true;
-        } else if (values[0].asString() == "fit") {
-            setFrameScale(FS_FIT);
-            return true;
-        } else if (values[0].asString() == "fitKeepAR") {
-            // compatibility
-            setFrameScale(FS_FIT);
-            return true;
-        }
     } else if (propertyName == "fieldsMixing") {
         if (values[0].asString() == "none") {
             setFieldsMixing(FM_NONE);
@@ -668,14 +454,6 @@ bool EmuWindow::setProperty(const string& propertyName, const EmuValuesList& val
             return true;
         } else if (values[0].asString() == "sharp") {
             setSmoothing(ST_SHARP);
-            return true;
-        }
-    } else if (propertyName == "fullscreen") {
-        if (values[0].asString() == "yes") {
-            setFullScreen(true);
-            return true;
-        } else if (values[0].asString() == "no") {
-            setFullScreen(false);
             return true;
         }
     } else if (propertyName == "aspectCorrection") {
@@ -737,33 +515,6 @@ string EmuWindow::getPropertyStringValue(const string& propertyName)
             case WS_RESIZABLE:
                 return "resizable";
         }
-    } else if (propertyName == "frameScale") {
-        switch (m_frameScale) {
-            case FS_FIXED:
-                switch (int(m_scaleY * 2)) {
-                    case 2:
-                        return "1x";
-                    case 3:
-                        return "1.5x";
-                    case 4:
-                        return "2x";
-                    case 5:
-                        return "2.5x";
-                    case 6:
-                        return "3x";
-                    case 8:
-                        return "4x";
-                    case 10:
-                        return "5x";
-                    default:
-                        return "";
-                }
-            case FS_BEST_FIT:
-                return "bestFit";
-            case FS_FIT:
-                return "fit";
-        }
-
     } else if (propertyName == "fieldsMixing") {
         switch (m_fieldsMixing) {
             case FM_NONE:

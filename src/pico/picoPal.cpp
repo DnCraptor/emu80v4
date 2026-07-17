@@ -441,10 +441,6 @@ void palAddTabToConfigWindow(int tabId, string tabName)
 void palUpdateConfig() {
 }
 
-bool palChoosePlatform(std::vector<PlatformInfo>&, int&, bool&, bool, PalWindow*) {
-    return false;
-}
-
 bool palChooseConfiguration(std::string platformName, PalWindow* wnd) {
     return false;
 }

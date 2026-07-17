@@ -88,13 +88,6 @@ string emuGetPropertyValue(const string& objName, const string& propName)
 }
 
 
-// Get platform list
-const std::vector<PlatformInfo>* emuGetPlatforms()
-{
-    static const std::vector<PlatformInfo> platforms;
-    return &platforms;
-}
-
 // Returns current emulation speed factor
 double emuGetEmulationSpeedFactor()
 {
@@ -105,11 +98,4 @@ double emuGetEmulationSpeedFactor()
         return -1;
 
     return g_emulation->getSpeedUpFactor();
-}
-
-
-// Turns off fullscreen mode (for wasm version)
-void emuExitFullscreenMode(PalWindow* wnd)
-{
-    static_cast<EmuWindow*>(wnd)->setFullScreen(false);
 }

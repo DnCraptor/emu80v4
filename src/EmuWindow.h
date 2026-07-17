@@ -33,12 +33,6 @@ class Emulation;
 
 class PalWindow;
 
-enum FrameScale {
-    FS_BEST_FIT,
-    FS_FIXED,
-    FS_FIT,
-};
-
 enum FieldsMixing {
     FM_NONE,
     FM_MIX,
@@ -80,18 +74,14 @@ class EmuWindow : public EmuObject, public PalWindow
         void hide();
         void setDefaultWindowSize(int width, int height);
         void setCaption(std::string caption);
-        void setFrameScale(FrameScale fs);
-        void setFixedYScale(double yScale);
         void setFieldsMixing(FieldsMixing fm);
         void setWindowStyle(WindowStyle ws);
         void setSmoothing(SmoothingType smoothing);
-        void setFullScreen(bool fullscreen);
         void setAspectCorrection(bool aspectCorrection);
         void setWideScreen(bool wideScreen);
         void setCustomScreenFormat(bool custom);
         void setCustomScreenFormatValue(double format);
         void setSquarePixels(bool squarePixels);
-        void toggleFullScreen();
 
         void drawFrame(EmuPixelData frame);
         void drawOverlay(EmuPixelData frame);
@@ -112,7 +102,6 @@ class EmuWindow : public EmuObject, public PalWindow
         int m_curWindowWidth;
         int m_curWindowHeight;
 
-        bool m_isFullscreenMode = false;
         bool m_aspectCorrection = false;
         bool m_wideScreen = false;
         bool m_useCustomScreenFormat = false;
@@ -121,11 +110,9 @@ class EmuWindow : public EmuObject, public PalWindow
 
         std::string m_caption = "";
 
-        FrameScale m_frameScale = FS_BEST_FIT;
         FieldsMixing m_fieldsMixing = FM_NONE;
         WindowStyle m_windowStyle = WS_AUTOSIZE;
         SmoothingType m_smoothing = ST_SHARP;
-        double m_scaleY;
 
         int m_curImgWidth = 0;
         int m_curImgHeight = 0;
