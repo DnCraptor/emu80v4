@@ -16,7 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sstream>
 #include <algorithm>
 #include <cstring>
 
@@ -147,44 +146,6 @@ void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int er
     m_eramPageStartAddr = eramPageStartAddr;
     m_eramPageEndAddr = eramPageEndAddr;
 }
-
-
-
-string VectorAddrSpace::getDebugInfo()
-{
-    stringstream ss;
-
-    if (!m_eram) {
-        if (m_stackDiskEnabled || m_inRamPagesMask != 0) {
-            ss << "ED1:";
-            for (int i = 0; i < 4; i++)
-                ss << ((m_inRamPagesMask & (1 << i)) ? "+" : "-");
-            ss << "/" << m_inRamDiskPage;
-            ss << " S";
-            if (m_stackDiskEnabled)
-                ss << m_stackDiskPage;
-            else
-                ss << "-";
-            //ss << "\n";
-        }
-
-        if (m_stackDiskEnabled2 || m_inRamPagesMask2 != 0) {
-            ss << "ED2:";
-            for (int i = 0; i < 4; i++)
-                ss << ((m_inRamPagesMask2 & (1 << i)) ? "+" : "-");
-            ss << "/" << m_inRamDiskPage2;
-            ss << " S";
-            if (m_stackDiskEnabled2)
-                ss << m_stackDiskPage2;
-            else
-                ss << "-";
-            //ss << "\n";
-        }
-    }
-
-    return ss.str();
-}
-
 
 VectorCore::VectorCore()
 {
@@ -496,27 +457,6 @@ void VectorRenderer::attachMemory(Ram* memory)
 {
     m_screenMemory = memory->getDataPtr();
 }
-
-
-
-
-string VectorRenderer::getDebugInfo()
-{
-    advanceTo(g_emulation->getCurClock());
-
-    // some magic
-    int pixel = (m_curFramePixel + 768 * 312 - 301) % (768 * 312);
-
-    int line = pixel / 768;
-    int pos = pixel % 768;
-
-    stringstream ss;
-    ss << "CRT:" << "\n";
-    ss << "L:" << line;
-    ss << " P:" << pos << "\n";
-    return ss.str();
-}
-
 
 bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
 {

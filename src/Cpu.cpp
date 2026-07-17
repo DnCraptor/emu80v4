@@ -104,15 +104,6 @@ void Cpu::as_output(int addr, int value)
     }
 }
 
-
-
-/*std::string Cpu::getDebugInfo()
-{
-    stringstream ss;
-    ss << "CPU:" << "\n" << m_curClock / m_kDiv;
-    return ss.str();
-}*/
-
 Cpu8080Compatible::Cpu8080Compatible()
 {
 }

@@ -41,7 +41,6 @@ class Dma8257 : public AddressableDevice
         virtual ~Dma8257() {}
 
         void reset() override {performReset();};
-        std::string getDebugInfo() override;
 
         void attachCpu(Cpu* cpu);
         void attachAddrSpace(AddressableDevice* as);

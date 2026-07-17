@@ -19,7 +19,6 @@
 // Fdc1793.cpp
 // Реализация контроллера НГМД КР580ВГ93 (FDC1793)
 
-#include <sstream>
 
 #include "Globals.h"
 #include "Fdc1793.h"
@@ -467,58 +466,4 @@ void Fdc1793::generateInt()
 bool Fdc1793::getDrq()
 {
     return m_accessMode != FAM_WAITING;
-}
-
-
-
-
-string Fdc1793::getDebugInfo()
-{
-    stringstream ss;
-    ss << "FDC:" << "\n";
-    ss << "D:" << m_disk << " ";
-    ss << "H:" << m_head << "\n";
-    ss << "T:" << int(m_track) << " ";
-    ss << "S:" << int(m_sector) << "\n";
-    ss << "CMD:";
-    if (!(m_status & 1))
-        ss << "Ready";
-    else switch (m_lastCommand) {
-    case 0:
-        ss << "Rest";
-        break;
-    case 1:
-        ss << "Seek";
-        break;
-    case 2:
-    case 3:
-        ss << "Step";
-        break;
-    case 4:
-    case 5:
-        ss << "Stp.in";
-        break;
-    case 6:
-    case 7:
-        ss << "Stp.out";
-        break;
-    case 8:
-    case 9:
-        ss << "Read";
-        break;
-    case 0xA:
-    case 0xB:
-        ss << "Write";
-        break;
-    case 0xC:
-        ss << "Rd.addr";
-        break;
-    case 0xD:
-        ss << "Frc.int";
-        break;
-    default:
-        ss << m_lastCommand;
-    }
-
-    return ss.str();
 }

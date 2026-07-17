@@ -20,7 +20,6 @@
 
 // Реализация контроллера CRT КР580ВГ75
 
-#include <sstream>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -538,32 +537,4 @@ void Crt8275::setLpenPosition(int x, int y)
     m_lpenX = x + m_lpenCorrection;
     m_lpenY = y;
     m_statusReg |= 0x10;
-}
-
-
-
-string Crt8275::getDebugInfo()
-{
-    stringstream ss;
-    ss << "CRT i8275:" << "\n";
-    ss << "Row:" << m_nRows << " ";
-    ss << "Ch:" << m_nCharsPerRow << "\n";
-    ss << "Lc:" << m_nLines << " ";
-    ss << "Ul:" << m_undLine << "\n";
-    ss << "Vrc:" << m_nVrRows << " ";
-    ss << "Hrc:" << m_nHrChars << "\n";
-    ss << "CX:" << m_cursorPos << " ";
-    ss << "CY:" << m_cursorRow << "\n";
-    ss << "Trp" << (m_isTransparentAttr ? "+" : "-") << " ";
-    ss << "OfsL" << (m_isOffsetLine ? "+" : "-") << "\n";
-    ss << "Cur:" << (m_cursorUnderline ? "Ul" : "Bl");
-    ss << (m_cursorBlinking ? "Bln" : "") << " ";
-    ss << "R" << (m_isRasterStarted ? "+" : "-") << "\n";
-    ss << "CurRow: ";
-    if (m_curRow < m_nRows)
-          ss << m_curRow;
-    else
-          ss << "VRTC";
-    ss << "\n";
-    return ss.str();
 }

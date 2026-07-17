@@ -45,7 +45,6 @@ class VectorRenderer : public CrtRenderer, public IActive
         void renderFrame() override;
 
         // derived from EmuObject
-        std::string getDebugInfo() override;
 
         // derived from CrtRenderer
         void toggleCropping() override;
@@ -161,7 +160,6 @@ class VectorAddrSpace : public AddressableDevice
         //VectorAddrSpace(std::string romFileName);
         //~VectorAddrSpace() override;
 
-        std::string getDebugInfo() override;
         void reset() override;
 
         void writeByte(int addr, uint8_t value) override;

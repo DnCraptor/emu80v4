@@ -49,7 +49,6 @@ public:
         Fdc1793();
         virtual ~Fdc1793();
 
-        std::string getDebugInfo() override;
         void reset() override; // Chip reset
 
         // derived from AddressableDevice

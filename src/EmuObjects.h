@@ -56,11 +56,10 @@ class EmuObject
 
         virtual void reset() {}
 
-        virtual void setPlatform(Platform* platform) {m_platform = platform;}
+        void setPlatform(Platform* platform) {m_platform = platform;}
         Platform* getPlatform() {return m_platform;}
 
 
-        virtual std::string getDebugInfo() {return "";}
         virtual void notify(EmuObject* /*sender*/, int /*data*/) {}
 
     protected:

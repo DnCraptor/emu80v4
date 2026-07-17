@@ -45,7 +45,6 @@ class Cpu : public ActiveDevice
 
         virtual CpuType getType() = 0;
 
-        //std::string getDebugInfo() override;
 
         void attachAddrSpace(AddressableDevice* as);
         void attachIoAddrSpace(AddressableDevice* as);

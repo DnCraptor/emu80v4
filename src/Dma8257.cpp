@@ -20,8 +20,6 @@
 
 // Реализация контроллера DMA КР580ВТ57
 
-#include <sstream>
-#include <iomanip>
 #include <cmath>
 
 #include <stdint.h>
@@ -212,36 +210,6 @@ uint8_t Dma8257::getMR()
 {
     return m_modeReg;
 }
-
-
-
-
-string Dma8257::getDebugInfo()
-{
-    stringstream ss;
-    ss << "DMA i8257:" << "\n";
-    for (int ch = 0; ch <= 3; ch++) {
-        if (m_modeReg & (1 << ch)) {
-            ss << "Ch " << ch << ": ";
-            int mode = m_count[ch] & 0xC000;
-            if (mode == 0x8000)
-                ss << "R";
-            else if (mode == 0x4000)
-                ss << "W";
-            if (ch == 2 && m_modeReg & 0x80)
-                ss << " AL";
-            if (m_modeReg & 0x40)
-                ss << " S";
-            ss << "\n";
-            ss << "A:" << setw(4) << setfill('0') << uppercase << hex << m_addr[ch] << "/" <<
-                  setw(4) << setfill('0') << uppercase << hex << m_initAddr[ch] << "\n";
-            ss << "C:" << setw(4) << setfill('0') << uppercase << hex << (m_count[ch] & 0x3FFF) << "/" <<
-                  setw(4) << setfill('0') << uppercase << hex << m_initCount[ch] << "\n";
-        }
-    }
-    return ss.str();
-}
-
 
 void Dma8257::calcDmaPercentage()
 {

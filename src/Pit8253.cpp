@@ -540,32 +540,6 @@ uint8_t Pit8253::readByte(int addr)
     }
 }
 
-
-
-/* #include <sstream>
-#include <iomanip>
-string Pit8253::getDebugInfo()
-{
-    stringstream ss;
-    ss << "PIT i8253:" << "\n";
-    for (int ch = 0; ch <= 2; ch++) {
-        Pit8253Counter* cnt = m_counters[ch];
-        if (!cnt->m_extClockMode)
-            cnt->updateState();
-        ss << "C:" << ch << " ";
-        ss << "M" << cnt->m_mode << " ";
-        ss << "G" << (cnt->m_gate ? 1 : 0) << " ";
-        ss << "O" << (cnt->m_out ? 1 : 0) << "\n";
-        ss << setw(4) << setfill('0') << uppercase << hex << cnt->m_counter << "/" <<
-              setw(4) << setfill('0') << uppercase << hex << cnt->m_counterInitValue;
-        if (cnt->m_isCounting)
-            ss << " C";
-        ss << "\n";
-    }
-    return ss.str();
- }*/
-
-
 Pit8253Helper::Pit8253Helper()
 {
     pause();

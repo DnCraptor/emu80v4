@@ -111,7 +111,6 @@ class Crt8275 : public AddressableDevice, public IActive
     public:
         void init() override;
         void reset() override;
-        std::string getDebugInfo() override;
 
         // derived from AddressableDevice
         void writeByte(int nAddr, uint8_t value) override;
