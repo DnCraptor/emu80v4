@@ -48,8 +48,6 @@ class PlatformCore : public EmuObject
 
         virtual bool getTapeOut() {return m_tapeOut;}
 
-        virtual void draw() {}
-
     protected:
         EmuWindow* m_window = nullptr;
 

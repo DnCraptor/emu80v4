@@ -527,13 +527,6 @@ bool Platform::loadFile(string fileName, bool run)
 }
 
 
-void Platform::draw()
-{
-    if (m_core)
-        m_core->draw();
-}
-
-
 bool Platform::assignDiskAFileName(const std::string& fileName)
 {
     return m_diskA && m_diskA->assignFileName(fileName);

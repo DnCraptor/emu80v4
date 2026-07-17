@@ -140,7 +140,6 @@ class VectorCore : public PlatformCore
         //virtual ~VectorCore();
 
 
-        void draw() override;
         void reset() override;
         void vrtc(bool isActive) override;
         void inte(bool isActive) override;

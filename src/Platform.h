@@ -53,7 +53,6 @@ class Platform : public EmuObject
         void reset() override;
 
         void sysReq(SysReq sr);
-        virtual void draw();
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
         bool loadFile(std::string fileName, bool run = true);

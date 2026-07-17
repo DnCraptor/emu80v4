@@ -160,16 +160,6 @@ void VectorCore::reset()
 }
 
 
-void VectorCore::draw()
-{
-///    EmuPixelData pd = m_crtRenderer->getPixelData();
-///    emuLog << "pd: " << pd.width << "x" << pd.height << "\n"; // 626x288
-///    graphics_set_buffer(pd.pixelData, pd.width, pd.height);
-///    m_window->drawFrame(pd);
-///    m_window->endDraw();
-}
-
-
 void VectorCore::inte(bool isActive)
 {
     m_intsEnabled = isActive;
