@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Dma8257.h
+// Psg3910.h
 
 #ifndef PSG3910_H
 #define PSG3910_H

@@ -24,7 +24,6 @@
 #include "Fdc1793.h"
 #include "DiskImage.h"
 #include "Emulation.h"
-#include "Dma8257.h"
 
 using namespace std;
 
@@ -59,12 +58,6 @@ void Fdc1793::attachFdImage(int driveNum, FdImage* image)
         m_images[driveNum] = image;
 }
 
-
-void Fdc1793::attachDMA(Dma8257* dma, int channel)
-{
-    m_dma = dma;
-    m_dmaChannel = channel;
-}
 
 
 void Fdc1793::reset()
@@ -363,58 +356,13 @@ uint8_t Fdc1793::readByte(int addr)
                     break;
                 case 8:
                 case 9:
-                    if (m_dma && m_accessMode == FAM_READING) {
-                        m_status = 0;
-                        m_accessMode = FAM_WAITING;
-                        while (m_images[m_disk]->getReadyStatus()) {
-                            m_data = m_images[m_disk]->readNextByte();
-                            if (!m_dma->dmaRequest(m_dmaChannel, m_data))
-                                m_status = 0x06;
-                        }
-                    }
                     break;
                 case 0xA:
                 case 0xB:
-                    if (m_dma && m_accessMode == FAM_WRITING) {
-                        m_status = 0;
-                        m_accessMode = FAM_WAITING;
-                        while (m_images[m_disk]->getReadyStatus()) {
-                            if (!m_dma->dmaRequest(m_dmaChannel, m_data)) {
-                                m_status = 0x06;
-                                continue;
-                            }
-                            m_images[m_disk]->writeNextByte(m_data);
-                        }
-                    }
                     break;
                 case 0xC:
-                    if (m_dma && m_accessMode == FAM_READING) {
-                        m_status = 0;
-                        m_accessMode = FAM_WAITING;
-                        while (m_addressIdCnt > 0) {
-                            m_data = m_addressId[6 - m_addressIdCnt--];
-                            if (!m_dma->dmaRequest(m_dmaChannel, m_data))
-                                m_status = 0x06;
-                        }
-                    }
                     break;
                 case 0xF:
-                    if (m_dma && m_accessMode == FAM_WRITING) {
-                        m_status = 0;
-                        m_accessMode = FAM_WAITING;
-                        while (m_images[m_disk]->getReadyStatus()) {
-                            if (!m_dma->dmaRequest(m_dmaChannel, m_data)) {
-                                m_status = 0x06;
-                                continue;
-                            }
-                            if (writeTrackByte(m_data))
-                                m_status = 0x03;
-                            else {
-                                m_accessMode = FAM_WAITING;
-                                m_status = 0x00;
-                            }
-                        }
-                    }
                     break;
             }
             return res;

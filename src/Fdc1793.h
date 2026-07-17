@@ -25,7 +25,6 @@
 
 #include "EmuObjects.h"
 
-class Dma8257;
 class FdImage;
 
 
@@ -62,10 +61,6 @@ public:
         bool getIrq() {return m_irq;}
         bool getDrq();
 
-
-        // Подключение DMA-контроллера
-        void attachDMA(Dma8257* dma, int channel);
-
         // Подключение рбраза диска
         void attachFdImage(int driveNum, FdImage* image);
 
@@ -73,8 +68,6 @@ public:
     private:
         FdImage* m_images[MAX_DRIVES];   // Disk images
 
-        Dma8257* m_dma = nullptr;        // Linked DMA Controller
-        int m_dmaChannel;                // DMA channel
 
         FdcAccessMode m_accessMode;
         int m_disk;         // номер дисковода

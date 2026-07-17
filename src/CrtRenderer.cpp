@@ -19,7 +19,6 @@
 #include <locale>
 #include <codecvt>
 
-#include "Pal.h"
 #include "Globals.h"
 #include "Emulation.h"
 #include "CrtRenderer.h"
@@ -166,53 +165,4 @@ const char* CrtRenderer::generateTextScreen(wchar_t* wTextArray, int w, int h)
     m_textScreen = conversion.to_bytes(wTextScreen);
 
     return m_textScreen.c_str();
-}
-
-
-
-
-TextCrtRenderer::~TextCrtRenderer()
-{
-    if (m_font_ram)
-        delete[] m_font;
-    if (m_altFont_ram)
-        delete[] m_altFont;
-}
-
-void TextCrtRenderer::setFontFile(string fontFileName)
-{
-    m_font = palReadFile(fontFileName, m_fontSize);
-    m_font_ram = true;
-}
-
-
-void TextCrtRenderer::setAltFontFile(string fontFileName)
-{
-    m_altFont = palReadFile(fontFileName, m_altFontSize);
-    m_altFont_ram = true;
-}
-
-
-void TextCrtRenderer::setAltRender(bool isAltRender)
-{
-    if (m_useAltFont)
-        m_isAltRender = isAltRender;
-}
-
-
-void TextCrtRenderer::toggleRenderingMethod()
-{
-    if (m_useAltFont)
-        setAltRender(!m_isAltRender);
-}
-
-
-void TextCrtRenderer::renderFrame()
-{
-    swapBuffers();
-
-    if (m_useAltFont && m_isAltRender && m_altFont)
-        altRenderFrame();
-    else
-        primaryRenderFrame();
 }

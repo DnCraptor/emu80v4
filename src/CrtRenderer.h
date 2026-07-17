@@ -81,43 +81,4 @@ class CrtRenderer : public EmuObject
 };
 
 
-class TextCrtRenderer : public CrtRenderer
-{
-    public:
-        virtual ~TextCrtRenderer();
-
-
-        void toggleRenderingMethod() override;
-        void renderFrame() override;
-
-        void setFontFile(std::string fontFileName);
-        void setAltFontFile(std::string fontFileName);
-        void setAltRender(bool isAltRender);
-
-    protected:
-        const uint8_t* m_font = nullptr;
-        const uint8_t* m_altFont = nullptr;
-        bool m_font_ram = false;
-        bool m_altFont_ram = false;
-        bool m_useAltFont = false;
-        bool m_isAltRender = false;
-        int m_fontSize;
-        int m_altFontSize;
-
-        virtual void primaryRenderFrame() = 0;
-        virtual void altRenderFrame() = 0;
-
-        const wchar_t* c_rkSymbols =
-            L" ▘▝▀▗▚▐▜ ★ ↑  ↣↓▖▌▞▛▄▙▟█   ┃━↢✿ "
-            L" !\"#¤%&'()*+,-./0123456789:;<=>?"
-            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
-            L"ЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧ▇";
-
-        const wchar_t* c_mikroSymbols =
-            L" ▘▝▀▗▚▐▜ ★ ↑  ↣↓▖▌▞▛▄▙▟█   ┃━↢· "
-            L" !\"#$%&'()*+,-./0123456789:;<=>?"
-            L"@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
-            L"ЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧ▇";
-};
-
 #endif // CRTRENDERER_H
