@@ -21,6 +21,7 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
+#include <list>
 #include <map>
 
 #include "PalKeys.h"

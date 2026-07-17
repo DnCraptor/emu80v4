@@ -21,7 +21,6 @@
 #ifndef EMULATION_H
 #define EMULATION_H
 
-#include <list>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"
@@ -58,9 +57,6 @@ class Emulation : public EmuObject
         virtual ~Emulation();
 
 
-        void addObject(EmuObject* obj);
-        void removeObject(EmuObject* obj);
-        EmuObject* findObject(std::string obj);
 
         void registerActiveDevice(IActive* device);
         void unregisterActiveDevice(IActive* device);
@@ -130,7 +126,6 @@ class Emulation : public EmuObject
         bool m_vsync = true;
         unsigned m_sampleRate = 48000;
 
-        std::list<EmuObject*> m_objectList;
         Platform* m_activePlatform = nullptr;
 
         uint64_t m_curClock = 0;

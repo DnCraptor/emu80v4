@@ -16,8 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sstream>
-
 #include "Globals.h"
 #include "Platform.h"
 #include "Emulation.h"
@@ -54,16 +52,6 @@ using namespace std;
 
 Platform::Platform(string name)
 {
-    // Если платформа с таким именем уже есть, добавляем в конец "$" и номер, начиная от 1
-    if (g_emulation->findObject(name)) {
-        ostringstream oss;
-        int i = 1;
-        do
-            oss << i++;
-        while (g_emulation->findObject(name + "$" + oss.str()));
-        name = name + "$" + oss.str();
-    }
-
     setName(name);
 
     EmuWindow* window = new EmuWindow;

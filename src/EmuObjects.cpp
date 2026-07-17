@@ -23,20 +23,6 @@
 
 using namespace std;
 
-EmuObject::EmuObject()
-{
-    if (g_emulation)
-        g_emulation->addObject(this);
-}
-
-
-EmuObject::~EmuObject()
-{
-    if (this != g_emulation)
-        g_emulation->removeObject(this);
-}
-
-
 void EmuObject::setName(string name)
 {
     m_name = name;

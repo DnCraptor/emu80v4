@@ -22,7 +22,6 @@
 #include <cstdint>
 
 #include <vector>
-#include <list>
 #include <string>
 
 
@@ -42,8 +41,7 @@ class KbdTapper;
 class EmuObject
 {
     public:
-        EmuObject();
-        virtual ~EmuObject();
+        virtual ~EmuObject() = default;
 
         void setName(std::string name);
         std::string getName();

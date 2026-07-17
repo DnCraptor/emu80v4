@@ -46,8 +46,6 @@ Emulation::Emulation()
     g_emulation = this;
     setName("emulation");
 
-    addObject(this);
-
     m_mixer = new SoundMixer;
     m_mixer->setName("soundMixer");
 
@@ -82,14 +80,9 @@ Emulation::~Emulation()
 {
     delete m_activePlatform;
 
+    delete m_prnWriter;
     delete m_wavReader; // перед m_mixer!
     delete m_mixer;
-
-    // Удяляем оставшиеся объекты
-    list<EmuObject*> tempList = m_objectList; // второй список, так как в деструкторе удаление из основного списка
-    for (auto it = tempList.begin(); it != tempList.end(); it++)
-        if ((*it) != this)
-            delete (*it);
 }
 
 
@@ -108,27 +101,6 @@ void Emulation::unregisterActiveDevice(IActive* device)
     nDevices--;
     m_activeDevices = m_activeDevVector.data();
     inCycle = false;
-}
-
-
-void Emulation::addObject(EmuObject* obj)
-{
-    m_objectList.push_back(obj);
-}
-
-
-void Emulation::removeObject(EmuObject* obj)
-{
-    m_objectList.remove(obj);
-}
-
-
-EmuObject* Emulation::findObject(string name)
-{
-    for (auto it = m_objectList.begin(); it != m_objectList.end(); it++)
-        if ((*it)->getName() == name)
-            return *it;
-    return nullptr;
 }
 
 
