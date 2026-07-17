@@ -40,7 +40,6 @@ class PlatformCore : public EmuObject
         void attachKeyboard(Keyboard* kbd);
         void attachKbdLayout(KbdLayout* lt);
 
-        virtual void hrtc(bool, int) {}
         virtual void vrtc(bool) {}
         virtual void inte(bool) {}
         virtual void timer(int /*id*/, bool /*isActive*/) {}
