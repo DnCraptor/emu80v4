@@ -192,36 +192,8 @@ TextCrtRenderer::~TextCrtRenderer()
         delete[] m_altFont;
 }
 
-#include "pico/rk86_fontr_bin.h"
-#include "pico/rk86_sgr_bin.h"
-#include "pico/apogey_fonta_bin.h"
-#include "pico/apogey_sga_bin.h"
-#include "pico/partner_fontp_bin.h"
-#include "pico/partner_sgp_bin.h"
-#include "pico/sgplm.bin.h"
-
 void TextCrtRenderer::setFontFile(string fontFileName)
 {
-    if (fontFileName == "palmira/sgplm.bin") {
-        m_font = sgplm_bin;
-        m_fontSize = sizeof(sgplm_bin);
-        return;
-    }
-    if (fontFileName == "partner/sgp.bin") {
-        m_font = partner_sgp_bin;
-        m_fontSize = sizeof(partner_sgp_bin);
-        return;
-    }
-    if (fontFileName == "rk86/sgr.bin") {
-        m_font = sgr_bin;
-        m_fontSize = sizeof(sgr_bin);
-        return;
-    }
-    if (fontFileName == "apogey/sga.bin") {
-        m_font = sga_bin;
-        m_fontSize = sizeof(sga_bin);
-        return;
-    }
     m_font = palReadFile(fontFileName, m_fontSize);
     m_font_ram = true;
 }
@@ -229,21 +201,6 @@ void TextCrtRenderer::setFontFile(string fontFileName)
 
 void TextCrtRenderer::setAltFontFile(string fontFileName)
 {
-    if (fontFileName == "partner/fontp.bin") {
-        m_altFont = partner_fontp_bin;
-        m_altFontSize = sizeof(partner_fontp_bin);
-        return;
-    }
-    if (fontFileName == "rk86/fontr.bin") {
-        m_altFont = fontr_bin;
-        m_altFontSize = sizeof(fontr_bin);
-        return;
-    }
-    if (fontFileName == "apogey/fonta.bin") {
-        m_altFont = fonta_bin;
-        m_altFontSize = sizeof(fonta_bin);
-        return;
-    }
     m_altFont = palReadFile(fontFileName, m_altFontSize);
     m_altFont_ram = true;
 }
