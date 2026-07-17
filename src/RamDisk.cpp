@@ -32,7 +32,7 @@ RamDisk::RamDisk(unsigned nPages, unsigned defPageSize)
 {
     m_nPages = nPages;
     m_defPageSize = defPageSize;
-    m_pages = new AddressableDevice* [nPages];
+    m_pages = new SRam* [nPages];
     for (unsigned i = 0; i < nPages; i++)
         m_pages[i] = nullptr;
 }
@@ -44,9 +44,9 @@ RamDisk::~RamDisk()
 }
 
 
-void RamDisk::attachPage(unsigned pageNo, AddressableDevice* as)
+void RamDisk::attachPage(unsigned pageNo, SRam* ram)
 {
-    m_pages[pageNo] = as;
+    m_pages[pageNo] = ram;
 }
 
 
@@ -79,16 +79,8 @@ void RamDisk::saveToFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        if (m_pages[i]) {
-            SRam* sram = m_pages[i]->asSRam();
-            if (sram)
-               pageSize = sram->getSize();
-            else {
-                Ram* ram = m_pages[i]->asRam();
-                if (ram)
-                    pageSize = ram->getSize();
-            }
-        }
+        if (m_pages[i])
+            pageSize = m_pages[i]->getSize();
 
         for (unsigned pos = 0; pos < pageSize; pos++)
             file.write8(m_pages[i]->readByte(pos));
@@ -129,14 +121,8 @@ void RamDisk::loadFromFile()
     for (unsigned i = 0; i < m_nPages; i++) {
         unsigned pageSize = m_defPageSize;
 
-        SRam* sram = m_pages[i]->asSRam();
-        if (sram)
-            pageSize = sram->getSize();
-        else {
-            Ram* ram = m_pages[i]->asRam();
-            if (ram)
-                pageSize = ram->getSize();
-        }
+        if (m_pages[i])
+            pageSize = m_pages[i]->getSize();
         if (pageSize < m_defPageSize)
             pageSize = m_defPageSize;
 
@@ -148,16 +134,8 @@ void RamDisk::loadFromFile()
         for (unsigned i = 0; i < m_nPages; i++) {
             unsigned pageSize = m_defPageSize;
 
-            if (m_pages[i]) {
-                SRam* sram = m_pages[i]->asSRam();
-                if (sram)
-                   pageSize = sram->getSize();
-                else {
-                    Ram* ram = m_pages[i]->asRam();
-                    if (ram)
-                        pageSize = ram->getSize();
-                }
-            }
+            if (m_pages[i])
+                pageSize = m_pages[i]->getSize();
 
             for (unsigned pos = 0; pos < pageSize; pos++)
                 m_pages[i]->writeByte(pos, file.read8());

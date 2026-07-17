@@ -54,25 +54,13 @@ class EmuObject
         VectorCore* m_machine = nullptr;
 };
 
-class Ram;
-class SRam;
-
 class AddressableDevice : public EmuObject
 {
     public:
-        virtual Ram* asRam() { return nullptr; }
-        virtual SRam* asSRam() { return nullptr; }
         ~AddressableDevice() override = default;
 
         virtual void writeByte(int addr, uint8_t value) = 0;
         virtual uint8_t readByte(int) {return 0xFF;}
-
-        void setAddrMask(int mask) {m_addrMask = mask;}
-
-    protected:
-        int m_addrMask = 0;
-
-
 };
 
 

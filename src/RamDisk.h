@@ -23,7 +23,7 @@
 
 #include "EmuObjects.h"
 
-class AddressableDevice;
+class SRam;
 
 
 class RamDisk : public EmuObject
@@ -32,7 +32,7 @@ class RamDisk : public EmuObject
         RamDisk(unsigned nPages, unsigned pageSize = 0);
         ~RamDisk();
 
-        void attachPage(unsigned pageNo, AddressableDevice* as);
+        void attachPage(unsigned pageNo, SRam* ram);
         void setFilter(const std::string& filter) {m_filter = filter;}
         void setLabel(const std::string& label) {m_label = label;}
 
@@ -53,7 +53,7 @@ class RamDisk : public EmuObject
         unsigned m_nPages;
         unsigned m_defPageSize;
 
-        AddressableDevice** m_pages = nullptr;
+        SRam** m_pages = nullptr;
 
         std::string m_filter;
         std::string m_label;

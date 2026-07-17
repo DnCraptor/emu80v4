@@ -101,8 +101,6 @@ Ram::~Ram()
 
 void Ram::writeByte(int addr, uint8_t value)
 {
-    if (m_addrMask)
-        addr &= m_addrMask;
     if (m_buf && addr < m_size)
         m_buf[addr] = value;
 }
@@ -111,8 +109,6 @@ void Ram::writeByte(int addr, uint8_t value)
 
 uint8_t Ram::readByte(int addr)
 {
-    if (m_addrMask)
-        addr &= m_addrMask;
     if (m_buf && addr < m_size)
         return m_buf[addr];
     else
@@ -152,8 +148,6 @@ Rom::~Rom()
 
 uint8_t Rom::readByte(int addr)
 {
-    if (m_addrMask)
-        addr &= m_addrMask;
     if (m_buf && addr < m_size)
         return m_buf[addr];
     else

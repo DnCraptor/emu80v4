@@ -90,8 +90,6 @@ void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* ad
 
 uint8_t AddrSpace::readByte(int addr)
 {
-    if (m_addrMask)
-        addr &= m_addrMask;
     int i;
     for (i = 0; i < m_itemCountR && m_firstAddressesR[i] <= addr; i++);
     if (i == 0)
@@ -103,8 +101,6 @@ uint8_t AddrSpace::readByte(int addr)
 
 void AddrSpace::writeByte(int addr, uint8_t value)
 {
-    if (m_addrMask)
-        addr &= m_addrMask;
     int i;
     for (i = 0; i < m_itemCountW && m_firstAddressesW[i] <= addr; i++);
     if (i == 0)

@@ -26,7 +26,6 @@
 class SRam : public AddressableDevice
 {
     public:
-        virtual SRam* asSRam() override { return this; }
         SRam(unsigned memSize);
         virtual ~SRam();
         void writeByte(int addr, uint8_t value) override;
@@ -41,7 +40,6 @@ class SRam : public AddressableDevice
 class Ram : public AddressableDevice
 {
     public:
-        virtual Ram* asRam() override { return this; }
         //Ram();
         Ram(unsigned memSize);
         Ram(uint8_t* buf, unsigned memSize);
