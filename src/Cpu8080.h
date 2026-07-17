@@ -78,7 +78,6 @@ class Cpu8080 : public Cpu8080Compatible
     public:
         Cpu8080();
 
-        CpuType getType() override {return Cpu::CPU_8080;}
 
         void reset() override;
         void operate() override;

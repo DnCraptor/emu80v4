@@ -164,7 +164,7 @@ class VectorCore
         void mouseDrag(int x, int y);
 
         EmuWindow* getWindow() {return m_window;}
-        Cpu* getCpu() {return m_cpu;}
+        Cpu8080Compatible* getCpu() {return m_cpu;}
         FileLoader* getLoader() {return m_loader;}
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
@@ -188,7 +188,7 @@ class VectorCore
         }
 
         std::vector<std::unique_ptr<EmuObject>> m_devices;
-        Cpu* m_cpu = nullptr;
+        Cpu8080Compatible* m_cpu = nullptr;
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;
         CrtRenderer* m_renderer = nullptr;

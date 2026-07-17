@@ -34,16 +34,8 @@ class Cpu8080Compatible;
 class Cpu : public ActiveDevice
 {
     public:
-        virtual Cpu8080Compatible* asCpu8080Compatible() { return nullptr; }
-        enum CpuType {
-            CPU_8080,
-            CPU_Z80
-        };
-
         Cpu();
         virtual ~Cpu();
-
-        virtual CpuType getType() = 0;
 
 
         void attachAddrSpace(AddressableDevice* as);
@@ -90,7 +82,6 @@ class Cpu : public ActiveDevice
 class Cpu8080Compatible : public Cpu
 {
     public:
-        virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
         Cpu8080Compatible();
 
         void addHook(CpuHook* hook) override;

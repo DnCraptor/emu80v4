@@ -34,7 +34,6 @@ class CpuZ80 : public Cpu8080Compatible
     public:
         CpuZ80();
 
-        CpuType getType() override {return Cpu::CPU_Z80;}
 
         void operate() override;
         void reset() override;

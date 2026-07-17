@@ -169,7 +169,7 @@ void VectorCore::inte(bool isActive)
     if (!isActive)
         m_intReq = false;
     else if (m_intReq) {
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(getCpu());
+        Cpu8080Compatible* cpu = getCpu();
         if (cpu->getInte()) {
             cpu->intRst(7);
             cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
@@ -182,7 +182,7 @@ void VectorCore::vrtc(bool isActive)
 {
     if (isActive && m_intsEnabled) {
         m_intReq = true;
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(getCpu());
+        Cpu8080Compatible* cpu = getCpu();
         if (cpu->getInte()) {
             cpu->intRst(7);
             cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
@@ -451,9 +451,9 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         if (!m_machine->assignDiskAFileName(fileName))
             return false;
 
-        Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_machine->getCpu());
+        Cpu8080Compatible* cpu = m_machine->getCpu();
         static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->enableRom();
-        static_cast<Cpu8080Compatible*>(m_machine->getCpu())->setPC(0);
+        m_machine->getCpu()->setPC(0);
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
 
         if (run) {
@@ -478,7 +478,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             basFile = true;
     }
 
-    Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_machine->getCpu());
+    Cpu8080Compatible* cpu = m_machine->getCpu();
     VectorAddrSpace* as = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
     m_machine->reset();
     as->enableRom();
@@ -747,14 +747,14 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
         //m_machine->reset();
         //m_machine->getKeyboard()->enableKeysReset();
         static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->enableRom();
-        static_cast<Cpu8080Compatible*>(m_machine->getCpu())->setPC(0);
+        m_machine->getCpu()->setPC(0);
         return true;
     } else if (keyCode == PK_F12) {
         m_machine->getKeyboard()->disableKeysReset();
         m_machine->reset();
         m_machine->getKeyboard()->enableKeysReset();
         static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->disableRom();
-        //static_cast<Cpu8080Compatible*>(m_machine->getCpu())->setPC(0);
+        //m_machine->getCpu()->setPC(0);
         return true;
     }
     return false;

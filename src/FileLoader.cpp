@@ -98,21 +98,15 @@ bool RkFileLoader::loadFile(const std::string& fileName, bool run)
         return false;
     }
 
-    Cpu* bc = m_machine->getCpu();
-    Cpu8080Compatible* cpu = nullptr;
-    if (bc) {
-        cpu = bc->asCpu8080Compatible();
-        if (run && cpu) {
-            m_machine->reset();
-            bc = m_machine->getCpu();
-            if (bc) {
-                if (cpu = bc->asCpu8080Compatible()) {
-                    cpu->disableHooks();
-                    g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
-                }
-            }
-            afterReset();
+    Cpu8080Compatible* cpu = m_machine->getCpu();
+    if (run && cpu) {
+        m_machine->reset();
+        cpu = m_machine->getCpu();
+        if (cpu) {
+            cpu->disableHooks();
+            g_emulation->exec((int64_t)cpu->getKDiv() * m_skipTicks, true);
         }
+        afterReset();
     }
 
     for (unsigned addr = begAddr; addr <= endAddr; addr++)
