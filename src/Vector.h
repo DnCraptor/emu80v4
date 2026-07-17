@@ -27,8 +27,9 @@
 #include "KbdLayout.h"
 #include "CpuWaits.h"
 
-#include <list>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "PalKeys.h"
@@ -176,9 +177,17 @@ class VectorCore : public EmuObject
         bool getTapeOut() const {return m_tapeOut;}
 
     private:
-        void addChild(EmuObject* child);
+        template<class T, class... Args>
+        T* addDevice(Args&&... args)
+        {
+            auto device = std::make_unique<T>(std::forward<Args>(args)...);
+            T* result = device.get();
+            result->setMachine(this);
+            m_devices.push_back(std::move(device));
+            return result;
+        }
 
-        std::list<EmuObject*> m_objList;
+        std::vector<std::unique_ptr<EmuObject>> m_devices;
         Cpu* m_cpu = nullptr;
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;

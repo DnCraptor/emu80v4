@@ -868,281 +868,228 @@ uint8_t VectorHddRegisters::readByte(int addr)
 VectorCore::VectorCore()
 {
 
-    EmuWindow* window = new EmuWindow;
-    window->setMachine(this);
+    EmuWindow* window = addDevice<EmuWindow>();
     window->setCaption("Вектор-06Ц");
-    addChild(window);
     m_window = window;
 
-    Ram* ram = new Ram(0x10000);
-    addChild(ram);
+    Ram* ram = addDevice<Ram>(0x10000);
 
-    Rom* rom = new Rom(0x8000, "vector/loader.rom");
-    addChild(rom);
+    Rom* rom = addDevice<Rom>(0x8000, "vector/loader.rom");
 
-    Cpu8080* cpu = new Cpu8080;
+    Cpu8080* cpu = addDevice<Cpu8080>();
     cpu->setFrequency(3000000);
     cpu->setStartAddr(0x0000);
-    addChild(cpu);
     m_cpu = cpu;
 
-    VectorAddrSpace* addrSpace = new VectorAddrSpace;
+    VectorAddrSpace* addrSpace = addDevice<VectorAddrSpace>();
     addrSpace->attachRam(ram);
     addrSpace->attachRom(rom);
     addrSpace->attachCpu(cpu);
-    addChild(addrSpace);
 
-    AddrSpace* ioAddrSpace = new AddrSpace;
-    addChild(ioAddrSpace);
+    AddrSpace* ioAddrSpace = addDevice<AddrSpace>();
 
     cpu->attachAddrSpace(addrSpace);
     cpu->attachIoAddrSpace(ioAddrSpace);
 
-    VectorRenderer* crtRenderer = new VectorRenderer;
+    VectorRenderer* crtRenderer = addDevice<VectorRenderer>();
     crtRenderer->attachMemory(ram);
     crtRenderer->setVisibleArea(true);
-    addChild(crtRenderer);
     m_renderer = crtRenderer;
 
     addrSpace->attachCrtRenderer(crtRenderer);
 
     cpu->attachCore(this);
 
-    VectorKeyboard* keyboard = new VectorKeyboard;
-    addChild(keyboard);
+    VectorKeyboard* keyboard = addDevice<VectorKeyboard>();
     m_keyboard = keyboard;
 
-    VectorKbdLayout* kbdLayout = new VectorKbdLayout;
+    VectorKbdLayout* kbdLayout = addDevice<VectorKbdLayout>();
     kbdLayout->setQwertyMode();
-    addChild(kbdLayout);
     m_kbdLayout = kbdLayout;
 
-    KbdTapper* kbdTapper = new KbdTapper;
+    KbdTapper* kbdTapper = addDevice<KbdTapper>();
     kbdTapper->setPressTime(20);
     kbdTapper->setReleaseTime(20);
     kbdTapper->setCrDelay(100);
-    addChild(kbdTapper);
     m_kbdTapper = kbdTapper;
 
-    VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit;
+    VectorPpi8255Circuit* ppiCircuit = addDevice<VectorPpi8255Circuit>();
     ppiCircuit->attachRenderer(crtRenderer);
     ppiCircuit->attachKeyboard(keyboard);
-    addChild(ppiCircuit);
 
-    GeneralSoundSource* tapeSoundSource = new GeneralSoundSource;
-    addChild(tapeSoundSource);
+    GeneralSoundSource* tapeSoundSource = addDevice<GeneralSoundSource>();
     ppiCircuit->attachTapeSoundSource(tapeSoundSource);
 
-    Ppi8255* ppi = new Ppi8255;
+    Ppi8255* ppi = addDevice<Ppi8255>();
     ppi->setNoReset(true);
     ppi->attachPpi8255Circuit(ppiCircuit);
-    addChild(ppi);
 
-    AddrSpaceInverter* invertedPpi = new AddrSpaceInverter(ppi);
-    addChild(invertedPpi);
+    AddrSpaceInverter* invertedPpi = addDevice<AddrSpaceInverter>(ppi);
     ioAddrSpace->addRange(0x00, 0x03, invertedPpi);
 
-    VectorColorRegister* colorReg = new VectorColorRegister;
+    VectorColorRegister* colorReg = addDevice<VectorColorRegister>();
     colorReg->attachRenderer(crtRenderer);
-    addChild(colorReg);
     ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
 
-    Covox* covox = new Covox(7);
+    Covox* covox = addDevice<Covox>(7);
     covox->setNegative(true);
-    addChild(covox);
 
-    VectorPpi8255Circuit2* covoxCircuit = new VectorPpi8255Circuit2;
+    VectorPpi8255Circuit2* covoxCircuit = addDevice<VectorPpi8255Circuit2>();
     covoxCircuit->attachCovox(covox);
-    addChild(covoxCircuit);
 
-    Ppi8255* ppi2 = new Ppi8255;
+    Ppi8255* ppi2 = addDevice<Ppi8255>();
     ppi2->attachPpi8255Circuit(covoxCircuit);
-    addChild(ppi2);
 
-    AddrSpaceInverter* invertedPpi2 = new AddrSpaceInverter(ppi2);
-    addChild(invertedPpi2);
+    AddrSpaceInverter* invertedPpi2 = addDevice<AddrSpaceInverter>(ppi2);
     ioAddrSpace->addRange(0x04, 0x07, invertedPpi2);
 
-    Pit8253* pit = new Pit8253;
+    Pit8253* pit = addDevice<Pit8253>();
     pit->setFrequency(1500000);
-    addChild(pit);
 
-    Pit8253SoundSource* sndSource = new Pit8253SoundSource;
+    Pit8253SoundSource* sndSource = addDevice<Pit8253SoundSource>();
     sndSource->attachPit(pit);
     sndSource->setNegative(true);
-    addChild(sndSource);
 
-    AddrSpaceInverter* invertedPit = new AddrSpaceInverter(pit);
-    addChild(invertedPit);
+    AddrSpaceInverter* invertedPit = addDevice<AddrSpaceInverter>(pit);
     ioAddrSpace->addRange(0x08, 0x0B, invertedPit);
 
-    Psg3910* ay = new Psg3910;
+    Psg3910* ay = addDevice<Psg3910>();
     ay->setFrequency(1750000);
-    addChild(ay);
     ioAddrSpace->addRange(0x14, 0x15, ay);
 
-    Psg3910SoundSource* psgSoundSource = new Psg3910SoundSource;
+    Psg3910SoundSource* psgSoundSource = addDevice<Psg3910SoundSource>();
     psgSoundSource->attachPsg(ay);
-    addChild(psgSoundSource);
 
-    Fdc1793* fdc = new Fdc1793;
-    addChild(fdc);
+    Fdc1793* fdc = addDevice<Fdc1793>();
 
-    AddrSpaceInverter* invertedFdc = new AddrSpaceInverter(fdc);
-    addChild(invertedFdc);
+    AddrSpaceInverter* invertedFdc = addDevice<AddrSpaceInverter>(fdc);
     ioAddrSpace->addRange(0x18, 0x1B, invertedFdc);
 
-    VectorFddControlRegister* fddReg = new VectorFddControlRegister;
+    VectorFddControlRegister* fddReg = addDevice<VectorFddControlRegister>();
     fddReg->attachFdc1793(fdc);
-    addChild(fddReg);
     ioAddrSpace->addRange(0x1C, 0x1C, fddReg);
 
-    AtaDrive* ataDrive = new AtaDrive;
+    AtaDrive* ataDrive = addDevice<AtaDrive>();
     ataDrive->setVectorGeometry();
-    addChild(ataDrive);
 
-    VectorHddRegisters* hddRegisters = new VectorHddRegisters;
+    VectorHddRegisters* hddRegisters = addDevice<VectorHddRegisters>();
     hddRegisters->attachAtaDrive(ataDrive);
-    addChild(hddRegisters);
     ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
 
-    FdImage* diskA = new FdImage(80, 2, 5, 1024);
+    FdImage* diskA = addDevice<FdImage>(80, 2, 5, 1024);
     diskA->setLabel("A");
     diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    addChild(diskA);
     m_diskA = diskA;
     fdc->attachFdImage(0, diskA);
 
-    FdImage* diskB = new FdImage(80, 2, 5, 1024);
+    FdImage* diskB = addDevice<FdImage>(80, 2, 5, 1024);
     diskB->setLabel("B");
     diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    addChild(diskB);
     m_diskB = diskB;
     fdc->attachFdImage(1, diskB);
 
-    DiskImage* hdd = new DiskImage;
+    DiskImage* hdd = addDevice<DiskImage>();
     hdd->setLabel("HDD");
     hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
-    addChild(hdd);
     m_hdd = hdd;
     ataDrive->assignDiskImage(hdd);
 
-    VectorFileLoader* loader = new VectorFileLoader;
+    VectorFileLoader* loader = addDevice<VectorFileLoader>();
     loader->attachAddrSpace(ram);
     loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
-    addChild(loader);
     m_loader = loader;
 
-    TapeRedirector* tapeInFile = new TapeRedirector;
+    TapeRedirector* tapeInFile = addDevice<TapeRedirector>();
     tapeInFile->setMode("r");
     tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
-    addChild(tapeInFile);
 
-    TapeRedirector* tapeOutFile = new TapeRedirector;
+    TapeRedirector* tapeOutFile = addDevice<TapeRedirector>();
     tapeOutFile->setMode("w");
     tapeOutFile->setFilter(".rk|.cas");
-    addChild(tapeOutFile);
 
-    RkTapeInHook* tapeInHookBas = new RkTapeInHook(0x2B05);
+    RkTapeInHook* tapeInHookBas = addDevice<RkTapeInHook>(0x2B05);
     tapeInHookBas->setSignature("C5D50E0057DB");
     tapeInHookBas->setTapeRedirector(tapeInFile);
-    addChild(tapeInHookBas);
     cpu->addHook(tapeInHookBas);
 
-    RkTapeOutHook* tapeOutHookBas = new RkTapeOutHook(0x2B60);
+    RkTapeOutHook* tapeOutHookBas = addDevice<RkTapeOutHook>(0x2B60);
     tapeOutHookBas->setOutputRegisterA(true);
     tapeOutHookBas->setSignature("C5D5F5570E08");
     tapeOutHookBas->setTapeRedirector(tapeOutFile);
-    addChild(tapeOutHookBas);
     cpu->addHook(tapeOutHookBas);
 
-    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E);
+    CloseFileHook* closeFileHookBas = addDevice<CloseFileHook>(0x2B8E);
     closeFileHookBas->setSignature("C506003A203C");
     closeFileHookBas->addTapeRedirector(tapeInFile);
     closeFileHookBas->addTapeRedirector(tapeOutFile);
-    addChild(closeFileHookBas);
     cpu->addHook(closeFileHookBas);
 
-    RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
+    RkTapeInHook* tapeInHookMon = addDevice<RkTapeInHook>(0xF840);
     tapeInHookMon->setSignature("C5D50E0057DB");
     tapeInHookMon->setTapeRedirector(tapeInFile);
-    addChild(tapeInHookMon);
     cpu->addHook(tapeInHookMon);
 
-    RkTapeOutHook* tapeOutHookMon = new RkTapeOutHook(0xF89B);
+    RkTapeOutHook* tapeOutHookMon = addDevice<RkTapeOutHook>(0xF89B);
     tapeOutHookMon->setOutputRegisterA(true);
     tapeOutHookMon->setSignature("C5D5F5573E02");
     tapeOutHookMon->setTapeRedirector(tapeOutFile);
-    addChild(tapeOutHookMon);
     cpu->addHook(tapeOutHookMon);
 
-    Ret8080Hook* skipHookMon = new Ret8080Hook(0xEDDC);
+    Ret8080Hook* skipHookMon = addDevice<Ret8080Hook>(0xEDDC);
     skipHookMon->setSignature("CD1097FB76F3");
-    addChild(skipHookMon);
     cpu->addHook(skipHookMon);
 
-    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF);
+    CloseFileHook* closeFileHookMon = addDevice<CloseFileHook>(0xFEFF);
     closeFileHookMon->setSignature("3AFDFFE604CD");
     closeFileHookMon->addTapeRedirector(tapeInFile);
     closeFileHookMon->addTapeRedirector(tapeOutFile);
-    addChild(closeFileHookMon);
     cpu->addHook(closeFileHookMon);
 
-    RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
+    RkTapeInHook* tapeInHookEmuRk = addDevice<RkTapeInHook>(0xFC31);
     tapeInHookEmuRk->setSignature("F3C5D50E0057");
     tapeInHookEmuRk->setTapeRedirector(tapeInFile);
-    addChild(tapeInHookEmuRk);
     cpu->addHook(tapeInHookEmuRk);
 
-    RkTapeOutHook* tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
+    RkTapeOutHook* tapeOutHookEmuRk = addDevice<RkTapeOutHook>(0xFC7D);
     tapeOutHookEmuRk->setOutputRegisterA(true);
     tapeOutHookEmuRk->setSignature("F3C5D5F51608");
     tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
-    addChild(tapeOutHookEmuRk);
     cpu->addHook(tapeOutHookEmuRk);
 
-    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18);
+    CloseFileHook* closeFileHookEmuRk = addDevice<CloseFileHook>(0xFF18);
     closeFileHookEmuRk->setSignature("FB3A61F6E604");
     closeFileHookEmuRk->addTapeRedirector(tapeInFile);
     closeFileHookEmuRk->addTapeRedirector(tapeOutFile);
-    addChild(closeFileHookEmuRk);
     cpu->addHook(closeFileHookEmuRk);
 
-    SRam* ramDiskMem = new SRam(0x40000);
-    addChild(ramDiskMem);
+    SRam* ramDiskMem = addDevice<SRam>(0x40000);
     addrSpace->attachRamDisk(0, ramDiskMem);
 
-    RamDisk* ramDisk = new RamDisk(1, 0x40000);
+    RamDisk* ramDisk = addDevice<RamDisk>(1, 0x40000);
     ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk->attachPage(0, ramDiskMem);
-    addChild(ramDisk);
     m_ramDisk = ramDisk;
 
-    VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector;
+    VectorRamDiskSelector* ramDiskSelector = addDevice<VectorRamDiskSelector>();
     ramDiskSelector->attachVectorAddrSpace(addrSpace);
     ramDiskSelector->setDiskNum(0);
-    addChild(ramDiskSelector);
     ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
 
-    SRam* ramDiskMem2 = new SRam(0x40000);
-    addChild(ramDiskMem2);
+    SRam* ramDiskMem2 = addDevice<SRam>(0x40000);
     addrSpace->attachRamDisk(1, ramDiskMem2);
 
-    RamDisk* ramDisk2 = new RamDisk(1, 0x40000);
+    RamDisk* ramDisk2 = addDevice<RamDisk>(1, 0x40000);
     ramDisk2->setLabel("EDD2");
     ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk2->attachPage(0, ramDiskMem2);
-    addChild(ramDisk2);
     m_ramDisk2 = ramDisk2;
 
-    VectorRamDiskSelector* ramDiskSelector2 = new VectorRamDiskSelector;
+    VectorRamDiskSelector* ramDiskSelector2 = addDevice<VectorRamDiskSelector>();
     ramDiskSelector2->attachVectorAddrSpace(addrSpace);
     ramDiskSelector2->setDiskNum(1);
-    addChild(ramDiskSelector2);
     ioAddrSpace->addRange(0x11, 0x11, ramDiskSelector2);
 
-    VectorCpuWaits* cpuWaits = new VectorCpuWaits;
-    addChild(cpuWaits);
+    VectorCpuWaits* cpuWaits = addDevice<VectorCpuWaits>();
     cpu->attachCpuWaits(cpuWaits);
 
     m_tapeHooks = {
@@ -1163,22 +1110,22 @@ VectorCore::VectorCore()
 
 void VectorCore::init()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->init();
+    for (const auto& device : m_devices)
+        device->init();
 }
 
 
 void VectorCore::shutdown()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->shutdown();
+    for (const auto& device : m_devices)
+        device->shutdown();
 }
 
 
 void VectorCore::reset()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->reset();
+    for (const auto& device : m_devices)
+        device->reset();
     m_intReq = false;
     m_intsEnabled = false;
 }
@@ -1186,16 +1133,9 @@ void VectorCore::reset()
 
 VectorCore::~VectorCore()
 {
-    VectorCore::shutdown();
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        delete *it;
-}
-
-
-void VectorCore::addChild(EmuObject* child)
-{
-    child->setMachine(this);
-    m_objList.push_back(child);
+    shutdown();
+    for (auto& device : m_devices)
+        device.reset();
 }
 
 
