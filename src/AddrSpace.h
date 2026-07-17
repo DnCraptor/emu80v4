@@ -23,14 +23,6 @@
 
 #include "EmuObjects.h"
 
-/*struct DeviceItem
-{
-    AddressableDevice* addrDevice; // ссылка на устройство
-    int firstAddress;              // начальный адрес устройства
-    int itemSize;                  // размер области устройства в байтах
-    int devFirstAddr;              // смещение в области памяти устройства
-};*/
-
 class AddrSpace : public AddressableDevice
 {
     public:
@@ -41,8 +33,8 @@ class AddrSpace : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
 
         void addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
-        virtual void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
-        virtual void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
+        void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
+        void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
 
 
 private:
@@ -72,42 +64,6 @@ private:
 };
 
 
-class AddrSpaceMapper : public AddressableDevice
-{
-    public:
-        AddrSpaceMapper(int nPages);
-        ~AddrSpaceMapper();
-
-        void reset() override {m_curPage = 0;}
-
-        void attachPage(int page, AddressableDevice* as);
-        void setCurPage(int page);
-
-        void writeByte(int addr, uint8_t value) override;
-        uint8_t readByte(int addr) override;
-
-
-protected:
-        AddressableDevice** m_pages;
-        int m_nPages;
-        int m_curPage = 0;
-};
-
-
-class AddrSpaceShifter : public AddressableDevice
-{
-    public:
-        AddrSpaceShifter(AddressableDevice* as, int shift);
-
-        void writeByte(int addr, uint8_t value) override;
-        uint8_t readByte(int addr) override;
-
-
-private:
-        AddressableDevice* m_as;
-        int m_shift;
-};
-
 
 class AddrSpaceInverter : public AddressableDevice
 {
@@ -122,20 +78,6 @@ private:
         AddressableDevice* m_as;
 };
 
-
-class AddrSpaceWriteSplitter : public AddressableDevice
-{
-    public:
-        AddrSpaceWriteSplitter(AddressableDevice* as1, AddressableDevice* as2) : m_as1(as1), m_as2(as2) {}
-
-        void writeByte(int addr, uint8_t value) override;
-        uint8_t readByte(int addr) override;
-
-
-private:
-        AddressableDevice* m_as1;
-        AddressableDevice* m_as2;
-};
 
 
 #endif // ADDRSPACE_H

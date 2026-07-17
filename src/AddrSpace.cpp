@@ -16,9 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "Globals.h"
 #include "AddrSpace.h"
-#include "Emulation.h"
 
 using namespace std;
 
@@ -26,14 +24,6 @@ AddrSpace::AddrSpace(uint8_t nullByte)
 {
     m_nullByte = nullByte;
     m_itemCountR = m_itemCountW = 0;
-    /*m_firstAddressesR = new int [m_maxAsItems];
-    m_firstAddressesW = new int [m_maxAsItems];
-    m_itemSizesR = new int [m_maxAsItems];
-    m_itemSizesW = new int [m_maxAsItems];
-    m_devFirstAddressesR = new int [m_maxAsItems];
-    m_devFirstAddressesW = new int [m_maxAsItems];
-    m_addrDevicesR = new AddressableDevice* [m_maxAsItems];
-    m_addrDevicesW = new AddressableDevice* [m_maxAsItems];*/
 }
 
 
@@ -126,74 +116,6 @@ void AddrSpace::writeByte(int addr, uint8_t value)
 
 
 
-
-AddrSpaceMapper::AddrSpaceMapper(int nPages)
-{
-    m_nPages = nPages;
-    m_pages = new AddressableDevice* [nPages];
-    for (int i = 0; i < nPages; i++)
-        m_pages[i] = nullptr;
-}
-
-
-AddrSpaceMapper::~AddrSpaceMapper()
-{
-    delete[] m_pages;
-}
-
-
-void AddrSpaceMapper::attachPage(int page, AddressableDevice* as)
-{
-    if (page < m_nPages)
-        m_pages[page] = as;
-}
-
-
-void AddrSpaceMapper::setCurPage(int page)
-{
-    if (page < m_nPages)
-        m_curPage = page;
-}
-
-
-uint8_t AddrSpaceMapper::readByte(int addr)
-{
-    if (m_pages[m_curPage])
-        return m_pages[m_curPage]->readByte(addr);
-    else
-        return 0xFF;
-}
-
-
-void AddrSpaceMapper::writeByte(int addr, uint8_t value)
-{
-    if (m_pages[m_curPage])
-        m_pages[m_curPage]->writeByte(addr, value);
-}
-
-
-
-
-AddrSpaceShifter::AddrSpaceShifter(AddressableDevice* as, int shift)
-{
-    m_as = as;
-    m_shift = shift;
-}
-
-
-uint8_t AddrSpaceShifter::readByte(int addr)
-{
-    return m_as->readByte(addr >> m_shift);
-}
-
-
-void AddrSpaceShifter::writeByte(int addr, uint8_t value)
-{
-    m_as->writeByte(addr >> m_shift, value);
-}
-
-
-
 AddrSpaceInverter::AddrSpaceInverter(AddressableDevice* as)
 {
     m_as = as;
@@ -209,17 +131,4 @@ uint8_t AddrSpaceInverter::readByte(int addr)
 void AddrSpaceInverter::writeByte(int addr, uint8_t value)
 {
     m_as->writeByte(~addr, value);
-}
-
-
-void AddrSpaceWriteSplitter::writeByte(int addr, uint8_t value)
-{
-    m_as1->writeByte(addr, value);
-    m_as2->writeByte(addr, value);
-}
-
-
-uint8_t AddrSpaceWriteSplitter::readByte(int addr)
-{
-    return m_as1->readByte(addr);
 }
