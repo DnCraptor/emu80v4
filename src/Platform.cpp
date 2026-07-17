@@ -40,6 +40,12 @@
 #include "KbdTapper.h"
 #include "Ppi8255.h"
 #include "SoundMixer.h"
+#include "Covox.h"
+#include "Pit8253.h"
+#include "Pit8253Sound.h"
+#include "Psg3910.h"
+#include "Fdc1793.h"
+#include "AtaDrive.h"
 
 #include "pico/vector06c_config.h"
 
@@ -166,6 +172,79 @@ Platform::Platform(string configFileName, string name)
     colorReg->attachRenderer(crtRenderer);
     addChild(colorReg);
     ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
+
+    Covox* covox = new Covox(7);
+    covox->setName(getName() + ".covox");
+    covox->setNegative(true);
+    addChild(covox);
+
+    VectorPpi8255Circuit2* covoxCircuit = new VectorPpi8255Circuit2;
+    covoxCircuit->setName(getName() + ".covoxCircuit");
+    covoxCircuit->attachCovox(covox);
+    addChild(covoxCircuit);
+
+    Ppi8255* ppi2 = new Ppi8255;
+    ppi2->setName(getName() + ".ppi2");
+    ppi2->attachPpi8255Circuit(covoxCircuit);
+    addChild(ppi2);
+
+    AddrSpaceInverter* invertedPpi2 = new AddrSpaceInverter(ppi2);
+    invertedPpi2->setName(getName() + ".invertedPpi2");
+    addChild(invertedPpi2);
+    ioAddrSpace->addRange(0x04, 0x07, invertedPpi2);
+
+    Pit8253* pit = new Pit8253;
+    pit->setName(getName() + ".pit");
+    pit->setFrequency(1500000);
+    addChild(pit);
+
+    Pit8253SoundSource* sndSource = new Pit8253SoundSource;
+    sndSource->setName(getName() + ".sndSource");
+    sndSource->attachPit(pit);
+    sndSource->setNegative(true);
+    addChild(sndSource);
+
+    AddrSpaceInverter* invertedPit = new AddrSpaceInverter(pit);
+    invertedPit->setName(getName() + ".invertedPit");
+    addChild(invertedPit);
+    ioAddrSpace->addRange(0x08, 0x0B, invertedPit);
+
+    Psg3910* ay = new Psg3910;
+    ay->setName(getName() + ".ay");
+    ay->setFrequency(1750000);
+    addChild(ay);
+    ioAddrSpace->addRange(0x14, 0x15, ay);
+
+    Psg3910SoundSource* psgSoundSource = new Psg3910SoundSource;
+    psgSoundSource->setName(getName() + ".psgSoundSource");
+    psgSoundSource->attachPsg(ay);
+    addChild(psgSoundSource);
+
+    Fdc1793* fdc = new Fdc1793;
+    fdc->setName(getName() + ".fdc");
+    addChild(fdc);
+
+    AddrSpaceInverter* invertedFdc = new AddrSpaceInverter(fdc);
+    invertedFdc->setName(getName() + ".invertedFdc");
+    addChild(invertedFdc);
+    ioAddrSpace->addRange(0x18, 0x1B, invertedFdc);
+
+    VectorFddControlRegister* fddReg = new VectorFddControlRegister;
+    fddReg->setName(getName() + ".fddReg");
+    fddReg->attachFdc1793(fdc);
+    addChild(fddReg);
+    ioAddrSpace->addRange(0x1C, 0x1C, fddReg);
+
+    AtaDrive* ataDrive = new AtaDrive;
+    ataDrive->setName(getName() + ".ataDrive");
+    ataDrive->setVectorGeometry();
+    addChild(ataDrive);
+
+    VectorHddRegisters* hddRegisters = new VectorHddRegisters;
+    hddRegisters->setName(getName() + ".hddRegisters");
+    hddRegisters->attachAtaDrive(ataDrive);
+    addChild(hddRegisters);
+    ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
 
     ConfigReader cr(configFileName, getName(), vector06c_config);
     cr.processConfigFile(this);

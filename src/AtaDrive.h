@@ -50,6 +50,7 @@ class AtaDrive : public EmuObject
         uint8_t readStatus();
 
         void assignDiskImage(DiskImage* image);
+        void setVectorGeometry();
 
         static EmuObject* create(const EmuValuesList&) {return new AtaDrive();}
 
@@ -94,7 +95,6 @@ class AtaDrive : public EmuObject
         void seek();
 
         bool m_vectorGeometry = false;
-        void setVectorGeometry();
 };
 
 
