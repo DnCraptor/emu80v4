@@ -55,12 +55,8 @@ bool DiskImage::assignFileName(string fileName)
 
     reset();
 
-    if (m_owner) {
-        if (m_file.isOpen())
-            m_owner->notify(this, DISKIMAGE_NOTIFY_FILEOPENED);
-        else
-            m_owner->notify(this, DISKIMAGE_NOTIFY_FILECLOSED);
-    }
+    if (m_owner)
+        m_owner->diskImageChanged(this, m_file.isOpen());
 
     return m_file.isOpen();
 }

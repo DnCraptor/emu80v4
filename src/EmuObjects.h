@@ -48,10 +48,6 @@ class EmuObject
         virtual void reset() {}
 
         void setMachine(VectorCore* machine) {m_machine = machine;}
-        VectorCore* getMachine() {return m_machine;}
-
-
-        virtual void notify(EmuObject* /*sender*/, int /*data*/) {}
 
     protected:
         int m_kDiv = 1;
@@ -66,9 +62,7 @@ class AddressableDevice : public EmuObject
     public:
         virtual Ram* asRam() { return nullptr; }
         virtual SRam* asSRam() { return nullptr; }
-        //AddressableDevice();
-        virtual ~AddressableDevice() {} // !!!
-
+        ~AddressableDevice() override = default;
 
         virtual void writeByte(int addr, uint8_t value) = 0;
         virtual uint8_t readByte(int) {return 0xFF;}
@@ -85,7 +79,6 @@ class AddressableDevice : public EmuObject
         int m_tag = 0;
         static int m_lastTag;
 
-    private:
 };
 
 

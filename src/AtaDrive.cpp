@@ -335,12 +335,12 @@ void AtaDrive::setVectorGeometry()
 }
 
 
-void AtaDrive::notify(EmuObject* sender, int data)
+void AtaDrive::diskImageChanged(DiskImage* image, bool isOpen)
 {
-    if (sender != m_image) // just in case
+    if (image != m_image) // just in case
         return;
 
-    if (data == DISKIMAGE_NOTIFY_FILEOPENED) {
+    if (isOpen) {
         if (m_image->getImagePresent()) {
             int64_t size = m_image->getSize();
             size /= 512;
@@ -351,6 +351,6 @@ void AtaDrive::notify(EmuObject* sender, int data)
                 setVectorGeometry();
         }
         m_rdData = 0xFFFF;
-    } else if (data == DISKIMAGE_NOTIFY_FILECLOSED)
+    } else
         m_rdData = 0;
 }

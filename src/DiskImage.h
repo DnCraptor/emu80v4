@@ -24,8 +24,14 @@
 #include "EmuObjects.h"
 
 
-const int DISKIMAGE_NOTIFY_FILEOPENED = 1;
-const int DISKIMAGE_NOTIFY_FILECLOSED = 2;
+class DiskImage;
+
+class DiskImageObserver
+{
+public:
+    virtual ~DiskImageObserver() = default;
+    virtual void diskImageChanged(DiskImage* image, bool isOpen) = 0;
+};
 
 class DiskImage : public EmuObject
 {
@@ -51,7 +57,7 @@ public:
     bool write(uint8_t* buf, int len);
     uint8_t read8();
 
-    void setOwner(EmuObject* owner) {m_owner = owner;}
+    void setOwner(DiskImageObserver* owner) {m_owner = owner;}
 
 
 protected:
@@ -64,7 +70,7 @@ protected:
     std::string m_label;
 
 private:
-    EmuObject* m_owner = nullptr;
+    DiskImageObserver* m_owner = nullptr;
 };
 
 

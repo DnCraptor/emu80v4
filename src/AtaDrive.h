@@ -26,17 +26,16 @@
 #include "Pal.h"
 #include "PalFile.h"
 #include "EmuObjects.h"
+#include "DiskImage.h"
 
-class DiskImage;
-
-class AtaDrive : public EmuObject
+class AtaDrive : public EmuObject, public DiskImageObserver
 {
     public:
         //AtaDrive();
 
         void reset() override; // Chip reset
 
-        void notify(EmuObject* sender, int data) override;
+        void diskImageChanged(DiskImage* image, bool isOpen) override;
 
         // low-level io methods
         uint16_t readData();
