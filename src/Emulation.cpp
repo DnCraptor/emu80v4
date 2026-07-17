@@ -44,16 +44,12 @@ Emulation::Emulation()
     m_sampleRate = 48000;
 
     g_emulation = this;
-    setName("emulation");
 
     m_mixer = new SoundMixer;
-    m_mixer->setName("soundMixer");
 
     m_wavReader = new WavReader;
-    m_wavReader->setName("wavReader");
 
     m_prnWriter = new PrnWriter;
-    m_prnWriter->setName("prnWriter");
 
     setFrequency(1680000000);
     setSampleRate(96000);
@@ -67,7 +63,7 @@ Emulation::Emulation()
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    m_activePlatform = new Platform("vector");
+    m_activePlatform = new Platform();
     if (!m_activePlatform->getWindow()) {
         delete m_activePlatform;
         m_activePlatform = nullptr;

@@ -50,10 +50,7 @@ void EmuWindow::init()
 
 string EmuWindow::getPlatformObjectName()
 {
-    if (m_platform)
-        return m_platform->getName();
-    else
-        return "";
+    return m_platform ? "vector" : "";
 }
 
 

@@ -44,7 +44,7 @@ class CpuHook;
 class Platform : public EmuObject
 {
     public:
-        explicit Platform(std::string name);
+        explicit Platform();
         virtual ~Platform();
         void addChild(EmuObject* child);
         void init() override;

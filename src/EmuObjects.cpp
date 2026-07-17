@@ -23,18 +23,6 @@
 
 using namespace std;
 
-void EmuObject::setName(string name)
-{
-    m_name = name;
-}
-
-
-string EmuObject::getName()
-{
-    return m_name;
-}
-
-
 void EmuObject::setFrequency(int64_t freq)
 {
     m_kDiv = (g_emulation->getFrequency() + freq / 2) / freq;

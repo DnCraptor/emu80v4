@@ -22,7 +22,6 @@
 #include <cstdint>
 
 #include <vector>
-#include <string>
 
 
 
@@ -43,9 +42,6 @@ class EmuObject
     public:
         virtual ~EmuObject() = default;
 
-        void setName(std::string name);
-        std::string getName();
-
         int getKDiv() {return m_kDiv;}
 
         virtual void setFrequency(int64_t freq); // лучше бы в одном из производных классов, но пусть пока будет здесь
@@ -63,9 +59,6 @@ class EmuObject
     protected:
         int m_kDiv = 1;
         Platform* m_platform = nullptr;
-
-    private:
-        std::string m_name;
 };
 
 class Ram;

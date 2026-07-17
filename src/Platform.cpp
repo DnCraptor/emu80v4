@@ -50,48 +50,40 @@
 
 using namespace std;
 
-Platform::Platform(string name)
+Platform::Platform()
 {
-    setName(name);
 
     EmuWindow* window = new EmuWindow;
-    window->setName(getName() + ".window");
     window->setPlatform(this);
     window->setCaption("Вектор-06Ц");
     addChild(window);
     m_window = window;
 
     Ram* ram = new Ram(0x10000);
-    ram->setName(getName() + ".ram");
     addChild(ram);
 
     Rom* rom = new Rom(0x8000, "vector/loader.rom");
-    rom->setName(getName() + ".rom");
     addChild(rom);
 
     Cpu8080* cpu = new Cpu8080;
-    cpu->setName(getName() + ".cpu");
     cpu->setFrequency(3000000);
     cpu->setStartAddr(0x0000);
     addChild(cpu);
     m_cpu = cpu;
 
     VectorAddrSpace* addrSpace = new VectorAddrSpace;
-    addrSpace->setName(getName() + ".addrSpace");
     addrSpace->attachRam(ram);
     addrSpace->attachRom(rom);
     addrSpace->attachCpu(cpu);
     addChild(addrSpace);
 
     AddrSpace* ioAddrSpace = new AddrSpace;
-    ioAddrSpace->setName(getName() + ".ioAddrSpace");
     addChild(ioAddrSpace);
 
     cpu->attachAddrSpace(addrSpace);
     cpu->attachIoAddrSpace(ioAddrSpace);
 
     VectorRenderer* crtRenderer = new VectorRenderer;
-    crtRenderer->setName(getName() + ".crtRenderer");
     crtRenderer->attachMemory(ram);
     crtRenderer->setVisibleArea(true);
     addChild(crtRenderer);
@@ -100,7 +92,6 @@ Platform::Platform(string name)
     addrSpace->attachCrtRenderer(crtRenderer);
 
     VectorCore* core = new VectorCore;
-    core->setName(getName() + ".core");
     core->attachWindow(window);
     core->attachCrtRenderer(crtRenderer);
     addChild(core);
@@ -109,18 +100,15 @@ Platform::Platform(string name)
     cpu->attachCore(core);
 
     VectorKeyboard* keyboard = new VectorKeyboard;
-    keyboard->setName(getName() + ".keyboard");
     addChild(keyboard);
     m_keyboard = keyboard;
 
     VectorKbdLayout* kbdLayout = new VectorKbdLayout;
-    kbdLayout->setName(getName() + ".kbdLayout");
     kbdLayout->setQwertyMode();
     addChild(kbdLayout);
     m_kbdLayout = kbdLayout;
 
     KbdTapper* kbdTapper = new KbdTapper;
-    kbdTapper->setName(getName() + ".kbdTapper");
     kbdTapper->setPressTime(20);
     kbdTapper->setReleaseTime(20);
     kbdTapper->setCrDelay(100);
@@ -128,108 +116,88 @@ Platform::Platform(string name)
     m_kbdTapper = kbdTapper;
 
     VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit;
-    ppiCircuit->setName(getName() + ".ppiCircuit");
     ppiCircuit->attachRenderer(crtRenderer);
     ppiCircuit->attachKeyboard(keyboard);
     addChild(ppiCircuit);
 
     GeneralSoundSource* tapeSoundSource = new GeneralSoundSource;
-    tapeSoundSource->setName(getName() + ".tapeSoundSource");
     addChild(tapeSoundSource);
     ppiCircuit->attachTapeSoundSource(tapeSoundSource);
 
     Ppi8255* ppi = new Ppi8255;
-    ppi->setName(getName() + ".ppi");
     ppi->setNoReset(true);
     ppi->attachPpi8255Circuit(ppiCircuit);
     addChild(ppi);
 
     AddrSpaceInverter* invertedPpi = new AddrSpaceInverter(ppi);
-    invertedPpi->setName(getName() + ".invertedPpi");
     addChild(invertedPpi);
     ioAddrSpace->addRange(0x00, 0x03, invertedPpi);
 
     VectorColorRegister* colorReg = new VectorColorRegister;
-    colorReg->setName(getName() + ".colorReg");
     colorReg->attachRenderer(crtRenderer);
     addChild(colorReg);
     ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
 
     Covox* covox = new Covox(7);
-    covox->setName(getName() + ".covox");
     covox->setNegative(true);
     addChild(covox);
 
     VectorPpi8255Circuit2* covoxCircuit = new VectorPpi8255Circuit2;
-    covoxCircuit->setName(getName() + ".covoxCircuit");
     covoxCircuit->attachCovox(covox);
     addChild(covoxCircuit);
 
     Ppi8255* ppi2 = new Ppi8255;
-    ppi2->setName(getName() + ".ppi2");
     ppi2->attachPpi8255Circuit(covoxCircuit);
     addChild(ppi2);
 
     AddrSpaceInverter* invertedPpi2 = new AddrSpaceInverter(ppi2);
-    invertedPpi2->setName(getName() + ".invertedPpi2");
     addChild(invertedPpi2);
     ioAddrSpace->addRange(0x04, 0x07, invertedPpi2);
 
     Pit8253* pit = new Pit8253;
-    pit->setName(getName() + ".pit");
     pit->setFrequency(1500000);
     addChild(pit);
 
     Pit8253SoundSource* sndSource = new Pit8253SoundSource;
-    sndSource->setName(getName() + ".sndSource");
     sndSource->attachPit(pit);
     sndSource->setNegative(true);
     addChild(sndSource);
 
     AddrSpaceInverter* invertedPit = new AddrSpaceInverter(pit);
-    invertedPit->setName(getName() + ".invertedPit");
     addChild(invertedPit);
     ioAddrSpace->addRange(0x08, 0x0B, invertedPit);
 
     Psg3910* ay = new Psg3910;
-    ay->setName(getName() + ".ay");
     ay->setFrequency(1750000);
     addChild(ay);
     ioAddrSpace->addRange(0x14, 0x15, ay);
 
     Psg3910SoundSource* psgSoundSource = new Psg3910SoundSource;
-    psgSoundSource->setName(getName() + ".psgSoundSource");
     psgSoundSource->attachPsg(ay);
     addChild(psgSoundSource);
 
     Fdc1793* fdc = new Fdc1793;
-    fdc->setName(getName() + ".fdc");
     addChild(fdc);
 
     AddrSpaceInverter* invertedFdc = new AddrSpaceInverter(fdc);
-    invertedFdc->setName(getName() + ".invertedFdc");
     addChild(invertedFdc);
     ioAddrSpace->addRange(0x18, 0x1B, invertedFdc);
 
     VectorFddControlRegister* fddReg = new VectorFddControlRegister;
-    fddReg->setName(getName() + ".fddReg");
     fddReg->attachFdc1793(fdc);
     addChild(fddReg);
     ioAddrSpace->addRange(0x1C, 0x1C, fddReg);
 
     AtaDrive* ataDrive = new AtaDrive;
-    ataDrive->setName(getName() + ".ataDrive");
     ataDrive->setVectorGeometry();
     addChild(ataDrive);
 
     VectorHddRegisters* hddRegisters = new VectorHddRegisters;
-    hddRegisters->setName(getName() + ".hddRegisters");
     hddRegisters->attachAtaDrive(ataDrive);
     addChild(hddRegisters);
     ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
 
     FdImage* diskA = new FdImage(80, 2, 5, 1024);
-    diskA->setName(getName() + ".diskA");
     diskA->setLabel("A");
     diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(diskA);
@@ -237,7 +205,6 @@ Platform::Platform(string name)
     fdc->attachFdImage(0, diskA);
 
     FdImage* diskB = new FdImage(80, 2, 5, 1024);
-    diskB->setName(getName() + ".diskB");
     diskB->setLabel("B");
     diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(diskB);
@@ -245,7 +212,6 @@ Platform::Platform(string name)
     fdc->attachFdImage(1, diskB);
 
     DiskImage* hdd = new DiskImage;
-    hdd->setName(getName() + ".hdd");
     hdd->setLabel("HDD");
     hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
     addChild(hdd);
@@ -253,33 +219,28 @@ Platform::Platform(string name)
     ataDrive->assignDiskImage(hdd);
 
     VectorFileLoader* loader = new VectorFileLoader;
-    loader->setName(getName() + ".loader");
     loader->attachAddrSpace(ram);
     loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(loader);
     m_loader = loader;
 
     TapeRedirector* tapeInFile = new TapeRedirector;
-    tapeInFile->setName(getName() + ".tapeInFile");
     tapeInFile->setMode("r");
     tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
     addChild(tapeInFile);
 
     TapeRedirector* tapeOutFile = new TapeRedirector;
-    tapeOutFile->setName(getName() + ".tapeOutFile");
     tapeOutFile->setMode("w");
     tapeOutFile->setFilter(".rk|.cas");
     addChild(tapeOutFile);
 
     RkTapeInHook* tapeInHookBas = new RkTapeInHook(0x2B05);
-    tapeInHookBas->setName(getName() + ".tapeInHookBas");
     tapeInHookBas->setSignature("C5D50E0057DB");
     tapeInHookBas->setTapeRedirector(tapeInFile);
     addChild(tapeInHookBas);
     cpu->addHook(tapeInHookBas);
 
     RkTapeOutHook* tapeOutHookBas = new RkTapeOutHook(0x2B60);
-    tapeOutHookBas->setName(getName() + ".tapeOutHookBas");
     tapeOutHookBas->setOutputRegisterA(true);
     tapeOutHookBas->setSignature("C5D5F5570E08");
     tapeOutHookBas->setTapeRedirector(tapeOutFile);
@@ -287,7 +248,6 @@ Platform::Platform(string name)
     cpu->addHook(tapeOutHookBas);
 
     CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E);
-    closeFileHookBas->setName(getName() + ".closeFileHookBas");
     closeFileHookBas->setSignature("C506003A203C");
     closeFileHookBas->addTapeRedirector(tapeInFile);
     closeFileHookBas->addTapeRedirector(tapeOutFile);
@@ -295,14 +255,12 @@ Platform::Platform(string name)
     cpu->addHook(closeFileHookBas);
 
     RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
-    tapeInHookMon->setName(getName() + ".tapeInHookMon");
     tapeInHookMon->setSignature("C5D50E0057DB");
     tapeInHookMon->setTapeRedirector(tapeInFile);
     addChild(tapeInHookMon);
     cpu->addHook(tapeInHookMon);
 
     RkTapeOutHook* tapeOutHookMon = new RkTapeOutHook(0xF89B);
-    tapeOutHookMon->setName(getName() + ".tapeOutHookMon");
     tapeOutHookMon->setOutputRegisterA(true);
     tapeOutHookMon->setSignature("C5D5F5573E02");
     tapeOutHookMon->setTapeRedirector(tapeOutFile);
@@ -310,13 +268,11 @@ Platform::Platform(string name)
     cpu->addHook(tapeOutHookMon);
 
     Ret8080Hook* skipHookMon = new Ret8080Hook(0xEDDC);
-    skipHookMon->setName(getName() + ".skipHookMon");
     skipHookMon->setSignature("CD1097FB76F3");
     addChild(skipHookMon);
     cpu->addHook(skipHookMon);
 
     CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF);
-    closeFileHookMon->setName(getName() + ".closeFileHookMon");
     closeFileHookMon->setSignature("3AFDFFE604CD");
     closeFileHookMon->addTapeRedirector(tapeInFile);
     closeFileHookMon->addTapeRedirector(tapeOutFile);
@@ -324,14 +280,12 @@ Platform::Platform(string name)
     cpu->addHook(closeFileHookMon);
 
     RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
-    tapeInHookEmuRk->setName(getName() + ".tapeInHookEmuRk");
     tapeInHookEmuRk->setSignature("F3C5D50E0057");
     tapeInHookEmuRk->setTapeRedirector(tapeInFile);
     addChild(tapeInHookEmuRk);
     cpu->addHook(tapeInHookEmuRk);
 
     RkTapeOutHook* tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
-    tapeOutHookEmuRk->setName(getName() + ".tapeOutHookEmuRk");
     tapeOutHookEmuRk->setOutputRegisterA(true);
     tapeOutHookEmuRk->setSignature("F3C5D5F51608");
     tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
@@ -339,7 +293,6 @@ Platform::Platform(string name)
     cpu->addHook(tapeOutHookEmuRk);
 
     CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18);
-    closeFileHookEmuRk->setName(getName() + ".closeFileHookEmuRk");
     closeFileHookEmuRk->setSignature("FB3A61F6E604");
     closeFileHookEmuRk->addTapeRedirector(tapeInFile);
     closeFileHookEmuRk->addTapeRedirector(tapeOutFile);
@@ -347,31 +300,26 @@ Platform::Platform(string name)
     cpu->addHook(closeFileHookEmuRk);
 
     SRam* ramDiskMem = new SRam(0x40000);
-    ramDiskMem->setName(getName() + ".ramDiskMem");
     addChild(ramDiskMem);
     addrSpace->attachRamDisk(0, ramDiskMem);
 
     RamDisk* ramDisk = new RamDisk(1, 0x40000);
-    ramDisk->setName(getName() + ".ramDisk");
     ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk->attachPage(0, ramDiskMem);
     addChild(ramDisk);
     m_ramDisk = ramDisk;
 
     VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector;
-    ramDiskSelector->setName(getName() + ".ramDiskSelector");
     ramDiskSelector->attachVectorAddrSpace(addrSpace);
     ramDiskSelector->setDiskNum(0);
     addChild(ramDiskSelector);
     ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
 
     SRam* ramDiskMem2 = new SRam(0x40000);
-    ramDiskMem2->setName(getName() + ".ramDiskMem2");
     addChild(ramDiskMem2);
     addrSpace->attachRamDisk(1, ramDiskMem2);
 
     RamDisk* ramDisk2 = new RamDisk(1, 0x40000);
-    ramDisk2->setName(getName() + ".ramDisk2");
     ramDisk2->setLabel("EDD2");
     ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk2->attachPage(0, ramDiskMem2);
@@ -379,14 +327,12 @@ Platform::Platform(string name)
     m_ramDisk2 = ramDisk2;
 
     VectorRamDiskSelector* ramDiskSelector2 = new VectorRamDiskSelector;
-    ramDiskSelector2->setName(getName() + ".ramDiskSelector2");
     ramDiskSelector2->attachVectorAddrSpace(addrSpace);
     ramDiskSelector2->setDiskNum(1);
     addChild(ramDiskSelector2);
     ioAddrSpace->addRange(0x11, 0x11, ramDiskSelector2);
 
     VectorCpuWaits* cpuWaits = new VectorCpuWaits;
-    cpuWaits->setName(getName() + ".cpuWaits");
     addChild(cpuWaits);
     cpu->attachCpuWaits(cpuWaits);
 

@@ -20,6 +20,7 @@
 #define CPUHOOK_H
 
 #include <vector>
+#include <string>
 
 #include "Cpu.h"
 

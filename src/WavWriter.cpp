@@ -28,7 +28,6 @@ using namespace std;
 
 WavWriter::WavWriter(Platform* platform, const string& fileName, bool cswFormat)
 {
-    setName("wavWriter");
     m_core = platform->getCore();
     m_ticksPerSample = g_emulation->getFrequency() / 44100;
     m_open = m_file.open(fileName, "w");

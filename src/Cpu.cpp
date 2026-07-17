@@ -39,8 +39,6 @@ Cpu::~Cpu()
 {
     for (auto it = m_hookVector.begin(); it != m_hookVector.end(); it++) {
         (*it)->setCpu(nullptr);
-        if ((*it)->getName() == "") // breakponts
-            delete (*it);
     }
 }
 
