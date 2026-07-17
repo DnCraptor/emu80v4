@@ -34,12 +34,7 @@ Cpu::Cpu()
 }
 
 
-Cpu::~Cpu()
-{
-    for (auto it = m_hookVector.begin(); it != m_hookVector.end(); it++) {
-        (*it)->setCpu(nullptr);
-    }
-}
+Cpu::~Cpu() = default;
 
 
 void Cpu::attachAddrSpace(AddressableDevice* as)
@@ -62,21 +57,6 @@ void Cpu::attachCore(VectorCore* core)
 }
 
 
-void Cpu::addHook(CpuHook* hook)
-{
-    m_hookVector.push_back(hook);
-    m_nHooks++;
-    hook->setCpu(this);
-}
-
-
-void Cpu::removeHook(CpuHook* hook)
-{
-    m_hookVector.erase(remove(m_hookVector.begin(), m_hookVector.end(), hook), m_hookVector.end());
-    m_nHooks--; // добавить проверку на существование!
-}
-
-
 int Cpu::as_input(int addr)
 {
     return m_addrSpace->readByte(addr);
@@ -93,9 +73,20 @@ Cpu8080Compatible::Cpu8080Compatible()
 }
 
 
+Cpu8080Compatible::~Cpu8080Compatible()
+{
+    for (CpuHook* hook : m_hookVector)
+        hook->setCpu(nullptr);
+
+    for (auto& entry : m_hooksMap)
+        delete entry.second;
+}
+
+
 void Cpu8080Compatible::addHook(CpuHook* hook)
 {
-    Cpu::addHook(hook);
+    m_hookVector.push_back(hook);
+    hook->setCpu(this);
     uint16_t addr = hook->getHookAddr();
     if (!m_hooksMap[addr])
         m_hooksMap[addr] = new list<CpuHook*>;
@@ -105,7 +96,9 @@ void Cpu8080Compatible::addHook(CpuHook* hook)
 
 void Cpu8080Compatible::removeHook(CpuHook* hook)
 {
-    Cpu::removeHook(hook);
+    m_hookVector.erase(remove(m_hookVector.begin(), m_hookVector.end(), hook), m_hookVector.end());
+    hook->setCpu(nullptr);
+
     uint16_t addr = hook->getHookAddr();
     list<CpuHook*>* hookList = m_hooksMap[addr];
     if (hookList) {

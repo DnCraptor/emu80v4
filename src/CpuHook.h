@@ -26,7 +26,7 @@
 #include "Cpu.h"
 
 
-class Cpu;
+class Cpu8080Compatible;
 class TapeRedirector;
 
 
@@ -39,7 +39,7 @@ class CpuHook : public EmuObject
         virtual ~CpuHook();
 
 
-        virtual void setCpu(Cpu* cpu) {m_cpu = cpu;}
+        void setCpu(Cpu8080Compatible* cpu) {m_cpu = cpu;}
         virtual bool hookProc() = 0; // returns false if continue
 
         inline void setEnabled(bool isEnabled) {m_isEnabled = isEnabled;}
@@ -51,7 +51,7 @@ class CpuHook : public EmuObject
         void setSignature(std::string signature);
 
     protected:
-        Cpu* m_cpu = nullptr;
+        Cpu8080Compatible* m_cpu = nullptr;
         bool m_isEnabled = true;
         TapeRedirector* m_file = nullptr;
         bool m_hasSignature = false;

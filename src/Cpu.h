@@ -48,8 +48,6 @@ class Cpu : public ActiveDevice
         virtual void interrupt(int) {}
         virtual void hrq(int) {}
 
-        virtual void addHook(CpuHook* hook);
-        virtual void removeHook(CpuHook* hook);
         void disableHooks() {m_hooksDisabled = true;}
         void enableHooks() {m_hooksDisabled = false;}
 
@@ -67,8 +65,6 @@ class Cpu : public ActiveDevice
         VectorCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
-        std::vector<CpuHook*> m_hookVector;
-        int m_nHooks = 0;
         bool m_hooksDisabled = false;
 
 ///        bool m_stepReq = false;
@@ -83,9 +79,10 @@ class Cpu8080Compatible : public Cpu
 {
     public:
         Cpu8080Compatible();
+        ~Cpu8080Compatible() override;
 
-        void addHook(CpuHook* hook) override;
-        void removeHook(CpuHook* hook) override;
+        void addHook(CpuHook* hook);
+        void removeHook(CpuHook* hook);
 
         virtual void intRst(int vect) = 0;
         virtual void intCall(uint16_t addr) = 0;
@@ -124,6 +121,7 @@ class Cpu8080Compatible : public Cpu
         int io_input(int port);
         void io_output(int port, int value);
 
+        std::vector<CpuHook*> m_hookVector;
         std::map<uint16_t, std::list<CpuHook*>*> m_hooksMap;
 };
 

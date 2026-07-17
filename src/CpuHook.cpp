@@ -70,7 +70,7 @@ bool Ret8080Hook::hookProc()
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
         return false;
 
-    static_cast<Cpu8080Compatible*>(m_cpu)->ret();
+    m_cpu->ret();
 
     return true;
 }

@@ -55,7 +55,7 @@ bool RkTapeOutHook::hookProc()
     if (m_file->isCancelled())
         return false;
 
-    Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_cpu);
+    Cpu8080Compatible* cpu = m_cpu;
 
     uint8_t outByte;
     if (m_regA)
@@ -69,7 +69,7 @@ bool RkTapeOutHook::hookProc()
     if (outByte == 0xE6)
         m_isSbFound = true;
 
-    static_cast<Cpu8080Compatible*>(m_cpu)->ret();
+    m_cpu->ret();
 
     return true;
 }
@@ -101,7 +101,7 @@ bool RkTapeInHook::hookProc()
     uint8_t inByte = 0;
     uint8_t sb = 0xE6;
 
-    Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_cpu);
+    Cpu8080Compatible* cpu = m_cpu;
 
     uint16_t af = cpu->getAF();
 
@@ -121,7 +121,7 @@ bool RkTapeInHook::hookProc()
 
     cpu->setAF((af & 0xFE) | (inByte << 8));
 
-    static_cast<Cpu8080Compatible*>(m_cpu)->ret();
+    m_cpu->ret();
 
     return true;
 }
