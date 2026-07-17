@@ -42,6 +42,8 @@ class TapeRedirector : public EmuObject
         void setFilePos(unsigned pos);
 
         void assignFile(std::string fileName, std::string rwMode);
+        void setMode(const std::string& mode) {m_rwMode = mode;}
+        void setFilter(const std::string& filter) {m_filter = filter;}
         uint8_t readByte();
         uint8_t peekByte();
         void writeByte(uint8_t bt);

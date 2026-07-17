@@ -29,7 +29,6 @@
 
 
 class Platform;
-class EmuConfigControl;
 class EmuWindow;
 class Cpu;
 class PlatformCore;
@@ -38,7 +37,6 @@ class CrtRenderer;
 class DiskImage;
 class FileLoader;
 class RamDisk;
-class EmuConfigTab;
 class Keyboard;
 class EmuObjectGroup;
 class KbdTapper;
@@ -47,7 +45,6 @@ class EmuObject
 {
     public:
         virtual Platform* asPlatform() { return nullptr; };
-        virtual EmuConfigControl* asEmuConfigControl() { return nullptr; }
         virtual EmuWindow* asEmuWindow() { return nullptr; }
         virtual Cpu* asCpu() { return nullptr; }
         virtual PlatformCore* asPlatformCore() { return nullptr; }
@@ -56,7 +53,6 @@ class EmuObject
         virtual DiskImage* asDiskImage() { return nullptr; }
         virtual FileLoader* asFileLoader() { return nullptr; }
         virtual RamDisk* asRamDisk() { return nullptr; }
-        virtual EmuConfigTab* asEmuConfigTab() { return nullptr; }
         virtual Keyboard* asKeyboard() { return nullptr; }
         virtual EmuObjectGroup* asEmuObjectGroup() { return nullptr; }
         virtual KbdTapper* asKbdTapper() { return nullptr; }

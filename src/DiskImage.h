@@ -43,6 +43,7 @@ public:
     int64_t getSize();
     void setWriteProtection(bool isWriteProtected);
     inline void setLabel(std::string label) {m_label = label;}
+    inline void setFilter(std::string filter) {m_filter = filter;}
     inline std::string getLabel() {return m_label;}
 
     bool getWriteProtectStatus();

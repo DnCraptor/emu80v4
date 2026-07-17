@@ -27,10 +27,8 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "ConfigReader.h"
 #include "Platform.h"
 #include "EmuWindow.h"
-#include "EmuConfig.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "PrnWriter.h"
@@ -49,9 +47,6 @@ Emulation::Emulation()
     setName("emulation");
 
     addObject(this);
-
-    m_config = new EmuConfig();
-    m_config->setName("config");
 
     m_mixer = new SoundMixer;
     m_mixer->setName("soundMixer");
@@ -74,7 +69,7 @@ Emulation::Emulation()
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    m_activePlatform = new Platform("vector/vector.conf", "vector");
+    m_activePlatform = new Platform("vector");
     if (!m_activePlatform->getWindow()) {
         delete m_activePlatform;
         m_activePlatform = nullptr;
@@ -87,7 +82,6 @@ Emulation::~Emulation()
 {
     delete m_activePlatform;
 
-    delete m_config;
     delete m_wavReader; // перед m_mixer!
     delete m_mixer;
 
@@ -275,15 +269,8 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             } else
                 wnd->closeRequest();
             break;
-        case SR_CONFIG: {
-                int tab = TABID_NONE;
-                if (platform)
-                    tab = platform->getDefConfigTabId();
-                m_config->showConfigWindow(tab);
-                break;
-            }
+        case SR_CONFIG:
         case SR_HELP:
-            m_config->showConfigWindow(TABID_HELP);
             break;
         case SR_PAUSEON:
             m_isPaused = true;

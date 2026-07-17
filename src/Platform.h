@@ -43,7 +43,7 @@ class Platform : public ParentObject
 {
     public:
         virtual Platform* asPlatform() override { return this; }
-        Platform(std::string configFileName, std::string name = "");
+        explicit Platform(std::string name);
         virtual ~Platform();
         void addChild(EmuObject* child) override;
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
@@ -78,7 +78,6 @@ class Platform : public ParentObject
         bool getMuteTapeFlag() {return m_muteTape;}
 
         const std::string& getBaseName() {return m_baseName;}
-        int getDefConfigTabId() {return m_defConfigTabId;}
 
     private:
         std::string m_baseDir;
@@ -103,7 +102,6 @@ class Platform : public ParentObject
         EmuObjectGroup* m_tapeGrp = nullptr;
         KbdTapper* m_kbdTapper = nullptr;
 
-        int m_defConfigTabId = 0;
 
         std::string m_helpFile = "";
         CodePage m_codePage = CP_RK;

@@ -361,6 +361,7 @@ class VectorRamDiskSelector : public AddressableDevice
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
+        void setDiskNum(int diskNum) {m_diskNum = diskNum;}
 
         void writeByte(int, uint8_t value) override;
         uint8_t readByte(int)  override {return 0xff;}

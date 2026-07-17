@@ -22,8 +22,6 @@
 #include "Platform.h"
 #include "Emulation.h"
 #include "EmuObjects.h"
-#include "ConfigReader.h"
-#include "EmuConfig.h"
 #include "EmuWindow.h"
 #include "Memory.h"
 #include "Cpu.h"
@@ -46,17 +44,16 @@
 #include "Psg3910.h"
 #include "Fdc1793.h"
 #include "AtaDrive.h"
+#include "TapeRedirector.h"
+#include "RkTapeHooks.h"
+#include "CloseFileHook.h"
+#include "CpuHook.h"
 
-#include "pico/vector06c_config.h"
 
 using namespace std;
 
-Platform::Platform(string configFileName, string name)
+Platform::Platform(string name)
 {
-    string::size_type slashPos = configFileName.find_last_of("\\/");
-    if (slashPos != string::npos)
-        m_baseDir = configFileName.substr(0, slashPos) + "/";
-
     m_baseName = name;
 
     // Если платформа с таким именем уже есть, добавляем в конец "$" и номер, начиная от 1
@@ -246,8 +243,150 @@ Platform::Platform(string configFileName, string name)
     addChild(hddRegisters);
     ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
 
-    ConfigReader cr(configFileName, getName(), vector06c_config);
-    cr.processConfigFile(this);
+    FdImage* diskA = new FdImage(80, 2, 5, 1024);
+    diskA->setName(getName() + ".diskA");
+    diskA->setLabel("A");
+    diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    addChild(diskA);
+    fdc->attachFdImage(0, diskA);
+
+    FdImage* diskB = new FdImage(80, 2, 5, 1024);
+    diskB->setName(getName() + ".diskB");
+    diskB->setLabel("B");
+    diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    addChild(diskB);
+    fdc->attachFdImage(1, diskB);
+
+    DiskImage* hdd = new DiskImage;
+    hdd->setName(getName() + ".hdd");
+    hdd->setLabel("HDD");
+    hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
+    addChild(hdd);
+    ataDrive->assignDiskImage(hdd);
+
+    VectorFileLoader* loader = new VectorFileLoader;
+    loader->setName(getName() + ".loader");
+    loader->attachAddrSpace(ram);
+    loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
+    addChild(loader);
+
+    TapeRedirector* tapeInFile = new TapeRedirector;
+    tapeInFile->setName(getName() + ".tapeInFile");
+    tapeInFile->setMode("r");
+    tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+    addChild(tapeInFile);
+
+    TapeRedirector* tapeOutFile = new TapeRedirector;
+    tapeOutFile->setName(getName() + ".tapeOutFile");
+    tapeOutFile->setMode("w");
+    tapeOutFile->setFilter(".rk|.cas");
+    addChild(tapeOutFile);
+
+    RkTapeInHook* tapeInHookBas = new RkTapeInHook(0x2B05);
+    tapeInHookBas->setName(getName() + ".tapeInHookBas");
+    tapeInHookBas->setSignature("C5D50E0057DB");
+    tapeInHookBas->setTapeRedirector(tapeInFile);
+    addChild(tapeInHookBas);
+    cpu->addHook(tapeInHookBas);
+
+    RkTapeOutHook* tapeOutHookBas = new RkTapeOutHook(0x2B60);
+    tapeOutHookBas->setName(getName() + ".tapeOutHookBas");
+    tapeOutHookBas->setOutputRegisterA(true);
+    tapeOutHookBas->setSignature("C5D5F5570E08");
+    tapeOutHookBas->setTapeRedirector(tapeOutFile);
+    addChild(tapeOutHookBas);
+    cpu->addHook(tapeOutHookBas);
+
+    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E);
+    closeFileHookBas->setName(getName() + ".closeFileHookBas");
+    closeFileHookBas->setSignature("C506003A203C");
+    closeFileHookBas->addTapeRedirector(tapeInFile);
+    closeFileHookBas->addTapeRedirector(tapeOutFile);
+    addChild(closeFileHookBas);
+    cpu->addHook(closeFileHookBas);
+
+    RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
+    tapeInHookMon->setName(getName() + ".tapeInHookMon");
+    tapeInHookMon->setSignature("C5D50E0057DB");
+    tapeInHookMon->setTapeRedirector(tapeInFile);
+    addChild(tapeInHookMon);
+    cpu->addHook(tapeInHookMon);
+
+    RkTapeOutHook* tapeOutHookMon = new RkTapeOutHook(0xF89B);
+    tapeOutHookMon->setName(getName() + ".tapeOutHookMon");
+    tapeOutHookMon->setOutputRegisterA(true);
+    tapeOutHookMon->setSignature("C5D5F5573E02");
+    tapeOutHookMon->setTapeRedirector(tapeOutFile);
+    addChild(tapeOutHookMon);
+    cpu->addHook(tapeOutHookMon);
+
+    Ret8080Hook* skipHookMon = new Ret8080Hook(0xEDDC);
+    skipHookMon->setName(getName() + ".skipHookMon");
+    skipHookMon->setSignature("CD1097FB76F3");
+    addChild(skipHookMon);
+    cpu->addHook(skipHookMon);
+
+    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF);
+    closeFileHookMon->setName(getName() + ".closeFileHookMon");
+    closeFileHookMon->setSignature("3AFDFFE604CD");
+    closeFileHookMon->addTapeRedirector(tapeInFile);
+    closeFileHookMon->addTapeRedirector(tapeOutFile);
+    addChild(closeFileHookMon);
+    cpu->addHook(closeFileHookMon);
+
+    RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
+    tapeInHookEmuRk->setName(getName() + ".tapeInHookEmuRk");
+    tapeInHookEmuRk->setSignature("F3C5D50E0057");
+    tapeInHookEmuRk->setTapeRedirector(tapeInFile);
+    addChild(tapeInHookEmuRk);
+    cpu->addHook(tapeInHookEmuRk);
+
+    RkTapeOutHook* tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
+    tapeOutHookEmuRk->setName(getName() + ".tapeOutHookEmuRk");
+    tapeOutHookEmuRk->setOutputRegisterA(true);
+    tapeOutHookEmuRk->setSignature("F3C5D5F51608");
+    tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
+    addChild(tapeOutHookEmuRk);
+    cpu->addHook(tapeOutHookEmuRk);
+
+    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18);
+    closeFileHookEmuRk->setName(getName() + ".closeFileHookEmuRk");
+    closeFileHookEmuRk->setSignature("FB3A61F6E604");
+    closeFileHookEmuRk->addTapeRedirector(tapeInFile);
+    closeFileHookEmuRk->addTapeRedirector(tapeOutFile);
+    addChild(closeFileHookEmuRk);
+    cpu->addHook(closeFileHookEmuRk);
+
+    SRam* ramDiskMem = new SRam(0x40000);
+    ramDiskMem->setName(getName() + ".ramDiskMem");
+    addChild(ramDiskMem);
+    addrSpace->attachRamDisk(0, ramDiskMem);
+
+    VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector;
+    ramDiskSelector->setName(getName() + ".ramDiskSelector");
+    ramDiskSelector->attachVectorAddrSpace(addrSpace);
+    ramDiskSelector->setDiskNum(0);
+    addChild(ramDiskSelector);
+    ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
+
+    VectorCpuWaits* cpuWaits = new VectorCpuWaits;
+    cpuWaits->setName(getName() + ".cpuWaits");
+    addChild(cpuWaits);
+    cpu->attachCpuWaits(cpuWaits);
+
+    EmuObjectGroup* tapeGrp = new EmuObjectGroup;
+    tapeGrp->setName(getName() + ".tapeGrp");
+    tapeGrp->addItem(tapeOutHookBas);
+    tapeGrp->addItem(tapeInHookBas);
+    tapeGrp->addItem(closeFileHookBas);
+    tapeGrp->addItem(tapeOutHookMon);
+    tapeGrp->addItem(tapeInHookMon);
+    tapeGrp->addItem(closeFileHookMon);
+    tapeGrp->addItem(tapeOutHookEmuRk);
+    tapeGrp->addItem(tapeInHookEmuRk);
+    tapeGrp->addItem(closeFileHookEmuRk);
+    tapeGrp->addItem(skipHookMon);
+    addChild(tapeGrp);
 
     // ищем объект-окно, должен быть единственным
     for (auto it = m_objList.begin(); it != m_objList.end(); it++)
@@ -319,15 +458,6 @@ Platform::Platform(string configFileName, string name)
                 m_ramDisk = ramDisk;
             else
                 m_ramDisk2 = ramDisk;
-        }
-    }
-
-    // ищем объект - закладку в окне конфигурации, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuConfigTab* tab = (*it) ? (*it)->asEmuConfigTab() : nullptr;
-        if (tab) {
-            m_defConfigTabId = tab->getTabId();
-            break;
         }
     }
 
@@ -414,37 +544,31 @@ void Platform::sysReq(SysReq sr)
         case SR_QUERTY:
             if (m_kbdLayout) {
                 m_kbdLayout->setQwertyMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_JCUKEN:
             if (m_kbdLayout) {
                 m_kbdLayout->setJcukenMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_SMART:
             if (m_kbdLayout) {
                 m_kbdLayout->setSmartMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_FONT:
             if (m_renderer) {
                 m_renderer->toggleRenderingMethod();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_CROPTOVISIBLE:
             if (m_renderer) {
                 m_renderer->toggleCropping();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_COLOR:
             if (m_renderer) {
                 m_renderer->toggleColorMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_COPYTXT:
@@ -534,7 +658,6 @@ void Platform::sysReq(SysReq sr)
         case SR_FASTRESET:
             if (m_fastResetCpuTicks) {
                 m_fastReset = !m_fastReset;
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_TAPEHOOK:
@@ -549,7 +672,6 @@ void Platform::sysReq(SysReq sr)
                     break;
 
                 m_tapeGrp->setProperty("enabled", val);
-                g_emulation->getConfig()->updateConfig();
             }
         default:
             break;

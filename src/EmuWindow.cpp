@@ -24,7 +24,6 @@
 #include "Globals.h"
 #include "EmuWindow.h"
 #include "Emulation.h"
-#include "EmuConfig.h"
 #include "Platform.h"
 
 using namespace std;
@@ -462,84 +461,62 @@ void EmuWindow::sysReq(SysReq sr)
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(1.);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_2X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(2.);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_3X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(3.);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_4X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(4.);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_5X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(5.);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_1_5X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(1.5);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_2_5X:
             setWindowStyle(WS_AUTOSIZE);
             setFrameScale(FS_FIXED);
             setFixedYScale(2.5);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_FIT:
             if (!m_isFullscreenMode)
                 setWindowStyle(WS_RESIZABLE);
             setFrameScale(FS_FIT);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_MAXIMIZE:
             setWindowStyle(WS_RESIZABLE);
             setFrameScale(FS_FIT/*_KEEP_AR*/);
             maximize();
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_ASPECTCORRECTION:
             m_aspectCorrection = !m_aspectCorrection;
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_WIDESCREEN:
             setWideScreen(!m_wideScreen);
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             m_platform->updateScreenOnce();
             break;
         case SR_SMOOTHING:
@@ -553,8 +530,6 @@ void EmuWindow::sysReq(SysReq sr)
                 case ST_BILINEAR:
                     setSmoothing(ST_NEAREST);
             }
-            if (m_windowType == EWT_EMULATION)
-                g_emulation->getConfig()->updateConfig();
             break;
         case SR_SCREENSHOT:
             screenshotRequest(palOpenFileDialog("Save screenshot",

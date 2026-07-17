@@ -27,6 +27,7 @@ class RkTapeOutHook : public CpuHook
         RkTapeOutHook(uint16_t addr) : CpuHook(addr) {}
         virtual ~RkTapeOutHook() {}
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
+        void setOutputRegisterA(bool useA) {m_regA = useA;}
 
         void reset() override;
         bool hookProc() override;
