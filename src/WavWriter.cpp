@@ -19,16 +19,15 @@
 #include "Pal.h"
 #include "Globals.h"
 #include "Emulation.h"
-#include "Platform.h"
 #include "Vector.h"
 #include "WavWriter.h"
 
 using namespace std;
 
 
-WavWriter::WavWriter(Platform* platform, const string& fileName, bool cswFormat)
+WavWriter::WavWriter(VectorCore* core, const string& fileName, bool cswFormat)
 {
-    m_core = platform->getCore();
+    m_core = core;
     m_ticksPerSample = g_emulation->getFrequency() / 44100;
     m_open = m_file.open(fileName, "w");
     m_cswFormat = cswFormat;

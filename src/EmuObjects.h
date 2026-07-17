@@ -23,7 +23,7 @@
 
 
 
-class Platform;
+class VectorCore;
 class EmuWindow;
 class Cpu;
 class KbdLayout;
@@ -47,15 +47,15 @@ class EmuObject
 
         virtual void reset() {}
 
-        void setPlatform(Platform* platform) {m_platform = platform;}
-        Platform* getPlatform() {return m_platform;}
+        void setMachine(VectorCore* machine) {m_machine = machine;}
+        VectorCore* getMachine() {return m_machine;}
 
 
         virtual void notify(EmuObject* /*sender*/, int /*data*/) {}
 
     protected:
         int m_kDiv = 1;
-        Platform* m_platform = nullptr;
+        VectorCore* m_machine = nullptr;
 };
 
 class Ram;

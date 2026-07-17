@@ -21,7 +21,7 @@
 #include "Globals.h"
 #include "EmuWindow.h"
 #include "Emulation.h"
-#include "Platform.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -50,7 +50,7 @@ void EmuWindow::init()
 
 string EmuWindow::getPlatformObjectName()
 {
-    return m_platform ? "vector" : "";
+    return m_machine ? "vector" : "";
 }
 
 
@@ -151,5 +151,5 @@ void EmuWindow::sysReq(SysReq sr)
 void EmuWindow::mouseDrag(int x, int y)
 {
     if (translateCoords(x, y))
-        m_platform->mouseDrag(x, y);
+        m_machine->mouseDrag(x, y);
 }

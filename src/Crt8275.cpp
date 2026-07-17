@@ -27,7 +27,7 @@
 #include "Crt8275.h"
 #include "Cpu.h"
 #include "Dma8257.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "Emulation.h"
 
 using namespace std;
@@ -42,7 +42,7 @@ using namespace std;
 
 void Crt8275::init()
 {
-    m_cpuKDiv = m_platform->getCpu()->getKDiv();
+    m_cpuKDiv = m_machine->getCpu()->getKDiv();
 }
 
 

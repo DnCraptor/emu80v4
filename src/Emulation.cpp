@@ -27,7 +27,7 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "EmuWindow.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
@@ -61,18 +61,18 @@ Emulation::Emulation()
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    m_activePlatform = new Platform();
-    if (!m_activePlatform->getWindow()) {
-        delete m_activePlatform;
-        m_activePlatform = nullptr;
-        palMsgBox("Error: Can't create Vector-06C platform.", true);
+    m_vector = new VectorCore();
+    if (!m_vector->getWindow()) {
+        delete m_vector;
+        m_vector = nullptr;
+        palMsgBox("Error: Can't create Vector-06C machine.", true);
         palRequestForQuit();
     }
 }
 
 Emulation::~Emulation()
 {
-    delete m_activePlatform;
+    delete m_vector;
 
     delete m_prnWriter;
     delete m_wavReader; // перед m_mixer!
@@ -142,8 +142,8 @@ void Emulation::exec(uint64_t ticks, bool forced)
 void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
     // нужно отправлять клавишу только активной платформе
-    if (m_activePlatform && wnd == m_activePlatform->getWindow())
-        m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+    if (m_vector && wnd == m_vector->getWindow())
+        m_vector->processKey(keyCode, isPressed, unicodeKey);
     else if (keyCode != PK_NONE)
         wnd->processKey(keyCode, isPressed);
 }
@@ -155,7 +155,7 @@ void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned u
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif
-    if (m_activePlatform) {
+    if (m_vector) {
         if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT) isShiftPressed = isPressed;
         else if (keyCode == PK_LALT || keyCode == PK_RALT) isAltPressed = isPressed;
         else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL) isCtrlPressed = isPressed;
@@ -164,8 +164,8 @@ void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned u
             while(true) sleep_ms(20);
         }
         SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
-        if (sr) m_activePlatform->sysReq(sr);
-        else m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
+        if (sr) m_vector->sysReq(sr);
+        else m_vector->processKey(keyCode, isPressed, unicodeKey);
     }
 }
 
@@ -174,15 +174,15 @@ void Emulation::resetKeys(EmuWindow* wnd)
     isAltPressed = false;
     isShiftPressed = false;
     isCtrlPressed = false;
-    if (m_activePlatform && wnd == m_activePlatform->getWindow())
-        m_activePlatform->resetKeys();
+    if (m_vector && wnd == m_vector->getWindow())
+        m_vector->resetKeys();
 }
 
 
 void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 {
-    Platform* platform = m_activePlatform && wnd == m_activePlatform->getWindow()
-        ? m_activePlatform : nullptr;
+    VectorCore* machine = m_vector && wnd == m_vector->getWindow()
+        ? m_vector : nullptr;
 
     // enable debug if in paused state
     if (sr == SR_DEBUG)
@@ -193,9 +193,9 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             palRequestForQuit();
             break;
         case SR_CLOSE:
-            if (platform) {
-                delete m_activePlatform;
-                m_activePlatform = nullptr;
+            if (machine) {
+                delete m_vector;
+                m_vector = nullptr;
                 palRequestForQuit();
             } else
                 wnd->closeRequest();
@@ -256,8 +256,8 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
         default:
             if (wnd)
                 wnd->sysReq(sr);
-            if (platform)
-                platform->sysReq(sr);
+            if (machine)
+                machine->sysReq(sr);
     }
 }
 
@@ -325,15 +325,15 @@ void Emulation::setWndFocus(EmuWindow* wnd)
 
 void Emulation::restoreFocus()
 {
-    if (m_activePlatform)
-        m_activePlatform->getWindow()->bringToFront();
+    if (m_vector)
+        m_vector->getWindow()->bringToFront();
 }
 
 
 void Emulation::dropFile(EmuWindow* wnd, const string& fileName)
 {
-    if (m_activePlatform && wnd == m_activePlatform->getWindow())
-        m_activePlatform->loadFile(fileName);
+    if (m_vector && wnd == m_vector->getWindow())
+        m_vector->loadFile(fileName);
 }
 
 

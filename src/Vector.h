@@ -27,6 +27,13 @@
 #include "KbdLayout.h"
 #include "CpuWaits.h"
 
+#include <list>
+#include <string>
+#include <vector>
+
+#include "PalKeys.h"
+#include "EmuTypes.h"
+
 class Ram;
 class Rom;
 class Fdc1793;
@@ -34,6 +41,12 @@ class GeneralSoundSource;
 class Cpu8080Compatible;
 class Covox;
 class AtaDrive;
+class EmuWindow;
+class Cpu;
+class RamDisk;
+class DiskImage;
+class KbdTapper;
+class CpuHook;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -136,18 +149,54 @@ class VectorRenderer : public CrtRenderer, public IActive
 class VectorCore : public EmuObject
 {
     public:
+        VectorCore();
+        ~VectorCore() override;
+
+        void init() override;
+        void shutdown() override;
         void reset() override;
+
+        void sysReq(SysReq sr);
+        void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
+        void resetKeys();
+        bool loadFile(std::string fileName, bool run = true);
+        void mouseDrag(int x, int y);
+
+        EmuWindow* getWindow() {return m_window;}
+        Cpu* getCpu() {return m_cpu;}
+        FileLoader* getLoader() {return m_loader;}
+        KbdLayout* getKbdLayout() {return m_kbdLayout;}
+        CrtRenderer* getRenderer() {return m_renderer;}
+        Keyboard* getKeyboard() {return m_keyboard;}
+        bool assignDiskAFileName(const std::string& fileName);
+
         void vrtc(bool isActive);
         void inte(bool isActive);
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
 
     private:
+        void addChild(EmuObject* child);
+
+        std::list<EmuObject*> m_objList;
+        Cpu* m_cpu = nullptr;
+        EmuWindow* m_window = nullptr;
+        KbdLayout* m_kbdLayout = nullptr;
+        CrtRenderer* m_renderer = nullptr;
+        DiskImage* m_diskA = nullptr;
+        DiskImage* m_diskB = nullptr;
+        DiskImage* m_hdd = nullptr;
+        FileLoader* m_loader = nullptr;
+        Keyboard* m_keyboard = nullptr;
+        RamDisk* m_ramDisk = nullptr;
+        RamDisk* m_ramDisk2 = nullptr;
+        std::vector<CpuHook*> m_tapeHooks;
+        KbdTapper* m_kbdTapper = nullptr;
+
         bool m_intReq = false;
         bool m_intsEnabled = false;
         bool m_tapeOut = false;
 };
-
 
 class VectorAddrSpace : public AddressableDevice
 {

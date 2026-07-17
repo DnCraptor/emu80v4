@@ -19,7 +19,7 @@
 #include "Globals.h"
 #include "KbdLayout.h"
 #include "Keyboard.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "Emulation.h"
 
 
@@ -28,7 +28,7 @@ using namespace std;
 
 void KbdLayout::resetKeys()
 {
-    m_platform->getKeyboard()->resetKeys();
+    m_machine->getKeyboard()->resetKeys();
     m_shiftPressed = false;
     m_lastNonUnicodeKey = EK_NONE;
     m_lastPalKeyPressedCode = PK_NONE;
@@ -39,11 +39,11 @@ void KbdLayout::resetKeys()
 
 void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-///    emuLog << "Platform::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
+///    emuLog << "VectorCore::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (isPressed && processSpecialKeys(keyCode))
         return;
 
-    Keyboard* kbd = m_platform->getKeyboard();
+    Keyboard* kbd = m_machine->getKeyboard();
 
     EmuKey emuKey;
 
@@ -959,7 +959,7 @@ void KbdLayoutHelper::enqueueKeyPress(EmuKey key)
 
 void KbdLayoutHelper::operate()
 {
-    Keyboard* kbd = m_platform->getKeyboard();
+    Keyboard* kbd = m_machine->getKeyboard();
     kbd->processKey(m_key, true);
     pause();
 }

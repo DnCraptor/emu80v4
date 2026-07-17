@@ -22,7 +22,7 @@
 #include "Memory.h"
 #include "EmuWindow.h"
 #include "Emulation.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "RamDisk.h"
 
 using namespace std;
@@ -65,7 +65,7 @@ void RamDisk::saveFileAs()
 void RamDisk::saveToFile()
 {
     if (m_fileName.empty()) {
-        m_fileName = palOpenFileDialog("Save RAM disk file", m_filter, true, m_platform->getWindow());
+        m_fileName = palOpenFileDialog("Save RAM disk file", m_filter, true, m_machine->getWindow());
         g_emulation->restoreFocus();
         if (m_fileName == "")
             return;
@@ -114,7 +114,7 @@ void RamDisk::openFile()
 void RamDisk::loadFromFile()
 {
     if (m_fileName.empty()) {
-        m_fileName = palOpenFileDialog("Load RAM disk file", m_filter, false, m_platform->getWindow());
+        m_fileName = palOpenFileDialog("Load RAM disk file", m_filter, false, m_machine->getWindow());
         g_emulation->restoreFocus();
         if (m_fileName == "")
             return;

@@ -29,7 +29,7 @@ class VectorCore;
 class WavWriter : public ActiveDevice
 {
     public:
-        WavWriter(Platform* platform, const std::string& fileName, bool cswFormat = false);
+        WavWriter(VectorCore* core, const std::string& fileName, bool cswFormat = false);
         ~WavWriter();
 
         // derived from EmuObject

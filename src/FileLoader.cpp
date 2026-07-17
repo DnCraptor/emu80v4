@@ -19,7 +19,7 @@
 #include "Pal.h"
 #include "Globals.h"
 #include "Emulation.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "Cpu.h"
 #include "EmuWindow.h"
 #include "TapeRedirector.h"
@@ -49,7 +49,7 @@ void FileLoader::setFilter(const std::string& filter)
 
 bool FileLoader::chooseAndLoadFile(bool run)
 {
-    string fileName = palOpenFileDialog("Open file", m_filter, false, m_platform->getWindow());
+    string fileName = palOpenFileDialog("Open file", m_filter, false, m_machine->getWindow());
     g_emulation->restoreFocus();
     if (fileName == "")
         return true;
@@ -98,13 +98,13 @@ bool RkFileLoader::loadFile(const std::string& fileName, bool run)
         return false;
     }
 
-    Cpu* bc = m_platform->getCpu();
+    Cpu* bc = m_machine->getCpu();
     Cpu8080Compatible* cpu = nullptr;
     if (bc) {
         cpu = bc->asCpu8080Compatible();
         if (run && cpu) {
-            m_platform->reset();
-            bc = m_platform->getCpu();
+            m_machine->reset();
+            bc = m_machine->getCpu();
             if (bc) {
                 if (cpu = bc->asCpu8080Compatible()) {
                     cpu->disableHooks();

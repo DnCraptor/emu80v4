@@ -20,7 +20,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "WavReader.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "EmuWindow.h"
 #include "CloseFileHook.h" // ElapsedTimer
 
@@ -64,7 +64,7 @@ void TapeRedirector::openFile()
             m_rwMode == "w" ? "Save tape file" : "Open tape file",
             m_filter + "|.wav|.csw",
             m_rwMode == "w",
-            m_platform->getWindow()
+            m_machine->getWindow()
         );
         g_emulation->restoreFocus();
     }
@@ -79,7 +79,7 @@ void TapeRedirector::openFile()
         if (m_rwMode == "r")
             g_emulation->getWavReader()->loadFile(m_fileName, this);
         else if (m_rwMode == "w") {
-            m_wavWriter = new WavWriter(m_platform, m_fileName, ext == ".csw" || ext == ".CSW");
+            m_wavWriter = new WavWriter(m_machine, m_fileName, ext == ".csw" || ext == ".CSW");
         }
         return;
     }

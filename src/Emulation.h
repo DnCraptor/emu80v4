@@ -34,7 +34,7 @@ class EmuWindow;
 class SoundMixer;
 class WavReader;
 class PrnWriter;
-class Platform;
+class VectorCore;
 
 
 /*struct DevListItem
@@ -79,7 +79,6 @@ class Emulation : public EmuObject
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
 
-        //inline Platform* getPlatform() {return m_platform;} //!!!
         inline uint64_t getCurClock() {return m_curClock;}
         inline SoundMixer* getSoundMixer() {return m_mixer;}
         inline WavReader* getWavReader() {return m_wavReader;}
@@ -123,7 +122,7 @@ class Emulation : public EmuObject
         bool m_vsync = true;
         unsigned m_sampleRate = 48000;
 
-        Platform* m_activePlatform = nullptr;
+        VectorCore* m_vector = nullptr;
 
         uint64_t m_curClock = 0;
 

@@ -21,7 +21,7 @@
 
 #include "Globals.h"
 #include "Emulation.h"
-#include "Platform.h"
+#include "Vector.h"
 #include "KbdTapper.h"
 
 
@@ -92,7 +92,7 @@ void KbdTapper::sendNextKey()
 
     PalKeyCode palKey = key != 0x0A ? PK_NONE : PK_ENTER;
 
-    m_platform->processKey(palKey, !m_keyPressed, key);
+    m_machine->processKey(palKey, !m_keyPressed, key);
     m_keyPressed = !m_keyPressed;
 
     if (!m_keyPressed) {
