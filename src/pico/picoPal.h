@@ -6,7 +6,6 @@
 #include <string>
 #include <list>
 #include <vector>
-#include <map>
 
 #include <cstring>
 
@@ -27,7 +26,6 @@ string palMakeFullFileName(string fileName);
 #define palGetCounter time_us_64
 #define palGetCounterFreq() 1000000
 void palDelay(uint64_t time);
-std::string palGetDefaultPlatform();
 bool palSetVsync(bool vsync);
 bool palSetSampleRate(int sampleRate);
 void palCopyTextToClipboard(const char* text);
@@ -39,16 +37,6 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
 void palUpdateConfig();
 #endif //!PAL_WASM
 
-bool palChooseConfiguration(std::string platformName, PalWindow* wnd);
-void palSetRunFileName(std::string runFileName);
-void palShowConfigWindow(int curTabId = 0);
-void palGetPalDefines(std::list<std::string>& difineList);
-void palGetPlatformDefines(std::string platformName, std::map<std::string, std::string>& definesMap);
-
-void palAddTabToConfigWindow(int tabId, std::string tabName);
-void palRemoveTabFromConfigWindow(int tabId);
-void palAddRadioSelectorToTab(int tabId, int column, std::string caption, std::string object, std::string property, SelectItem* items, int nItems);
-void palSetTabOptFileName(int tabId, std::string optFileName);
 
 void palWxProcessMessages();
 

@@ -20,7 +20,6 @@
 #define EMUWINDOW_H
 
 #include <string>
-#include <map>
 
 #include "Pal.h"
 #include "PalWindow.h"
@@ -65,7 +64,6 @@ class EmuWindow : public EmuObject, public PalWindow
 
         std::string getCaption();
 
-        std::string getPlatformObjectName() override;
 
 
     private:

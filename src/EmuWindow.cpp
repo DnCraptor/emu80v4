@@ -48,12 +48,6 @@ void EmuWindow::init()
 }
 
 
-string EmuWindow::getPlatformObjectName()
-{
-    return m_machine ? "vector" : "";
-}
-
-
 
 void EmuWindow::setCaption(string caption)
 {

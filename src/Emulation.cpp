@@ -141,7 +141,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
 
 void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    // нужно отправлять клавишу только активной платформе
+    // Эмуляционная клавиша относится к единственной машине.
     if (m_vector && wnd == m_vector->getWindow())
         m_vector->processKey(keyCode, isPressed, unicodeKey);
     else if (keyCode != PK_NONE)
@@ -151,7 +151,7 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
 static bool isAltPressed = false;
 static bool isShiftPressed = false;
 static bool isCtrlPressed = false;
-void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
+void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif

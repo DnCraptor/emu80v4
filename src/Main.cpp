@@ -381,7 +381,7 @@ void processKeys() {
         PalKeyCodeAction* p = actions.front();
         actions.pop();
         if (p && g_emulation) {
-            g_emulation->activePlatformKey(p->vk, p->pressed);
+            g_emulation->machineKey(p->vk, p->pressed);
             delete p;
         }
     }
@@ -402,7 +402,7 @@ PalKeyCodeAction getKey() {
 void processKeys() {
     if (isLastKey && g_emulation) {
         isLastKey = false;
-        g_emulation->activePlatformKey(lastKey.vk, lastKey.pressed);
+        g_emulation->machineKey(lastKey.vk, lastKey.pressed);
     }
 }
 #endif
