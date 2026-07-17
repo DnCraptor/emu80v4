@@ -247,15 +247,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             } else
                 wnd->closeRequest();
             break;
-        case SR_CONFIG:
-        case SR_HELP:
-            break;
-        case SR_PAUSEON:
-            m_isPaused = true;
-            break;
-        case SR_PAUSEOFF:
-            m_isPaused = false;
-            break;
         case SR_PAUSE:
             m_isPaused = !m_isPaused;
             break;
@@ -299,12 +290,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             if (m_wavReader) {
                 m_wavReader->chooseAndLoadFile();
             }
-            break;
-        case SR_PRNCAPTURE_ON:
-            m_prnWriter->startPrinting();
-            break;
-        case SR_PRNCAPTURE_OFF:
-            m_prnWriter->stopPrinting();
             break;
         case SR_PRNCAPTURE:
             if (!m_prnWriter->isPrinting())

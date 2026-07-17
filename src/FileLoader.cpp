@@ -58,7 +58,6 @@ bool FileLoader::chooseAndLoadFile(bool run)
         return false;
     }
     m_lastFile = fileName;
-    m_platform->updateDebugger();
     return true;
 }
 
@@ -91,7 +90,6 @@ bool FileLoader::setProperty(const std::string& propertyName, const EmuValuesLis
             bool res = loadFile(fileName, false); // todo: consider to replace with m_platform->loadFile()
             if (res) {
                 m_lastFile = fileName;
-                m_platform->updateDebugger();
             }
             return res;
         }
@@ -101,7 +99,6 @@ bool FileLoader::setProperty(const std::string& propertyName, const EmuValuesLis
             bool res = loadFile(fileName, true); // todo: consider to replace with m_platform->loadFile()
             if (res) {
                 m_lastFile = fileName;
-                m_platform->updateDebugger();
             }
             return res;
         }

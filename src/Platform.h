@@ -37,6 +37,7 @@ class CrtRenderer;
 class Keyboard;
 class DiskImage;
 class KbdTapper;
+class CpuHook;
 
 
 class Platform : public EmuObject
@@ -55,9 +56,6 @@ class Platform : public EmuObject
         void resetKeys();
         bool loadFile(std::string fileName, bool run = true);
         void mouseDrag(int x, int y);
-        void updateScreenOnce();
-
-        const std::string& getBaseDir() {return m_baseDir;}
 
         EmuWindow* getWindow() {return m_window;}
         Cpu* getCpu() {return m_cpu;}
@@ -66,24 +64,17 @@ class Platform : public EmuObject
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
+        bool assignDiskAFileName(const std::string& fileName);
 
-        void showDebugger();
-        void updateDebugger();
-        void reqScreenUpdateForDebug();
-        std::string getAllDebugInfo();
-        const std::string& getBaseName() {return m_baseName;}
 
     private:
-        std::string m_baseDir;
         std::list<EmuObject* >m_objList;
-        std::string m_baseName;
 
         PlatformCore* m_core = nullptr;
         Cpu* m_cpu = nullptr;
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;
         CrtRenderer* m_renderer = nullptr;
-        CrtRenderer* m_renderer2 = nullptr;
         DiskImage* m_diskA = nullptr;
         DiskImage* m_diskB = nullptr;
         DiskImage* m_hdd = nullptr;
@@ -91,7 +82,7 @@ class Platform : public EmuObject
         Keyboard* m_keyboard = nullptr;
         RamDisk* m_ramDisk = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
-        EmuObjectGroup* m_tapeGrp = nullptr;
+        std::vector<CpuHook*> m_tapeHooks;
         KbdTapper* m_kbdTapper = nullptr;
 
 };

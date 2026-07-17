@@ -54,8 +54,6 @@ using namespace std;
 
 Platform::Platform(string name)
 {
-    m_baseName = name;
-
     // Если платформа с таким именем уже есть, добавляем в конец "$" и номер, начиная от 1
     if (g_emulation->findObject(name)) {
         ostringstream oss;
@@ -404,20 +402,12 @@ Platform::Platform(string name)
     addChild(cpuWaits);
     cpu->attachCpuWaits(cpuWaits);
 
-    EmuObjectGroup* tapeGrp = new EmuObjectGroup;
-    tapeGrp->setName(getName() + ".tapeGrp");
-    tapeGrp->addItem(tapeOutHookBas);
-    tapeGrp->addItem(tapeInHookBas);
-    tapeGrp->addItem(closeFileHookBas);
-    tapeGrp->addItem(tapeOutHookMon);
-    tapeGrp->addItem(tapeInHookMon);
-    tapeGrp->addItem(closeFileHookMon);
-    tapeGrp->addItem(tapeOutHookEmuRk);
-    tapeGrp->addItem(tapeInHookEmuRk);
-    tapeGrp->addItem(closeFileHookEmuRk);
-    tapeGrp->addItem(skipHookMon);
-    addChild(tapeGrp);
-    m_tapeGrp = tapeGrp;
+    m_tapeHooks = {
+        tapeOutHookBas, tapeInHookBas, closeFileHookBas,
+        tapeOutHookMon, tapeInHookMon, closeFileHookMon,
+        tapeOutHookEmuRk, tapeInHookEmuRk, closeFileHookEmuRk,
+        skipHookMon
+    };
 
     Platform::init();
 
@@ -469,7 +459,6 @@ void Platform::sysReq(SysReq sr)
     switch (sr) {
         case SR_RESET:
             reset();
-            updateDebugger();
             break;
         case SR_QUERTY:
             if (m_kbdLayout) {
@@ -541,15 +530,6 @@ void Platform::sysReq(SysReq sr)
         case SR_DEBUG:
             // show debugger
             g_emulation->debugRequest(m_cpu);
-            //showDebugger();
-            break;
-        case SR_LOADRAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->loadFromFile();
-            break;
-        case SR_SAVERAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->saveToFile();
             break;
         case SR_OPENRAMDISK:
             if (m_ramDisk)
@@ -558,14 +538,6 @@ void Platform::sysReq(SysReq sr)
         case SR_SAVERAMDISKAS:
             if (m_ramDisk)
                 m_ramDisk->saveFileAs();
-            break;
-        case SR_LOADRAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->loadFromFile();
-            break;
-        case SR_SAVERAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->saveToFile();
             break;
         case SR_OPENRAMDISK2:
             if (m_ramDisk2)
@@ -576,18 +548,12 @@ void Platform::sysReq(SysReq sr)
                 m_ramDisk2->saveFileAs();
             break;
         case SR_TAPEHOOK:
-            if (m_tapeGrp) {
-                //EmuValuesList param;
-                string val = m_tapeGrp->getPropertyStringValue("enabled");
-                if (val == "yes")
-                    val = "no";
-                else if (val == "no")
-                    val = "yes";
-                else
-                    break;
-
-                m_tapeGrp->setProperty("enabled", val);
+            if (!m_tapeHooks.empty()) {
+                bool enabled = !m_tapeHooks.front()->getEnabled();
+                for (CpuHook* hook : m_tapeHooks)
+                    hook->setEnabled(enabled);
             }
+            break;
         default:
             break;
     }
@@ -621,7 +587,6 @@ bool Platform::loadFile(string fileName, bool run)
 {
     if (m_loader) {
         m_loader->loadFile(fileName, run);
-        updateDebugger();
         return true;
     }
     return false;
@@ -635,45 +600,7 @@ void Platform::draw()
 }
 
 
-void Platform::showDebugger()
+bool Platform::assignDiskAFileName(const std::string& fileName)
 {
-}
-
-
-void Platform::updateDebugger()
-{
-}
-
-
-void Platform::reqScreenUpdateForDebug()
-{
-    if (m_renderer)
-        m_renderer->prepareDebugScreen();
-    if (m_renderer2)
-        m_renderer2->prepareDebugScreen();
-}
-
-
-string Platform::getAllDebugInfo()
-{
-    string res = "";
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        string s = (*it)->getDebugInfo();
-        if (s != "") {
-            if (res != "")
-                res += "\n\n";
-            res = res + s;
-        }
-    }
-    return res;
-}
-
-
-void Platform::updateScreenOnce()
-{
-    if (m_renderer)
-        m_renderer->updateScreenOnce();
-//    if (m_renderer2)
-//        m_renderer2->updateScreenOnce();
-    updateDebugger();
+    return m_diskA && m_diskA->assignFileName(fileName);
 }

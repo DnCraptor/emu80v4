@@ -67,27 +67,6 @@ void emuEmulationCycle()
 }
 
 
-// Set emulation object's single property value
-bool emuSetPropertyValue(const string& objName, const string& propName, const string& value)
-{
-    EmuObject* obj = g_emulation->findObject(objName);
-    if (!obj)
-        return false;
-    return obj->setProperty(propName, value);
-}
-
-
-// Get emulation object's property string value
-string emuGetPropertyValue(const string& objName, const string& propName)
-{
-    EmuObject* obj = g_emulation->findObject(objName);
-    if (obj)
-        return obj->getPropertyStringValue(propName);
-    else
-        return "";
-}
-
-
 // Returns current emulation speed factor
 double emuGetEmulationSpeedFactor()
 {

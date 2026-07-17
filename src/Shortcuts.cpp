@@ -28,10 +28,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_RESET;
             case PK_F10:
                 return SR_CLOSE;
-            case PK_F12:
-                return SR_CONFIG;
-            case PK_F1:
-                return SR_HELP;
             case PK_F3:
                 return SR_LOADRUN;
             case PK_L:

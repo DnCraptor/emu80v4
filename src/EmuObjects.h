@@ -38,7 +38,6 @@ class DiskImage;
 class FileLoader;
 class RamDisk;
 class Keyboard;
-class EmuObjectGroup;
 class KbdTapper;
 
 class EmuObject
@@ -134,19 +133,5 @@ class ActiveDevice : public EmuObject, public IActive
 
 };
 
-
-
-class EmuObjectGroup : public EmuObject
-{
-    public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-        void addItem(EmuObject* item);
-
-        static EmuObject* create(const EmuValuesList&) {return new EmuObjectGroup();}
-
-    private:
-        std::list<EmuObject*> m_objectList;
-};
 
 #endif // EMUOBJECTS_H

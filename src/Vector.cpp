@@ -618,7 +618,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     string ext = periodPos != string::npos ? fileName.substr(periodPos) : fileName;
     transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".fdd") {
-        if (!emuSetPropertyValue(m_platform->getName() + ".diskA", "fileName", fileName))
+        if (!m_platform->assignDiskAFileName(fileName))
             return false;
 
         Cpu8080Compatible* cpu = static_cast<Cpu8080Compatible*>(m_platform->getCpu());
