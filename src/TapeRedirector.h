@@ -59,7 +59,6 @@ class TapeRedirector : public EmuObject
         void switchToNextLvt();
         void advanceToNextBlock();
 
-        static EmuObject* create(const EmuValuesList&) {return new TapeRedirector();}
 
     private:
         std::string m_fileName;

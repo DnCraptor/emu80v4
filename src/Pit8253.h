@@ -129,7 +129,6 @@ class Pit8253 : public AddressableDevice
 
         Pit8253Counter* getCounter(int counterNum) {return m_counters[counterNum];}
 
-        static EmuObject* create(const EmuValuesList&) {return new Pit8253();}
 
     private:
         Pit8253Counter* m_counters[3];
@@ -151,7 +150,6 @@ public:
 
     void updateAndScheduleNext(uint64_t time);
 
-    static EmuObject* create(const EmuValuesList&) {return new Pit8253Helper();}
 
 private:
     Pit8253Counter* m_counter = nullptr;

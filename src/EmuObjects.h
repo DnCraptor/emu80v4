@@ -69,7 +69,6 @@ class EmuObject
     protected:
         int m_kDiv = 1;
         Platform* m_platform = nullptr;
-        static EmuObject* findObj(const std::string& objName);
 
     private:
         std::string m_name;

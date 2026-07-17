@@ -71,7 +71,6 @@ public:
         // Подключение рбраза диска
         void attachFdImage(int driveNum, FdImage* image);
 
-        static EmuObject* create(const EmuValuesList&) {return new Fdc1793();}
 
     private:
         FdImage* m_images[MAX_DRIVES];   // Disk images

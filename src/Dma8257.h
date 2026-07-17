@@ -58,7 +58,6 @@ class Dma8257 : public AddressableDevice
         bool dmaRequest(int channel, uint8_t &value, uint64_t clock = 0);
 
         uint8_t getMR();
-        static EmuObject* create(const EmuValuesList&) {return new Dma8257();}
 
 /*
         void getBlock(int channel, int len, uint8_t* buf);

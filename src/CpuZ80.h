@@ -90,7 +90,6 @@ class CpuZ80 : public Cpu8080Compatible
 
         bool checkForStackOperation() override {return m_stackOperation;}
 
-        static EmuObject* create(const EmuValuesList&) {return new CpuZ80();}
 
     private:
         /* Z80 registers */

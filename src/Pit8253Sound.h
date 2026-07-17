@@ -36,7 +36,6 @@ class Pit8253SoundSource : public SoundSource
         void attachPit(Pit8253* pit);
         virtual void tuneupPit() {}
 
-        static EmuObject* create(const EmuValuesList&) {return new Pit8253SoundSource();}
 
     protected:
         Pit8253* m_pit = nullptr;
@@ -50,7 +49,6 @@ class RkPit8253SoundSource : public Pit8253SoundSource
         void tuneupPit() override;
         void reset() override;
 
-        static EmuObject* create(const EmuValuesList&) {return new RkPit8253SoundSource();}
 };
 
 

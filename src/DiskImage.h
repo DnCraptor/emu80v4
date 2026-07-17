@@ -55,7 +55,6 @@ public:
 
     void setOwner(EmuObject* owner) {m_owner = owner;}
 
-    static EmuObject* create(const EmuValuesList&) {return new DiskImage();}
 
 protected:
     bool m_isWriteProtected = false;
@@ -96,7 +95,6 @@ class FdImage : public DiskImage
         int getSectors() {return m_nSectors;}
         int getSectorSize() {return m_sectorSize;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new FdImage(parameters[0].asInt(), parameters[1].asInt(), parameters[2].asInt(), parameters[3].asInt());} // add check!
 
     private:
         int m_nTracks;

@@ -66,7 +66,6 @@ class VectorRenderer : public CrtRenderer, public IActive
         void setPaletteColor(uint8_t color);
         void vidMemWriteNotify();
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorRenderer();}
 
     private:
         const uint8_t c_bwMap[256] = {
@@ -152,7 +151,6 @@ class VectorCore : public PlatformCore
 
         void attachCrtRenderer(VectorRenderer* crtRenderer);
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorCore();}
     private:
         VectorRenderer* m_crtRenderer = nullptr;
         bool m_intReq = false;
@@ -183,7 +181,6 @@ class VectorAddrSpace : public AddressableDevice
         void ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage);
         void eramControl(int eramSegment, int eramPageStartAddr, int eramPageEndAddr);
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorAddrSpace();}
 
     private:
         AddressableDevice* m_mainMemory = nullptr;
@@ -218,7 +215,6 @@ public:
     //VectorFileLoader();
     bool loadFile(const std::string& fileName, bool run = false) override;
 
-    static EmuObject* create(const EmuValuesList&) {return new VectorFileLoader();}
 };
 
 
@@ -234,7 +230,6 @@ class VectorKeyboard : public Keyboard
         uint8_t getMatrixData();
         uint8_t getCtrlKeys() {return ~m_ctrlKeys;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorKeyboard();}
 
     private:
 
@@ -275,7 +270,6 @@ class VectorPpi8255Circuit : public Ppi8255Circuit
         void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
         void attachTapeSoundSource(GeneralSoundSource* source) {m_tapeSoundSource = source;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorPpi8255Circuit();}
 
     private:
         // Источник звука - вывод на магнитофон
@@ -299,7 +293,6 @@ class VectorPpi8255Circuit2 : public Ppi8255Circuit
 
         void attachCovox(Covox* covox) {m_covox = covox;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorPpi8255Circuit2();}
 
     private:
         // Источник звука - ковокс
@@ -320,7 +313,6 @@ class VectorColorRegister : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         //uint8_t readByte(int) override;
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorColorRegister();}
 
     private:
         VectorRenderer* m_renderer = nullptr;
@@ -332,7 +324,6 @@ class VectorCpuWaits : public CpuWaits
 public:
     int getCpuWaitStates(int, int, int normalClocks) override;
 
-    static EmuObject* create(const EmuValuesList&) {return new VectorCpuWaits();}
 };
 
 
@@ -341,14 +332,12 @@ class VectorZ80CpuWaits : public CpuWaits
 public:
     int getCpuWaitStates(int, int opcode, int normalClocks) override;
 
-    static EmuObject* create(const EmuValuesList&) {return new VectorZ80CpuWaits();}
 };
 
 
 class VectorKbdLayout : public RkKbdLayout
 {
     public:
-        static EmuObject* create(const EmuValuesList&) {return new VectorKbdLayout();}
 
     protected:
         bool processSpecialKeys(PalKeyCode keyCode) override;
@@ -366,7 +355,6 @@ class VectorRamDiskSelector : public AddressableDevice
         void writeByte(int, uint8_t value) override;
         uint8_t readByte(int)  override {return 0xff;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorRamDiskSelector();}
 
     private:
         VectorAddrSpace* m_vectorAddrSpace = nullptr;
@@ -384,7 +372,6 @@ class VectorEramSelector : public AddressableDevice
         void writeByte(int, uint8_t value) override;
         uint8_t readByte(int)  override {return 0xff;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorEramSelector();}
 
     private:
         VectorAddrSpace* m_vectorAddrSpace = nullptr;
@@ -401,7 +388,6 @@ class VectorFddControlRegister : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int)  override {return 0xff;}
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorFddControlRegister();}
 
     private:
         Fdc1793* m_fdc = nullptr;
@@ -418,7 +404,6 @@ class VectorHddRegisters : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int) override;
 
-        static EmuObject* create(const EmuValuesList&) {return new VectorHddRegisters();}
 
     private:
         AtaDrive* m_ataDrive = nullptr;

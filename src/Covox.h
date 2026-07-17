@@ -36,7 +36,6 @@ class Covox : public SoundSource
         // Установка текущего значения источника звука
         void setValue(int value);
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new Covox(parameters[0].asInt());}
 
     private:
         int m_bits;

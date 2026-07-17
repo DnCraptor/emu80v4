@@ -42,7 +42,6 @@ class Psg3910 : public AddressableDevice
         void updateState();
         void getOutputs(uint16_t* outputs);
 
-        static EmuObject* create(const EmuValuesList&) {return new Psg3910();}
 
     private:
         struct Psg3910Counter {
@@ -94,7 +93,6 @@ class Psg3910SoundSource : public SoundSource
 
         void attachPsg(Psg3910* psg) {m_psg = psg;}
 
-        static EmuObject* create(const EmuValuesList&) {return new Psg3910SoundSource();}
 
     protected:
         Psg3910* m_psg = nullptr;

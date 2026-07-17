@@ -243,7 +243,6 @@ class RkKbdLayout : public KbdLayout
         EmuKey translateUnicodeKey(unsigned unicodeKey, PalKeyCode key, bool& shift, bool& lang) override;
 
     public:
-        static EmuObject* create(const EmuValuesList&) {return new RkKbdLayout();}
 };
 
 
@@ -252,7 +251,6 @@ class KrKbdLayout : public RkKbdLayout
     public:
         KrKbdLayout() {/*m_separateRusLat = true;*/}
 
-        static EmuObject* create(const EmuValuesList&) {return new KrKbdLayout();}
 
     protected:
         EmuKey translateKey(PalKeyCode keyCode) override;
@@ -270,7 +268,6 @@ class KbdLayoutHelper : public ActiveDevice
         void setDelayMs(uint64_t delay);
         void enqueueKeyPress(EmuKey key);
 
-        static EmuObject* create(const EmuValuesList&) {return new KbdLayoutHelper();}
 
     private:
         EmuKey m_key = EK_NONE;

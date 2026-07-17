@@ -66,7 +66,6 @@ class GeneralSoundSource : public SoundSource
         // Установка текущего значения источника звука
         void setValue(int value);
 
-        static EmuObject* create(const EmuValuesList&) {return new GeneralSoundSource();}
 
     private:
         int m_curValue = 0;

@@ -116,7 +116,6 @@ class Cpu8080 : public Cpu8080Compatible
 
         uint8_t getStatusWord() {return m_statusWord;}
 
-        static EmuObject* create(const EmuValuesList&) {return new Cpu8080();}
 
 private:
         struct i8080 cpu;
@@ -138,7 +137,6 @@ class Cpu8080StatusWordSpace : public AddressableDevice
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int)  override {return m_cpu->getStatusWord();}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new Cpu8080StatusWordSpace(static_cast<Cpu8080*>(findObj(parameters[0].asString())));}
 
     protected:
 

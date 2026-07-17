@@ -39,7 +39,6 @@ class KbdTapper : public ActiveDevice
 
         void typeText(std::string str);
 
-        static EmuObject* create(const EmuValuesList&) {return new KbdTapper();}
 
     private:
         int m_pressTime = 80;   // key down time in ms

@@ -50,7 +50,6 @@ class RamDisk : public EmuObject
 
         inline std::string getLabel() {return m_label;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new RamDisk(parameters[0].asInt(), parameters[1].asInt());} // add checks !
 
     private:
         unsigned m_nPages;

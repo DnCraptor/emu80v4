@@ -59,7 +59,6 @@ class RkFileLoader : public FileLoader
         RkFileLoader() {m_multiblockAvailable = true;}
         bool loadFile(const std::string& fileName, bool run = false) override;
 
-        static EmuObject* create(const EmuValuesList&) {return new RkFileLoader();}
 
     private:
         virtual void afterReset() {}

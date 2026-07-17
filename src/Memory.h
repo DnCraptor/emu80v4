@@ -33,9 +33,6 @@ class SRam : public AddressableDevice
         uint8_t readByte(int addr) override;
         int getSize() { return m_size; }
 
-        static EmuObject* create(const EmuValuesList& parameters) {
-            return parameters[0].isInt() ? new SRam(parameters[0].asInt()) : nullptr;
-        }
     private:
         int m_size;
         size_t m_offset;
@@ -56,9 +53,6 @@ class Ram : public AddressableDevice
         uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
         int getSize() {return m_size;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {
-            return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;
-        }
 
     protected:
 
@@ -82,9 +76,6 @@ class Rom : public AddressableDevice
         virtual const uint8_t* getDataPtr() {return m_buf;}
         virtual const uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
 
-        static EmuObject* create(const EmuValuesList& parameters) {
-            return parameters[1].isInt() ? new Rom(parameters[1].asInt(), parameters[0].asString()) : nullptr;
-        }
 
     protected:
         int m_size;
@@ -101,7 +92,6 @@ class NullSpace : public AddressableDevice
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int)  override {return m_nullByte;}
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new NullSpace(parameters[0].asInt()) : nullptr;}
 
     protected:
 

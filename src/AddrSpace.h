@@ -45,7 +45,6 @@ class AddrSpace : public AddressableDevice
         virtual void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
         virtual void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
 
-        static EmuObject* create(const EmuValuesList&) {return new AddrSpace();}
 
 private:
         uint8_t m_nullByte;          // байт, считываемый из нераспределенного пространства
@@ -89,7 +88,6 @@ class AddrSpaceMapper : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new AddrSpaceMapper(parameters[0].asInt()) : nullptr;}
 
 protected:
         AddressableDevice** m_pages;
@@ -106,7 +104,6 @@ class AddrSpaceShifter : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new AddrSpaceShifter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())), parameters[1].asInt()) : nullptr;}
 
 private:
         AddressableDevice* m_as;
@@ -122,7 +119,6 @@ class AddrSpaceInverter : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new AddrSpaceInverter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())));}
 
 private:
         AddressableDevice* m_as;
@@ -137,8 +133,6 @@ class AddrSpaceWriteSplitter : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new AddrSpaceWriteSplitter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())),
-                                                                                                     static_cast<AddressableDevice*>(findObj(parameters[1].asString())));}
 
 private:
         AddressableDevice* m_as1;

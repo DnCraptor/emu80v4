@@ -69,7 +69,6 @@ class EmuWindow : public EmuObject, public PalWindow
 
         std::string getPlatformObjectName() override;
 
-        static EmuObject* create(const EmuValuesList&) {return new EmuWindow();}
 
     private:
         std::string m_caption = "";

@@ -42,7 +42,7 @@ class CpuHook : public EmuObject
         virtual void setCpu(Cpu* cpu) {m_cpu = cpu;}
         virtual bool hookProc() = 0; // returns false if continue
 
-        void setEnabled(bool isEnabled);
+        inline void setEnabled(bool isEnabled) {m_isEnabled = isEnabled;}
         inline bool getEnabled() {return m_isEnabled;}
 
         inline int getHookAddr() {return m_hookAddr;}
@@ -72,7 +72,6 @@ class Ret8080Hook : public CpuHook
 
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new Ret8080Hook(parameters[0].asInt()) : nullptr;}
 };
 
 

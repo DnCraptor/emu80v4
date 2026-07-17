@@ -138,7 +138,6 @@ class Crt8275 : public AddressableDevice, public IActive
 
         void setLpenPosition(int x, int y);
 
-        static EmuObject* create(const EmuValuesList&) {return new Crt8275();}
 
     private:
         Dma8257* m_dma;              // Linked DMA Controller

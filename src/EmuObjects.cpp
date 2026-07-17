@@ -77,11 +77,6 @@ string EmuObject::getPropertyStringValue(const string& propertyName)
 }
 
 
-EmuObject* EmuObject::findObj(const std::string& objName)
-{
-    return g_emulation->findObject(objName);
-}
-
 
 IActive::IActive()
 {

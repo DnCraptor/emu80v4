@@ -32,7 +32,6 @@ class RkTapeOutHook : public CpuHook
         void reset() override;
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new RkTapeOutHook(parameters[0].asInt()) : nullptr;}
 
     private:
         bool m_isSbFound = false;
@@ -55,7 +54,6 @@ class RkTapeInHook : public CpuHook
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new RkTapeInHook(parameters[0].asInt()) : nullptr;}
 
     private:
         unsigned m_suspendPeriod = 0;

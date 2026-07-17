@@ -35,7 +35,6 @@ class CloseFileHook : public CpuHook
 
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new CloseFileHook(parameters[0].asInt()) : nullptr;}
 
     private:
         std::vector<TapeRedirector*> m_frVector;

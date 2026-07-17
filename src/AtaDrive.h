@@ -52,7 +52,6 @@ class AtaDrive : public EmuObject
         void assignDiskImage(DiskImage* image);
         void setVectorGeometry();
 
-        static EmuObject* create(const EmuValuesList&) {return new AtaDrive();}
 
     private:
         DiskImage* m_image = nullptr;
