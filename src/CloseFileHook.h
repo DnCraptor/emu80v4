@@ -31,7 +31,6 @@ class CloseFileHook : public CpuHook
     public:
         CloseFileHook(uint16_t addr) : CpuHook(addr) {}
         void addTapeRedirector(TapeRedirector* fr);
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         bool hookProc() override;
 

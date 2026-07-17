@@ -29,8 +29,6 @@ class KbdTapper : public ActiveDevice
         KbdTapper();
         void operate() override;
         void reset() override;
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void setDelayMs(uint64_t delay);
         void setPressTime(int pressTime) {m_pressTime = pressTime;}

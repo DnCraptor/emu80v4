@@ -139,39 +139,6 @@ void SoundSource::getSample(int& left, int& right)
 }
 
 
-bool SoundSource::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "muted") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            setMuted(values[0].asString() == "yes");
-            return true;
-        }
-    } else if (propertyName == "polarity") {
-        if (values[0].asString() == "positive" || values[0].asString() == "negative") {
-            setNegative(values[0].asString() == "negative");
-            return true;
-        }
-    }
-    return false;
-}
-
-
-std::string SoundSource::getPropertyStringValue(const std::string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "muted")
-        return m_muted ? "yes" : "no";
-
-    return "";
-}
 
 
 void GeneralSoundSource::setValue(int value)

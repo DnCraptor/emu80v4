@@ -41,7 +41,6 @@ class Ppi8255 : public AddressableDevice
     public:
         Ppi8255();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override; // Chip reset
 
         // derived from AddressableDevice

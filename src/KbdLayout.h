@@ -194,8 +194,6 @@ class KbdLayout : public EmuObject
             KLM_SMART
         };
 
-    bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void setQwertyMode() {m_mode = KLM_QWERTY;}
         void setJcukenMode() {m_mode = KLM_JCUKEN;}
@@ -263,7 +261,6 @@ class KbdLayoutHelper : public ActiveDevice
     public:
         KbdLayoutHelper();
         void operate() override;
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void setDelayMs(uint64_t delay);
         void enqueueKeyPress(EmuKey key);

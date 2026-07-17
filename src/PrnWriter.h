@@ -29,8 +29,6 @@ class PrnWriter : public EmuObject
     public:
         ~PrnWriter() override;
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void setPermanentFileName(const std::string& fileName) {m_permanentFileName = fileName;}
         void startPrinting();

@@ -36,7 +36,6 @@ class AddrSpace : public AddressableDevice
     public:
         AddrSpace(uint8_t nullByte = 0xFF);
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         uint8_t readByte(int addr) override;
         void writeByte(int addr, uint8_t value) override;
@@ -79,7 +78,6 @@ class AddrSpaceMapper : public AddressableDevice
         AddrSpaceMapper(int nPages);
         ~AddrSpaceMapper();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override {m_curPage = 0;}
 
         void attachPage(int page, AddressableDevice* as);

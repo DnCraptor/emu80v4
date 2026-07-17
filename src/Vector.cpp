@@ -149,40 +149,6 @@ void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int er
 }
 
 
-bool VectorAddrSpace::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "ram") {
-        attachRam(static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "rom") {
-        attachRom(static_cast<Rom*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "ramDisk") {
-        int diskNum = values[1].asInt();
-        if (diskNum == 0 || diskNum == 1) {
-            attachRamDisk(diskNum, static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-            return true;
-        }
-        return false;
-    } else  if (propertyName == "cpu") {
-        m_cpu = static_cast<Cpu8080Compatible*>(g_emulation->findObject(values[0].asString()));
-        return m_cpu;
-    } else if (propertyName == "crtRenderer") {
-            attachCrtRenderer(static_cast<VectorRenderer*>(g_emulation->findObject(values[0].asString())));
-            return true;
-    } else if (propertyName == "eram") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_eram = values[0].asString() == "yes";
-            return true;
-        }
-    }
-    return false;
-
-}
-
 
 string VectorAddrSpace::getDebugInfo()
 {
@@ -279,18 +245,6 @@ void VectorCore::attachCrtRenderer(VectorRenderer* crtRenderer)
     m_crtRenderer = crtRenderer;
 }
 
-
-bool VectorCore::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (PlatformCore::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "crtRenderer") {
-        attachCrtRenderer(static_cast<VectorRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-    return false;
-}
 
 
 VectorRenderer::VectorRenderer()
@@ -544,54 +498,6 @@ void VectorRenderer::attachMemory(Ram* memory)
 }
 
 
-bool VectorRenderer::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CrtRenderer::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "memory") {
-        attachMemory(static_cast<Ram*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "visibleArea") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_showBorder = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "colorMode") {
-        if (values[0].asString() == "mono")
-            setColorMode(false);
-        else if (values[0].asString() == "color")
-            setColorMode(true);
-        else
-            return false;
-        return true;
-    }
-
-    return false;
-}
-
-
-string VectorRenderer::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "visibleArea") {
-        return m_showBorder ? "yes" : "no";
-    } else if (propertyName == "colorMode") {
-        return m_colorMode ? "color" : "mono";
-    } else if (propertyName == "crtMode") {
-        if (m_mode512pxLatched)
-            return u8"512\u00D7256@50.08Hz";
-        else
-            return u8"256\u00D7256@50.08Hz";
-        }
-
-    return "";
-}
 
 
 string VectorRenderer::getDebugInfo()
@@ -797,42 +703,12 @@ uint8_t VectorPpi8255Circuit::getPortC()
 }
 
 
-bool VectorPpi8255Circuit::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (Ppi8255Circuit::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "crtRenderer") {
-        attachRenderer(static_cast<VectorRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "keyboard") {
-        attachKeyboard(static_cast<VectorKeyboard*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "tapeSoundSource") {
-        m_tapeSoundSource = static_cast<GeneralSoundSource*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    }
-    return false;
-}
-
 
 void VectorColorRegister::writeByte(int, uint8_t value)
 {
     m_renderer->setPaletteColor(value);
 }
 
-
-bool VectorColorRegister::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "crtRenderer") {
-        attachRenderer(static_cast<VectorRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-    return false;
-}
 
 
 VectorKeyboard::VectorKeyboard()
@@ -961,25 +837,6 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 }
 
 
-bool VectorRamDiskSelector::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addrSpace") {
-        attachVectorAddrSpace(static_cast<VectorAddrSpace*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "diskNum") {
-        int diskNum = values[0].asInt();
-        if (diskNum == 0 || diskNum == 1) {
-            m_diskNum = diskNum;
-            return true;
-        }
-    }
-
-    return false;
-}
-
 
 void VectorRamDiskSelector::writeByte(int, uint8_t value)
 {
@@ -987,19 +844,6 @@ void VectorRamDiskSelector::writeByte(int, uint8_t value)
         m_vectorAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
 }
 
-
-bool VectorEramSelector::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addrSpace") {
-        attachVectorAddrSpace(static_cast<VectorAddrSpace*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
 
 
 void VectorEramSelector::writeByte(int, uint8_t value)
@@ -1039,31 +883,6 @@ void VectorFddControlRegister::writeByte(int, uint8_t value)
 }
 
 
-bool VectorFddControlRegister::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "fdc") {
-        attachFdc1793(static_cast<Fdc1793*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
-
-bool VectorPpi8255Circuit2::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (Ppi8255Circuit::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "covox") {
-        attachCovox(static_cast<Covox*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-    return false;
-}
 
 
 void VectorPpi8255Circuit2::setPortA(uint8_t value)
@@ -1085,19 +904,6 @@ void VectorPpi8255Circuit2::setPortC(uint8_t value)
     m_printerStrobe = newStrobe;
 }
 
-
-bool VectorHddRegisters::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "ataDrive") {
-        attachAtaDrive(static_cast<AtaDrive*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
 
 
 void VectorHddRegisters::writeByte(int addr, uint8_t value)

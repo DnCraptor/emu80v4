@@ -123,8 +123,6 @@ class Crt8275Renderer : public TextCrtRenderer
     public:
         Crt8275Renderer();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         const char* getTextScreen() override;
         void prepareDebugScreen() override;

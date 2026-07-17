@@ -109,7 +109,6 @@ class Crt8275 : public AddressableDevice, public IActive
     };
 
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void init() override;
         void reset() override;
         std::string getDebugInfo() override;

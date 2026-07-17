@@ -541,27 +541,6 @@ void Crt8275::setLpenPosition(int x, int y)
 }
 
 
-bool Crt8275::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "dma") {
-        if (values[1].isInt()) {
-            attachDMA(static_cast<Dma8257*>(g_emulation->findObject(values[0].asString())), values[1].asInt());
-            return true;
-        }
-    } else if (propertyName == "core") {
-        attachCore(static_cast<PlatformCore*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "lpenCorrection") {
-        m_lpenCorrection = values[0].asInt();
-        return true;
-    }
-
-    return false;
-}
-
 
 string Crt8275::getDebugInfo()
 {

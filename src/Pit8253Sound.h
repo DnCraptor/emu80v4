@@ -29,7 +29,6 @@ class Pit8253;
 class Pit8253SoundSource : public SoundSource
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         int calcValue() override;
 

@@ -41,17 +41,3 @@ void PlatformCore::attachWindow(EmuWindow* win)
 {
     m_window = win;
 }
-
-
-
-bool PlatformCore::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "window") {
-        attachWindow(static_cast<EmuWindow*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-    return false;
-}

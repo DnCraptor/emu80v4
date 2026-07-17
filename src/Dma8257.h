@@ -40,8 +40,6 @@ class Dma8257 : public AddressableDevice
         Dma8257();
         virtual ~Dma8257() {}
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
         void reset() override {performReset();};
         std::string getDebugInfo() override;
 

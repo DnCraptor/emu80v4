@@ -33,7 +33,6 @@ class WavWriter : public ActiveDevice
         ~WavWriter();
 
         // derived from EmuObject
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         // derived from ActiveDevice
         void operate() override;

@@ -63,42 +63,6 @@ bool CpuHook::checkSignature()
 }
 
 
-bool CpuHook::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "enabled") {
-        if (values[0].asString() == "yes")
-            m_isEnabled = true;
-        else if (values[0].asString() == "no")
-            m_isEnabled = false;
-        return true;
-    } else if (propertyName == "tapeRedirector") {
-        setTapeRedirector(static_cast<TapeRedirector*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "signature") {
-        setSignature(values[0].asString());
-        return true;
-    }
-
-    return false;
-}
-
-
-string CpuHook::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "enabled")
-        return m_isEnabled ? "yes" : "no";
-
-    return "";
-}
 
 
 bool Ret8080Hook::hookProc()

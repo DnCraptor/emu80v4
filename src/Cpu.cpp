@@ -105,63 +105,6 @@ void Cpu::as_output(int addr, int value)
 }
 
 
-bool Cpu::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addrSpace") {
-        attachAddrSpace(static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "ioAddrSpace") {
-        attachIoAddrSpace(static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "core") {
-        attachCore(static_cast<PlatformCore*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "addHook") {
-        addHook(static_cast<CpuHook*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "startAddr" && values[0].isInt()) {
-        setStartAddr(values[0].asInt());
-        return true;
-    } else if (propertyName == "debugOnHalt") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_debugOnHalt = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "debugOnIllegalCmd") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_debugOnIllegalCmd = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "cpuWaits") {
-        m_waits = (static_cast<CpuWaits*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "cpuCycleWaits") {
-        m_cycleWaits = (static_cast<CpuCycleWaits*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
-
-std::string Cpu::getPropertyStringValue(const std::string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "debugOnHalt")
-        return m_debugOnHalt ? "yes" : "no";
-    else if (propertyName == "debugOnIllegalCmd")
-        return m_debugOnIllegalCmd ? "yes" : "no";
-
-    return "";
-}
 
 /*std::string Cpu::getDebugInfo()
 {

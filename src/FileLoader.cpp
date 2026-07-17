@@ -62,66 +62,6 @@ bool FileLoader::chooseAndLoadFile(bool run)
 }
 
 
-bool FileLoader::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "filter") {
-        setFilter(values[0].asString());
-        return true;
-    } else if (propertyName == "addrSpace") {
-        attachAddrSpace(static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "skipTicks" && values[0].isInt()) {
-        m_skipTicks = values[0].asInt();
-        return true;
-    } else if (propertyName == "tapeRedirector") {
-        attachTapeRedirector(static_cast<TapeRedirector*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "allowMultiblock") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_allowMultiblock = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "loadFile") {
-        string fileName = values[0].asString();
-        if (!fileName.empty()) {
-            bool res = loadFile(fileName, false); // todo: consider to replace with m_platform->loadFile()
-            if (res) {
-                m_lastFile = fileName;
-            }
-            return res;
-        }
-    } else if (propertyName == "loadRunFile") {
-        string fileName = values[0].asString();
-        if (!fileName.empty()) {
-            bool res = loadFile(fileName, true); // todo: consider to replace with m_platform->loadFile()
-            if (res) {
-                m_lastFile = fileName;
-            }
-            return res;
-        }
-    }
-    return false;
-}
-
-
-string FileLoader::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    else if (propertyName == "allowMultiblock")
-        return m_multiblockAvailable ? m_allowMultiblock ? "yes" : "no" : "";
-    else if (propertyName == "lastFile")
-        return m_lastFile;
-
-    return "";
-}
 
 
 bool RkFileLoader::loadFile(const std::string& fileName, bool run)

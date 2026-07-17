@@ -43,19 +43,6 @@ bool CloseFileHook::hookProc()
 }
 
 
-bool CloseFileHook::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CpuHook::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addTapeRedirector") {
-        addTapeRedirector(static_cast<TapeRedirector*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
 
 ElapsedTimer::ElapsedTimer()
 {

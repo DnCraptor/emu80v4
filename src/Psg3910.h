@@ -85,8 +85,6 @@ class Psg3910 : public AddressableDevice
 class Psg3910SoundSource : public SoundSource
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         int calcValue() override;
         void getSample(int& left, int& right) override;

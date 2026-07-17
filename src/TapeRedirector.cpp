@@ -271,48 +271,6 @@ bool TapeRedirector::isCancelled()
 }
 
 
-bool TapeRedirector::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "fileName") {
-        m_permanentFileName = palMakeFullFileName(values[0].asString());
-        return true;
-    } else if (propertyName == "mode") {
-        if (values[0].asString() == "r" || values[0].asString() == "w" || values[0].asString() == "rw") {
-            m_rwMode = values[0].asString();
-            return true;
-        }
-    } else if (propertyName == "filter") {
-        m_filter = values[0].asString();
-        return true;
-    } else if (propertyName == "timeout") {
-        if (values[0].isInt()) {
-            m_timeout = values[0].asInt();
-            return true;
-        } else
-            return false;
-    }
-
-    return false;
-}
-
-
-string TapeRedirector::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "currentFile" && m_isOpen) {
-        return m_fileName;
-    }
-
-    return "";
-}
 
 
 void TapeRedirector::updateTimer()

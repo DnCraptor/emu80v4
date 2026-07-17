@@ -36,8 +36,6 @@ class CpuHook : public EmuObject
         //CpuHook(int addr, uint8_t memCheck);
         virtual ~CpuHook();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         virtual void setCpu(Cpu* cpu) {m_cpu = cpu;}
         virtual bool hookProc() = 0; // returns false if continue

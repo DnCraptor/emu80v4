@@ -228,33 +228,6 @@ uint8_t AtaDrive::readStatus()
 }
 
 
-bool AtaDrive::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "diskImage") {
-        assignDiskImage(static_cast<DiskImage*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "geometry") {
-        if (values[0].asString() == "lba") {
-            m_lba = true;
-        } else  if (values[0].asString() == "vector") {
-            //m_forceLba = false;
-            m_vectorGeometry = true;
-            setVectorGeometry();
-        } else {
-            m_lba = false;
-            m_cylinders = values[0].asInt();
-            m_heads = values[1].asInt();
-            m_sectors = values[2].asInt();
-        }
-        return true;
-    }
-
-    return false;
-}
-
 
 void AtaDrive::identify()
 {

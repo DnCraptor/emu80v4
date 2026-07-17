@@ -114,7 +114,6 @@ class Pit8253 : public AddressableDevice
         virtual ~Pit8253();
 
         void setFrequency(int64_t freq) override;
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         // std::string getDebugInfo() override;
 
         void mute(); // i8253 does not have reset input so use this method instead if necessary
@@ -144,7 +143,6 @@ class Pit8253Helper : public ActiveDevice
 public:
     Pit8253Helper();
     void operate() override;
-    //bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
     void setCounter(Pit8253Counter* cnt) {m_counter = cnt;}
 

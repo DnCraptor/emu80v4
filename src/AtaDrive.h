@@ -34,7 +34,6 @@ class AtaDrive : public EmuObject
     public:
         //AtaDrive();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override; // Chip reset
 
         void notify(EmuObject* sender, int data) override;

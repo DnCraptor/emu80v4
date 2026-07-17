@@ -169,19 +169,6 @@ const char* CrtRenderer::generateTextScreen(wchar_t* wTextArray, int w, int h)
 }
 
 
-bool CrtRenderer::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "secondaryRenderer") {
-        attachSecondaryRenderer(static_cast<CrtRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
 
 
 TextCrtRenderer::~TextCrtRenderer()
@@ -228,42 +215,4 @@ void TextCrtRenderer::renderFrame()
         altRenderFrame();
     else
         primaryRenderFrame();
-}
-
-
-bool TextCrtRenderer::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CrtRenderer::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "font") {
-        setFontFile(values[0].asString());
-        return true;
-    } else if (propertyName == "altFont") {
-        setAltFontFile(values[0].asString());
-        return true;
-    } else if (propertyName == "altRenderer") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            setAltRender(values[0].asString() == "yes");
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-string TextCrtRenderer::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "altRenderer") {
-        return m_isAltRender ? "yes" : "no";
-    }
-
-    return "";
 }

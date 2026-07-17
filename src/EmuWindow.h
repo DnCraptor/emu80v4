@@ -39,8 +39,6 @@ class EmuWindow : public EmuObject, public PalWindow
         EmuWindow();
         virtual ~EmuWindow() = default;
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void init() override;
 

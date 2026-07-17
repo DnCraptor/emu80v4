@@ -45,8 +45,6 @@ class VectorRenderer : public CrtRenderer, public IActive
         void renderFrame() override;
 
         // derived from EmuObject
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
         std::string getDebugInfo() override;
 
         // derived from CrtRenderer
@@ -142,7 +140,6 @@ class VectorCore : public PlatformCore
         VectorCore();
         //virtual ~VectorCore();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void draw() override;
         void reset() override;
@@ -164,7 +161,6 @@ class VectorAddrSpace : public AddressableDevice
         //VectorAddrSpace(std::string romFileName);
         //~VectorAddrSpace() override;
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getDebugInfo() override;
         void reset() override;
 
@@ -257,7 +253,6 @@ class VectorKeyboard : public Keyboard
 class VectorPpi8255Circuit : public Ppi8255Circuit
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         // derived from Ppi8255Circuit
         uint8_t getPortB() override; // port 02
@@ -283,7 +278,6 @@ class VectorPpi8255Circuit : public Ppi8255Circuit
 class VectorPpi8255Circuit2 : public Ppi8255Circuit
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         // derived from Ppi8255Circuit
         void setPortA(uint8_t value) override; // port 03
@@ -306,7 +300,6 @@ class VectorPpi8255Circuit2 : public Ppi8255Circuit
 class VectorColorRegister : public AddressableDevice
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
 
@@ -347,7 +340,6 @@ class VectorKbdLayout : public RkKbdLayout
 class VectorRamDiskSelector : public AddressableDevice
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
         void setDiskNum(int diskNum) {m_diskNum = diskNum;}
@@ -365,7 +357,6 @@ class VectorRamDiskSelector : public AddressableDevice
 class VectorEramSelector : public AddressableDevice
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
 
@@ -381,7 +372,6 @@ class VectorEramSelector : public AddressableDevice
 class VectorFddControlRegister : public AddressableDevice
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         inline void attachFdc1793(Fdc1793* fdc) {m_fdc = fdc;}
 
@@ -397,7 +387,6 @@ class VectorFddControlRegister : public AddressableDevice
 class VectorHddRegisters : public AddressableDevice
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         void attachAtaDrive(AtaDrive* ataDrive) {m_ataDrive = ataDrive;}
 

@@ -456,27 +456,6 @@ const char* Crt8275Renderer::getTextScreen()
 }
 
 
-bool Crt8275Renderer::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (TextCrtRenderer::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "crt") {
-        attachCrt(static_cast<Crt8275*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "visibleArea") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            setCropping(values[0].asString() == "yes");
-            return true;
-        }
-    } else if (propertyName == "visibleOffsetX") {
-        m_visibleOffsetX = values[0].asInt();
-        return true;
-    }
-
-    return false;
-}
-
 
 string Crt8275Renderer::getCrtMode()
 {
@@ -490,22 +469,4 @@ string Crt8275Renderer::getCrtMode()
         ss << "No sync";
 
     return ss.str();
-}
-
-
-string Crt8275Renderer::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = TextCrtRenderer::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "crtMode") {
-        return getCrtMode();
-    } else if (propertyName == "visibleArea") {
-        return m_cropping ? "yes" : "no";
-    }
-
-    return "";
 }

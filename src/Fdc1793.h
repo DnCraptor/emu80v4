@@ -49,7 +49,6 @@ public:
         Fdc1793();
         virtual ~Fdc1793();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getDebugInfo() override;
         void reset() override; // Chip reset
 

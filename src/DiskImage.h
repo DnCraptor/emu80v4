@@ -33,8 +33,6 @@ public:
     DiskImage();
     virtual ~DiskImage();
 
-    bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-    std::string getPropertyStringValue(const std::string& propertyName) override;
 
     bool assignFileName(std::string fileName);
     void chooseFile();
@@ -76,8 +74,6 @@ class FdImage : public DiskImage
         FdImage(int nTracks, int nHeads, int nSectors, int sectorSize);
 
         void reset() override;
-        //bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        //std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void setCurTrack(int track);
         void setCurHead(int head);

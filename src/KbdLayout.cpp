@@ -125,52 +125,6 @@ void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 }
 
 
-bool KbdLayout::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    string s = values[0].asString();
-
-    if (propertyName == "layout") {
-        if (values[0].asString() == "qwerty") {
-            setQwertyMode();
-            return true;
-        } else if (values[0].asString() == "jcuken") {
-            setJcukenMode();
-            return true;
-        } else if (values[0].asString() == "smart") {
-            setSmartMode();
-            return true;
-        } else
-            return false;
-    } else if (propertyName == "helper") {
-        m_helper = static_cast<KbdLayoutHelper*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    }
-    return false;
-}
-
-
-string KbdLayout::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "layout") {
-        if (m_mode == KLM_QWERTY)
-            return "qwerty";
-        else if (m_mode == KLM_JCUKEN)
-            return "jcuken";
-        else // if (m_mode == KLM_SMART)
-            return "smart";
-    }
-
-    return "";
-}
 
 
 EmuKey KbdLayout::translateCommonKeys(PalKeyCode keyCode)
@@ -1008,19 +962,4 @@ void KbdLayoutHelper::operate()
     Keyboard* kbd = m_platform->getKeyboard();
     kbd->processKey(m_key, true);
     pause();
-}
-
-
-bool KbdLayoutHelper::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "delay") {
-        if (values[0].isInt()) {
-            m_delay = values[0].asInt();
-            return true;
-        }
-    }
-    return false;
 }

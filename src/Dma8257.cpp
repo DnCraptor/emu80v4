@@ -215,28 +215,6 @@ uint8_t Dma8257::getMR()
 
 
 
-bool Dma8257::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addrSpace") {
-        attachAddrSpace(static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "cpu") {
-        attachCpu(static_cast<Cpu*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "swapRW") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_swapRw = values[0].asString() == "yes";
-            return true;
-        }
-        return true;
-    }
-
-    return false;
-}
-
 
 string Dma8257::getDebugInfo()
 {
@@ -271,26 +249,4 @@ void Dma8257::calcDmaPercentage()
     m_dmaPercentage = (m_consStartCpuClock && cpuClocks) ? m_consDmaClocks * 100. / cpuClocks : 0.0;
     m_consStartCpuClock = m_cpu->getClock();
     m_consDmaClocks = 0;
-}
-
-
-string Dma8257::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = AddressableDevice::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "percentage") {
-        // average within 1.5 s (every 3 times)
-        m_calcCnt = (m_calcCnt + 1) % 3;
-        if (!m_calcCnt)
-            calcDmaPercentage();
-        ostringstream oss;
-        oss << setprecision(2) << m_dmaPercentage;
-        return m_dmaPercentage != 0.0 ? oss.str() : "";
-    }
-
-    return "";
 }

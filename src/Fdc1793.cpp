@@ -471,24 +471,6 @@ bool Fdc1793::getDrq()
 
 
 
-bool Fdc1793::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "fdImage" && values[0].isInt()) {
-        attachFdImage(values[0].asInt(), static_cast<FdImage*>(g_emulation->findObject(values[1].asString())));
-        return true;
-    } else if (propertyName == "dma") {
-        if (values[1].isInt()) {
-            attachDMA(static_cast<Dma8257*>(g_emulation->findObject(values[0].asString())), values[1].asInt());
-            return true;
-        }
-    }
-
-    return false;
-}
-
 
 string Fdc1793::getDebugInfo()
 {
@@ -540,4 +522,3 @@ string Fdc1793::getDebugInfo()
 
     return ss.str();
 }
-

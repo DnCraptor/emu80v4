@@ -167,27 +167,3 @@ void Ppi8255::attachPpi8255Circuit(Ppi8255Circuit* circuit)
 {
     m_ppiCircuit = circuit;
 }
-
-
-
-bool Ppi8255::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "circuit") {
-        attachPpi8255Circuit(static_cast<Ppi8255Circuit*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "noReset") {
-        if (values[0].asString() == "yes") {
-            m_noReset = true;
-            return true;
-        } else if (values[0].asString() == "no") {
-            m_noReset = false;
-            return true;
-        }
-        return false;
-    }
-
-    return false;
-}

@@ -144,66 +144,6 @@ uint8_t DiskImage::read8()
 }
 
 
-bool DiskImage::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "fileName") {
-        bool res = assignFileName(values[0].asString());
-        if (m_autoMount)
-            m_permanentFileName = m_fileName;
-        return res;
-    } else if (propertyName == "permanentFileName") {
-        m_permanentFileName = values[0].asString();
-        return m_permanentFileName.empty() ? true : assignFileName(m_permanentFileName);
-    } else if (propertyName == "filter") {
-        m_filter = values[0].asString();
-        return true;
-    } else if (propertyName == "label") {
-        m_label = values[0].asString();
-        return true;
-    } else if (propertyName == "readOnly") {
-        if (values[0].asString() == "yes")
-            setWriteProtection(true);
-        else if (values[0].asString() == "no")
-            setWriteProtection(false);
-        return true;
-    } else if (propertyName == "autoMount") {
-        if (values[0].asString() == "yes") {
-            m_autoMount = true;
-            m_permanentFileName = m_fileName;
-        } else if (values[0].asString() == "no") {
-            m_autoMount = false;
-            m_permanentFileName = "";
-        }
-        return true;
-    }
-    return false;
-}
-
-
-string DiskImage::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "label")
-        return m_label;
-    else if (propertyName == "fileName" && m_file.isOpen())
-        return m_fileName;
-    else if (propertyName == "permanentFileName")
-        return m_permanentFileName;
-    else if (propertyName == "readOnly")
-        return getWriteProtectStatus() ? "yes" : "no";
-    else if (propertyName == "autoMount")
-        return m_autoMount ? "yes" : "no";
-
-    return "";
-}
 
 
 FdImage::FdImage(int nTracks, int nHeads, int nSectors, int sectorSize)

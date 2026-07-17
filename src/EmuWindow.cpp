@@ -156,30 +156,3 @@ void EmuWindow::mouseDrag(int x, int y)
     if (translateCoords(x, y))
         m_platform->mouseDrag(x, y);
 }
-
-
-bool EmuWindow::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "caption") {
-        setCaption(values[0].asString());
-        return true;
-    }
-
-    return false;
-}
-
-
-string EmuWindow::getPropertyStringValue(const string& propertyName)
-{
-    string res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "caption")
-        return m_caption;
-
-    return "";
-}

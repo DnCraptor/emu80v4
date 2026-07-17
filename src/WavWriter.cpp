@@ -110,19 +110,3 @@ void WavWriter::operate()
     } else
         m_file.write8(value ? 0xE0 : 0x20);
 }
-
-
-string WavWriter::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "currentFile" && m_open) {
-        return m_fileName;
-    }
-
-    return "";
-}

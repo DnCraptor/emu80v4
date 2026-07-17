@@ -1911,17 +1911,4 @@ void Cpu8080::setIFF(bool iff)
 
 
 /*
-bool Cpu8080::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (Cpu::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "PC")
-        if (values[0].isInt()) {
-            setPC(values[0].asInt());
-            return true;
-    }
-
-    return false;
-}
 */

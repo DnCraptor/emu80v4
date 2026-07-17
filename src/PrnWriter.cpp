@@ -72,33 +72,6 @@ void PrnWriter::printByte(uint8_t bt)
 }
 
 
-bool PrnWriter::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "fileName") {
-        setPermanentFileName(values[0].asString());
-        return true;
-    }
-
-    return false;
-}
-
-
-string PrnWriter::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "fileName")
-        res = getFileName();
-
-    return res;
-}
 
 
 void PrnWriter::reportError(const std::string& errorStr)

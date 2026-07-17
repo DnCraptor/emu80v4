@@ -50,62 +50,6 @@ void RamDisk::attachPage(unsigned pageNo, AddressableDevice* as)
 }
 
 
-bool RamDisk::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "page" && values[0].isInt()) {
-        attachPage(values[0].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[1].asString())));
-        return true;
-    } else if (propertyName == "filter") {
-        m_filter = values[0].asString();
-        return true;
-    } else if (propertyName == "label") {
-        m_label = values[0].asString();
-        return true;
-    } else if (propertyName == "fileName" || propertyName == "permanentFileName") {
-        m_fileName = values[0].asString();
-        if (!m_fileName.empty() && propertyName == "fileName")
-            loadFromFile();
-        return true;
-    } else if (propertyName == "autoLoad") {
-        if (values[0].asString() == "yes")
-            m_autoLoad = true;
-        else if (values[0].asString() == "no")
-            m_autoLoad = false;
-    } else if (propertyName == "autoSave") {
-        if (values[0].asString() == "yes")
-            m_autoSave = true;
-        else if (values[0].asString() == "no")
-            m_autoSave = false;
-    }
-
-    return false;
-}
-
-
-string RamDisk::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "fileName")
-        return m_fileName;
-    else if (propertyName == "permanentFileName")
-        return m_autoLoad ? m_fileName : "";
-    else if (propertyName == "label")
-        return m_label;
-    else if (propertyName == "autoLoad")
-        return m_autoLoad ? "yes" : "no";
-    else if (propertyName == "autoSave")
-        return m_autoSave ? "yes" : "no";
-
-    return "";
-}
 
 
 void RamDisk::saveFileAs()

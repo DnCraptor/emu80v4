@@ -48,19 +48,6 @@ int Pit8253SoundSource::calcValue()
 }
 
 
-bool Pit8253SoundSource::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (SoundSource::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "pit") {
-        attachPit(static_cast<Pit8253*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
 
 void RkPit8253SoundSource::reset()
 {

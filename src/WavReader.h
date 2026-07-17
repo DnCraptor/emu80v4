@@ -41,8 +41,6 @@ class WavReader : public EmuObject
         WavReader();
         virtual ~WavReader();
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         bool loadFile(const std::string& fileName, TapeRedirector* tapeRedirecotr = nullptr);
         bool chooseAndLoadFile();

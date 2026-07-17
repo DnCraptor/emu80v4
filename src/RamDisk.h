@@ -36,8 +36,6 @@ class RamDisk : public EmuObject
         void setFilter(const std::string& filter) {m_filter = filter;}
         void setLabel(const std::string& label) {m_label = label;}
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void init() override;
         void shutdown() override;

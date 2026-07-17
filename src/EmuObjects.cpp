@@ -55,27 +55,6 @@ void EmuObject::setFrequency(int64_t freq)
 }
 
 
-bool EmuObject::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (propertyName == "name") {
-        setName(values[0].asString());
-        return true;
-    } else if (propertyName == "frequency")
-        if (values[0].isInt()) {
-            setFrequency(values[0].asInt());
-            return true;
-    }
-    return false;
-}
-
-string EmuObject::getPropertyStringValue(const string& propertyName)
-{
-    if (propertyName == "name")
-        return getName();
-
-    return "";
-}
-
 
 
 IActive::IActive()
@@ -118,24 +97,4 @@ void AddressableDevice::writeByteEx(int addr, uint8_t value, int& tag)
     AddressableDevice::m_lastTag = 0;
     writeByte(addr, value);
     tag = AddressableDevice::m_lastTag;
-}
-
-
-bool AddressableDevice::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addrMask" && values[0].isInt()) {
-            setAddrMask(values[0].asInt());
-            return true;
-    } else if (propertyName == "tag" && m_supportsTags && values[0].isInt()) {
-            m_tag = values[0].asInt();
-            return true;
-    } else if (propertyName == "poke" && values[0].isInt() && values[1].isInt()) {
-        writeByte(values[0].asInt(), values[1].asInt());
-        return true;
-    }
-
-    return false;
 }
