@@ -76,12 +76,6 @@ class EmuWindow : public EmuObject, public PalWindow
         void setCaption(std::string caption);
         void setFieldsMixing(FieldsMixing fm);
         void setWindowStyle(WindowStyle ws);
-        void setSmoothing(SmoothingType smoothing);
-        void setAspectCorrection(bool aspectCorrection);
-        void setWideScreen(bool wideScreen);
-        void setCustomScreenFormat(bool custom);
-        void setCustomScreenFormatValue(double format);
-        void setSquarePixels(bool squarePixels);
 
         void drawFrame(EmuPixelData frame);
         void drawOverlay(EmuPixelData frame);
@@ -102,17 +96,11 @@ class EmuWindow : public EmuObject, public PalWindow
         int m_curWindowWidth;
         int m_curWindowHeight;
 
-        bool m_aspectCorrection = false;
-        bool m_wideScreen = false;
-        bool m_useCustomScreenFormat = false;
-        double m_customScreenFormat = 5. / 3.;
-        bool m_squarePixels = false;
 
         std::string m_caption = "";
 
         FieldsMixing m_fieldsMixing = FM_NONE;
         WindowStyle m_windowStyle = WS_AUTOSIZE;
-        SmoothingType m_smoothing = ST_SHARP;
 
         int m_curImgWidth = 0;
         int m_curImgHeight = 0;
@@ -131,9 +119,6 @@ class EmuWindow : public EmuObject, public PalWindow
         unsigned m_curFrameNo = unsigned(-1);
         bool m_frameDrawn = false;
 
-        double calcBestAspectRatio(double srcAspectRatio, double scaleY);
-        /*bool m_overlay = false;
-        double m_primaryFrameAspectRatio = 1;*/
 };
 
 #endif // EMUWINDOW_H

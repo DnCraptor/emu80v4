@@ -28,10 +28,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_RESET;
             case PK_F10:
                 return SR_CLOSE;
-            case PK_F8:
-                return SR_CHCONFIG;
-            case PK_F9:
-                return SR_CHPLATFORM;
             case PK_F12:
                 return SR_CONFIG;
             case PK_F1:
@@ -68,12 +64,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return isShiftPressed ? SR_SAVERAMDISK2AS : SR_SAVERAMDISKAS;
             case PK_M:
                 return SR_MUTE;
-            case PK_S:
-                return SR_SMOOTHING;
-            case PK_R:
-                return SR_ASPECTCORRECTION;
-            case PK_N:
-                return SR_WIDESCREEN;
             case PK_P:
                 return isShiftPressed ? SR_PRNCAPTURE : SR_PAUSE;
             case PK_H:

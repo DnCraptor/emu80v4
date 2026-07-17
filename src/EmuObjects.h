@@ -147,12 +147,6 @@ class ActiveDevice : public EmuObject, public IActive
 };
 
 
-class ParentObject : public EmuObject
-{
-    public:
-        virtual void addChild(EmuObject* child) = 0;
-};
-
 
 class EmuObjectGroup : public EmuObject
 {

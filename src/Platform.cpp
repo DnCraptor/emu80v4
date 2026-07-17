@@ -74,10 +74,6 @@ Platform::Platform(string name)
     window->setCaption("Вектор-06Ц");
     window->setDefaultWindowSize(800, 600);
     window->setWindowStyle(WS_AUTOSIZE);
-    window->setSmoothing(ST_SHARP);
-    window->setAspectCorrection(true);
-    window->setWideScreen(false);
-    window->setCustomScreenFormatValue(1.111);
     addChild(window);
 
     Ram* ram = new Ram(0x10000);

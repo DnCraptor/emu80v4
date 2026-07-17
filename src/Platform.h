@@ -39,13 +39,13 @@ class DiskImage;
 class KbdTapper;
 
 
-class Platform : public ParentObject
+class Platform : public EmuObject
 {
     public:
         virtual Platform* asPlatform() override { return this; }
         explicit Platform(std::string name);
         virtual ~Platform();
-        void addChild(EmuObject* child) override;
+        void addChild(EmuObject* child);
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
         void init() override;

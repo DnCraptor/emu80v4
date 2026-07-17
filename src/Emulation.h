@@ -50,7 +50,7 @@ struct DebuggerOptions {
     bool resetKeys = true;
 };
 
-class Emulation : public ParentObject
+class Emulation : public EmuObject
 {
     public:
         Emulation(); //: EmuObject();
@@ -59,7 +59,6 @@ class Emulation : public ParentObject
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
-        void addChild(EmuObject* child) override;
 
         void addObject(EmuObject* obj);
         void removeObject(EmuObject* obj);

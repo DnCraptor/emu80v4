@@ -132,13 +132,6 @@ EmuObject* Emulation::findObject(string name)
 }
 
 
-void Emulation::addChild(EmuObject* child)
-{
-    if (child)
-        if (Platform* platform = child->asPlatform())
-            m_activePlatform = platform;
-}
-
 /// TODO: .h
 extern void processKeys();
 
@@ -174,17 +167,8 @@ void Emulation::exec(uint64_t ticks, bool forced)
 
     m_clockOffset = m_curClock - toTime;
 
-    if (!forced && m_debugReqCpu) {
+    if (!forced && m_debugReqCpu)
         m_clockOffset = 0;
-        // show debugger
-        /**
-        for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        if ((*it)->getCpu() == m_debugReqCpu) {
-            (*it)->showDebugger();
-            break;
-        }
-        */
-    }
 
 }
 
@@ -197,9 +181,6 @@ void Emulation::screenUpdateReq()
 
 void Emulation::draw()
 {
-///    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++) {
-///        (*it)->draw();
-///    }
     m_scrUpdateReq = false;
     m_timeAfterLastDraw = 0;
 }
@@ -256,9 +237,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 
     switch(sr) {
         case SR_EXIT:
-            //for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-                //delete (*it);
-            //m_platformList.clear(); // лишнее
             palRequestForQuit();
             break;
         case SR_CLOSE:
