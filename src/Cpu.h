@@ -28,7 +28,6 @@
 
 class CpuHook;
 class CpuWaits;
-class CpuCycleWaits;
 class VectorCore;
 class Cpu8080Compatible;
 
@@ -86,7 +85,6 @@ class Cpu : public ActiveDevice
         bool m_debugOnIllegalCmd = false;
 
         CpuWaits* m_waits = nullptr;
-        CpuCycleWaits* m_cycleWaits = nullptr;
 };
 
 class Cpu8080Compatible : public Cpu

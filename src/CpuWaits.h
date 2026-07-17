@@ -25,15 +25,7 @@
 class CpuWaits : public EmuObject
 {
     public:
-        virtual int getCpuWaitStates(int memTag, int opcode, int normalClocks) = 0;
-};
-
-
-// Базовый класс тактов ожидания процессора (на обращение к шине)
-class CpuCycleWaits : public EmuObject
-{
-    public:
-        virtual int getCpuCycleWaitStates(int memTag, bool write) = 0;
+        virtual int getCpuWaitStates(int opcode, int normalClocks) = 0;
 };
 
 #endif //CPUWAITS_H

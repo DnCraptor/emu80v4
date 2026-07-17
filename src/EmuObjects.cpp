@@ -54,21 +54,3 @@ void IActive::syncronize()
 //{
 //    return (m_curClock == -1);
 //}
-
-int AddressableDevice::m_lastTag;
-
-uint8_t AddressableDevice::readByteEx(int addr, int& tag)
-{
-    AddressableDevice::m_lastTag = 0;
-    uint8_t read = readByte(addr);
-    tag = AddressableDevice::m_lastTag;
-    return read;
-}
-
-
-void AddressableDevice::writeByteEx(int addr, uint8_t value, int& tag)
-{
-    AddressableDevice::m_lastTag = 0;
-    writeByte(addr, value);
-    tag = AddressableDevice::m_lastTag;
-}

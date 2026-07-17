@@ -694,14 +694,14 @@ uint8_t VectorKeyboard::getMatrixData()
 }
 
 
-int VectorCpuWaits::getCpuWaitStates(int, int, int normalClocks)
+int VectorCpuWaits::getCpuWaitStates(int, int normalClocks)
 {
     static const int waits[19] = {0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 2, 5, 0, 3, 0, 0, 4, 7, 6};
     return waits[normalClocks];
 }
 
 
-int VectorZ80CpuWaits::getCpuWaitStates(int, int opcode, int normalClocks)
+int VectorZ80CpuWaits::getCpuWaitStates(int opcode, int normalClocks)
 {
     static const int waits[24] = {0, 0, 0, 0, 0, 3, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1, 4, 3, 2, 1, 4, 3, 0, 5};
     // 8, 11, 12, 13, 15 should be revised

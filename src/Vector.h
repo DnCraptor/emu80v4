@@ -366,7 +366,7 @@ class VectorColorRegister : public AddressableDevice
 class VectorCpuWaits : public CpuWaits
 {
 public:
-    int getCpuWaitStates(int, int, int normalClocks) override;
+    int getCpuWaitStates(int, int normalClocks) override;
 
 };
 
@@ -374,7 +374,7 @@ public:
 class VectorZ80CpuWaits : public CpuWaits
 {
 public:
-    int getCpuWaitStates(int, int opcode, int normalClocks) override;
+    int getCpuWaitStates(int opcode, int normalClocks) override;
 
 };
 

@@ -79,26 +79,13 @@ void Cpu::removeHook(CpuHook* hook)
 
 int Cpu::as_input(int addr)
 {
-    if (!m_cycleWaits)
-        return m_addrSpace->readByte(addr);
-    else {
-        int tag;
-        int read = m_addrSpace->readByteEx(addr, tag);
-        m_curClock += m_kDiv * m_cycleWaits->getCpuCycleWaitStates(tag, false);
-        return read;
-    }
+    return m_addrSpace->readByte(addr);
 }
 
 
 void Cpu::as_output(int addr, int value)
 {
-    if (!m_cycleWaits)
-        m_addrSpace->writeByte(addr, value);
-    else {
-        int tag;
-        m_addrSpace->writeByteEx(addr, value, tag);
-        m_curClock += m_kDiv * m_cycleWaits->getCpuCycleWaitStates(tag, true);
-    }
+    m_addrSpace->writeByte(addr, value);
 }
 
 Cpu8080Compatible::Cpu8080Compatible()
