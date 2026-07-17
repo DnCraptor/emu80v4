@@ -34,6 +34,9 @@ class KbdTapper : public ActiveDevice
         std::string getPropertyStringValue(const std::string& propertyName) override;
 
         void setDelayMs(uint64_t delay);
+        void setPressTime(int pressTime) {m_pressTime = pressTime;}
+        void setReleaseTime(int releaseTime) {m_releaseTime = releaseTime;}
+        void setCrDelay(int crDelay) {m_crDelay = crDelay;}
 
         void typeText(std::string str);
 

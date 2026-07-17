@@ -38,6 +38,8 @@
 #include "Keyboard.h"
 #include "RamDisk.h"
 #include "KbdTapper.h"
+#include "Ppi8255.h"
+#include "SoundMixer.h"
 
 #include "pico/vector06c_config.h"
 
@@ -104,6 +106,66 @@ Platform::Platform(string configFileName, string name)
 
     cpu->attachAddrSpace(addrSpace);
     cpu->attachIoAddrSpace(ioAddrSpace);
+
+    VectorRenderer* crtRenderer = new VectorRenderer;
+    crtRenderer->setName(getName() + ".crtRenderer");
+    crtRenderer->attachMemory(ram);
+    crtRenderer->setVisibleArea(true);
+    addChild(crtRenderer);
+
+    addrSpace->attachCrtRenderer(crtRenderer);
+
+    VectorCore* core = new VectorCore;
+    core->setName(getName() + ".core");
+    core->attachWindow(window);
+    core->attachCrtRenderer(crtRenderer);
+    addChild(core);
+
+    cpu->attachCore(core);
+
+    VectorKeyboard* keyboard = new VectorKeyboard;
+    keyboard->setName(getName() + ".keyboard");
+    addChild(keyboard);
+
+    VectorKbdLayout* kbdLayout = new VectorKbdLayout;
+    kbdLayout->setName(getName() + ".kbdLayout");
+    kbdLayout->setQwertyMode();
+    addChild(kbdLayout);
+
+    KbdTapper* kbdTapper = new KbdTapper;
+    kbdTapper->setName(getName() + ".kbdTapper");
+    kbdTapper->setPressTime(20);
+    kbdTapper->setReleaseTime(20);
+    kbdTapper->setCrDelay(100);
+    addChild(kbdTapper);
+
+    VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit;
+    ppiCircuit->setName(getName() + ".ppiCircuit");
+    ppiCircuit->attachRenderer(crtRenderer);
+    ppiCircuit->attachKeyboard(keyboard);
+    addChild(ppiCircuit);
+
+    GeneralSoundSource* tapeSoundSource = new GeneralSoundSource;
+    tapeSoundSource->setName(getName() + ".tapeSoundSource");
+    addChild(tapeSoundSource);
+    ppiCircuit->attachTapeSoundSource(tapeSoundSource);
+
+    Ppi8255* ppi = new Ppi8255;
+    ppi->setName(getName() + ".ppi");
+    ppi->setNoReset(true);
+    ppi->attachPpi8255Circuit(ppiCircuit);
+    addChild(ppi);
+
+    AddrSpaceInverter* invertedPpi = new AddrSpaceInverter(ppi);
+    invertedPpi->setName(getName() + ".invertedPpi");
+    addChild(invertedPpi);
+    ioAddrSpace->addRange(0x00, 0x03, invertedPpi);
+
+    VectorColorRegister* colorReg = new VectorColorRegister;
+    colorReg->setName(getName() + ".colorReg");
+    colorReg->attachRenderer(crtRenderer);
+    addChild(colorReg);
+    ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
 
     ConfigReader cr(configFileName, getName(), vector06c_config);
     cr.processConfigFile(this);
@@ -252,6 +314,7 @@ Platform::~Platform()
 
 void Platform::addChild(EmuObject* child)
 {
+    child->setPlatform(this);
     m_objList.push_back(child);
 }
 

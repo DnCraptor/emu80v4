@@ -58,6 +58,7 @@ class VectorRenderer : public CrtRenderer, public IActive
         void operate() override;
 
         void attachMemory(Ram* memory);
+        void setVisibleArea(bool visible) {m_showBorder = visible;}
 
         void setBorderColor(uint8_t color);
         void set512pxMode(bool mode512);
@@ -272,6 +273,7 @@ class VectorPpi8255Circuit : public Ppi8255Circuit
 
         void attachKeyboard(VectorKeyboard* kbd) {m_kbd = kbd;}
         void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
+        void attachTapeSoundSource(GeneralSoundSource* source) {m_tapeSoundSource = source;}
 
         static EmuObject* create(const EmuValuesList&) {return new VectorPpi8255Circuit();}
 

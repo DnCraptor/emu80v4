@@ -50,6 +50,7 @@ class Ppi8255 : public AddressableDevice
 
         // Подключение объекта - обвязки ВВ55
         void attachPpi8255Circuit(Ppi8255Circuit* circuit);
+        void setNoReset(bool noReset) {m_noReset = noReset;}
 
         static EmuObject* create(const EmuValuesList&) {return new Ppi8255();}
 
