@@ -36,7 +36,6 @@ class PalWindow;
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
-        virtual EmuWindow* asEmuWindow() override { return this; }
         EmuWindow();
         virtual ~EmuWindow() = default;
 

@@ -73,6 +73,7 @@ Platform::Platform(string name)
     window->setPlatform(this);
     window->setCaption("Вектор-06Ц");
     addChild(window);
+    m_window = window;
 
     Ram* ram = new Ram(0x10000);
     ram->setName(getName() + ".ram");
@@ -87,6 +88,7 @@ Platform::Platform(string name)
     cpu->setFrequency(3000000);
     cpu->setStartAddr(0x0000);
     addChild(cpu);
+    m_cpu = cpu;
 
     VectorAddrSpace* addrSpace = new VectorAddrSpace;
     addrSpace->setName(getName() + ".addrSpace");
@@ -107,6 +109,7 @@ Platform::Platform(string name)
     crtRenderer->attachMemory(ram);
     crtRenderer->setVisibleArea(true);
     addChild(crtRenderer);
+    m_renderer = crtRenderer;
 
     addrSpace->attachCrtRenderer(crtRenderer);
 
@@ -115,17 +118,20 @@ Platform::Platform(string name)
     core->attachWindow(window);
     core->attachCrtRenderer(crtRenderer);
     addChild(core);
+    m_core = core;
 
     cpu->attachCore(core);
 
     VectorKeyboard* keyboard = new VectorKeyboard;
     keyboard->setName(getName() + ".keyboard");
     addChild(keyboard);
+    m_keyboard = keyboard;
 
     VectorKbdLayout* kbdLayout = new VectorKbdLayout;
     kbdLayout->setName(getName() + ".kbdLayout");
     kbdLayout->setQwertyMode();
     addChild(kbdLayout);
+    m_kbdLayout = kbdLayout;
 
     KbdTapper* kbdTapper = new KbdTapper;
     kbdTapper->setName(getName() + ".kbdTapper");
@@ -133,6 +139,7 @@ Platform::Platform(string name)
     kbdTapper->setReleaseTime(20);
     kbdTapper->setCrDelay(100);
     addChild(kbdTapper);
+    m_kbdTapper = kbdTapper;
 
     VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit;
     ppiCircuit->setName(getName() + ".ppiCircuit");
@@ -240,6 +247,7 @@ Platform::Platform(string name)
     diskA->setLabel("A");
     diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(diskA);
+    m_diskA = diskA;
     fdc->attachFdImage(0, diskA);
 
     FdImage* diskB = new FdImage(80, 2, 5, 1024);
@@ -247,6 +255,7 @@ Platform::Platform(string name)
     diskB->setLabel("B");
     diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(diskB);
+    m_diskB = diskB;
     fdc->attachFdImage(1, diskB);
 
     DiskImage* hdd = new DiskImage;
@@ -254,6 +263,7 @@ Platform::Platform(string name)
     hdd->setLabel("HDD");
     hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
     addChild(hdd);
+    m_hdd = hdd;
     ataDrive->assignDiskImage(hdd);
 
     VectorFileLoader* loader = new VectorFileLoader;
@@ -261,6 +271,7 @@ Platform::Platform(string name)
     loader->attachAddrSpace(ram);
     loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
     addChild(loader);
+    m_loader = loader;
 
     TapeRedirector* tapeInFile = new TapeRedirector;
     tapeInFile->setName(getName() + ".tapeInFile");
@@ -354,12 +365,39 @@ Platform::Platform(string name)
     addChild(ramDiskMem);
     addrSpace->attachRamDisk(0, ramDiskMem);
 
+    RamDisk* ramDisk = new RamDisk(1, 0x40000);
+    ramDisk->setName(getName() + ".ramDisk");
+    ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
+    ramDisk->attachPage(0, ramDiskMem);
+    addChild(ramDisk);
+    m_ramDisk = ramDisk;
+
     VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector;
     ramDiskSelector->setName(getName() + ".ramDiskSelector");
     ramDiskSelector->attachVectorAddrSpace(addrSpace);
     ramDiskSelector->setDiskNum(0);
     addChild(ramDiskSelector);
     ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
+
+    SRam* ramDiskMem2 = new SRam(0x40000);
+    ramDiskMem2->setName(getName() + ".ramDiskMem2");
+    addChild(ramDiskMem2);
+    addrSpace->attachRamDisk(1, ramDiskMem2);
+
+    RamDisk* ramDisk2 = new RamDisk(1, 0x40000);
+    ramDisk2->setName(getName() + ".ramDisk2");
+    ramDisk2->setLabel("EDD2");
+    ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
+    ramDisk2->attachPage(0, ramDiskMem2);
+    addChild(ramDisk2);
+    m_ramDisk2 = ramDisk2;
+
+    VectorRamDiskSelector* ramDiskSelector2 = new VectorRamDiskSelector;
+    ramDiskSelector2->setName(getName() + ".ramDiskSelector2");
+    ramDiskSelector2->attachVectorAddrSpace(addrSpace);
+    ramDiskSelector2->setDiskNum(1);
+    addChild(ramDiskSelector2);
+    ioAddrSpace->addRange(0x11, 0x11, ramDiskSelector2);
 
     VectorCpuWaits* cpuWaits = new VectorCpuWaits;
     cpuWaits->setName(getName() + ".cpuWaits");
@@ -379,101 +417,7 @@ Platform::Platform(string name)
     tapeGrp->addItem(closeFileHookEmuRk);
     tapeGrp->addItem(skipHookMon);
     addChild(tapeGrp);
-
-    // ищем объект-окно, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if (*it)
-            if (m_window = (*it)->asEmuWindow())
-                break;
-
-    // ищем объект-прцессор, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if (*it)
-            if (m_cpu = (*it)->asCpu())
-                break;
-
-    // ищем объект-ядро, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if (*it)
-            if (m_core = (*it)->asPlatformCore())
-                break;
-
-    // ищем объект - раскладку клавиатуры, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if (*it)
-            if ((m_kbdLayout = (*it)->asKbdLayout()))
-                break;
-
-    // ищем объекты - рендереры, может быть два
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        if (*it) {
-            auto renderer = (*it)->asCrtRenderer();
-            if (renderer) {
-                if (!m_renderer)
-                    m_renderer = renderer;
-                else {
-                    m_renderer2 = renderer;
-                    break;
-                }
-            }
-        }
-    }
-
-    // ищем объекты - образы дисков A и B
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        DiskImage* img = (*it) ? (*it)->asDiskImage() : nullptr;
-        if (img) {
-            if (img->getLabel() == "A")
-                m_diskA = img;
-            else if (img->getLabel() == "B")
-                m_diskB = img;
-            else if (img->getLabel() == "C")
-                m_diskC = img;
-            else if (img->getLabel() == "D")
-                m_diskD = img;
-            else if (img->getLabel() == "HDD")
-                m_hdd = img;
-        }
-
-    // ищем объект - загрузчик, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if(*it)
-            if ((m_loader = (*it)->asFileLoader()))
-                break;
-    }
-
-    // ищем объекты - RAM-диски
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        RamDisk* ramDisk;
-        if ((ramDisk = (*it) ? (*it)->asRamDisk() : nullptr)) {
-            if (ramDisk->getLabel() != "EDD2")
-                m_ramDisk = ramDisk;
-            else
-                m_ramDisk2 = ramDisk;
-        }
-    }
-
-    // ищем объект - клавиатуру, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_keyboard = (*it) ? (*it)->asKeyboard() : nullptr))
-            break;
-
-    // ищем объект - группу tapeGrp
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        EmuObjectGroup* grp = (*it) ? (*it)->asEmuObjectGroup() : nullptr;
-        if (grp) {
-            name = grp->getName();
-            if (name.substr(name.find_last_of(".")) == ".tapeGrp") {
-                m_tapeGrp = grp;
-                break;
-            }
-        }
-    }
-
-    // ищем объект - KbdTapper, должен быть единственным
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        if ((m_kbdTapper = (*it) ? (*it)->asKbdTapper() : nullptr))
-            break;
+    m_tapeGrp = tapeGrp;
 
     Platform::init();
 
@@ -525,12 +469,6 @@ void Platform::sysReq(SysReq sr)
     switch (sr) {
         case SR_RESET:
             reset();
-            if (m_fastReset && m_fastResetCpuTicks) {
-                Cpu* cpu = getCpu();
-                cpu->disableHooks();
-                g_emulation->exec((int64_t)cpu->getKDiv() * m_fastResetCpuTicks); // no 2d parameter: no fast reset when debugger is active
-                cpu->enableHooks();
-            }
             updateDebugger();
             break;
         case SR_QUERTY:
@@ -585,16 +523,6 @@ void Platform::sysReq(SysReq sr)
             if (m_diskB)
                 m_diskB->chooseFile();
             break;
-        case SR_DISKC:
-            // open floppy disk C image
-            if (m_diskC)
-                m_diskC->chooseFile();
-            break;
-        case SR_DISKD:
-            // open floppy disk D image
-            if (m_diskD)
-                m_diskD->chooseFile();
-            break;
         case SR_HDD:
             // open HDD/CF image
             if (m_hdd)
@@ -646,11 +574,6 @@ void Platform::sysReq(SysReq sr)
         case SR_SAVERAMDISK2AS:
             if (m_ramDisk2)
                 m_ramDisk2->saveFileAs();
-            break;
-        case SR_FASTRESET:
-            if (m_fastResetCpuTicks) {
-                m_fastReset = !m_fastReset;
-            }
             break;
         case SR_TAPEHOOK:
             if (m_tapeGrp) {
@@ -728,61 +651,6 @@ void Platform::reqScreenUpdateForDebug()
         m_renderer->prepareDebugScreen();
     if (m_renderer2)
         m_renderer2->prepareDebugScreen();
-}
-
-
-bool Platform::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "helpFile") {
-        m_helpFile = values[0].asString();
-        return true;
-    } else if (propertyName == "codePage") {
-        if (values[0].asString() == "rk") {
-            m_codePage = CP_RK;
-            return true;
-        } else if (values[0].asString() == "koi8") {
-            m_codePage = CP_KOI8;
-            return true;
-        }
-    } else if (propertyName == "muteTape") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_muteTape = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "fastReset") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_fastReset = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "fastResetCpuTicks") {
-            m_fastResetCpuTicks = values[0].asInt();
-            return true;
-    }
-    return false;
-}
-
-
-string Platform::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "helpFile")
-        return m_helpFile;
-    else if (propertyName == "codePage")
-        return m_codePage == CP_RK ? "rk" : "koi8";
-    else if (propertyName == "muteTape")
-        return m_muteTape ? "yes" : "no";
-    else if (propertyName == "fastReset")
-        return m_fastResetCpuTicks ? m_fastReset ? "yes" : "no" : "";
-
-    return "";
 }
 
 

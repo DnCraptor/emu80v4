@@ -29,11 +29,12 @@ class AddressableDevice;
 class RamDisk : public EmuObject
 {
     public:
-        virtual RamDisk* asRamDisk() override { return this; }
         RamDisk(unsigned nPages, unsigned pageSize = 0);
         ~RamDisk();
 
         void attachPage(unsigned pageNo, AddressableDevice* as);
+        void setFilter(const std::string& filter) {m_filter = filter;}
+        void setLabel(const std::string& label) {m_label = label;}
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;

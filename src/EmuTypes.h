@@ -51,8 +51,6 @@ enum SysReq
     SR_SMART,
     SR_DISKA,
     SR_DISKB,
-    SR_DISKC,
-    SR_DISKD,
     SR_HDD,
     SR_FONT,
     SR_COLOR,
@@ -66,7 +64,6 @@ enum SysReq
     SR_SCREENSHOT,
     SR_COPYTXT,
     SR_MUTE,
-    SR_FASTRESET,
     SR_LOADRAMDISK,
     SR_SAVERAMDISK,
     SR_OPENRAMDISK,
@@ -114,11 +111,6 @@ enum TabIds
     TABID_NONE = 0,
     TABID_GENERAL = -1,
     TABID_HELP = -2
-};
-
-enum CodePage {
-    CP_RK,
-    CP_KOI8
 };
 
 

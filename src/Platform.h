@@ -42,12 +42,9 @@ class KbdTapper;
 class Platform : public EmuObject
 {
     public:
-        virtual Platform* asPlatform() override { return this; }
         explicit Platform(std::string name);
         virtual ~Platform();
         void addChild(EmuObject* child);
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
         void init() override;
         void shutdown() override;
         void reset() override;
@@ -74,9 +71,6 @@ class Platform : public EmuObject
         void updateDebugger();
         void reqScreenUpdateForDebug();
         std::string getAllDebugInfo();
-        CodePage getCodePage() {return m_codePage;}
-        bool getMuteTapeFlag() {return m_muteTape;}
-
         const std::string& getBaseName() {return m_baseName;}
 
     private:
@@ -92,8 +86,6 @@ class Platform : public EmuObject
         CrtRenderer* m_renderer2 = nullptr;
         DiskImage* m_diskA = nullptr;
         DiskImage* m_diskB = nullptr;
-        DiskImage* m_diskC = nullptr;
-        DiskImage* m_diskD = nullptr;
         DiskImage* m_hdd = nullptr;
         FileLoader* m_loader = nullptr;
         Keyboard* m_keyboard = nullptr;
@@ -102,12 +94,6 @@ class Platform : public EmuObject
         EmuObjectGroup* m_tapeGrp = nullptr;
         KbdTapper* m_kbdTapper = nullptr;
 
-
-        std::string m_helpFile = "";
-        CodePage m_codePage = CP_RK;
-        bool m_muteTape = false;
-        bool m_fastReset = false;
-        int m_fastResetCpuTicks = 0;
 };
 
 

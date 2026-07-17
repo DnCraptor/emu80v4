@@ -81,12 +81,6 @@ configTab.addControl = 3, &laSelector
 #tapeSelector.addItem = no, "Выкл."
 #configTab.addControl = 3, &tapeSelector
 
-#platform.codePage
-ConfigRadioSelector codePageSelector = &platform, codePage, "Таблица символов отладчика"
-codePageSelector.addItem = rk, "РК-86"
-codePageSelector.addItem = koi8, "КОИ-8"
-configTab.addControl = 3, &codePageSelector
-
 #psgSoundSource.mixing
 ConfigRadioSelector ayStereoSelector = &psgSoundSource, mixing, "Режим AY"
 ayStereoSelector.addItem = stereo, "Стерео"
