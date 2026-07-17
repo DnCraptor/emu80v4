@@ -147,15 +147,15 @@ class VectorRenderer : public CrtRenderer, public IActive
 };
 
 
-class VectorCore : public EmuObject
+class VectorCore
 {
     public:
         VectorCore();
-        ~VectorCore() override;
+        ~VectorCore();
 
-        void init() override;
-        void shutdown() override;
-        void reset() override;
+        void init();
+        void shutdown();
+        void reset();
 
         void sysReq(SysReq sr);
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);

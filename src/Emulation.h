@@ -22,6 +22,7 @@
 #define EMULATION_H
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -52,12 +53,12 @@ struct DebuggerOptions {
     bool resetKeys = true;
 };
 
-class Emulation : public EmuObject
+class Emulation
 {
     public:
         Emulation(); //: EmuObject();
 
-        virtual ~Emulation();
+        ~Emulation();
 
 
 
@@ -80,11 +81,11 @@ class Emulation : public EmuObject
         void exec(uint64_t ticks, bool forced = false);
 
         inline uint64_t getCurClock() {return m_curClock;}
-        inline SoundMixer* getSoundMixer() {return m_mixer;}
-        inline WavReader* getWavReader() {return m_wavReader;}
-        inline PrnWriter* getPrnWriter() {return m_prnWriter;}
+        inline SoundMixer* getSoundMixer() {return m_mixer.get();}
+        inline WavReader* getWavReader() {return m_wavReader.get();}
+        inline PrnWriter* getPrnWriter() {return m_prnWriter.get();}
 
-        void setFrequency(int64_t freq) override;
+        void setFrequency(int64_t freq);
         int64_t getFrequency() {return m_frequency;}
         void setSampleRate(int sampleRate);             // установка частоты дискретизации звуковой карты
         int getSampleRate() {return m_sampleRate;}
@@ -122,13 +123,12 @@ class Emulation : public EmuObject
         bool m_vsync = true;
         unsigned m_sampleRate = 48000;
 
-        VectorCore* m_vector = nullptr;
-
         uint64_t m_curClock = 0;
 
-        SoundMixer* m_mixer;
-        WavReader* m_wavReader;
-        PrnWriter* m_prnWriter;
+        std::unique_ptr<SoundMixer> m_mixer;
+        std::unique_ptr<WavReader> m_wavReader;
+        std::unique_ptr<PrnWriter> m_prnWriter;
+        std::unique_ptr<VectorCore> m_vector;
 
         DebuggerOptions m_debuggerOptions;
 

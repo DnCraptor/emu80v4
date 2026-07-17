@@ -44,11 +44,11 @@ Emulation::Emulation()
 
     g_emulation = this;
 
-    m_mixer = new SoundMixer;
+    m_mixer = std::make_unique<SoundMixer>();
 
-    m_wavReader = new WavReader;
+    m_wavReader = std::make_unique<WavReader>();
 
-    m_prnWriter = new PrnWriter;
+    m_prnWriter = std::make_unique<PrnWriter>();
 
     setFrequency(1680000000);
     setSampleRate(96000);
@@ -61,23 +61,15 @@ Emulation::Emulation()
     m_debuggerOptions.forceZ80Mnemonics = false;
     m_debuggerOptions.resetKeys = true;
 
-    m_vector = new VectorCore();
+    m_vector = std::make_unique<VectorCore>();
     if (!m_vector->getWindow()) {
-        delete m_vector;
-        m_vector = nullptr;
+        m_vector.reset();
         palMsgBox("Error: Can't create Vector-06C machine.", true);
         palRequestForQuit();
     }
 }
 
-Emulation::~Emulation()
-{
-    delete m_vector;
-
-    delete m_prnWriter;
-    delete m_wavReader; // перед m_mixer!
-    delete m_mixer;
-}
+Emulation::~Emulation() = default;
 
 
 void Emulation::registerActiveDevice(IActive* device)
@@ -182,7 +174,7 @@ void Emulation::resetKeys(EmuWindow* wnd)
 void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 {
     VectorCore* machine = m_vector && wnd == m_vector->getWindow()
-        ? m_vector : nullptr;
+        ? m_vector.get() : nullptr;
 
     // enable debug if in paused state
     if (sr == SR_DEBUG)
@@ -194,8 +186,7 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             break;
         case SR_CLOSE:
             if (machine) {
-                delete m_vector;
-                m_vector = nullptr;
+                m_vector.reset();
                 palRequestForQuit();
             } else
                 wnd->closeRequest();
