@@ -33,26 +33,12 @@ class Emulation;
 
 class PalWindow;
 
-enum FieldsMixing {
-    FM_NONE,
-    FM_MIX,
-    FM_INTERLACE,
-    FM_SCANLINE
-};
-
-enum WindowStyle {
-    WS_AUTOSIZE,
-    WS_FIXED,
-    WS_RESIZABLE
-};
-
-
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
         virtual EmuWindow* asEmuWindow() override { return this; }
         EmuWindow();
-        virtual ~EmuWindow();
+        virtual ~EmuWindow() = default;
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
@@ -72,10 +58,7 @@ class EmuWindow : public EmuObject, public PalWindow
 
         void show();
         void hide();
-        void setDefaultWindowSize(int width, int height);
         void setCaption(std::string caption);
-        void setFieldsMixing(FieldsMixing fm);
-        void setWindowStyle(WindowStyle ws);
 
         void drawFrame(EmuPixelData frame);
         void drawOverlay(EmuPixelData frame);
@@ -90,17 +73,7 @@ class EmuWindow : public EmuObject, public PalWindow
         static EmuObject* create(const EmuValuesList&) {return new EmuWindow();}
 
     private:
-        int m_defWindowWidth = 800;
-        int m_defWindowHeight = 600;
-
-        int m_curWindowWidth;
-        int m_curWindowHeight;
-
-
         std::string m_caption = "";
-
-        FieldsMixing m_fieldsMixing = FM_NONE;
-        WindowStyle m_windowStyle = WS_AUTOSIZE;
 
         int m_curImgWidth = 0;
         int m_curImgHeight = 0;
@@ -109,12 +82,6 @@ class EmuWindow : public EmuObject, public PalWindow
         int m_dstY;
         int m_dstWidth;
         int m_dstHeight;
-
-        void interlaceFields(EmuPixelData frame);
-        void prepareScanline(EmuPixelData frame);
-
-        uint32_t* m_interlacedImage = nullptr;
-        int m_interlacedImageSize = 0;
 
         unsigned m_curFrameNo = unsigned(-1);
         bool m_frameDrawn = false;

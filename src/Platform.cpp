@@ -72,8 +72,6 @@ Platform::Platform(string name)
     window->setName(getName() + ".window");
     window->setPlatform(this);
     window->setCaption("Вектор-06Ц");
-    window->setDefaultWindowSize(800, 600);
-    window->setWindowStyle(WS_AUTOSIZE);
     addChild(window);
 
     Ram* ram = new Ram(0x10000);

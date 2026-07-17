@@ -94,6 +94,8 @@ file(GLOB SRC
     "src/pico/**.c"
 )
 
+# The firmware contains a single statically constructed Vector-06C machine.
+# Keep shared device implementations, but do not compile other platform models.
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
     message(STATUS "${SRC_FILE}")
