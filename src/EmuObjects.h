@@ -21,8 +21,6 @@
 
 #include <cstdint>
 
-#include <vector>
-
 
 
 class Platform;

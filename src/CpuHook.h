@@ -19,8 +19,9 @@
 #ifndef CPUHOOK_H
 #define CPUHOOK_H
 
-#include <vector>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "Cpu.h"
 

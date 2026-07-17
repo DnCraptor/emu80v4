@@ -22,7 +22,8 @@
 #define PLATFORM_H
 
 #include <list>
-#include <map>
+#include <string>
+#include <vector>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"

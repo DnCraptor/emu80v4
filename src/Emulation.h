@@ -21,6 +21,9 @@
 #ifndef EMULATION_H
 #define EMULATION_H
 
+#include <cstdint>
+#include <string>
+#include <vector>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"
