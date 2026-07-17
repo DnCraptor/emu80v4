@@ -26,7 +26,6 @@
 class Platform;
 class EmuWindow;
 class Cpu;
-class PlatformCore;
 class KbdLayout;
 class CrtRenderer;
 class DiskImage;

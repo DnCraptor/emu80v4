@@ -147,12 +147,6 @@ void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int er
     m_eramPageEndAddr = eramPageEndAddr;
 }
 
-VectorCore::VectorCore()
-{
-    // ...
-}
-
-
 void VectorCore::reset()
 {
     m_intReq = false;
@@ -185,12 +179,6 @@ void VectorCore::vrtc(bool isActive)
             cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
         }
     }
-}
-
-
-void VectorCore::attachCrtRenderer(VectorRenderer* crtRenderer)
-{
-    m_crtRenderer = crtRenderer;
 }
 
 

@@ -19,7 +19,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
-#include "PlatformCore.h"
+#include "EmuObjects.h"
 #include "Ppi8255Circuit.h"
 #include "CrtRenderer.h"
 #include "FileLoader.h"
@@ -133,23 +133,19 @@ class VectorRenderer : public CrtRenderer, public IActive
 };
 
 
-class VectorCore : public PlatformCore
+class VectorCore : public EmuObject
 {
     public:
-        VectorCore();
-        //virtual ~VectorCore();
-
-
         void reset() override;
-        void vrtc(bool isActive) override;
-        void inte(bool isActive) override;
-
-        void attachCrtRenderer(VectorRenderer* crtRenderer);
+        void vrtc(bool isActive);
+        void inte(bool isActive);
+        void tapeOut(bool isActive) {m_tapeOut = isActive;}
+        bool getTapeOut() const {return m_tapeOut;}
 
     private:
-        VectorRenderer* m_crtRenderer = nullptr;
         bool m_intReq = false;
         bool m_intsEnabled = false;
+        bool m_tapeOut = false;
 };
 
 

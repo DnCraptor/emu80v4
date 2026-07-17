@@ -29,7 +29,7 @@
 class CpuHook;
 class CpuWaits;
 class CpuCycleWaits;
-class PlatformCore;
+class VectorCore;
 class Cpu8080Compatible;
 
 class Cpu : public ActiveDevice
@@ -49,7 +49,7 @@ class Cpu : public ActiveDevice
 
         void attachAddrSpace(AddressableDevice* as);
         void attachIoAddrSpace(AddressableDevice* as);
-        void attachCore(PlatformCore* core);
+        void attachCore(VectorCore* core);
         void setStartAddr(unsigned addr) {m_startAddr = addr;}
         void attachCpuWaits(CpuWaits* waits) {m_waits = waits;}
 
@@ -73,7 +73,7 @@ class Cpu : public ActiveDevice
 
         AddressableDevice* m_addrSpace = nullptr;
         AddressableDevice* m_ioAddrSpace = nullptr;
-        PlatformCore* m_core = nullptr;
+        VectorCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
         std::vector<CpuHook*> m_hookVector;

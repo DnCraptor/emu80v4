@@ -20,7 +20,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "Platform.h"
-#include "PlatformCore.h"
+#include "Vector.h"
 #include "WavWriter.h"
 
 using namespace std;

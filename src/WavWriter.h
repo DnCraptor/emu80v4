@@ -24,7 +24,7 @@
 #include "EmuObjects.h"
 #include "PalFile.h"
 
-class PlatformCore;
+class VectorCore;
 
 class WavWriter : public ActiveDevice
 {
@@ -71,7 +71,7 @@ class WavWriter : public ActiveDevice
         PalFile m_file;
         std::string m_fileName;
         bool m_open = false;
-        PlatformCore* m_core;
+        VectorCore* m_core;
         unsigned m_size = 0;
         bool m_initialValue;
         bool m_cswFormat;

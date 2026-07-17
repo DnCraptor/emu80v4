@@ -24,7 +24,6 @@
 #include "EmuObjects.h"
 
 class Dma8257;
-class PlatformCore;
 
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))
 #define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
@@ -120,7 +119,6 @@ class Crt8275 : public AddressableDevice, public IActive
         void operate() override;
 
         // Crt8275 own methods
-        void attachCore(PlatformCore* core);
         void attachDMA(Dma8257* dma, int channel);
 
         const Frame* getFrame() {return &m_frame;}
@@ -140,7 +138,6 @@ class Crt8275 : public AddressableDevice, public IActive
     private:
         Dma8257* m_dma;              // Linked DMA Controller
         int m_dmaChannel;            // DMA channel
-        PlatformCore* m_core;        // Linked platform core
         int m_cpuKDiv;               // CPU div factor
 
         int  m_nRows;                // row count

@@ -25,7 +25,7 @@
 #include "CpuHook.h"
 #include "CpuWaits.h"
 #include "Emulation.h"
-#include "PlatformCore.h"
+#include "Vector.h"
 
 using namespace std;
 

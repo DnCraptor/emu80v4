@@ -26,7 +26,6 @@
 #include "Cpu8080.h"
 #include "AddrSpace.h"
 #include "Vector.h"
-#include "PlatformCore.h"
 #include "KbdLayout.h"
 #include "CrtRenderer.h"
 #include "DiskImage.h"
@@ -92,8 +91,6 @@ Platform::Platform()
     addrSpace->attachCrtRenderer(crtRenderer);
 
     VectorCore* core = new VectorCore;
-    core->attachWindow(window);
-    core->attachCrtRenderer(crtRenderer);
     addChild(core);
     m_core = core;
 

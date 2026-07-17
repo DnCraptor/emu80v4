@@ -28,7 +28,6 @@
 #include "Cpu.h"
 #include "Dma8257.h"
 #include "Platform.h"
-#include "PlatformCore.h"
 #include "Emulation.h"
 
 using namespace std;
@@ -39,12 +38,6 @@ using namespace std;
 
 
 // Common Methods Implementation
-
-
-void Crt8275::attachCore(PlatformCore* core)
-{
-    m_core = core;
-}
 
 
 void Crt8275::init()
@@ -459,13 +452,11 @@ void Crt8275::operate()
     if (m_curRow == m_nRows) {
         if (m_isIntsEnabled)
             m_statusReg |= 0x20; // actually should be at the beginning of the last display row
-        m_core->vrtc(true);
     }
 
     if (++m_curRow >= m_nRows + m_nVrRows) {
         prepareFrame();
         presetCounters();
-        m_core->vrtc(false);
     }
 
     m_curClock += m_kDiv * (m_nCharsPerRow + m_nHrChars) * m_nLines;

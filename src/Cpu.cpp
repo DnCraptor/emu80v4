@@ -24,7 +24,6 @@
 #include "CpuHook.h"
 #include "CpuWaits.h"
 #include "Emulation.h"
-#include "PlatformCore.h"
 
 using namespace std;
 
@@ -57,7 +56,7 @@ void Cpu::attachIoAddrSpace(AddressableDevice* as)
 
 
 
-void Cpu::attachCore(PlatformCore* core)
+void Cpu::attachCore(VectorCore* core)
 {
     m_core = core;
 }

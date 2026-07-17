@@ -33,7 +33,7 @@ class EmuWindow;
 class Cpu;
 class FileLoader;
 class RamDisk;
-class PlatformCore;
+class VectorCore;
 class KbdLayout;
 class CrtRenderer;
 class Keyboard;
@@ -61,7 +61,7 @@ class Platform : public EmuObject
         EmuWindow* getWindow() {return m_window;}
         Cpu* getCpu() {return m_cpu;}
         FileLoader* getLoader() {return m_loader;}
-        PlatformCore* getCore() {return m_core;}
+        VectorCore* getCore() {return m_core;}
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
@@ -71,7 +71,7 @@ class Platform : public EmuObject
     private:
         std::list<EmuObject* >m_objList;
 
-        PlatformCore* m_core = nullptr;
+        VectorCore* m_core = nullptr;
         Cpu* m_cpu = nullptr;
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;

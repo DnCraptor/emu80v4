@@ -24,7 +24,7 @@
 #include "Cpu8080.h"
 #include "CpuHook.h"
 #include "CpuWaits.h"
-#include "PlatformCore.h"
+#include "Vector.h"
 #include "Emulation.h"
 
 using namespace std;
