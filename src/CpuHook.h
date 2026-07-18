@@ -20,8 +20,6 @@
 #define CPUHOOK_H
 
 #include <cstdint>
-#include <string>
-#include <vector>
 
 #include "Cpu.h"
 
@@ -48,7 +46,7 @@ class CpuHook : public EmuObject
         inline int getHookAddr() {return m_hookAddr;}
 
         void setTapeRedirector(TapeRedirector* file) {m_file = file;}
-        void setSignature(std::string signature);
+        void setSignature(const char* signature);
 
     protected:
         Cpu8080Compatible* m_cpu = nullptr;
@@ -59,9 +57,9 @@ class CpuHook : public EmuObject
 
     private:
         int m_hookAddr;
-        std::vector<uint8_t> m_signature;
+        static constexpr unsigned MAX_SIGNATURE_LEN = 16;
+        uint8_t m_signature[MAX_SIGNATURE_LEN] = {};
         unsigned m_signatureLen = 0;
-        uint8_t* m_signatureBytes = nullptr;
 };
 
 

@@ -16,14 +16,10 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sstream>
-
 #include "Globals.h"
 #include "Emulation.h"
 #include "CpuHook.h"
 #include "TapeRedirector.h"
-
-using namespace std;
 
 
 CpuHook::CpuHook(int addr)
@@ -38,18 +34,25 @@ CpuHook::~CpuHook()
 }
 
 
-void CpuHook::setSignature(std::string signature)
+void CpuHook::setSignature(const char* signature)
 {
-    unsigned bt;
-    for (unsigned i = 0; i <= signature.size() - 2; i += 2) {
-        string sByte = signature.substr(i, 2);
-        istringstream iss(sByte);
-        iss >> hex >> bt;
-        m_signature.push_back(bt);
+    m_signatureLen = 0;
+
+    for (unsigned i = 0; signature[i] && signature[i + 1] && m_signatureLen < MAX_SIGNATURE_LEN; i += 2) {
+        auto hexValue = [](char c) -> uint8_t {
+            if (c >= '0' && c <= '9')
+                return c - '0';
+            if (c >= 'A' && c <= 'F')
+                return c - 'A' + 10;
+            if (c >= 'a' && c <= 'f')
+                return c - 'a' + 10;
+            return 0;
+        };
+
+        m_signature[m_signatureLen++] = (hexValue(signature[i]) << 4) | hexValue(signature[i + 1]);
     }
-    m_signatureLen = m_signature.size();
-    m_signatureBytes = m_signature.data();
-    m_hasSignature = m_signatureLen > 0 ? true : false;
+
+    m_hasSignature = m_signatureLen != 0;
 }
 
 
@@ -57,7 +60,7 @@ bool CpuHook::checkSignature()
 {
     AddressableDevice* as = m_cpu->getAddrSpace();
     for (unsigned i = 0; i < m_signatureLen; i++)
-        if (m_signatureBytes[i] != as->readByte(m_hookAddr + i))
+        if (m_signature[i] != as->readByte(m_hookAddr + i))
             return false;
     return true;
 }
