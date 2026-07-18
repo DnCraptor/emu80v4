@@ -22,7 +22,6 @@
 #include "EmuObjects.h"
 #include "Ppi8255Circuit.h"
 #include "CrtRenderer.h"
-#include "FileLoader.h"
 #include "Keyboard.h"
 #include "KbdLayout.h"
 #include "CpuWaits.h"
@@ -48,6 +47,7 @@ class RamDisk;
 class DiskImage;
 class KbdTapper;
 class CpuHook;
+class VectorFileLoader;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -165,7 +165,7 @@ class VectorCore
 
         EmuWindow* getWindow() {return m_window;}
         Cpu8080Compatible* getCpu() {return m_cpu;}
-        FileLoader* getLoader() {return m_loader;}
+        VectorFileLoader* getLoader() {return m_loader;}
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
@@ -195,7 +195,7 @@ class VectorCore
         DiskImage* m_diskA = nullptr;
         DiskImage* m_diskB = nullptr;
         DiskImage* m_hdd = nullptr;
-        FileLoader* m_loader = nullptr;
+        VectorFileLoader* m_loader = nullptr;
         Keyboard* m_keyboard = nullptr;
         RamDisk* m_ramDisk = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
@@ -256,12 +256,18 @@ class VectorAddrSpace : public AddressableDevice
 };
 
 
-class VectorFileLoader : public FileLoader
+class VectorFileLoader : public EmuObject
 {
-public:
-    //VectorFileLoader();
-    bool loadFile(const std::string& fileName, bool run = false) override;
+    public:
+        bool loadFile(const std::string& fileName, bool run = false);
+        bool chooseAndLoadFile(bool run = false);
+        void attachAddrSpace(AddressableDevice* addrSpace) {m_addrSpace = addrSpace;}
+        void setFilter(const std::string& filter) {m_filter = filter;}
 
+    private:
+        AddressableDevice* m_addrSpace = nullptr;
+        std::string m_filter;
+        int m_skipTicks = 2000000;
 };
 
 

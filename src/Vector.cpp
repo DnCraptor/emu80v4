@@ -30,7 +30,6 @@
 #include "Memory.h"
 #include "CrtRenderer.h"
 #include "DiskImage.h"
-#include "FileLoader.h"
 #include "Keyboard.h"
 #include "KbdLayout.h"
 #include "Fdc1793.h"
@@ -442,6 +441,20 @@ void VectorRenderer::attachMemory(Ram* memory)
     m_screenMemory = memory->getDataPtr();
 }
 
+bool VectorFileLoader::chooseAndLoadFile(bool run)
+{
+    string fileName = palOpenFileDialog("Open file", m_filter, false, m_machine->getWindow());
+    g_emulation->restoreFocus();
+    if (fileName.empty())
+        return true;
+    if (!loadFile(fileName, run)) {
+        emuLog << "Error loading file: " << fileName << "\n";
+        return false;
+    }
+    return true;
+}
+
+
 bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
 {
     auto periodPos = fileName.find_last_of(".");
@@ -487,7 +500,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     cpu->enableHooks();
 
     for (unsigned i = 0; i < 0x100; i++)
-        m_as->writeByte(i, 0x00);
+        m_addrSpace->writeByte(i, 0x00);
 
     UINT br;
     if (!basFile)
@@ -495,13 +508,13 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             uint16_t addr = begAddr + i;
             uint8_t v;
             f_read(&f, &v, 1, &br);
-            m_as->writeByte(addr, v);
+            m_addrSpace->writeByte(addr, v);
             if (!run && (addr & 0xFF) == 0) {
                 // paint block
                 int block = addr >> 8;
                 uint16_t blockAddr = 0xC018 + (block % 32) * 0x100 + (block / 32) * 0x18;
                 for (int i = 0; i < 8; i++)
-                    m_as->writeByte(blockAddr + i, 0x7E);
+                    m_addrSpace->writeByte(blockAddr + i, 0x7E);
             }
         }
     else {
@@ -527,14 +540,14 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         }
 
         for (int i = 0; i < 0x39c6; i++)
-            m_as->writeByte(0x0100 + i, as->readByte(0x08C5 + i));
+            m_addrSpace->writeByte(0x0100 + i, as->readByte(0x08C5 + i));
         as->disableRom();
         cpu->setPC(begAddr);
         cpu->setIFF(false);
         cpu->disableHooks();
         g_emulation->exec(int64_t(cpu->getKDiv()) * 4000000, true);
         cpu->enableHooks();
-        m_as->writeByte(0x4300, 0);
+        m_addrSpace->writeByte(0x4300, 0);
 
         uint16_t addr, nextAddr;
         addr = nextAddr = 0x4301;
@@ -547,27 +560,27 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             }
             uint8_t v;
             f_read(&f, &v, 1, &br);
-            m_as->writeByte(addr++, v);
+            m_addrSpace->writeByte(addr++, v);
             fileSize--;
             if (nextAddr == 0 || fileSize == 0 || addr >= 0x7EFF)
                 break;
         }
-        m_as->writeByte(0x4045, addr & 0xFF);
-        m_as->writeByte(0x4046, addr >> 8);
-        m_as->writeByte(0x4047, addr & 0xFF);
-        m_as->writeByte(0x4048, addr >> 8);
-        m_as->writeByte(0x4049, addr & 0xFF);
-        m_as->writeByte(0x404A, addr >> 8);
+        m_addrSpace->writeByte(0x4045, addr & 0xFF);
+        m_addrSpace->writeByte(0x4046, addr >> 8);
+        m_addrSpace->writeByte(0x4047, addr & 0xFF);
+        m_addrSpace->writeByte(0x4048, addr >> 8);
+        m_addrSpace->writeByte(0x4049, addr & 0xFF);
+        m_addrSpace->writeByte(0x404A, addr >> 8);
         f_close(&f);
 
         if (run) {
-            m_as->writeByte(0x3DBF, 'R');
-            m_as->writeByte(0x3DC0, 'U');
-            m_as->writeByte(0x3DC1, 'N');
-            m_as->writeByte(0x3DC2, '\r');
-            m_as->writeByte(0x3DB8, 4);
-            m_as->writeByte(0x3DB9, 4);
-            m_as->writeByte(0x3DBA, 0);
+            m_addrSpace->writeByte(0x3DBF, 'R');
+            m_addrSpace->writeByte(0x3DC0, 'U');
+            m_addrSpace->writeByte(0x3DC1, 'N');
+            m_addrSpace->writeByte(0x3DC2, '\r');
+            m_addrSpace->writeByte(0x3DB8, 4);
+            m_addrSpace->writeByte(0x3DB9, 4);
+            m_addrSpace->writeByte(0x3DBA, 0);
         }
 
         return true;
