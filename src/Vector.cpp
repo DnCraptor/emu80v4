@@ -767,9 +767,10 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
         cpu->setPC(0);
         return true;
     } else if (keyCode == PK_F12) {
-        m_machine->getKeyboard()->disableKeysReset();
+        Keyboard* keyboard = m_machine->getKeyboard();
+        keyboard->disableKeysReset();
         m_machine->reset();
-        m_machine->getKeyboard()->enableKeysReset();
+        keyboard->enableKeysReset();
         addrSpace->disableRom();
         //cpu->setPC(0);
         return true;
@@ -785,36 +786,6 @@ void VectorRamDiskSelector::writeByte(int, uint8_t value)
         m_vectorAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
 }
 
-
-
-void VectorEramSelector::writeByte(int, uint8_t value)
-{
-    int start, end, segment;
-    if (value & 4) {
-        start = 0x0000;
-        end = 0xFFFF;
-    } else switch (value & 3) {
-    case 0:
-        start = 0xA000;
-        end = 0xDFFF;
-        break;
-    case 1:
-        start = 0x8000;
-        end = 0xDFFF;
-        break;
-    case 2:
-        start = 0x8000;
-        end = 0xFFFF;
-        break;
-    default: // case 3
-        start = 0x0100;
-        end = 0x7FFF;
-    }
-    segment = (value >> 3) & 7;
-
-    if (m_vectorAddrSpace)
-        m_vectorAddrSpace->eramControl(segment, start, end);
-}
 
 
 void VectorFddControlRegister::writeByte(int, uint8_t value)

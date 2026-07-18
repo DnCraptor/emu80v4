@@ -409,21 +409,6 @@ class VectorRamDiskSelector : public AddressableDevice
 };
 
 
-class VectorEramSelector : public AddressableDevice
-{
-    public:
-
-        void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
-
-        void writeByte(int, uint8_t value) override;
-        uint8_t readByte(int)  override {return 0xff;}
-
-
-    private:
-        VectorAddrSpace* m_vectorAddrSpace = nullptr;
-};
-
-
 class VectorFddControlRegister : public AddressableDevice
 {
     public:
