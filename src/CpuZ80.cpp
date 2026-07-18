@@ -23,7 +23,6 @@
 #include "Globals.h"
 #include "CpuZ80.h"
 #include "CpuHook.h"
-#include "CpuWaits.h"
 #include "Emulation.h"
 #include "Vector.h"
 
@@ -2543,12 +2542,45 @@ void __not_in_flash_func(CpuZ80::operate)()
             return;
     }
 
-    if (m_waits) {
-        int opcode = m_addrSpace->readByte(PC) + (m_addrSpace->readByte(uint16_t(PC + 1)) << 8); // 2 bytes for z80
-        int clocks = simz80();
-        m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(opcode, clocks));
-    } else
-        m_curClock += m_kDiv * simz80();
+    static constexpr uint8_t waits[24] = {0, 0, 0, 0, 0, 3, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1, 4, 3, 2, 1, 4, 3, 0, 5};
+
+    int opcode = m_addrSpace->readByte(PC) + (m_addrSpace->readByte(uint16_t(PC + 1)) << 8);
+    int clocks = simz80();
+    int waitClocks = waits[clocks];
+
+    switch (clocks) {
+    case 8:
+        if ((opcode & 0xFF) == 0x10) // DJNZ, if B==0
+            waitClocks = 4;
+        break;
+    case 11:
+        if ((opcode & 0xCF) == 0xC5 ||   // PUSH qq
+            (opcode & 0xC7) == 0xC0 ||   // RET cc if cc = true
+            (opcode & 0xC7) == 0xC7)     // RST p
+            waitClocks = 5;
+        break;
+    case 14:
+        if ((opcode & 0xFFDF) == 0xE1DD) // POP ix/iy
+            waitClocks = 6;
+        break;
+    case 15:
+        if ((opcode & 0xFFDF) == 0xE5DD) // PUSH ix/iy
+            waitClocks = 5;
+        break;
+    case 19:
+        if ((opcode & 0xFF) == 0xE3 ||   // EX (SP),HL
+            (opcode & 0xFFDF) == 0x36DD) // LD (ix+d),n
+            waitClocks = 5;
+        break;
+    case 23:
+        if ((opcode & 0xFEDF) == 0x34DD) // INC/DEC (ix/iy+d)
+            waitClocks = 1;
+        break;
+    default:
+        break;
+    }
+
+    m_curClock += m_kDiv * (clocks + waitClocks);
 
 }
 
@@ -2594,8 +2626,6 @@ void CpuZ80::intRst(int vect)
         else {
             PC = GetWORD((ir | 0xFF)); // r is ignored
             m_curClock += m_kDiv * 19;
-            /*if (m_waits)
-                m_curClock += m_kDiv * m_waits->getCpuWaitStates(0, 0xE3, 19);*/ // similar to xthl
         }
         m_curClock += m_kDiv * 11; // revise!
     }
@@ -2614,8 +2644,6 @@ void CpuZ80::intCall(uint16_t addr)
         PUSH(PC);
         PC = addr;
         m_curClock += m_kDiv * 19;
-        /*if (m_waits)
-            m_curClock += m_kDiv * m_waits->getCpuWaitStates(0, 0xCD, 17);*/
     }
 }
 

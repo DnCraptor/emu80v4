@@ -23,7 +23,6 @@
 #include "Cpu.h"
 #include "Cpu8080.h"
 #include "CpuHook.h"
-#include "CpuWaits.h"
 #include "Vector.h"
 #include "Emulation.h"
 
@@ -1724,14 +1723,9 @@ void __not_in_flash_func(Cpu8080::operate)() {
         return;
     }
 
-    if (m_waits) {
-        // TODO: fix-it: double reading the same opcode
-        int opcode = m_addrSpace->readByte(PC);
-        int clocks = i8080_execute(RD_BYTE(PC++));
-        m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(opcode, clocks));
-    } else {
-        m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
-    }
+    static constexpr uint8_t waits[19] = {0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 2, 5, 0, 3, 0, 0, 4, 7, 6};
+    int clocks = i8080_execute(RD_BYTE(PC++));
+    m_curClock += m_kDiv * (clocks + waits[clocks]);
 }
 
 
@@ -1751,8 +1745,6 @@ void Cpu8080::intRst(int vect) {
         RST(vect * 8);
         m_statusWord = 0xA2;
         m_curClock += m_kDiv * 11;
-        /*if (m_waits)
-            m_curClock += m_kDiv * m_waits->getCpuWaitStates(0, 0xFF, 11);*/
     }
 }
 
@@ -1769,8 +1761,6 @@ void Cpu8080::intCall(uint16_t addr) {
         PC = addr;
         m_statusWord = 0xA2;
         m_curClock += m_kDiv * 17;
-        /*if (m_waits)
-            m_curClock += m_kDiv * m_waits->getCpuWaitStates(0, 0xCD, 17);*/
     }
 }
 

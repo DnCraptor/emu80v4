@@ -21,7 +21,6 @@
 #include "Globals.h"
 #include "Cpu.h"
 #include "CpuHook.h"
-#include "CpuWaits.h"
 #include "Emulation.h"
 
 using namespace std;

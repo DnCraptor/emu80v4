@@ -24,7 +24,6 @@
 #include "CrtRenderer.h"
 #include "Keyboard.h"
 #include "KbdLayout.h"
-#include "CpuWaits.h"
 
 #include <string>
 
@@ -68,7 +67,6 @@ class RkTapeOutHook;
 class CloseFileHook;
 class Ret8080Hook;
 class VectorRamDiskSelector;
-class VectorCpuWaits;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -240,7 +238,6 @@ class VectorCore
         SRam* m_ramDiskMem2 = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
         VectorRamDiskSelector* m_ramDiskSelector2 = nullptr;
-        VectorCpuWaits* m_cpuWaits = nullptr;
         CpuHook* m_tapeHooks[10] = {};
 
         bool m_intReq = false;
@@ -406,21 +403,6 @@ class VectorColorRegister : public AddressableDevice
         VectorRenderer* m_renderer = nullptr;
 };
 
-
-class VectorCpuWaits : public CpuWaits
-{
-public:
-    int getCpuWaitStates(int, int normalClocks) override;
-
-};
-
-
-class VectorZ80CpuWaits : public CpuWaits
-{
-public:
-    int getCpuWaitStates(int opcode, int normalClocks) override;
-
-};
 
 
 class VectorKbdLayout : public RkKbdLayout
