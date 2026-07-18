@@ -33,13 +33,10 @@ class CrtRenderer : public EmuObject
 
 
         virtual void renderFrame() = 0;
-        virtual EmuPixelData getPixelData();
         virtual void prepareDebugScreen();
 
         virtual void toggleColorMode() {}
         virtual void toggleCropping() {}
-
-        void updateScreenOnce();
 
         uint8_t* m_pixelData = nullptr;
         int m_sizeX = 0;
@@ -50,9 +47,6 @@ class CrtRenderer : public EmuObject
 
         bool reqForSwapBuffers = false;
         void enableSwapBuffersOnce() {reqForSwapBuffers = true;}
-
-    private:
-        unsigned m_frameNo = 0;
 };
 
 

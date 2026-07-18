@@ -50,18 +50,8 @@ class EmuWindow : public EmuObject, public PalWindow
         void sysReq(SysReq sr);
 
         void show();
-        void hide();
-
-        void drawFrame(EmuPixelData frame);
-        void drawOverlay(EmuPixelData frame);
-        void endDraw();
 
         bool isVisible() {return m_params.visible;}
-
-
-    private:
-
-        bool m_frameDrawn = false;
 
 };
 

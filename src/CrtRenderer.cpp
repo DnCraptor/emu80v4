@@ -28,25 +28,6 @@ CrtRenderer::~CrtRenderer()
 }
 
 
-EmuPixelData CrtRenderer::getPixelData()
-{
-    EmuPixelData pd;
-
-    // Проверка "синего экрана"
-    if (!isRasterPresent()) {
-        pd.pixelData = nullptr;
-        return pd;
-    }
-
-
-    pd.width = m_sizeX;
-    pd.height = m_sizeY;
-    pd.pixelData = m_pixelData;
-    pd.frameNo = m_frameNo;
-    return pd;
-}
-
-
 void CrtRenderer::swapBuffers()
 {
     // don't update if in debug or paused mode
@@ -73,16 +54,6 @@ void CrtRenderer::swapBuffers()
     m_pixelData = buf;
     m_bufSize = bs;
 */
-    ++m_frameNo;
-}
-
-
-void CrtRenderer::updateScreenOnce()
-{
-    if (!g_emulation->getPausedState() && !g_emulation->isDebuggerActive())
-        return;
-
-       ++m_frameNo;
 }
 
 

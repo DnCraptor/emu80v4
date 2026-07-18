@@ -49,13 +49,6 @@ void EmuWindow::show()
 }
 
 
-void EmuWindow::hide()
-{
-    m_params.visible = false;
-    applyParams();
-}
-
-
 void EmuWindow::calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY)
 {
     (void)srcAspectRatio;
@@ -64,29 +57,6 @@ void EmuWindow::calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio,
     dstHeight = srcHeight * 2;
     dstX = (wndWidth - dstWidth) / 2;
     dstY = (wndHeight - dstHeight) / 2;
-}
-
-
-void EmuWindow::drawFrame(EmuPixelData frame)
-{
-    (void)frame;
-}
-
-
-void EmuWindow::drawOverlay(EmuPixelData frame)
-{
-    (void)frame;
-}
-
-
-void EmuWindow::endDraw()
-{
-    if (!m_frameDrawn)
-        return;
-
-    m_frameDrawn = false;
-
-    drawEnd();
 }
 
 

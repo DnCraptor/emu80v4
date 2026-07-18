@@ -33,35 +33,8 @@ void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicod
 }
 
 
-void emuResetKeys(PalWindow* wnd)
-{
-    g_emulation->resetKeys(static_cast<EmuWindow*>(wnd));
-}
-
-
-// System request
-void emuSysReq(PalWindow* wnd, SysReq sr)
-{
-    g_emulation->sysReq(static_cast<EmuWindow*>(wnd), sr);
-}
-
-
-
 // Main emulation procedure
 void emuEmulationCycle()
 {
     g_emulation->mainLoopCycle();
-}
-
-
-// Returns current emulation speed factor
-double emuGetEmulationSpeedFactor()
-{
-    if (g_emulation->getPausedState())
-        return 0.;
-
-    if (g_emulation->getFullThrottleState())
-        return -1;
-
-    return g_emulation->getSpeedUpFactor();
 }

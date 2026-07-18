@@ -27,9 +27,6 @@
 #include "EmuTypes.h"
 
 void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicodeKey = 0);
-void emuResetKeys(PalWindow* wnd);
-void emuSysReq(PalWindow* wnd, SysReq sr);
 void emuEmulationCycle();
-double emuGetEmulationSpeedFactor();
 
 #endif // EMUCALLS_H

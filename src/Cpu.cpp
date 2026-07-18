@@ -88,20 +88,6 @@ void Cpu8080Compatible::addHook(CpuHook* hook)
 }
 
 
-void Cpu8080Compatible::removeHook(CpuHook* hook)
-{
-    int index = 0;
-    while (index < m_hookCount && m_hooks[index] != hook)
-        index++;
-    if (index == m_hookCount)
-        return;
-    hook->setCpu(nullptr);
-    for (int i = index + 1; i < m_hookCount; i++)
-        m_hooks[i - 1] = m_hooks[i];
-    m_hooks[--m_hookCount] = nullptr;
-}
-
-
 bool Cpu8080Compatible::processHooks(uint16_t addr)
 {
     bool handled = false;

@@ -75,7 +75,6 @@ class Cpu8080Compatible : public Cpu
         ~Cpu8080Compatible() override;
 
         void addHook(CpuHook* hook);
-        void removeHook(CpuHook* hook);
 
         virtual void intRst(int vect) = 0;
         virtual void intCall(uint16_t addr) = 0;
