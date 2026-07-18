@@ -16,9 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <locale>
-#include <codecvt>
-
 #include "Globals.h"
 #include "Emulation.h"
 #include "CrtRenderer.h"
@@ -27,20 +24,7 @@ using namespace std;
 
 CrtRenderer::~CrtRenderer()
 {
-    if (m_pixelData)
-        delete[] m_pixelData;
-    if (m_pixelData2)
-        delete[] m_pixelData2;
-    if (m_pixelData3)
-        delete[] m_pixelData3;
-}
-
-
-void CrtRenderer::attachSecondaryRenderer(CrtRenderer* renderer)
-{
-    m_secondaryRenderer = renderer;
-    if (renderer)
-        renderer->markSecondary(this);
+    delete[] m_pixelData;
 }
 
 
@@ -108,61 +92,4 @@ void CrtRenderer::prepareDebugScreen()
         enableSwapBuffersOnce();
         renderFrame();
     }
-}
-
-
-const char* CrtRenderer::generateTextScreen(wchar_t* wTextArray, int w, int h)
-{
-    // calculate row lengths for every row without trailing spaces
-    int* rowLengths = new int[h];
-    for (int y = 0; y < h; y++) {
-        int x;
-        for (x = w - 1; x >= 0; x--)
-            if (wTextArray[y * w + x] != u' ')
-                break;
-        rowLengths[y] = x + 1;
-    }
-
-    // Calculate first and last non-empty rows
-    int y;
-    for (y = 0; y < h; y++)
-        if (rowLengths[y] > 0)
-            break;
-    int firstRow = y;
-    for (y = h - 1; y >= 0; y--)
-        if (rowLengths[y] > 0)
-            break;
-    int lastRow = y;
-    if(firstRow > lastRow)
-        firstRow = lastRow = 0;
-
-
-    // Calculate left offset
-    int firstPos = w;
-    for (int y = firstRow; y <= lastRow; y++)
-        for (int x = 0; x < rowLengths[y]; x++)
-            if (wTextArray[y * w + x] != u' ') {
-                if (firstPos > x)
-                    firstPos = x;
-                break;
-            }
-    if (firstPos >= w)
-        firstPos = 0;
-
-    wstring wTextScreen;
-    for (int y = firstRow; y <= lastRow; y++) {
-        for (int x = firstPos; x < rowLengths[y]; x++) {
-            wchar_t wchr = wTextArray[y * w + x];
-            wTextScreen.append(1, wchr);
-        }
-        wTextScreen.append(L"\n");
-    }
-
-    delete[] wTextArray;
-    delete[] rowLengths;
-
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> conversion;
-    m_textScreen = conversion.to_bytes(wTextScreen);
-
-    return m_textScreen.c_str();
 }

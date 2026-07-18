@@ -196,9 +196,8 @@ VectorRenderer::VectorRenderer()
     const int pixelFreq = 12; // MHz
     const int maxBufSize = 626 * 288; // 626 = 704 / 13.5 * pixelFreq
 
-    m_sizeX = m_prevSizeX = 512;
-    m_sizeY = m_prevSizeY = 256;
-    m_bufSize = m_sizeX * m_sizeY;
+    m_sizeX = 512;
+    m_sizeY = 256;
     m_pixelData = new uint8_t[maxBufSize];
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;

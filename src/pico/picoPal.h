@@ -18,7 +18,6 @@ class PalWindow;
 void palRequestForQuit();
 void palExecute();
 int palReadFromFile(const std::string& fileName, int first, int size, uint8_t* buffer, bool useBasePath = true);
-uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath = true);
 string palMakeFullFileName(string fileName);
 #define palGetCounter time_us_64
 #define palGetCounterFreq() 1000000

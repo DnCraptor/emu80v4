@@ -7,28 +7,6 @@
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 
-uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
-{
-    string fullFileName;
-    if (useBasePath)
-        fullFileName = palMakeFullFileName(fileName);
-    else
-        fullFileName = fileName;
-#if LOG
-    emuLog << "fullFileName: '" << fullFileName << "'\n";
-#endif
-    FIL file;
-    if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
-        fileSize = f_size(&file);
-        uint8_t* buf = new uint8_t[fileSize];
-        UINT br;
-        f_read(&file, buf, fileSize, &br);
-        f_close(&file);
-        return buf;
-    }
-    return nullptr;
-}
-
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
 #if LOG

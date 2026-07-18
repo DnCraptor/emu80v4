@@ -47,25 +47,10 @@ class CrtRenderer : public EmuObject
 
         void updateScreenOnce();
 
-        void attachSecondaryRenderer(CrtRenderer* renderer);
-        void markSecondary(CrtRenderer* v) { m_primaryRenderer = v; }
-
         uint8_t* m_pixelData = nullptr;
-        uint8_t* m_pixelData2 = nullptr;
-        uint8_t* m_pixelData3 = nullptr; /// TODO: optimize (move to only ...)
         int m_sizeX = 0;
         int m_sizeY = 0;
-        int m_nativeSizeX = 6;
-        int m_dataSize = 0;
     protected:
-        CrtRenderer* m_secondaryRenderer = nullptr;
-        CrtRenderer* m_primaryRenderer = nullptr;
-
-        int m_bufSize = 0;
-
-        int m_prevSizeX = 0;
-        int m_prevSizeY = 0;
-
         virtual bool isRasterPresent() {return true;}
         void swapBuffers();
 
@@ -73,11 +58,8 @@ class CrtRenderer : public EmuObject
         bool reqForSwapBuffers = false;
         void enableSwapBuffersOnce() {reqForSwapBuffers = true;}
 
-        const char* generateTextScreen(wchar_t* wTextArray, int w, int h);
-
     private:
         unsigned m_frameNo = 0;
-        std::string m_textScreen;
 };
 
 
