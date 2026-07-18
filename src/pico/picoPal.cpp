@@ -371,7 +371,5 @@ void palMsgBox(const string& msg, bool)
 #endif
 }
 
-void palUpdateConfig() {
-}
 
 void palRequestForQuit() {  while(true); } /// TODO:

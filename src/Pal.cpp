@@ -41,27 +41,3 @@ bool palInit(int& argc, char** argv)
 
     return true;
 }
-
-
-void palQuit()
-{
-#ifdef PAL_WX
-    palWxQuit();
-#endif
-
-#ifdef PAL_SDL
-    palSdlQuit();
-#endif
-
-#ifdef PAL_QT
-    palQtQuit();
-#endif
-}
-
-
-void palIdle()
-{
-#ifdef PAL_WX
-    palWxProcessMessages();
-#endif // PAL_WX
-}

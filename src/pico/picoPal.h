@@ -28,11 +28,8 @@ void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
 std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, PalWindow* window = nullptr);
-void palUpdateConfig();
 #endif //!PAL_WASM
 
-
-void palWxProcessMessages();
 
 void palLog(const std::string& s);
 
