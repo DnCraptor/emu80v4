@@ -19,25 +19,17 @@
 #ifndef EMUWINDOW_H
 #define EMUWINDOW_H
 
-#include <string>
-
-#include "Pal.h"
 #include "PalWindow.h"
 
 #include "EmuTypes.h"
 #include "EmuObjects.h"
 
 
-class Emulation;
-
-class PalWindow;
-
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
         ~EmuWindow() override = default;
 
-        virtual void processKey(PalKeyCode, bool) {}
         virtual void closeRequest() {}
 
         void sysReq(SysReq sr);

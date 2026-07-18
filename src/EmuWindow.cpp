@@ -16,16 +16,10 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-
 #include "Globals.h"
 #include "EmuWindow.h"
 #include "Emulation.h"
-#include "Vector.h"
-
-using namespace std;
-
-
+#include "pico/picoPal.h"
 void EmuWindow::sysReq(SysReq sr)
 {
     switch (sr) {

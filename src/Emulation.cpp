@@ -227,7 +227,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             else
                 setSpeedByGrade(m_speedGrade = -48);
             break;
-            break;
         case SR_SPEEDSTEPUPFINE:
             if (m_speedGrade < 48)
                 setSpeedByGrade(++m_speedGrade);
