@@ -756,19 +756,22 @@ int VectorZ80CpuWaits::getCpuWaitStates(int opcode, int normalClocks)
 
 bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
+    Cpu8080Compatible* cpu = m_machine->getCpu();
+    auto* addrSpace = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
+
     if (keyCode == PK_F11) {
         //m_machine->getKeyboard()->disableKeysReset();
         //m_machine->reset();
         //m_machine->getKeyboard()->enableKeysReset();
-        static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->enableRom();
-        m_machine->getCpu()->setPC(0);
+        addrSpace->enableRom();
+        cpu->setPC(0);
         return true;
     } else if (keyCode == PK_F12) {
         m_machine->getKeyboard()->disableKeysReset();
         m_machine->reset();
         m_machine->getKeyboard()->enableKeysReset();
-        static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->disableRom();
-        //m_machine->getCpu()->setPC(0);
+        addrSpace->disableRom();
+        //cpu->setPC(0);
         return true;
     }
     return false;
