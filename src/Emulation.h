@@ -75,7 +75,6 @@ class Emulation
         int getSampleRate() {return m_sampleRate;}
         void setVsync(bool vsync);                      // установка vsync
         void setTemporarySpeedUpFactor(unsigned speed);
-        void setTemporarySpeedUpFactorDbl(double speed);
         void updateFrequency();
 
         double getSpeedUpFactor() {return m_currentSpeedUpFactor;}
@@ -97,7 +96,6 @@ class Emulation
         bool m_isPaused = false;
         double m_speedUpFactor = 1.0;
         double m_currentSpeedUpFactor = 1.0;
-        int m_speedGrade = 0;
 
         uint64_t m_frequency;
         uint64_t m_curFrequency;
@@ -111,7 +109,6 @@ class Emulation
         PrnWriter* m_prnWriter = nullptr;
         VectorCore* m_vector = nullptr;
 
-        void setSpeedByGrade(int speedGrade);
 };
 
 

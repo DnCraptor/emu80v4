@@ -252,29 +252,3 @@ void Emulation::setTemporarySpeedUpFactor(unsigned speed)
 
     updateFrequency();
 }
-
-
-void Emulation::setTemporarySpeedUpFactorDbl(double speed)
-{
-    m_currentSpeedUpFactor = speed;
-    updateFrequency();
-}
-
-
-void Emulation::setSpeedByGrade(int speedGrade)
-{
-    const double powers[12] = {1.0, 1.0595, 1.1225, 1.1892, 1.2599, 1.3348, 1.4242, 1.4983, 1.5874, 1.6818, 1.7818, 1.8877};
-
-        if (speedGrade == 0) {
-        m_speedUpFactor = m_currentSpeedUpFactor = 1.0;
-        updateFrequency();
-        return;
-    }
-
-    bool slowDown = speedGrade < 0;
-    speedGrade = abs(speedGrade);
-    double k = (1 << (speedGrade / 12)) * powers[speedGrade % 12];
-
-    m_speedUpFactor = m_currentSpeedUpFactor = slowDown ? (1 / k) : k;
-    updateFrequency();
-}
