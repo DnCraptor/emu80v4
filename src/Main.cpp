@@ -373,7 +373,7 @@ inline static void addKey(PalKeyCode vk, bool pressed) {
     keyActionCount++;
 }
 
-static PalKeyCodeAction popKeyAction() {
+static PalKeyCodeAction __not_in_flash_func(popKeyAction)() {
     if (keyActionCount == 0)
         return PalKeyCodeAction();
     PalKeyCodeAction action = keyActions[keyActionHead];
@@ -386,7 +386,7 @@ PalKeyCodeAction getKey() {
     return popKeyAction();
 }
 
-void processKeys() {
+void __not_in_flash_func(processKeys)() {
     if (keyActionCount == 0 || !g_emulation)
         return;
     PalKeyCodeAction action = popKeyAction();

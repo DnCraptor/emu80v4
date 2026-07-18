@@ -29,7 +29,7 @@ CloseFileHook::CloseFileHook(uint16_t addr, TapeRedirector* first, TapeRedirecto
 {}
 
 
-bool CloseFileHook::hookProc()
+bool __not_in_flash_func(CloseFileHook::hookProc)()
 {
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
         return false;

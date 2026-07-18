@@ -28,7 +28,7 @@
 using namespace std;
 
 // Вызывается 48000 (SAMPLE_RATE) раз в секунду для получения текущего сэмпла и его проигрывания
-void SoundMixer::operate()
+void __not_in_flash_func(SoundMixer::operate)()
 {
     int leftSample = 0;
     int rightSample = 0;
@@ -148,7 +148,7 @@ void SoundSource::updateAmpFactor()
 }
 
 
-void SoundSource::getSample(int& left, int& right)
+void __not_in_flash_func(SoundSource::getSample)(int& left, int& right)
 {
     int val = calcValue();
     left = right = val;
@@ -177,7 +177,7 @@ void GeneralSoundSource::updateStats()
 }
 
 // Получение текущего значения
-int GeneralSoundSource::calcValue()
+int __not_in_flash_func(GeneralSoundSource::calcValue)()
 {
     updateStats();
 

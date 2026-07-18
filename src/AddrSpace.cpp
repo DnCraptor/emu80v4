@@ -16,6 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "Globals.h"
 #include "AddrSpace.h"
 
 using namespace std;
@@ -63,7 +64,7 @@ void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* ad
 }
 
 
-uint8_t AddrSpace::readByte(int addr)
+uint8_t __not_in_flash_func(AddrSpace::readByte)(int addr)
 {
     int i = 0;
     while (i < m_itemCountR && m_readRanges[i].firstAddress <= addr)
@@ -77,7 +78,7 @@ uint8_t AddrSpace::readByte(int addr)
 }
 
 
-void AddrSpace::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(AddrSpace::writeByte)(int addr, uint8_t value)
 {
     int i = 0;
     while (i < m_itemCountW && m_writeRanges[i].firstAddress <= addr)
@@ -97,13 +98,13 @@ AddrSpaceInverter::AddrSpaceInverter(AddressableDevice* as)
 }
 
 
-uint8_t AddrSpaceInverter::readByte(int addr)
+uint8_t __not_in_flash_func(AddrSpaceInverter::readByte)(int addr)
 {
     return m_as->readByte(~addr);
 }
 
 
-void AddrSpaceInverter::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(AddrSpaceInverter::writeByte)(int addr, uint8_t value)
 {
     m_as->writeByte(~addr, value);
 }

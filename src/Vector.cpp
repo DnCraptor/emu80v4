@@ -23,6 +23,7 @@
 #include "EmuCalls.h"
 #include "Vector.h"
 #include "Cpu.h"
+#include "CpuZ80.h"
 #include "Cpu8080.h"
 #include "AddrSpace.h"
 #include "Emulation.h"
@@ -67,7 +68,7 @@ void VectorAddrSpace::reset() {
 }
 
 
-void VectorAddrSpace::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(VectorAddrSpace::writeByte)(int addr, uint8_t value)
 {
     if (m_eram) {
         // ERAM
@@ -100,7 +101,7 @@ void VectorAddrSpace::writeByte(int addr, uint8_t value)
 }
 
 
-uint8_t VectorAddrSpace::readByte(int addr)
+uint8_t __not_in_flash_func(VectorAddrSpace::readByte)(int addr)
 {
     if (m_eram) {
         // ERAM
@@ -219,7 +220,7 @@ VectorRenderer::~VectorRenderer()
 }
 
 
-void VectorRenderer::operate()
+void __not_in_flash_func(VectorRenderer::operate)()
 {
     advanceTo(m_curClock);
     m_curFrameClock = m_curClock;
@@ -232,7 +233,7 @@ void VectorRenderer::operate()
 }
 
 
-void VectorRenderer::advanceTo(uint64_t clock)
+void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
 {
     const int bias = 189;
 
@@ -301,13 +302,13 @@ void VectorRenderer::setPaletteColor(uint8_t color)
 }
 
 
-void VectorRenderer::vidMemWriteNotify()
+void __not_in_flash_func(VectorRenderer::vidMemWriteNotify)()
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 40);
 }
 
 
-void VectorRenderer::renderLine(int nLine, int firstPx, int lastPx)
+void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int lastPx)
 {
     // Render scan line #nLine
     // Vertical: 0-22 - invisible, 23-39 - border, 40-295 - visible, 296-311 - border) from firstPx to lastPx
@@ -649,7 +650,7 @@ void VectorKeyboard::resetKeys()
 }
 
 
-void VectorKeyboard::processKey(EmuKey key, bool isPressed)
+void __not_in_flash_func(VectorKeyboard::processKey)(EmuKey key, bool isPressed)
 {
     if (key == EK_NONE)
         return;
@@ -800,7 +801,7 @@ void VectorPpi8255Circuit2::setPortC(uint8_t value)
 
 
 
-void VectorHddRegisters::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
 {
     if (!m_ataDrive)
         return;
@@ -819,7 +820,7 @@ void VectorHddRegisters::writeByte(int addr, uint8_t value)
 }
 
 
-uint8_t VectorHddRegisters::readByte(int addr)
+uint8_t __not_in_flash_func(VectorHddRegisters::readByte)(int addr)
 {
     if (!m_ataDrive)
         return 0xFF;
@@ -844,7 +845,11 @@ VectorCore::VectorCore()
     m_rom = new Rom(0x8000, "vector/loader.rom");
     m_rom->setMachine(this);
 
-    m_cpu = new Cpu8080();
+    if (m_z80_installed) {
+        m_cpu = new CpuZ80();
+    } else {
+        m_cpu = new Cpu8080();
+    }
     m_cpu->setMachine(this);
     m_cpu->setFrequency(3000000);
     m_cpu->setStartAddr(0x0000);
@@ -1454,7 +1459,7 @@ Cpu8080Compatible* VectorCore::getCpu()
     return m_cpu;
 }
 
-Keyboard* VectorCore::getKeyboard()
+Keyboard* __not_in_flash_func(VectorCore::getKeyboard)()
 {
     return m_keyboard;
 }

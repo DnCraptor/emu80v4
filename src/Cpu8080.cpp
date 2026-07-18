@@ -276,7 +276,7 @@ void Cpu8080::i8080_retrieve_flags(void) {
 
 
 //private
-int Cpu8080::i8080_execute(int opcode) {
+int __not_in_flash_func(Cpu8080::i8080_execute)(int opcode) {
     int cpu_cycles;
 
     uint8_t work8;
@@ -1719,19 +1719,19 @@ int Cpu8080::i8080_execute(int opcode) {
 Cpu8080::Cpu8080() {
 }
 
-void Cpu8080::operate() {
-    if (!m_hooksDisabled) {
-        if (processHooks(PC))
-            return;
+void __not_in_flash_func(Cpu8080::operate)() {
+    if (!m_hooksDisabled && processHooks(PC)) {
+        return;
     }
 
     if (m_waits) {
+        // TODO: fix-it: double reading the same opcode
         int opcode = m_addrSpace->readByte(PC);
         int clocks = i8080_execute(RD_BYTE(PC++));
         m_curClock += m_kDiv * (clocks + m_waits->getCpuWaitStates(opcode, clocks));
-    } else
+    } else {
         m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
-
+    }
 }
 
 

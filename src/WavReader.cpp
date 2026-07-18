@@ -337,7 +337,7 @@ WavSoundSource::WavSoundSource(WavReader* wavReader) : SoundSource()
 }
 
 
-int WavSoundSource::calcValue()
+int __not_in_flash_func(WavSoundSource::calcValue)()
 {
     return m_wavReader->getCurValue() ? MAX_SND_AMP / 2 * m_ampFactor : 0;
 }

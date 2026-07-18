@@ -889,7 +889,7 @@ KbdLayoutHelper::KbdLayoutHelper()
 }
 
 
-void KbdLayoutHelper::enqueueKeyPress(EmuKey key)
+void __not_in_flash_func(KbdLayoutHelper::enqueueKeyPress)(EmuKey key)
 {
     m_key = key;
     resume();
@@ -898,7 +898,7 @@ void KbdLayoutHelper::enqueueKeyPress(EmuKey key)
 }
 
 
-void KbdLayoutHelper::operate()
+void __not_in_flash_func(KbdLayoutHelper::operate)()
 {
     Keyboard* kbd = m_machine->getKeyboard();
     kbd->processKey(m_key, true);

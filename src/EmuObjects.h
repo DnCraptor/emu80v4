@@ -67,10 +67,10 @@ class IActive
     public:
         IActive();
         virtual ~IActive();
-        uint64_t getClock() {return m_curClock;}
-        void pause() {m_isPaused = true; m_curClock = -1;}
-        void resume() {m_isPaused = false;}
-        void syncronize(uint64_t curClock) {m_curClock = curClock;}
+        inline uint64_t getClock() {return m_curClock;}
+        inline void pause() {m_isPaused = true; m_curClock = -1;}
+        inline void resume() {m_isPaused = false;}
+        inline void syncronize(uint64_t curClock) {m_curClock = curClock;}
         void syncronize();
         inline bool isPaused() {return m_isPaused;}
         virtual void operate() = 0;

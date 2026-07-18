@@ -191,7 +191,8 @@ class VectorCore
     private:
         Ram* m_ram = nullptr;
         Rom* m_rom = nullptr;
-        Cpu8080* m_cpu = nullptr;
+        bool m_z80_installed = false;
+        Cpu8080Compatible* m_cpu = nullptr;
         VectorAddrSpace* m_addrSpace = nullptr;
         AddrSpace* m_ioAddrSpace = nullptr;
         VectorRenderer* m_renderer = nullptr;

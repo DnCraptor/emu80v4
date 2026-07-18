@@ -49,7 +49,7 @@ Emulation::Emulation()
     m_prnWriter = new PrnWriter();
 
     setFrequency(1680000000);
-    setSampleRate(96000);
+    setSampleRate(48000);
     m_mixer->setVolume(6);
     setVsync(true);
 
@@ -98,7 +98,7 @@ void Emulation::unregisterActiveDevice(IActive* device)
 /// TODO: .h
 extern void processKeys();
 
-void Emulation::exec(uint64_t ticks, bool forced)
+void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 {
     processKeys();
     if (m_isPaused)

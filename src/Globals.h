@@ -19,6 +19,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include <pico.h>
 #include "Version.h"
 
 #ifdef PAL_QT

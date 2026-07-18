@@ -88,7 +88,7 @@ void Cpu8080Compatible::addHook(CpuHook* hook)
 }
 
 
-bool Cpu8080Compatible::processHooks(uint16_t addr)
+bool __not_in_flash_func(Cpu8080Compatible::processHooks)(uint16_t addr)
 {
     bool handled = false;
     for (int i = 0; i < m_hookCount; i++)

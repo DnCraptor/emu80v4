@@ -36,7 +36,7 @@ void RkTapeOutHook::reset()
 }
 
 
-bool RkTapeOutHook::hookProc()
+bool __not_in_flash_func(RkTapeOutHook::hookProc)()
 {
     if (g_emulation->getCurClock() < m_suspendEndTime)
         return false;
@@ -84,7 +84,7 @@ void RkTapeInHook::reset()
 }
 
 
-bool RkTapeInHook::hookProc()
+bool __not_in_flash_func(RkTapeInHook::hookProc)()
 {
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
         return false;

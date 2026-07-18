@@ -776,7 +776,7 @@ unsigned CpuZ80::dfd_prefix(uint16_t& IXY)
     return cycles;
 }
 
-unsigned CpuZ80::simz80()
+unsigned __not_in_flash_func(CpuZ80::simz80)()
 {
     unsigned temp, acu, sum, cbits;
     unsigned op;
@@ -2536,14 +2536,7 @@ CpuZ80::CpuZ80()
 }
 
 
-/*void CpuZ80::exec(int nCmds)
-{
-    for (int i = 0; i < nCmds; i++)
-        simz80();
-}*/
-
-
-void CpuZ80::operate()
+void __not_in_flash_func(CpuZ80::operate)()
 {
     if (!m_hooksDisabled) {
         if (processHooks(PC))

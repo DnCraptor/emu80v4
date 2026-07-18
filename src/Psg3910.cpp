@@ -236,7 +236,7 @@ void Psg3910::getOutputs(uint16_t* outputs)
 }
 
 
-int Psg3910SoundSource::calcValue()
+int __not_in_flash_func(Psg3910SoundSource::calcValue)()
 {
     // not used since getSample is implemented
     return 0; //m_psg ? m_psg->getOutput() * m_ampFactor : 0;

@@ -68,7 +68,7 @@ bool CpuHook::checkSignature()
 
 
 
-bool Ret8080Hook::hookProc()
+bool __not_in_flash_func(Ret8080Hook::hookProc)()
 {
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
         return false;

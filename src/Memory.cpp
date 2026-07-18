@@ -44,7 +44,7 @@ SRam::~SRam() {
     f_close(&f);
 }
 
-void SRam::writeByte(int addr, uint8_t value) {
+void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
     size_t off = m_offset + addr;
     if (butter_psram_size() > off) {
         PSRAM_DATA[off] = value;
@@ -60,7 +60,7 @@ void SRam::writeByte(int addr, uint8_t value) {
     f_write(&f, &value, 1, &br);
 }
 
-uint8_t SRam::readByte(int addr) {
+uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
     size_t off = m_offset + addr;
     if (butter_psram_size() > off) {
         return PSRAM_DATA[off];
@@ -99,7 +99,7 @@ Ram::~Ram()
 
 
 
-void Ram::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(Ram::writeByte)(int addr, uint8_t value)
 {
     if (m_buf && addr < m_size)
         m_buf[addr] = value;
@@ -107,7 +107,7 @@ void Ram::writeByte(int addr, uint8_t value)
 
 
 
-uint8_t Ram::readByte(int addr)
+uint8_t __not_in_flash_func(Ram::readByte)(int addr)
 {
     if (m_buf && addr < m_size)
         return m_buf[addr];

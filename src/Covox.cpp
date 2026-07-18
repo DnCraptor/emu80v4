@@ -40,7 +40,7 @@ void Covox::setValue(int value)
 
 
 // Обновляет внутренние счетчики, вызывается перед установкой нового значения либо перед получением текущего
-void Covox::updateStats()
+void __not_in_flash_func(Covox::updateStats)()
 {
     uint64_t curClock = g_emulation->getCurClock();
 
@@ -51,7 +51,7 @@ void Covox::updateStats()
 }
 
 // Получение текущего значения
-int Covox::calcValue()
+int __not_in_flash_func(Covox::calcValue)()
 {
     updateStats();
 

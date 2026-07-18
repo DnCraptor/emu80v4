@@ -31,7 +31,7 @@ void Pit8253SoundSource::attachPit(Pit8253* pit)
 }
 
 
-int Pit8253SoundSource::calcValue()
+int __not_in_flash_func(Pit8253SoundSource::calcValue)()
 {
     int res = 0;
 

@@ -41,7 +41,7 @@ Pit8253Counter::Pit8253Counter(Pit8253* pit)
 }
 
 
-void Pit8253Counter::planIrq()
+void __not_in_flash_func(Pit8253Counter::planIrq)()
 {
     if (!m_helper)
         return;
@@ -62,7 +62,7 @@ void Pit8253Counter::planIrq()
 }
 
 
-void Pit8253Counter::operateForTicks(int ticks)
+void __not_in_flash_func(Pit8253Counter::operateForTicks)(int ticks)
 {
     if (m_countDelay) {
         int ticksToSkip = min(ticks, m_countDelay);
@@ -182,7 +182,7 @@ void Pit8253Counter::operateForTicks(int ticks)
 
 }
 
-void Pit8253Counter::updateState()
+void __not_in_flash_func(Pit8253Counter::updateState)()
 {
     uint64_t curClock = g_emulation->getCurClock();
 
@@ -414,7 +414,7 @@ void Pit8253::mute()
 }
 
 
-void Pit8253::updateState()
+void __not_in_flash_func(Pit8253::updateState)()
 {
     for (int i = 0; i < 3; i++)
         m_counters[i]->updateState();
@@ -507,7 +507,7 @@ Pit8253Helper::Pit8253Helper()
 }
 
 
-void Pit8253Helper::updateAndScheduleNext(uint64_t time)
+void __not_in_flash_func(Pit8253Helper::updateAndScheduleNext)(uint64_t time)
 {
     if (time) {
         m_curClock = time;
@@ -517,7 +517,7 @@ void Pit8253Helper::updateAndScheduleNext(uint64_t time)
 }
 
 
-void Pit8253Helper::operate()
+void __not_in_flash_func(Pit8253Helper::operate)()
 {
     m_counter->updateState();
     m_counter->planIrq();
