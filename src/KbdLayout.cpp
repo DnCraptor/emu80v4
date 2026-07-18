@@ -32,8 +32,12 @@ void KbdLayout::resetKeys()
     m_shiftPressed = false;
     m_lastNonUnicodeKey = EK_NONE;
     m_lastPalKeyPressedCode = PK_NONE;
-    m_shiftSet.clear();
-    m_langSet.clear();
+    for (int i = 0; i < EMU_KEY_COUNT; i++) {
+        m_shiftKeys[i] = false;
+        m_langKeys[i] = false;
+    }
+    m_shiftKeyCount = 0;
+    m_langKeyCount = 0;
 }
 
 
@@ -75,12 +79,16 @@ void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
                 m_lastNonUnicodeKey = EK_NONE;
                 m_lastPalKeyPressedCode = PK_NONE;
 
-                int s1 = m_shiftSet.size();
-                if (shift && isPressed)
-                    m_shiftSet.insert(emuKey);
-                else if (shift && !isPressed)
-                    m_shiftSet.erase(emuKey);
-                int s2 = m_shiftSet.size();
+                int keyIndex = static_cast<int>(emuKey);
+                int s1 = m_shiftKeyCount;
+                if (shift && isPressed && !m_shiftKeys[keyIndex]) {
+                    m_shiftKeys[keyIndex] = true;
+                    m_shiftKeyCount++;
+                } else if (shift && !isPressed && m_shiftKeys[keyIndex]) {
+                    m_shiftKeys[keyIndex] = false;
+                    m_shiftKeyCount--;
+                }
+                int s2 = m_shiftKeyCount;
 
                 if (m_shiftPressed && !shift)
                     kbd->processKey(EK_SHIFT, !isPressed);
@@ -89,13 +97,16 @@ void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
                 else if (s1 > 0 && s2 == 0)
                     kbd->processKey(EK_SHIFT, false);
 
-                s1 = m_langSet.size();
-                if (lang && isPressed)
-                    m_langSet.insert(emuKey);
-                else if (lang && !isPressed)
-                    m_langSet.erase(emuKey);
-                lang = !m_langSet.empty();
-                s2 = m_langSet.size();
+                s1 = m_langKeyCount;
+                if (lang && isPressed && !m_langKeys[keyIndex]) {
+                    m_langKeys[keyIndex] = true;
+                    m_langKeyCount++;
+                } else if (lang && !isPressed && m_langKeys[keyIndex]) {
+                    m_langKeys[keyIndex] = false;
+                    m_langKeyCount--;
+                }
+                lang = m_langKeyCount != 0;
+                s2 = m_langKeyCount;
 
                 if (m_separateRusLat) {
                     // Lvov etc.

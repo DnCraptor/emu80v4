@@ -19,8 +19,6 @@
 #ifndef ADDRSPACE_H
 #define ADDRSPACE_H
 
-#include <vector>
-
 #include "EmuObjects.h"
 
 class AddrSpace : public AddressableDevice
@@ -38,29 +36,21 @@ class AddrSpace : public AddressableDevice
 
 
 private:
-        uint8_t m_nullByte;          // байт, считываемый из нераспределенного пространства
+        static constexpr int MAX_RANGES = 32;
 
-        int m_itemCountR;            // количество элементов чтения
-        std::vector<AddressableDevice*> m_devicesRVector; // вектор устройств для чтения
-        std::vector<int> m_firstAddressesRVector;         // вектор начальных адресов устройств для чтения
-        std::vector<int> m_itemSizesRVector;              // вектор размеров устройств для чтения в байтах
-        std::vector<int> m_devFirstAddressesRVector;      // венктор смещений в области памяти устройств для чтения
-        // указатели на области данных вышеуказанных векторов
-        AddressableDevice** m_devicesR = nullptr;         // массив устройств для чтения
-        int* m_firstAddressesR = nullptr;                 // массив начальных адресов устройств для чтения
-        int* m_itemSizesR = nullptr;                      // массив размеров устройств для чтения в байтах
-        int* m_devFirstAddressesR = nullptr;              // массив смещений в области памяти устройства для чтения
+        struct Range {
+            AddressableDevice* device = nullptr;
+            int firstAddress = 0;
+            int itemSize = 0;
+            int devFirstAddress = 0;
+        };
 
-        int m_itemCountW;
-        std::vector<AddressableDevice*> m_devicesWVector; // вектор устройств для записи
-        std::vector<int> m_firstAddressesWVector;         // вектор начальных адресов устройств для записи
-        std::vector<int> m_itemSizesWVector;              // вектор размеров устройств для записи в байтах
-        std::vector<int> m_devFirstAddressesWVector;      // вектор смещений в области памяти устройств для записи
-        // указатели на области данных вышеуказанных векторов
-        AddressableDevice** m_devicesW = nullptr;         // массив устройств для чтения
-        int* m_firstAddressesW = nullptr;                 // массив начальных адресов устройств для чтения
-        int* m_itemSizesW = nullptr;                      // массив размеров устройств для чтения в байтах
-        int* m_devFirstAddressesW = nullptr;              // массив смещений в области памяти устройства для чтения
+        uint8_t m_nullByte;
+        Range m_readRanges[MAX_RANGES] = {};
+        Range m_writeRanges[MAX_RANGES] = {};
+        int m_itemCountR = 0;
+        int m_itemCountW = 0;
+
 };
 
 

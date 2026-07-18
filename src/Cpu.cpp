@@ -16,7 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
 #include <cstring>
 
 #include "Globals.h"
@@ -75,39 +74,41 @@ Cpu8080Compatible::Cpu8080Compatible()
 
 Cpu8080Compatible::~Cpu8080Compatible()
 {
-    for (CpuHook* hook : m_hookVector)
-        hook->setCpu(nullptr);
-
-    for (auto& entry : m_hooksMap)
-        delete entry.second;
+    for (int i = 0; i < m_hookCount; i++)
+        m_hooks[i]->setCpu(nullptr);
 }
 
 
 void Cpu8080Compatible::addHook(CpuHook* hook)
 {
-    m_hookVector.push_back(hook);
+    if (m_hookCount >= MAX_HOOKS)
+        return;
+    m_hooks[m_hookCount++] = hook;
     hook->setCpu(this);
-    uint16_t addr = hook->getHookAddr();
-    if (!m_hooksMap[addr])
-        m_hooksMap[addr] = new list<CpuHook*>;
-    m_hooksMap[addr]->push_back(hook);
 }
 
 
 void Cpu8080Compatible::removeHook(CpuHook* hook)
 {
-    m_hookVector.erase(remove(m_hookVector.begin(), m_hookVector.end(), hook), m_hookVector.end());
+    int index = 0;
+    while (index < m_hookCount && m_hooks[index] != hook)
+        index++;
+    if (index == m_hookCount)
+        return;
     hook->setCpu(nullptr);
+    for (int i = index + 1; i < m_hookCount; i++)
+        m_hooks[i - 1] = m_hooks[i];
+    m_hooks[--m_hookCount] = nullptr;
+}
 
-    uint16_t addr = hook->getHookAddr();
-    list<CpuHook*>* hookList = m_hooksMap[addr];
-    if (hookList) {
-        hookList->remove(hook);
-        if (hookList->empty()) {
-            delete hookList;
-            m_hooksMap.erase(addr);
-        }
-    }
+
+bool Cpu8080Compatible::processHooks(uint16_t addr)
+{
+    bool handled = false;
+    for (int i = 0; i < m_hookCount; i++)
+        if (m_hooks[i]->getHookAddr() == addr)
+            handled = handled || m_hooks[i]->hookProc();
+    return handled;
 }
 
 

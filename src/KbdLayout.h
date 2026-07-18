@@ -19,8 +19,6 @@
 #ifndef KBDLAYOUT_H
 #define KBDLAYOUT_H
 
-#include <set>
-
 #include "PalKeys.h"
 #include "EmuObjects.h"
 
@@ -223,8 +221,11 @@ class KbdLayout : public EmuObject
         EmuKey m_lastNonUnicodeKey = EK_NONE;
         PalKeyCode m_lastPalKeyPressedCode = PK_NONE;
 
-        std::set<EmuKey> m_shiftSet;
-        std::set<EmuKey> m_langSet;
+        static constexpr int EMU_KEY_COUNT = EK_JS_BTN2 + 1;
+        bool m_shiftKeys[EMU_KEY_COUNT] = {};
+        bool m_langKeys[EMU_KEY_COUNT] = {};
+        int m_shiftKeyCount = 0;
+        int m_langKeyCount = 0;
 
         KbdLayoutHelper* m_helper = nullptr;
 

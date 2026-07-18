@@ -19,9 +19,6 @@
 #ifndef CPU_H
 #define CPU_H
 
-#include <map>
-#include <list>
-#include <vector>
 
 #include "EmuObjects.h"
 
@@ -120,9 +117,11 @@ class Cpu8080Compatible : public Cpu
     protected:
         int io_input(int port);
         void io_output(int port, int value);
+        bool processHooks(uint16_t addr);
 
-        std::vector<CpuHook*> m_hookVector;
-        std::map<uint16_t, std::list<CpuHook*>*> m_hooksMap;
+        static constexpr int MAX_HOOKS = 32;
+        CpuHook* m_hooks[MAX_HOOKS] = {};
+        int m_hookCount = 0;
 };
 
 #endif // CPU_H

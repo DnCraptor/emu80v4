@@ -23,7 +23,6 @@ using namespace std;
 AddrSpace::AddrSpace(uint8_t nullByte)
 {
     m_nullByte = nullByte;
-    m_itemCountR = m_itemCountW = 0;
 }
 
 
@@ -36,78 +35,58 @@ void AddrSpace::addRange(int firstAddr, int lastAddr, AddressableDevice* addrDev
 
 void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
 {
-    auto devIt = m_devicesRVector.begin();
-    auto firstIt = m_firstAddressesRVector.begin();
-    auto sizeIt = m_itemSizesRVector.begin();
-    auto devFirstIt = m_devFirstAddressesRVector.begin();
-    for (int i = 0; i < m_itemCountR && m_firstAddressesR[i] <= firstAddr; i++, devIt++, firstIt++, sizeIt++, devFirstIt++);
+    if (m_itemCountR >= MAX_RANGES)
+        return;
 
-    m_devicesRVector.insert(devIt, addrDevice);
-    m_firstAddressesRVector.insert(firstIt, firstAddr);
-    m_itemSizesRVector.insert(sizeIt, lastAddr - firstAddr + 1);
-    m_devFirstAddressesRVector.insert(devFirstIt, devFirstAddr);
-
+    int pos = 0;
+    while (pos < m_itemCountR && m_readRanges[pos].firstAddress <= firstAddr)
+        pos++;
+    for (int i = m_itemCountR; i > pos; i--)
+        m_readRanges[i] = m_readRanges[i - 1];
+    m_readRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr};
     m_itemCountR++;
-
-    m_devicesRVector.resize(m_itemCountR);
-    m_firstAddressesRVector.resize(m_itemCountR);
-    m_itemSizesRVector.resize(m_itemCountR);
-    m_devFirstAddressesRVector.resize(m_itemCountR);
-
-    m_devicesR = m_devicesRVector.data();
-    m_firstAddressesR = m_firstAddressesRVector.data();
-    m_itemSizesR = m_itemSizesRVector.data();
-    m_devFirstAddressesR = m_devFirstAddressesRVector.data();
 }
 
 
 void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
 {
-    auto devIt = m_devicesWVector.begin();
-    auto firstIt = m_firstAddressesWVector.begin();
-    auto sizeIt = m_itemSizesWVector.begin();
-    auto devFirstIt = m_devFirstAddressesWVector.begin();
-    for (int i = 0; i < m_itemCountW && m_firstAddressesW[i] <= firstAddr; i++, devIt++, firstIt++, sizeIt++, devFirstIt++);
+    if (m_itemCountW >= MAX_RANGES)
+        return;
 
-    m_devicesWVector.insert(devIt, addrDevice);
-    m_firstAddressesWVector.insert(firstIt, firstAddr);
-    m_itemSizesWVector.insert(sizeIt, lastAddr - firstAddr + 1);
-    m_devFirstAddressesWVector.insert(devFirstIt, devFirstAddr);
-
+    int pos = 0;
+    while (pos < m_itemCountW && m_writeRanges[pos].firstAddress <= firstAddr)
+        pos++;
+    for (int i = m_itemCountW; i > pos; i--)
+        m_writeRanges[i] = m_writeRanges[i - 1];
+    m_writeRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr};
     m_itemCountW++;
-
-    m_devicesWVector.resize(m_itemCountW);
-    m_firstAddressesWVector.resize(m_itemCountW);
-    m_itemSizesWVector.resize(m_itemCountW);
-    m_devFirstAddressesWVector.resize(m_itemCountW);
-
-    m_devicesW = m_devicesWVector.data();
-    m_firstAddressesW = m_firstAddressesWVector.data();
-    m_itemSizesW = m_itemSizesWVector.data();
-    m_devFirstAddressesW = m_devFirstAddressesWVector.data();
 }
 
 
 uint8_t AddrSpace::readByte(int addr)
 {
-    int i;
-    for (i = 0; i < m_itemCountR && m_firstAddressesR[i] <= addr; i++);
+    int i = 0;
+    while (i < m_itemCountR && m_readRanges[i].firstAddress <= addr)
+        i++;
     if (i == 0)
         return m_nullByte;
-    i--;
-    return addr - m_firstAddressesR[i] < m_itemSizesR[i] ? m_devicesR[i]->readByte(addr - m_firstAddressesR[i] + m_devFirstAddressesR[i]) : m_nullByte;
+    const Range& range = m_readRanges[i - 1];
+    return addr - range.firstAddress < range.itemSize
+        ? range.device->readByte(addr - range.firstAddress + range.devFirstAddress)
+        : m_nullByte;
 }
 
 
 void AddrSpace::writeByte(int addr, uint8_t value)
 {
-    int i;
-    for (i = 0; i < m_itemCountW && m_firstAddressesW[i] <= addr; i++);
+    int i = 0;
+    while (i < m_itemCountW && m_writeRanges[i].firstAddress <= addr)
+        i++;
     if (i == 0)
         return;
-    i--;
-    if (addr - m_firstAddressesW[i] < m_itemSizesW[i])
-        m_devicesW[i]->writeByte(addr - m_firstAddressesW[i] + m_devFirstAddressesW[i], value);
+    const Range& range = m_writeRanges[i - 1];
+    if (addr - range.firstAddress < range.itemSize)
+        range.device->writeByte(addr - range.firstAddress + range.devFirstAddress, value);
 }
 
 

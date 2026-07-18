@@ -853,326 +853,274 @@ uint8_t VectorHddRegisters::readByte(int addr)
 VectorCore::VectorCore()
 {
 
-    EmuWindow* window = new EmuWindow();
-    window->setMachine(this);
-    m_window = window;
-    window->setCaption("Вектор-06Ц");
+    m_window = new EmuWindow();
+    m_window->setMachine(this);
+    m_window->setCaption("Вектор-06Ц");
 
-    Ram* ram = new Ram(0x10000);
-    ram->setMachine(this);
-    m_ram = ram;
+    m_ram = new Ram(0x10000);
+    m_ram->setMachine(this);
 
-    Rom* rom = new Rom(0x8000, "vector/loader.rom");
-    rom->setMachine(this);
-    m_rom = rom;
+    m_rom = new Rom(0x8000, "vector/loader.rom");
+    m_rom->setMachine(this);
 
-    Cpu8080* cpu = new Cpu8080();
-    cpu->setMachine(this);
-    m_cpu = cpu;
-    cpu->setFrequency(3000000);
-    cpu->setStartAddr(0x0000);
+    m_cpu = new Cpu8080();
+    m_cpu->setMachine(this);
+    m_cpu->setFrequency(3000000);
+    m_cpu->setStartAddr(0x0000);
 
-    VectorAddrSpace* addrSpace = new VectorAddrSpace();
-    addrSpace->setMachine(this);
-    m_addrSpace = addrSpace;
-    addrSpace->attachRam(ram);
-    addrSpace->attachRom(rom);
-    addrSpace->attachCpu(cpu);
+    m_addrSpace = new VectorAddrSpace();
+    m_addrSpace->setMachine(this);
+    m_addrSpace->attachRam(m_ram);
+    m_addrSpace->attachRom(m_rom);
+    m_addrSpace->attachCpu(m_cpu);
 
-    AddrSpace* ioAddrSpace = new AddrSpace();
-    ioAddrSpace->setMachine(this);
-    m_ioAddrSpace = ioAddrSpace;
+    m_ioAddrSpace = new AddrSpace();
+    m_ioAddrSpace->setMachine(this);
 
-    cpu->attachAddrSpace(addrSpace);
-    cpu->attachIoAddrSpace(ioAddrSpace);
+    m_cpu->attachAddrSpace(m_addrSpace);
+    m_cpu->attachIoAddrSpace(m_ioAddrSpace);
 
-    VectorRenderer* crtRenderer = new VectorRenderer();
-    crtRenderer->setMachine(this);
-    m_renderer = crtRenderer;
-    crtRenderer->attachMemory(ram);
-    crtRenderer->setVisibleArea(true);
+    m_renderer = new VectorRenderer();
+    m_renderer->setMachine(this);
+    m_renderer->attachMemory(m_ram);
+    m_renderer->setVisibleArea(true);
 
-    addrSpace->attachCrtRenderer(crtRenderer);
+    m_addrSpace->attachCrtRenderer(m_renderer);
 
-    cpu->attachCore(this);
+    m_cpu->attachCore(this);
 
-    VectorKeyboard* keyboard = new VectorKeyboard();
-    keyboard->setMachine(this);
-    m_keyboard = keyboard;
+    m_keyboard = new VectorKeyboard();
+    m_keyboard->setMachine(this);
 
-    VectorKbdLayout* kbdLayout = new VectorKbdLayout();
-    kbdLayout->setMachine(this);
-    m_kbdLayout = kbdLayout;
-    kbdLayout->setQwertyMode();
+    m_kbdLayout = new VectorKbdLayout();
+    m_kbdLayout->setMachine(this);
+    m_kbdLayout->setQwertyMode();
 
-    KbdTapper* kbdTapper = new KbdTapper();
-    kbdTapper->setMachine(this);
-    m_kbdTapper = kbdTapper;
-    kbdTapper->setPressTime(20);
-    kbdTapper->setReleaseTime(20);
-    kbdTapper->setCrDelay(100);
+    m_kbdTapper = new KbdTapper();
+    m_kbdTapper->setMachine(this);
+    m_kbdTapper->setPressTime(20);
+    m_kbdTapper->setReleaseTime(20);
+    m_kbdTapper->setCrDelay(100);
 
-    VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit();
-    ppiCircuit->setMachine(this);
-    m_ppiCircuit = ppiCircuit;
-    ppiCircuit->attachRenderer(crtRenderer);
-    ppiCircuit->attachKeyboard(keyboard);
+    m_ppiCircuit = new VectorPpi8255Circuit();
+    m_ppiCircuit->setMachine(this);
+    m_ppiCircuit->attachRenderer(m_renderer);
+    m_ppiCircuit->attachKeyboard(m_keyboard);
 
-    GeneralSoundSource* tapeSoundSource = new GeneralSoundSource();
-    tapeSoundSource->setMachine(this);
-    m_tapeSoundSource = tapeSoundSource;
-    ppiCircuit->attachTapeSoundSource(tapeSoundSource);
+    m_tapeSoundSource = new GeneralSoundSource();
+    m_tapeSoundSource->setMachine(this);
+    m_ppiCircuit->attachTapeSoundSource(m_tapeSoundSource);
 
-    Ppi8255* ppi = new Ppi8255();
-    ppi->setMachine(this);
-    m_ppi = ppi;
-    ppi->setNoReset(true);
-    ppi->attachPpi8255Circuit(ppiCircuit);
+    m_ppi = new Ppi8255();
+    m_ppi->setMachine(this);
+    m_ppi->setNoReset(true);
+    m_ppi->attachPpi8255Circuit(m_ppiCircuit);
 
-    AddrSpaceInverter* invertedPpi = new AddrSpaceInverter(ppi);
-    invertedPpi->setMachine(this);
-    m_invertedPpi = invertedPpi;
-    ioAddrSpace->addRange(0x00, 0x03, invertedPpi);
+    m_invertedPpi = new AddrSpaceInverter(m_ppi);
+    m_invertedPpi->setMachine(this);
+    m_ioAddrSpace->addRange(0x00, 0x03, m_invertedPpi);
 
-    VectorColorRegister* colorReg = new VectorColorRegister();
-    colorReg->setMachine(this);
-    m_colorReg = colorReg;
-    colorReg->attachRenderer(crtRenderer);
-    ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
+    m_colorReg = new VectorColorRegister();
+    m_colorReg->setMachine(this);
+    m_colorReg->attachRenderer(m_renderer);
+    m_ioAddrSpace->addRange(0x0C, 0x0F, m_colorReg);
 
-    Covox* covox = new Covox(7);
-    covox->setMachine(this);
-    m_covox = covox;
-    covox->setNegative(true);
+    m_covox = new Covox(7);
+    m_covox->setMachine(this);
+    m_covox->setNegative(true);
 
-    VectorPpi8255Circuit2* covoxCircuit = new VectorPpi8255Circuit2();
-    covoxCircuit->setMachine(this);
-    m_covoxCircuit = covoxCircuit;
-    covoxCircuit->attachCovox(covox);
+    m_covoxCircuit = new VectorPpi8255Circuit2();
+    m_covoxCircuit->setMachine(this);
+    m_covoxCircuit->attachCovox(m_covox);
 
-    Ppi8255* ppi2 = new Ppi8255();
-    ppi2->setMachine(this);
-    m_ppi2 = ppi2;
-    ppi2->attachPpi8255Circuit(covoxCircuit);
+    m_ppi2 = new Ppi8255();
+    m_ppi2->setMachine(this);
+    m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
-    AddrSpaceInverter* invertedPpi2 = new AddrSpaceInverter(ppi2);
-    invertedPpi2->setMachine(this);
-    m_invertedPpi2 = invertedPpi2;
-    ioAddrSpace->addRange(0x04, 0x07, invertedPpi2);
+    m_invertedPpi2 = new AddrSpaceInverter(m_ppi2);
+    m_invertedPpi2->setMachine(this);
+    m_ioAddrSpace->addRange(0x04, 0x07, m_invertedPpi2);
 
-    Pit8253* pit = new Pit8253();
-    pit->setMachine(this);
-    m_pit = pit;
-    pit->setFrequency(1500000);
+    m_pit = new Pit8253();
+    m_pit->setMachine(this);
+    m_pit->setFrequency(1500000);
 
-    Pit8253SoundSource* sndSource = new Pit8253SoundSource();
-    sndSource->setMachine(this);
-    m_sndSource = sndSource;
-    sndSource->attachPit(pit);
-    sndSource->setNegative(true);
+    m_sndSource = new Pit8253SoundSource();
+    m_sndSource->setMachine(this);
+    m_sndSource->attachPit(m_pit);
+    m_sndSource->setNegative(true);
 
-    AddrSpaceInverter* invertedPit = new AddrSpaceInverter(pit);
-    invertedPit->setMachine(this);
-    m_invertedPit = invertedPit;
-    ioAddrSpace->addRange(0x08, 0x0B, invertedPit);
+    m_invertedPit = new AddrSpaceInverter(m_pit);
+    m_invertedPit->setMachine(this);
+    m_ioAddrSpace->addRange(0x08, 0x0B, m_invertedPit);
 
-    Psg3910* ay = new Psg3910();
-    ay->setMachine(this);
-    m_ay = ay;
-    ay->setFrequency(1750000);
-    ioAddrSpace->addRange(0x14, 0x15, ay);
+    m_ay = new Psg3910();
+    m_ay->setMachine(this);
+    m_ay->setFrequency(1750000);
+    m_ioAddrSpace->addRange(0x14, 0x15, m_ay);
 
-    Psg3910SoundSource* psgSoundSource = new Psg3910SoundSource();
-    psgSoundSource->setMachine(this);
-    m_psgSoundSource = psgSoundSource;
-    psgSoundSource->attachPsg(ay);
+    m_psgSoundSource = new Psg3910SoundSource();
+    m_psgSoundSource->setMachine(this);
+    m_psgSoundSource->attachPsg(m_ay);
 
-    Fdc1793* fdc = new Fdc1793();
-    fdc->setMachine(this);
-    m_fdc = fdc;
+    m_fdc = new Fdc1793();
+    m_fdc->setMachine(this);
 
-    AddrSpaceInverter* invertedFdc = new AddrSpaceInverter(fdc);
-    invertedFdc->setMachine(this);
-    m_invertedFdc = invertedFdc;
-    ioAddrSpace->addRange(0x18, 0x1B, invertedFdc);
+    m_invertedFdc = new AddrSpaceInverter(m_fdc);
+    m_invertedFdc->setMachine(this);
+    m_ioAddrSpace->addRange(0x18, 0x1B, m_invertedFdc);
 
-    VectorFddControlRegister* fddReg = new VectorFddControlRegister();
-    fddReg->setMachine(this);
-    m_fddReg = fddReg;
-    fddReg->attachFdc1793(fdc);
-    ioAddrSpace->addRange(0x1C, 0x1C, fddReg);
+    m_fddReg = new VectorFddControlRegister();
+    m_fddReg->setMachine(this);
+    m_fddReg->attachFdc1793(m_fdc);
+    m_ioAddrSpace->addRange(0x1C, 0x1C, m_fddReg);
 
-    AtaDrive* ataDrive = new AtaDrive();
-    ataDrive->setMachine(this);
-    m_ataDrive = ataDrive;
-    ataDrive->setVectorGeometry();
+    m_ataDrive = new AtaDrive();
+    m_ataDrive->setMachine(this);
+    m_ataDrive->setVectorGeometry();
 
-    VectorHddRegisters* hddRegisters = new VectorHddRegisters();
-    hddRegisters->setMachine(this);
-    m_hddRegisters = hddRegisters;
-    hddRegisters->attachAtaDrive(ataDrive);
-    ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
+    m_hddRegisters = new VectorHddRegisters();
+    m_hddRegisters->setMachine(this);
+    m_hddRegisters->attachAtaDrive(m_ataDrive);
+    m_ioAddrSpace->addRange(0x50, 0x5F, m_hddRegisters);
 
-    FdImage* diskA = new FdImage(80, 2, 5, 1024);
-    diskA->setMachine(this);
-    m_diskA = diskA;
-    diskA->setLabel("A");
-    diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    fdc->attachFdImage(0, diskA);
+    m_diskA = new FdImage(80, 2, 5, 1024);
+    m_diskA->setMachine(this);
+    m_diskA->setLabel("A");
+    m_diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_fdc->attachFdImage(0, m_diskA);
 
-    FdImage* diskB = new FdImage(80, 2, 5, 1024);
-    diskB->setMachine(this);
-    m_diskB = diskB;
-    diskB->setLabel("B");
-    diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    fdc->attachFdImage(1, diskB);
+    m_diskB = new FdImage(80, 2, 5, 1024);
+    m_diskB->setMachine(this);
+    m_diskB->setLabel("B");
+    m_diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_fdc->attachFdImage(1, m_diskB);
 
-    DiskImage* hdd = new DiskImage();
-    hdd->setMachine(this);
-    m_hdd = hdd;
-    hdd->setLabel("HDD");
-    hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
-    ataDrive->assignDiskImage(hdd);
+    m_hdd = new DiskImage();
+    m_hdd->setMachine(this);
+    m_hdd->setLabel("HDD");
+    m_hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
+    m_ataDrive->assignDiskImage(m_hdd);
 
-    VectorFileLoader* loader = new VectorFileLoader();
-    loader->setMachine(this);
-    m_loader = loader;
-    loader->attachAddrSpace(ram);
-    loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_loader = new VectorFileLoader();
+    m_loader->setMachine(this);
+    m_loader->attachAddrSpace(m_ram);
+    m_loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
 
-    TapeRedirector* tapeInFile = new TapeRedirector();
-    tapeInFile->setMachine(this);
-    m_tapeInFile = tapeInFile;
-    tapeInFile->setMode("r");
-    tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+    m_tapeInFile = new TapeRedirector();
+    m_tapeInFile->setMachine(this);
+    m_tapeInFile->setMode("r");
+    m_tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
 
-    TapeRedirector* tapeOutFile = new TapeRedirector();
-    tapeOutFile->setMachine(this);
-    m_tapeOutFile = tapeOutFile;
-    tapeOutFile->setMode("w");
-    tapeOutFile->setFilter(".rk|.cas");
+    m_tapeOutFile = new TapeRedirector();
+    m_tapeOutFile->setMachine(this);
+    m_tapeOutFile->setMode("w");
+    m_tapeOutFile->setFilter(".rk|.cas");
 
-    RkTapeInHook* tapeInHookBas = new RkTapeInHook(0x2B05);
-    tapeInHookBas->setMachine(this);
-    m_tapeInHookBas = tapeInHookBas;
-    tapeInHookBas->setSignature("C5D50E0057DB");
-    tapeInHookBas->setTapeRedirector(tapeInFile);
-    cpu->addHook(tapeInHookBas);
+    m_tapeInHookBas = new RkTapeInHook(0x2B05);
+    m_tapeInHookBas->setMachine(this);
+    m_tapeInHookBas->setSignature("C5D50E0057DB");
+    m_tapeInHookBas->setTapeRedirector(m_tapeInFile);
+    m_cpu->addHook(m_tapeInHookBas);
 
-    RkTapeOutHook* tapeOutHookBas = new RkTapeOutHook(0x2B60);
-    tapeOutHookBas->setMachine(this);
-    m_tapeOutHookBas = tapeOutHookBas;
-    tapeOutHookBas->setOutputRegisterA(true);
-    tapeOutHookBas->setSignature("C5D5F5570E08");
-    tapeOutHookBas->setTapeRedirector(tapeOutFile);
-    cpu->addHook(tapeOutHookBas);
+    m_tapeOutHookBas = new RkTapeOutHook(0x2B60);
+    m_tapeOutHookBas->setMachine(this);
+    m_tapeOutHookBas->setOutputRegisterA(true);
+    m_tapeOutHookBas->setSignature("C5D5F5570E08");
+    m_tapeOutHookBas->setTapeRedirector(m_tapeOutFile);
+    m_cpu->addHook(m_tapeOutHookBas);
 
-    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E, tapeInFile, tapeOutFile);
-    closeFileHookBas->setMachine(this);
-    m_closeFileHookBas = closeFileHookBas;
-    closeFileHookBas->setSignature("C506003A203C");
-    cpu->addHook(closeFileHookBas);
+    m_closeFileHookBas = new CloseFileHook(0x2B8E, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookBas->setMachine(this);
+    m_closeFileHookBas->setSignature("C506003A203C");
+    m_cpu->addHook(m_closeFileHookBas);
 
-    RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
-    tapeInHookMon->setMachine(this);
-    m_tapeInHookMon = tapeInHookMon;
-    tapeInHookMon->setSignature("C5D50E0057DB");
-    tapeInHookMon->setTapeRedirector(tapeInFile);
-    cpu->addHook(tapeInHookMon);
+    m_tapeInHookMon = new RkTapeInHook(0xF840);
+    m_tapeInHookMon->setMachine(this);
+    m_tapeInHookMon->setSignature("C5D50E0057DB");
+    m_tapeInHookMon->setTapeRedirector(m_tapeInFile);
+    m_cpu->addHook(m_tapeInHookMon);
 
-    RkTapeOutHook* tapeOutHookMon = new RkTapeOutHook(0xF89B);
-    tapeOutHookMon->setMachine(this);
-    m_tapeOutHookMon = tapeOutHookMon;
-    tapeOutHookMon->setOutputRegisterA(true);
-    tapeOutHookMon->setSignature("C5D5F5573E02");
-    tapeOutHookMon->setTapeRedirector(tapeOutFile);
-    cpu->addHook(tapeOutHookMon);
+    m_tapeOutHookMon = new RkTapeOutHook(0xF89B);
+    m_tapeOutHookMon->setMachine(this);
+    m_tapeOutHookMon->setOutputRegisterA(true);
+    m_tapeOutHookMon->setSignature("C5D5F5573E02");
+    m_tapeOutHookMon->setTapeRedirector(m_tapeOutFile);
+    m_cpu->addHook(m_tapeOutHookMon);
 
-    Ret8080Hook* skipHookMon = new Ret8080Hook(0xEDDC);
-    skipHookMon->setMachine(this);
-    m_skipHookMon = skipHookMon;
-    skipHookMon->setSignature("CD1097FB76F3");
-    cpu->addHook(skipHookMon);
+    m_skipHookMon = new Ret8080Hook(0xEDDC);
+    m_skipHookMon->setMachine(this);
+    m_skipHookMon->setSignature("CD1097FB76F3");
+    m_cpu->addHook(m_skipHookMon);
 
-    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF, tapeInFile, tapeOutFile);
-    closeFileHookMon->setMachine(this);
-    m_closeFileHookMon = closeFileHookMon;
-    closeFileHookMon->setSignature("3AFDFFE604CD");
-    cpu->addHook(closeFileHookMon);
+    m_closeFileHookMon = new CloseFileHook(0xFEFF, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookMon->setMachine(this);
+    m_closeFileHookMon->setSignature("3AFDFFE604CD");
+    m_cpu->addHook(m_closeFileHookMon);
 
-    RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
-    tapeInHookEmuRk->setMachine(this);
-    m_tapeInHookEmuRk = tapeInHookEmuRk;
-    tapeInHookEmuRk->setSignature("F3C5D50E0057");
-    tapeInHookEmuRk->setTapeRedirector(tapeInFile);
-    cpu->addHook(tapeInHookEmuRk);
+    m_tapeInHookEmuRk = new RkTapeInHook(0xFC31);
+    m_tapeInHookEmuRk->setMachine(this);
+    m_tapeInHookEmuRk->setSignature("F3C5D50E0057");
+    m_tapeInHookEmuRk->setTapeRedirector(m_tapeInFile);
+    m_cpu->addHook(m_tapeInHookEmuRk);
 
-    RkTapeOutHook* tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
-    tapeOutHookEmuRk->setMachine(this);
-    m_tapeOutHookEmuRk = tapeOutHookEmuRk;
-    tapeOutHookEmuRk->setOutputRegisterA(true);
-    tapeOutHookEmuRk->setSignature("F3C5D5F51608");
-    tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
-    cpu->addHook(tapeOutHookEmuRk);
+    m_tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
+    m_tapeOutHookEmuRk->setMachine(this);
+    m_tapeOutHookEmuRk->setOutputRegisterA(true);
+    m_tapeOutHookEmuRk->setSignature("F3C5D5F51608");
+    m_tapeOutHookEmuRk->setTapeRedirector(m_tapeOutFile);
+    m_cpu->addHook(m_tapeOutHookEmuRk);
 
-    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18, tapeInFile, tapeOutFile);
-    closeFileHookEmuRk->setMachine(this);
-    m_closeFileHookEmuRk = closeFileHookEmuRk;
-    closeFileHookEmuRk->setSignature("FB3A61F6E604");
-    cpu->addHook(closeFileHookEmuRk);
+    m_closeFileHookEmuRk = new CloseFileHook(0xFF18, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookEmuRk->setMachine(this);
+    m_closeFileHookEmuRk->setSignature("FB3A61F6E604");
+    m_cpu->addHook(m_closeFileHookEmuRk);
 
-    SRam* ramDiskMem = new SRam(0x40000);
-    ramDiskMem->setMachine(this);
-    m_ramDiskMem = ramDiskMem;
-    addrSpace->attachRamDisk(0, ramDiskMem);
+    m_ramDiskMem = new SRam(0x40000);
+    m_ramDiskMem->setMachine(this);
+    m_addrSpace->attachRamDisk(0, m_ramDiskMem);
 
-    RamDisk* ramDisk = new RamDisk(1, 0x40000);
-    ramDisk->setMachine(this);
-    m_ramDisk = ramDisk;
-    ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    ramDisk->attachPage(0, ramDiskMem);
+    m_ramDisk = new RamDisk(1, 0x40000);
+    m_ramDisk->setMachine(this);
+    m_ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
+    m_ramDisk->attachPage(0, m_ramDiskMem);
 
-    VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector();
-    ramDiskSelector->setMachine(this);
-    m_ramDiskSelector = ramDiskSelector;
-    ramDiskSelector->attachVectorAddrSpace(addrSpace);
-    ramDiskSelector->setDiskNum(0);
-    ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
+    m_ramDiskSelector = new VectorRamDiskSelector();
+    m_ramDiskSelector->setMachine(this);
+    m_ramDiskSelector->attachVectorAddrSpace(m_addrSpace);
+    m_ramDiskSelector->setDiskNum(0);
+    m_ioAddrSpace->addRange(0x10, 0x10, m_ramDiskSelector);
 
-    SRam* ramDiskMem2 = new SRam(0x40000);
-    ramDiskMem2->setMachine(this);
-    m_ramDiskMem2 = ramDiskMem2;
-    addrSpace->attachRamDisk(1, ramDiskMem2);
+    m_ramDiskMem2 = new SRam(0x40000);
+    m_ramDiskMem2->setMachine(this);
+    m_addrSpace->attachRamDisk(1, m_ramDiskMem2);
 
-    RamDisk* ramDisk2 = new RamDisk(1, 0x40000);
-    ramDisk2->setMachine(this);
-    m_ramDisk2 = ramDisk2;
-    ramDisk2->setLabel("EDD2");
-    ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    ramDisk2->attachPage(0, ramDiskMem2);
+    m_ramDisk2 = new RamDisk(1, 0x40000);
+    m_ramDisk2->setMachine(this);
+    m_ramDisk2->setLabel("EDD2");
+    m_ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
+    m_ramDisk2->attachPage(0, m_ramDiskMem2);
 
-    VectorRamDiskSelector* ramDiskSelector2 = new VectorRamDiskSelector();
-    ramDiskSelector2->setMachine(this);
-    m_ramDiskSelector2 = ramDiskSelector2;
-    ramDiskSelector2->attachVectorAddrSpace(addrSpace);
-    ramDiskSelector2->setDiskNum(1);
-    ioAddrSpace->addRange(0x11, 0x11, ramDiskSelector2);
+    m_ramDiskSelector2 = new VectorRamDiskSelector();
+    m_ramDiskSelector2->setMachine(this);
+    m_ramDiskSelector2->attachVectorAddrSpace(m_addrSpace);
+    m_ramDiskSelector2->setDiskNum(1);
+    m_ioAddrSpace->addRange(0x11, 0x11, m_ramDiskSelector2);
 
-    VectorCpuWaits* cpuWaits = new VectorCpuWaits();
-    cpuWaits->setMachine(this);
-    m_cpuWaits = cpuWaits;
-    cpu->attachCpuWaits(cpuWaits);
+    m_cpuWaits = new VectorCpuWaits();
+    m_cpuWaits->setMachine(this);
+    m_cpu->attachCpuWaits(m_cpuWaits);
 
-    m_tapeHooks[0] = tapeOutHookBas;
-    m_tapeHooks[1] = tapeInHookBas;
-    m_tapeHooks[2] = closeFileHookBas;
-    m_tapeHooks[3] = tapeOutHookMon;
-    m_tapeHooks[4] = tapeInHookMon;
-    m_tapeHooks[5] = closeFileHookMon;
-    m_tapeHooks[6] = tapeOutHookEmuRk;
-    m_tapeHooks[7] = tapeInHookEmuRk;
-    m_tapeHooks[8] = closeFileHookEmuRk;
-    m_tapeHooks[9] = skipHookMon;
+    m_tapeHooks[0] = m_tapeOutHookBas;
+    m_tapeHooks[1] = m_tapeInHookBas;
+    m_tapeHooks[2] = m_closeFileHookBas;
+    m_tapeHooks[3] = m_tapeOutHookMon;
+    m_tapeHooks[4] = m_tapeInHookMon;
+    m_tapeHooks[5] = m_closeFileHookMon;
+    m_tapeHooks[6] = m_tapeOutHookEmuRk;
+    m_tapeHooks[7] = m_tapeInHookEmuRk;
+    m_tapeHooks[8] = m_closeFileHookEmuRk;
+    m_tapeHooks[9] = m_skipHookMon;
 
     init();
 
