@@ -21,15 +21,14 @@
 
 #include "Globals.h"
 #include "Emulation.h"
-#include "EmuWindow.h"
 
 using namespace std;
 
 
 // Keyboard event
-void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicodeKey)
+void emuKeyboard(PalKeyCode key, bool isPressed, unsigned unicodeKey)
 {
-    g_emulation->processKey(static_cast<EmuWindow*>(wnd), key, isPressed, unicodeKey);
+    g_emulation->processKey(key, isPressed, unicodeKey);
 }
 
 

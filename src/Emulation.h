@@ -58,9 +58,9 @@ class Emulation
         inline void debugRequest(Cpu* cpu) {m_debugReqCpu = cpu;}
         inline bool isDebuggerActive() {return m_debugReqCpu;}
 
-        void processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
+        void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
-        void resetKeys(EmuWindow* wnd);
+        void resetKeys();
         void sysReq(EmuWindow* wnd, SysReq sr);
 
         void mainLoopCycle();

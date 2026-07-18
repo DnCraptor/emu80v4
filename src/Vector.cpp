@@ -1433,7 +1433,7 @@ void VectorCore::sysReq(SysReq sr)
         default:
             break;
     }
-    g_emulation->resetKeys(nullptr);
+    g_emulation->resetKeys();
 }
 
 

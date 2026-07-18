@@ -143,13 +143,10 @@ void Emulation::exec(uint64_t ticks, bool forced)
 }
 
 
-void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
+void Emulation::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    // Эмуляционная клавиша относится к единственной машине.
-    if (m_vector && wnd == m_vector->getWindow())
+    if (m_vector)
         m_vector->processKey(keyCode, isPressed, unicodeKey);
-    else if (keyCode != PK_NONE)
-        wnd->processKey(keyCode, isPressed);
 }
 
 static bool isAltPressed = false;
@@ -173,12 +170,12 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
     }
 }
 
-void Emulation::resetKeys(EmuWindow* wnd)
+void Emulation::resetKeys()
 {
     isAltPressed = false;
     isShiftPressed = false;
     isCtrlPressed = false;
-    if (m_vector && wnd == m_vector->getWindow())
+    if (m_vector)
         m_vector->resetKeys();
 }
 
