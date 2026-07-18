@@ -47,7 +47,7 @@ void TapeRedirector::reset()
 }
 
 
-void TapeRedirector::assignFile(string fileName, string rwMode)
+void TapeRedirector::assignFile(const string& fileName, const string& rwMode)
 {
     m_permanentFileName = fileName;
     m_rwMode = rwMode;

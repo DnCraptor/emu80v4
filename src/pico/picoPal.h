@@ -27,21 +27,21 @@ bool palSetSampleRate(int sampleRate);
 void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
-std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window = nullptr);
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, PalWindow* window = nullptr);
 void palUpdateConfig();
 #endif //!PAL_WASM
 
 
 void palWxProcessMessages();
 
-void palLog(std::string s);
+void palLog(const std::string& s);
 
-void palMsgBox(std::string msg, bool critical = false);
+void palMsgBox(const std::string& msg, bool critical = false);
 
 class EmuLog
 {
     public:
-        EmuLog& operator<<(std::string s);
+        EmuLog& operator<<(const std::string& s);
         EmuLog& operator<<(const char* sz);
         EmuLog& operator<<(int n);
 };

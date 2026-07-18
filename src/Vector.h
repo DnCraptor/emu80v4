@@ -182,7 +182,7 @@ class VectorCore
         void sysReq(SysReq sr);
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
-        bool loadFile(std::string fileName, bool run = true);
+        bool loadFile(const std::string& fileName, bool run = true);
 
         EmuWindow* getWindow() {return m_window;}
         Cpu8080Compatible* getCpu();

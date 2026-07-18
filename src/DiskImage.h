@@ -40,14 +40,14 @@ public:
     virtual ~DiskImage();
 
 
-    bool assignFileName(std::string fileName);
+    bool assignFileName(const std::string& fileName);
     void chooseFile();
     void close();
     int64_t getSize();
     void setWriteProtection(bool isWriteProtected);
-    inline void setLabel(std::string label) {m_label = label;}
-    inline void setFilter(std::string filter) {m_filter = filter;}
-    inline std::string getLabel() {return m_label;}
+    inline void setLabel(const std::string& label) {m_label = label;}
+    inline void setFilter(const std::string& filter) {m_filter = filter;}
+    inline const std::string& getLabel() const {return m_label;}
 
     bool getWriteProtectStatus();
     bool getImagePresent() {return m_file.isOpen();}

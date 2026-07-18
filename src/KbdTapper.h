@@ -35,7 +35,7 @@ class KbdTapper : public ActiveDevice
         void setReleaseTime(int releaseTime) {m_releaseTime = releaseTime;}
         void setCrDelay(int crDelay) {m_crDelay = crDelay;}
 
-        void typeText(std::string str);
+        void typeText(const std::string& str);
 
 
     private:

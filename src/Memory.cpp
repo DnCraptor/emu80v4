@@ -118,7 +118,7 @@ uint8_t Ram::readByte(int addr)
 // Rom implementation
 #include "pico/vector_loader.rom.h"
 
-Rom::Rom(unsigned memSize, string fileName)
+Rom::Rom(unsigned memSize, const string& fileName)
 {
     if (fileName == "vector/loader.rom") {
         m_buf = vector_loader_rom;

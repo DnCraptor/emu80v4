@@ -8,7 +8,7 @@
 class PalFile
 {
     public:
-        bool open(std::string fileName, std::string mode = "r") {
+        bool open(const std::string& fileName, const std::string& mode = "r") {
             close();
             BYTE modeb = FA_READ;
             if (mode == "r+") modeb = FA_READ | FA_WRITE;
@@ -83,10 +83,10 @@ class PalFile
             f_lseek(&m_file, f_tell(&m_file) + len);
         }
 
-        static bool create(std::string fileName);
-        static bool del(std::string fileName);
-        static bool mkDir(std::string dirName);
-        static bool moveRename(std::string src, std::string dst);
+        static bool create(const std::string& fileName);
+        static bool del(const std::string& fileName);
+        static bool mkDir(const std::string& dirName);
+        static bool moveRename(const std::string& src, const std::string& dst);
 
     private:
         FIL m_file{};

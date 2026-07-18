@@ -66,7 +66,7 @@ class Rom : public AddressableDevice
 {
     public:
        /// Rom();
-        Rom(unsigned memSize, std::string fileName);
+        Rom(unsigned memSize, const std::string& fileName);
         virtual ~Rom();
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int addr) override;

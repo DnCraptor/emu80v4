@@ -42,7 +42,7 @@ void KbdTapper::reset()
 }
 
 
-void KbdTapper::typeText(std::string str)
+void KbdTapper::typeText(const std::string& str)
 {
     if (m_typing) {
         stop();

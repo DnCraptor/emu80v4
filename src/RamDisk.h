@@ -45,7 +45,7 @@ class RamDisk : public EmuObject
         void openFile();
         void saveFileAs();
 
-        inline std::string getLabel() {return m_label;}
+        inline const std::string& getLabel() const {return m_label;}
 
 
     private:

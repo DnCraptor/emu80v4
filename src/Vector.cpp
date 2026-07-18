@@ -1465,7 +1465,7 @@ void VectorCore::resetKeys()
 }
 
 
-bool VectorCore::loadFile(string fileName, bool run)
+bool VectorCore::loadFile(const string& fileName, bool run)
 {
     if (m_loader) {
         m_loader->loadFile(fileName, run);

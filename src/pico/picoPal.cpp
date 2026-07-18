@@ -29,7 +29,7 @@ int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t*
     return 0;
 }
 
-void palLog(std::string s) {
+void palLog(const std::string& s) {
 #if LOG
     static FIL pl;
     gpio_put(PICO_DEFAULT_LED_PIN, true);
@@ -41,7 +41,7 @@ void palLog(std::string s) {
 #endif
 }
 
-EmuLog& EmuLog::operator<<(string s)
+EmuLog& EmuLog::operator<<(const string& s)
 {
 #if LOG
     palLog(s);
@@ -114,7 +114,7 @@ extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
 #include <algorithm>
 static std::string fdir = "/vector06c";
-std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, PalWindow* window) {
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();
     uint32_t w = sw - 10;
@@ -363,7 +363,7 @@ bool palSetVsync(bool)
     return true;
 }
 
-void palMsgBox(string msg, bool)
+void palMsgBox(const string& msg, bool)
 {
 #if LOG
     /// TODO:

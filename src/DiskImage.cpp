@@ -38,7 +38,7 @@ DiskImage::~DiskImage()
 }
 
 
-bool DiskImage::assignFileName(string fileName)
+bool DiskImage::assignFileName(const string& fileName)
 {
     if (m_file.isOpen() && fileName == m_fileName)
         return true;
