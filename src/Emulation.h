@@ -23,7 +23,6 @@
 
 #include <cstdint>
 #include <string>
-#include <vector>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"
@@ -102,8 +101,8 @@ class Emulation
         const DebuggerOptions& getDebuggerOptions() {return m_debuggerOptions;}
 
     private:
-        std::vector<IActive*> m_activeDevVector;
-        IActive** m_activeDevices = nullptr;
+        static constexpr int MAX_ACTIVE_DEVICES = 32;
+        IActive* m_activeDevices[MAX_ACTIVE_DEVICES] = {};
         int nDevices = 0;
         bool inCycle;
         uint64_t m_clockOffset = 0;

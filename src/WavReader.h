@@ -21,14 +21,13 @@
 
 #include "PalFile.h"
 
-#include "EmuObjects.h"
 #include "SoundMixer.h"
 
 
 class WavSoundSource;
 class TapeRedirector;
 
-class WavReader : public EmuObject
+class WavReader
 {
     public:
 

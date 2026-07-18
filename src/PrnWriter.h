@@ -21,13 +21,11 @@
 
 #include "PalFile.h"
 
-#include "EmuObjects.h"
 
-
-class PrnWriter : public EmuObject
+class PrnWriter
 {
     public:
-        ~PrnWriter() override;
+        ~PrnWriter();
 
 
         void setPermanentFileName(const std::string& fileName) {m_permanentFileName = fileName;}

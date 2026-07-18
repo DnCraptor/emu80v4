@@ -17,7 +17,6 @@
  */
 
 #include <sstream>
-#include <algorithm>
 
 #include <hardware/watchdog.h>
 #include <pico/stdlib.h>
@@ -81,18 +80,30 @@ Emulation::~Emulation()
 
 void Emulation::registerActiveDevice(IActive* device)
 {
-    m_activeDevVector.push_back(device);
-    nDevices++;
-    m_activeDevices = m_activeDevVector.data();
+    if (nDevices >= MAX_ACTIVE_DEVICES) {
+        palMsgBox("Error: Too many active devices.", true);
+        palRequestForQuit();
+        return;
+    }
+
+    m_activeDevices[nDevices++] = device;
     inCycle = false;
 }
 
 
 void Emulation::unregisterActiveDevice(IActive* device)
 {
-    m_activeDevVector.erase(remove(m_activeDevVector.begin(), m_activeDevVector.end(), device));
-    nDevices--;
-    m_activeDevices = m_activeDevVector.data();
+    int index = 0;
+    while (index < nDevices && m_activeDevices[index] != device)
+        index++;
+
+    if (index == nDevices)
+        return;
+
+    for (int i = index + 1; i < nDevices; i++)
+        m_activeDevices[i - 1] = m_activeDevices[i];
+
+    m_activeDevices[--nDevices] = nullptr;
     inCycle = false;
 }
 
