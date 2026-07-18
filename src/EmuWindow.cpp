@@ -140,10 +140,3 @@ void EmuWindow::sysReq(SysReq sr)
             break;
     }
 }
-
-
-void EmuWindow::mouseDrag(int x, int y)
-{
-    if (translateCoords(x, y))
-        m_machine->mouseDrag(x, y);
-}

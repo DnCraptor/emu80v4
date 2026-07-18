@@ -35,7 +35,6 @@ class PalWindow
         void focusChanged(bool isFocused);
 
         virtual void mouseClick(int x, int y, PalMouseKey key) {}
-        virtual void mouseDrag(int x, int y) = 0;
 
         EmuWindowType getWindowType() {return m_windowType;}
         virtual void calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY) = 0;

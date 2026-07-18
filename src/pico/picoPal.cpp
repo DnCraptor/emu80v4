@@ -82,15 +82,6 @@ string palMakeFullFileName(string fileName)
     return fullFileName;
 }
 
-static std::string clipboard;
-std::string palGetTextFromClipboard() {
-    return clipboard;
-}
-
-void palCopyTextToClipboard(const char* text) {
-    clipboard = text;
-}
-
 static constexpr int MAX_FILE_DIALOG_ITEMS = 256;
 
 static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems)

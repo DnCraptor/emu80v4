@@ -36,14 +36,8 @@ class CrtRenderer : public EmuObject
         virtual EmuPixelData getPixelData();
         virtual void prepareDebugScreen();
 
-        virtual void toggleRenderingMethod() {}
         virtual void toggleColorMode() {}
         virtual void toggleCropping() {}
-        virtual void setCropping(bool) {}
-
-        virtual const char* getTextScreen() {return nullptr;}
-
-        virtual void mouseDrag(int /*x*/, int /*y*/) {}
 
         void updateScreenOnce();
 

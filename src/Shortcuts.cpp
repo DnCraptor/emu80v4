@@ -44,10 +44,8 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_JCUKEN;
             case PK_K:
                 return SR_SMART;
-            case PK_F:
-                return SR_FONT;
             case PK_V:
-                return isShiftPressed ? SR_PASTE : SR_CROPTOVISIBLE;
+                return isShiftPressed ? SR_NONE : SR_CROPTOVISIBLE;
             case PK_C:
                 return SR_COLOR;
             case PK_A:
@@ -64,8 +62,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return isShiftPressed ? SR_PRNCAPTURE : SR_PAUSE;
             case PK_H:
                 return isShiftPressed ? SR_HDD : SR_SCREENSHOT;
-            case PK_INS:
-                return isShiftPressed ? SR_COPYTXT : SR_NONE;
             case PK_T:
                 return SR_TAPEHOOK;
             case PK_PGUP:

@@ -1384,11 +1384,6 @@ void VectorCore::sysReq(SysReq sr)
                 m_kbdLayout->setSmartMode();
             }
             break;
-        case SR_FONT:
-            if (m_renderer) {
-                m_renderer->toggleRenderingMethod();
-            }
-            break;
         case SR_CROPTOVISIBLE:
             if (m_renderer) {
                 m_renderer->toggleCropping();
@@ -1397,18 +1392,6 @@ void VectorCore::sysReq(SysReq sr)
         case SR_COLOR:
             if (m_renderer) {
                 m_renderer->toggleColorMode();
-            }
-            break;
-        case SR_COPYTXT:
-            if (m_renderer) {
-                const char* text = m_renderer->getTextScreen();
-                if (text)
-                    palCopyTextToClipboard(text);
-            }
-            break;
-        case SR_PASTE:
-            if (m_kbdTapper && m_kbdLayout->getMode() == KbdLayout::KLM_SMART) {
-                m_kbdTapper->typeText(palGetTextFromClipboard());
             }
             break;
         case SR_DISKA:
@@ -1481,13 +1464,6 @@ void VectorCore::resetKeys()
 {
     if (m_kbdLayout)
         m_kbdLayout->resetKeys();
-}
-
-
-void VectorCore::mouseDrag(int x, int y)
-{
-    if (m_renderer)
-        m_renderer->mouseDrag(x, y);
 }
 
 

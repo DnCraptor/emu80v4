@@ -24,8 +24,6 @@ string palMakeFullFileName(string fileName);
 void palDelay(uint64_t time);
 bool palSetVsync(bool vsync);
 bool palSetSampleRate(int sampleRate);
-void palCopyTextToClipboard(const char* text);
-std::string palGetTextFromClipboard();
 void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
