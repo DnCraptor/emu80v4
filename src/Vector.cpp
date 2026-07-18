@@ -465,13 +465,14 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             return false;
 
         Cpu8080Compatible* cpu = m_machine->getCpu();
-        static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->enableRom();
-        m_machine->getCpu()->setPC(0);
+        auto* addrSpace = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
+        addrSpace->enableRom();
+        cpu->setPC(0);
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
 
         if (run) {
             m_machine->reset();
-            static_cast<VectorAddrSpace*>(m_machine->getCpu()->getAddrSpace())->disableRom();
+            addrSpace->disableRom();
         }
         return true;
     }
