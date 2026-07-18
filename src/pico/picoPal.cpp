@@ -114,7 +114,7 @@ extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
 #include <algorithm>
 static std::string fdir = "/vector06c";
-std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, PalWindow* window) {
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write) {
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();
     uint32_t w = sw - 10;

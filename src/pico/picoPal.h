@@ -13,7 +13,6 @@
 
 using namespace std;
 
-class PalWindow;
 
 void palRequestForQuit();
 void palExecute();
@@ -27,7 +26,7 @@ bool palSetSampleRate(int sampleRate);
 void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
-std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, PalWindow* window = nullptr);
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write);
 #endif //!PAL_WASM
 
 

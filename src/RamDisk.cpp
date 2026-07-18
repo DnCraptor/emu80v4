@@ -20,7 +20,6 @@
 #include "Pal.h"
 #include "PalFile.h"
 #include "Memory.h"
-#include "EmuWindow.h"
 #include "Emulation.h"
 #include "Vector.h"
 #include "RamDisk.h"
@@ -49,7 +48,7 @@ void RamDisk::saveFileAs()
 void RamDisk::saveToFile()
 {
     if (m_fileName.empty()) {
-        m_fileName = palOpenFileDialog("Save RAM disk file", m_filter, true, m_machine->getWindow());
+        m_fileName = palOpenFileDialog("Save RAM disk file", m_filter, true);
         if (m_fileName == "")
             return;
     }
@@ -82,7 +81,7 @@ void RamDisk::openFile()
 void RamDisk::loadFromFile()
 {
     if (m_fileName.empty()) {
-        m_fileName = palOpenFileDialog("Load RAM disk file", m_filter, false, m_machine->getWindow());
+        m_fileName = palOpenFileDialog("Load RAM disk file", m_filter, false);
         if (m_fileName == "")
             return;
     }

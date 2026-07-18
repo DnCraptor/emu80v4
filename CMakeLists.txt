@@ -52,7 +52,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME emu80)
+SET(PROJECT_NAME v06c)
 set(FLASH_SIZE 4096)
 set(BUILD_NAME "${PROJECT_NAME}")
 
@@ -61,7 +61,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(emu80 C CXX ASM)
+project(v06c C CXX ASM)
 
 message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
 message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
@@ -170,6 +170,14 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 endif ()
 
+# performance:
+target_compile_options(${PROJECT_NAME} PRIVATE
+    -O3 -ffunction-sections -fdata-sections
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti -fno-threadsafe-statics>
+)
+target_link_options(${PROJECT_NAME} PRIVATE -Wl,--gc-sections)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)   # или -flto=auto вручную
+
 IF(KBDUSB)
     add_subdirectory(drivers/ps2kbd)
     target_link_libraries(${PROJECT_NAME} PRIVATE ps2kbd)
@@ -250,13 +258,13 @@ ELSE()
 ENDIF()
 
 if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for RP2350-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Vector-06C for RP2350-PiZero")
 elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for Olimex RP2040-PICO-PC")
+    pico_set_program_name(${PROJECT_NAME} "Vector-06C for Olimex RP2040-PICO-PC")
 elseif(${PICO_BOARD} MATCHES "murmulator2")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 2.0")
+    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 2.0")
 else()
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 1.x")
+    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 1.x")
 endif()
 pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 

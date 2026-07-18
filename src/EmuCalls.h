@@ -22,11 +22,10 @@
 #ifndef EMUCALLS_H
 #define EMUCALLS_H
 
-#include "PalWindow.h"
 #include "PalKeys.h"
 #include "EmuTypes.h"
 
-void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicodeKey = 0);
+void emuKeyboard(PalKeyCode key, bool isPressed, unsigned unicodeKey = 0);
 void emuEmulationCycle();
 
 #endif // EMUCALLS_H

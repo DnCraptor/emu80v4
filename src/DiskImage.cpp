@@ -21,7 +21,6 @@
 #include "DiskImage.h"
 #include "Emulation.h"
 #include "Vector.h"
-#include "EmuWindow.h"
 
 using namespace std;
 
@@ -64,7 +63,7 @@ bool DiskImage::assignFileName(const string& fileName)
 
 void DiskImage::chooseFile()
 {
-    string fileName = palOpenFileDialog("Open floppy disk image file", m_filter, false, m_machine->getWindow());
+    string fileName = palOpenFileDialog("Open floppy disk image file", m_filter, false);
     if (fileName != "")
         assignFileName(fileName);
 }

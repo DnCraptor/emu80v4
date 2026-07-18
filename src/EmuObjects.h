@@ -24,7 +24,6 @@
 
 
 class VectorCore;
-class EmuWindow;
 class Cpu;
 class KbdLayout;
 class CrtRenderer;

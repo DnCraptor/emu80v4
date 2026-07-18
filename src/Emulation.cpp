@@ -54,12 +54,6 @@ Emulation::Emulation()
     setVsync(true);
 
     m_vector = new VectorCore();
-    if (!m_vector->getWindow()) {
-        delete m_vector;
-        m_vector = nullptr;
-        palMsgBox("Error: Can't create Vector-06C machine.", true);
-        palRequestForQuit();
-    }
 }
 
 Emulation::~Emulation()

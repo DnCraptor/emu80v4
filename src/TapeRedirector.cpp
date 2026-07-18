@@ -21,7 +21,6 @@
 #include "Emulation.h"
 #include "WavReader.h"
 #include "Vector.h"
-#include "EmuWindow.h"
 
 #include "TapeRedirector.h"
 
@@ -54,8 +53,7 @@ void TapeRedirector::openFile()
     m_fileName = palOpenFileDialog(
         m_rwMode == "w" ? "Save tape file" : "Open tape file",
         m_filter + "|.wav|.csw",
-        m_rwMode == "w",
-        m_machine->getWindow()
+        m_rwMode == "w"
     );
 
     string ext;

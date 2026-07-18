@@ -22,7 +22,6 @@
 #include "Globals.h"
 #include "EmuCalls.h"
 #include "Vector.h"
-#include "EmuWindow.h"
 #include "Cpu.h"
 #include "Cpu8080.h"
 #include "AddrSpace.h"
@@ -428,7 +427,7 @@ void VectorRenderer::attachMemory(Ram* memory)
 
 bool VectorFileLoader::chooseAndLoadFile(bool run)
 {
-    string fileName = palOpenFileDialog("Open file", m_filter, false, m_machine->getWindow());
+    string fileName = palOpenFileDialog("Open file", m_filter, false);
     if (fileName.empty())
         return true;
     if (!loadFile(fileName, run)) {
@@ -839,9 +838,6 @@ uint8_t VectorHddRegisters::readByte(int addr)
 VectorCore::VectorCore()
 {
 
-    m_window = new EmuWindow();
-    m_window->setMachine(this);
-
     m_ram = new Ram(0x10000);
     m_ram->setMachine(this);
 
@@ -1171,7 +1167,6 @@ void VectorCore::init()
 
 void VectorCore::shutdown()
 {
-    m_window->shutdown();
     m_ram->shutdown();
     m_rom->shutdown();
     m_cpu->shutdown();
@@ -1227,7 +1222,6 @@ void VectorCore::shutdown()
 
 void VectorCore::reset()
 {
-    m_window->reset();
     m_ram->reset();
     m_rom->reset();
     m_cpu->reset();
@@ -1337,7 +1331,6 @@ VectorCore::~VectorCore()
     delete m_cpu;
     delete m_rom;
     delete m_ram;
-    delete m_window;
 }
 
 

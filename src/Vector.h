@@ -39,7 +39,6 @@ class GeneralSoundSource;
 class Cpu8080Compatible;
 class Covox;
 class AtaDrive;
-class EmuWindow;
 class Cpu;
 class RamDisk;
 class DiskImage;
@@ -179,7 +178,6 @@ class VectorCore
         void resetKeys();
         bool loadFile(const std::string& fileName, bool run = true);
 
-        EmuWindow* getWindow() {return m_window;}
         Cpu8080Compatible* getCpu();
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
@@ -191,7 +189,6 @@ class VectorCore
         bool getTapeOut() const {return m_tapeOut;}
 
     private:
-        EmuWindow* m_window = nullptr;
         Ram* m_ram = nullptr;
         Rom* m_rom = nullptr;
         Cpu8080* m_cpu = nullptr;
