@@ -26,10 +26,7 @@
 #include "KbdLayout.h"
 #include "CpuWaits.h"
 
-#include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"
@@ -50,6 +47,29 @@ class KbdTapper;
 class CpuHook;
 class VectorFileLoader;
 class VectorAddrSpace;
+class Cpu8080;
+class AddrSpace;
+class VectorKeyboard;
+class VectorKbdLayout;
+class VectorPpi8255Circuit;
+class Ppi8255;
+class AddrSpaceInverter;
+class VectorColorRegister;
+class VectorPpi8255Circuit2;
+class Pit8253;
+class Pit8253SoundSource;
+class Psg3910;
+class Psg3910SoundSource;
+class VectorFddControlRegister;
+class VectorHddRegisters;
+class FdImage;
+class TapeRedirector;
+class RkTapeInHook;
+class RkTapeOutHook;
+class CloseFileHook;
+class Ret8080Hook;
+class VectorRamDiskSelector;
+class VectorCpuWaits;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -166,8 +186,8 @@ class VectorCore
         void mouseDrag(int x, int y);
 
         EmuWindow* getWindow() {return m_window;}
-        Cpu8080Compatible* getCpu() {return m_cpu;}
-        Keyboard* getKeyboard() {return m_keyboard;}
+        Cpu8080Compatible* getCpu();
+        Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName);
 
@@ -177,31 +197,59 @@ class VectorCore
         bool getTapeOut() const {return m_tapeOut;}
 
     private:
-        template<class T, class... Args>
-        T* addDevice(Args&&... args)
-        {
-            auto device = std::make_unique<T>(std::forward<Args>(args)...);
-            T* result = device.get();
-            result->setMachine(this);
-            m_devices.push_back(std::move(device));
-            return result;
-        }
-
-        std::vector<std::unique_ptr<EmuObject>> m_devices;
-        Cpu8080Compatible* m_cpu = nullptr;
-        VectorAddrSpace* m_addrSpace = nullptr;
         EmuWindow* m_window = nullptr;
-        KbdLayout* m_kbdLayout = nullptr;
-        CrtRenderer* m_renderer = nullptr;
-        DiskImage* m_diskA = nullptr;
-        DiskImage* m_diskB = nullptr;
+        Ram* m_ram = nullptr;
+        Rom* m_rom = nullptr;
+        Cpu8080* m_cpu = nullptr;
+        VectorAddrSpace* m_addrSpace = nullptr;
+        AddrSpace* m_ioAddrSpace = nullptr;
+        VectorRenderer* m_renderer = nullptr;
+        VectorKeyboard* m_keyboard = nullptr;
+        VectorKbdLayout* m_kbdLayout = nullptr;
+        KbdTapper* m_kbdTapper = nullptr;
+        VectorPpi8255Circuit* m_ppiCircuit = nullptr;
+        GeneralSoundSource* m_tapeSoundSource = nullptr;
+        Ppi8255* m_ppi = nullptr;
+        AddrSpaceInverter* m_invertedPpi = nullptr;
+        VectorColorRegister* m_colorReg = nullptr;
+        Covox* m_covox = nullptr;
+        VectorPpi8255Circuit2* m_covoxCircuit = nullptr;
+        Ppi8255* m_ppi2 = nullptr;
+        AddrSpaceInverter* m_invertedPpi2 = nullptr;
+        Pit8253* m_pit = nullptr;
+        Pit8253SoundSource* m_sndSource = nullptr;
+        AddrSpaceInverter* m_invertedPit = nullptr;
+        Psg3910* m_ay = nullptr;
+        Psg3910SoundSource* m_psgSoundSource = nullptr;
+        Fdc1793* m_fdc = nullptr;
+        AddrSpaceInverter* m_invertedFdc = nullptr;
+        VectorFddControlRegister* m_fddReg = nullptr;
+        AtaDrive* m_ataDrive = nullptr;
+        VectorHddRegisters* m_hddRegisters = nullptr;
+        FdImage* m_diskA = nullptr;
+        FdImage* m_diskB = nullptr;
         DiskImage* m_hdd = nullptr;
         VectorFileLoader* m_loader = nullptr;
-        Keyboard* m_keyboard = nullptr;
+        TapeRedirector* m_tapeInFile = nullptr;
+        TapeRedirector* m_tapeOutFile = nullptr;
+        RkTapeInHook* m_tapeInHookBas = nullptr;
+        RkTapeOutHook* m_tapeOutHookBas = nullptr;
+        CloseFileHook* m_closeFileHookBas = nullptr;
+        RkTapeInHook* m_tapeInHookMon = nullptr;
+        RkTapeOutHook* m_tapeOutHookMon = nullptr;
+        Ret8080Hook* m_skipHookMon = nullptr;
+        CloseFileHook* m_closeFileHookMon = nullptr;
+        RkTapeInHook* m_tapeInHookEmuRk = nullptr;
+        RkTapeOutHook* m_tapeOutHookEmuRk = nullptr;
+        CloseFileHook* m_closeFileHookEmuRk = nullptr;
+        SRam* m_ramDiskMem = nullptr;
         RamDisk* m_ramDisk = nullptr;
+        VectorRamDiskSelector* m_ramDiskSelector = nullptr;
+        SRam* m_ramDiskMem2 = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
-        std::vector<CpuHook*> m_tapeHooks;
-        KbdTapper* m_kbdTapper = nullptr;
+        VectorRamDiskSelector* m_ramDiskSelector2 = nullptr;
+        VectorCpuWaits* m_cpuWaits = nullptr;
+        CpuHook* m_tapeHooks[10] = {};
 
         bool m_intReq = false;
         bool m_intsEnabled = false;

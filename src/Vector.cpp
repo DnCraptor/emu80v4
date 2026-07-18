@@ -856,237 +856,332 @@ uint8_t VectorHddRegisters::readByte(int addr)
 VectorCore::VectorCore()
 {
 
-    EmuWindow* window = addDevice<EmuWindow>();
-    window->setCaption("Вектор-06Ц");
+    EmuWindow* window = new EmuWindow();
+    window->setMachine(this);
     m_window = window;
+    window->setCaption("Вектор-06Ц");
 
-    Ram* ram = addDevice<Ram>(0x10000);
+    Ram* ram = new Ram(0x10000);
+    ram->setMachine(this);
+    m_ram = ram;
 
-    Rom* rom = addDevice<Rom>(0x8000, "vector/loader.rom");
+    Rom* rom = new Rom(0x8000, "vector/loader.rom");
+    rom->setMachine(this);
+    m_rom = rom;
 
-    Cpu8080* cpu = addDevice<Cpu8080>();
+    Cpu8080* cpu = new Cpu8080();
+    cpu->setMachine(this);
+    m_cpu = cpu;
     cpu->setFrequency(3000000);
     cpu->setStartAddr(0x0000);
-    m_cpu = cpu;
 
-    VectorAddrSpace* addrSpace = addDevice<VectorAddrSpace>();
+    VectorAddrSpace* addrSpace = new VectorAddrSpace();
+    addrSpace->setMachine(this);
     m_addrSpace = addrSpace;
     addrSpace->attachRam(ram);
     addrSpace->attachRom(rom);
     addrSpace->attachCpu(cpu);
 
-    AddrSpace* ioAddrSpace = addDevice<AddrSpace>();
+    AddrSpace* ioAddrSpace = new AddrSpace();
+    ioAddrSpace->setMachine(this);
+    m_ioAddrSpace = ioAddrSpace;
 
     cpu->attachAddrSpace(addrSpace);
     cpu->attachIoAddrSpace(ioAddrSpace);
 
-    VectorRenderer* crtRenderer = addDevice<VectorRenderer>();
+    VectorRenderer* crtRenderer = new VectorRenderer();
+    crtRenderer->setMachine(this);
+    m_renderer = crtRenderer;
     crtRenderer->attachMemory(ram);
     crtRenderer->setVisibleArea(true);
-    m_renderer = crtRenderer;
 
     addrSpace->attachCrtRenderer(crtRenderer);
 
     cpu->attachCore(this);
 
-    VectorKeyboard* keyboard = addDevice<VectorKeyboard>();
+    VectorKeyboard* keyboard = new VectorKeyboard();
+    keyboard->setMachine(this);
     m_keyboard = keyboard;
 
-    VectorKbdLayout* kbdLayout = addDevice<VectorKbdLayout>();
-    kbdLayout->setQwertyMode();
+    VectorKbdLayout* kbdLayout = new VectorKbdLayout();
+    kbdLayout->setMachine(this);
     m_kbdLayout = kbdLayout;
+    kbdLayout->setQwertyMode();
 
-    KbdTapper* kbdTapper = addDevice<KbdTapper>();
+    KbdTapper* kbdTapper = new KbdTapper();
+    kbdTapper->setMachine(this);
+    m_kbdTapper = kbdTapper;
     kbdTapper->setPressTime(20);
     kbdTapper->setReleaseTime(20);
     kbdTapper->setCrDelay(100);
-    m_kbdTapper = kbdTapper;
 
-    VectorPpi8255Circuit* ppiCircuit = addDevice<VectorPpi8255Circuit>();
+    VectorPpi8255Circuit* ppiCircuit = new VectorPpi8255Circuit();
+    ppiCircuit->setMachine(this);
+    m_ppiCircuit = ppiCircuit;
     ppiCircuit->attachRenderer(crtRenderer);
     ppiCircuit->attachKeyboard(keyboard);
 
-    GeneralSoundSource* tapeSoundSource = addDevice<GeneralSoundSource>();
+    GeneralSoundSource* tapeSoundSource = new GeneralSoundSource();
+    tapeSoundSource->setMachine(this);
+    m_tapeSoundSource = tapeSoundSource;
     ppiCircuit->attachTapeSoundSource(tapeSoundSource);
 
-    Ppi8255* ppi = addDevice<Ppi8255>();
+    Ppi8255* ppi = new Ppi8255();
+    ppi->setMachine(this);
+    m_ppi = ppi;
     ppi->setNoReset(true);
     ppi->attachPpi8255Circuit(ppiCircuit);
 
-    AddrSpaceInverter* invertedPpi = addDevice<AddrSpaceInverter>(ppi);
+    AddrSpaceInverter* invertedPpi = new AddrSpaceInverter(ppi);
+    invertedPpi->setMachine(this);
+    m_invertedPpi = invertedPpi;
     ioAddrSpace->addRange(0x00, 0x03, invertedPpi);
 
-    VectorColorRegister* colorReg = addDevice<VectorColorRegister>();
+    VectorColorRegister* colorReg = new VectorColorRegister();
+    colorReg->setMachine(this);
+    m_colorReg = colorReg;
     colorReg->attachRenderer(crtRenderer);
     ioAddrSpace->addRange(0x0C, 0x0F, colorReg);
 
-    Covox* covox = addDevice<Covox>(7);
+    Covox* covox = new Covox(7);
+    covox->setMachine(this);
+    m_covox = covox;
     covox->setNegative(true);
 
-    VectorPpi8255Circuit2* covoxCircuit = addDevice<VectorPpi8255Circuit2>();
+    VectorPpi8255Circuit2* covoxCircuit = new VectorPpi8255Circuit2();
+    covoxCircuit->setMachine(this);
+    m_covoxCircuit = covoxCircuit;
     covoxCircuit->attachCovox(covox);
 
-    Ppi8255* ppi2 = addDevice<Ppi8255>();
+    Ppi8255* ppi2 = new Ppi8255();
+    ppi2->setMachine(this);
+    m_ppi2 = ppi2;
     ppi2->attachPpi8255Circuit(covoxCircuit);
 
-    AddrSpaceInverter* invertedPpi2 = addDevice<AddrSpaceInverter>(ppi2);
+    AddrSpaceInverter* invertedPpi2 = new AddrSpaceInverter(ppi2);
+    invertedPpi2->setMachine(this);
+    m_invertedPpi2 = invertedPpi2;
     ioAddrSpace->addRange(0x04, 0x07, invertedPpi2);
 
-    Pit8253* pit = addDevice<Pit8253>();
+    Pit8253* pit = new Pit8253();
+    pit->setMachine(this);
+    m_pit = pit;
     pit->setFrequency(1500000);
 
-    Pit8253SoundSource* sndSource = addDevice<Pit8253SoundSource>();
+    Pit8253SoundSource* sndSource = new Pit8253SoundSource();
+    sndSource->setMachine(this);
+    m_sndSource = sndSource;
     sndSource->attachPit(pit);
     sndSource->setNegative(true);
 
-    AddrSpaceInverter* invertedPit = addDevice<AddrSpaceInverter>(pit);
+    AddrSpaceInverter* invertedPit = new AddrSpaceInverter(pit);
+    invertedPit->setMachine(this);
+    m_invertedPit = invertedPit;
     ioAddrSpace->addRange(0x08, 0x0B, invertedPit);
 
-    Psg3910* ay = addDevice<Psg3910>();
+    Psg3910* ay = new Psg3910();
+    ay->setMachine(this);
+    m_ay = ay;
     ay->setFrequency(1750000);
     ioAddrSpace->addRange(0x14, 0x15, ay);
 
-    Psg3910SoundSource* psgSoundSource = addDevice<Psg3910SoundSource>();
+    Psg3910SoundSource* psgSoundSource = new Psg3910SoundSource();
+    psgSoundSource->setMachine(this);
+    m_psgSoundSource = psgSoundSource;
     psgSoundSource->attachPsg(ay);
 
-    Fdc1793* fdc = addDevice<Fdc1793>();
+    Fdc1793* fdc = new Fdc1793();
+    fdc->setMachine(this);
+    m_fdc = fdc;
 
-    AddrSpaceInverter* invertedFdc = addDevice<AddrSpaceInverter>(fdc);
+    AddrSpaceInverter* invertedFdc = new AddrSpaceInverter(fdc);
+    invertedFdc->setMachine(this);
+    m_invertedFdc = invertedFdc;
     ioAddrSpace->addRange(0x18, 0x1B, invertedFdc);
 
-    VectorFddControlRegister* fddReg = addDevice<VectorFddControlRegister>();
+    VectorFddControlRegister* fddReg = new VectorFddControlRegister();
+    fddReg->setMachine(this);
+    m_fddReg = fddReg;
     fddReg->attachFdc1793(fdc);
     ioAddrSpace->addRange(0x1C, 0x1C, fddReg);
 
-    AtaDrive* ataDrive = addDevice<AtaDrive>();
+    AtaDrive* ataDrive = new AtaDrive();
+    ataDrive->setMachine(this);
+    m_ataDrive = ataDrive;
     ataDrive->setVectorGeometry();
 
-    VectorHddRegisters* hddRegisters = addDevice<VectorHddRegisters>();
+    VectorHddRegisters* hddRegisters = new VectorHddRegisters();
+    hddRegisters->setMachine(this);
+    m_hddRegisters = hddRegisters;
     hddRegisters->attachAtaDrive(ataDrive);
     ioAddrSpace->addRange(0x50, 0x5F, hddRegisters);
 
-    FdImage* diskA = addDevice<FdImage>(80, 2, 5, 1024);
+    FdImage* diskA = new FdImage(80, 2, 5, 1024);
+    diskA->setMachine(this);
+    m_diskA = diskA;
     diskA->setLabel("A");
     diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    m_diskA = diskA;
     fdc->attachFdImage(0, diskA);
 
-    FdImage* diskB = addDevice<FdImage>(80, 2, 5, 1024);
+    FdImage* diskB = new FdImage(80, 2, 5, 1024);
+    diskB->setMachine(this);
+    m_diskB = diskB;
     diskB->setLabel("B");
     diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
-    m_diskB = diskB;
     fdc->attachFdImage(1, diskB);
 
-    DiskImage* hdd = addDevice<DiskImage>();
+    DiskImage* hdd = new DiskImage();
+    hdd->setMachine(this);
+    m_hdd = hdd;
     hdd->setLabel("HDD");
     hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
-    m_hdd = hdd;
     ataDrive->assignDiskImage(hdd);
 
-    VectorFileLoader* loader = addDevice<VectorFileLoader>();
+    VectorFileLoader* loader = new VectorFileLoader();
+    loader->setMachine(this);
+    m_loader = loader;
     loader->attachAddrSpace(ram);
     loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
-    m_loader = loader;
 
-    TapeRedirector* tapeInFile = addDevice<TapeRedirector>();
+    TapeRedirector* tapeInFile = new TapeRedirector();
+    tapeInFile->setMachine(this);
+    m_tapeInFile = tapeInFile;
     tapeInFile->setMode("r");
     tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
 
-    TapeRedirector* tapeOutFile = addDevice<TapeRedirector>();
+    TapeRedirector* tapeOutFile = new TapeRedirector();
+    tapeOutFile->setMachine(this);
+    m_tapeOutFile = tapeOutFile;
     tapeOutFile->setMode("w");
     tapeOutFile->setFilter(".rk|.cas");
 
-    RkTapeInHook* tapeInHookBas = addDevice<RkTapeInHook>(0x2B05);
+    RkTapeInHook* tapeInHookBas = new RkTapeInHook(0x2B05);
+    tapeInHookBas->setMachine(this);
+    m_tapeInHookBas = tapeInHookBas;
     tapeInHookBas->setSignature("C5D50E0057DB");
     tapeInHookBas->setTapeRedirector(tapeInFile);
     cpu->addHook(tapeInHookBas);
 
-    RkTapeOutHook* tapeOutHookBas = addDevice<RkTapeOutHook>(0x2B60);
+    RkTapeOutHook* tapeOutHookBas = new RkTapeOutHook(0x2B60);
+    tapeOutHookBas->setMachine(this);
+    m_tapeOutHookBas = tapeOutHookBas;
     tapeOutHookBas->setOutputRegisterA(true);
     tapeOutHookBas->setSignature("C5D5F5570E08");
     tapeOutHookBas->setTapeRedirector(tapeOutFile);
     cpu->addHook(tapeOutHookBas);
 
-    CloseFileHook* closeFileHookBas = addDevice<CloseFileHook>(0x2B8E);
+    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E);
+    closeFileHookBas->setMachine(this);
+    m_closeFileHookBas = closeFileHookBas;
     closeFileHookBas->setSignature("C506003A203C");
     closeFileHookBas->addTapeRedirector(tapeInFile);
     closeFileHookBas->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookBas);
 
-    RkTapeInHook* tapeInHookMon = addDevice<RkTapeInHook>(0xF840);
+    RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
+    tapeInHookMon->setMachine(this);
+    m_tapeInHookMon = tapeInHookMon;
     tapeInHookMon->setSignature("C5D50E0057DB");
     tapeInHookMon->setTapeRedirector(tapeInFile);
     cpu->addHook(tapeInHookMon);
 
-    RkTapeOutHook* tapeOutHookMon = addDevice<RkTapeOutHook>(0xF89B);
+    RkTapeOutHook* tapeOutHookMon = new RkTapeOutHook(0xF89B);
+    tapeOutHookMon->setMachine(this);
+    m_tapeOutHookMon = tapeOutHookMon;
     tapeOutHookMon->setOutputRegisterA(true);
     tapeOutHookMon->setSignature("C5D5F5573E02");
     tapeOutHookMon->setTapeRedirector(tapeOutFile);
     cpu->addHook(tapeOutHookMon);
 
-    Ret8080Hook* skipHookMon = addDevice<Ret8080Hook>(0xEDDC);
+    Ret8080Hook* skipHookMon = new Ret8080Hook(0xEDDC);
+    skipHookMon->setMachine(this);
+    m_skipHookMon = skipHookMon;
     skipHookMon->setSignature("CD1097FB76F3");
     cpu->addHook(skipHookMon);
 
-    CloseFileHook* closeFileHookMon = addDevice<CloseFileHook>(0xFEFF);
+    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF);
+    closeFileHookMon->setMachine(this);
+    m_closeFileHookMon = closeFileHookMon;
     closeFileHookMon->setSignature("3AFDFFE604CD");
     closeFileHookMon->addTapeRedirector(tapeInFile);
     closeFileHookMon->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookMon);
 
-    RkTapeInHook* tapeInHookEmuRk = addDevice<RkTapeInHook>(0xFC31);
+    RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
+    tapeInHookEmuRk->setMachine(this);
+    m_tapeInHookEmuRk = tapeInHookEmuRk;
     tapeInHookEmuRk->setSignature("F3C5D50E0057");
     tapeInHookEmuRk->setTapeRedirector(tapeInFile);
     cpu->addHook(tapeInHookEmuRk);
 
-    RkTapeOutHook* tapeOutHookEmuRk = addDevice<RkTapeOutHook>(0xFC7D);
+    RkTapeOutHook* tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
+    tapeOutHookEmuRk->setMachine(this);
+    m_tapeOutHookEmuRk = tapeOutHookEmuRk;
     tapeOutHookEmuRk->setOutputRegisterA(true);
     tapeOutHookEmuRk->setSignature("F3C5D5F51608");
     tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
     cpu->addHook(tapeOutHookEmuRk);
 
-    CloseFileHook* closeFileHookEmuRk = addDevice<CloseFileHook>(0xFF18);
+    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18);
+    closeFileHookEmuRk->setMachine(this);
+    m_closeFileHookEmuRk = closeFileHookEmuRk;
     closeFileHookEmuRk->setSignature("FB3A61F6E604");
     closeFileHookEmuRk->addTapeRedirector(tapeInFile);
     closeFileHookEmuRk->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookEmuRk);
 
-    SRam* ramDiskMem = addDevice<SRam>(0x40000);
+    SRam* ramDiskMem = new SRam(0x40000);
+    ramDiskMem->setMachine(this);
+    m_ramDiskMem = ramDiskMem;
     addrSpace->attachRamDisk(0, ramDiskMem);
 
-    RamDisk* ramDisk = addDevice<RamDisk>(1, 0x40000);
+    RamDisk* ramDisk = new RamDisk(1, 0x40000);
+    ramDisk->setMachine(this);
+    m_ramDisk = ramDisk;
     ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk->attachPage(0, ramDiskMem);
-    m_ramDisk = ramDisk;
 
-    VectorRamDiskSelector* ramDiskSelector = addDevice<VectorRamDiskSelector>();
+    VectorRamDiskSelector* ramDiskSelector = new VectorRamDiskSelector();
+    ramDiskSelector->setMachine(this);
+    m_ramDiskSelector = ramDiskSelector;
     ramDiskSelector->attachVectorAddrSpace(addrSpace);
     ramDiskSelector->setDiskNum(0);
     ioAddrSpace->addRange(0x10, 0x10, ramDiskSelector);
 
-    SRam* ramDiskMem2 = addDevice<SRam>(0x40000);
+    SRam* ramDiskMem2 = new SRam(0x40000);
+    ramDiskMem2->setMachine(this);
+    m_ramDiskMem2 = ramDiskMem2;
     addrSpace->attachRamDisk(1, ramDiskMem2);
 
-    RamDisk* ramDisk2 = addDevice<RamDisk>(1, 0x40000);
+    RamDisk* ramDisk2 = new RamDisk(1, 0x40000);
+    ramDisk2->setMachine(this);
+    m_ramDisk2 = ramDisk2;
     ramDisk2->setLabel("EDD2");
     ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     ramDisk2->attachPage(0, ramDiskMem2);
-    m_ramDisk2 = ramDisk2;
 
-    VectorRamDiskSelector* ramDiskSelector2 = addDevice<VectorRamDiskSelector>();
+    VectorRamDiskSelector* ramDiskSelector2 = new VectorRamDiskSelector();
+    ramDiskSelector2->setMachine(this);
+    m_ramDiskSelector2 = ramDiskSelector2;
     ramDiskSelector2->attachVectorAddrSpace(addrSpace);
     ramDiskSelector2->setDiskNum(1);
     ioAddrSpace->addRange(0x11, 0x11, ramDiskSelector2);
 
-    VectorCpuWaits* cpuWaits = addDevice<VectorCpuWaits>();
+    VectorCpuWaits* cpuWaits = new VectorCpuWaits();
+    cpuWaits->setMachine(this);
+    m_cpuWaits = cpuWaits;
     cpu->attachCpuWaits(cpuWaits);
 
-    m_tapeHooks = {
-        tapeOutHookBas, tapeInHookBas, closeFileHookBas,
-        tapeOutHookMon, tapeInHookMon, closeFileHookMon,
-        tapeOutHookEmuRk, tapeInHookEmuRk, closeFileHookEmuRk,
-        skipHookMon
-    };
+    m_tapeHooks[0] = tapeOutHookBas;
+    m_tapeHooks[1] = tapeInHookBas;
+    m_tapeHooks[2] = closeFileHookBas;
+    m_tapeHooks[3] = tapeOutHookMon;
+    m_tapeHooks[4] = tapeInHookMon;
+    m_tapeHooks[5] = closeFileHookMon;
+    m_tapeHooks[6] = tapeOutHookEmuRk;
+    m_tapeHooks[7] = tapeInHookEmuRk;
+    m_tapeHooks[8] = closeFileHookEmuRk;
+    m_tapeHooks[9] = skipHookMon;
 
     init();
 
@@ -1099,33 +1194,231 @@ VectorCore::VectorCore()
 
 void VectorCore::init()
 {
-    for (const auto& device : m_devices)
-        device->init();
+    m_window->init();
+    m_ram->init();
+    m_rom->init();
+    m_cpu->init();
+    m_addrSpace->init();
+    m_ioAddrSpace->init();
+    m_renderer->init();
+    m_keyboard->init();
+    m_kbdLayout->init();
+    m_kbdTapper->init();
+    m_ppiCircuit->init();
+    m_tapeSoundSource->init();
+    m_ppi->init();
+    m_invertedPpi->init();
+    m_colorReg->init();
+    m_covox->init();
+    m_covoxCircuit->init();
+    m_ppi2->init();
+    m_invertedPpi2->init();
+    m_pit->init();
+    m_sndSource->init();
+    m_invertedPit->init();
+    m_ay->init();
+    m_psgSoundSource->init();
+    m_fdc->init();
+    m_invertedFdc->init();
+    m_fddReg->init();
+    m_ataDrive->init();
+    m_hddRegisters->init();
+    m_diskA->init();
+    m_diskB->init();
+    m_hdd->init();
+    m_loader->init();
+    m_tapeInFile->init();
+    m_tapeOutFile->init();
+    m_tapeInHookBas->init();
+    m_tapeOutHookBas->init();
+    m_closeFileHookBas->init();
+    m_tapeInHookMon->init();
+    m_tapeOutHookMon->init();
+    m_skipHookMon->init();
+    m_closeFileHookMon->init();
+    m_tapeInHookEmuRk->init();
+    m_tapeOutHookEmuRk->init();
+    m_closeFileHookEmuRk->init();
+    m_ramDiskMem->init();
+    m_ramDisk->init();
+    m_ramDiskSelector->init();
+    m_ramDiskMem2->init();
+    m_ramDisk2->init();
+    m_ramDiskSelector2->init();
+    m_cpuWaits->init();
 }
-
 
 void VectorCore::shutdown()
 {
-    for (const auto& device : m_devices)
-        device->shutdown();
+    m_window->shutdown();
+    m_ram->shutdown();
+    m_rom->shutdown();
+    m_cpu->shutdown();
+    m_addrSpace->shutdown();
+    m_ioAddrSpace->shutdown();
+    m_renderer->shutdown();
+    m_keyboard->shutdown();
+    m_kbdLayout->shutdown();
+    m_kbdTapper->shutdown();
+    m_ppiCircuit->shutdown();
+    m_tapeSoundSource->shutdown();
+    m_ppi->shutdown();
+    m_invertedPpi->shutdown();
+    m_colorReg->shutdown();
+    m_covox->shutdown();
+    m_covoxCircuit->shutdown();
+    m_ppi2->shutdown();
+    m_invertedPpi2->shutdown();
+    m_pit->shutdown();
+    m_sndSource->shutdown();
+    m_invertedPit->shutdown();
+    m_ay->shutdown();
+    m_psgSoundSource->shutdown();
+    m_fdc->shutdown();
+    m_invertedFdc->shutdown();
+    m_fddReg->shutdown();
+    m_ataDrive->shutdown();
+    m_hddRegisters->shutdown();
+    m_diskA->shutdown();
+    m_diskB->shutdown();
+    m_hdd->shutdown();
+    m_loader->shutdown();
+    m_tapeInFile->shutdown();
+    m_tapeOutFile->shutdown();
+    m_tapeInHookBas->shutdown();
+    m_tapeOutHookBas->shutdown();
+    m_closeFileHookBas->shutdown();
+    m_tapeInHookMon->shutdown();
+    m_tapeOutHookMon->shutdown();
+    m_skipHookMon->shutdown();
+    m_closeFileHookMon->shutdown();
+    m_tapeInHookEmuRk->shutdown();
+    m_tapeOutHookEmuRk->shutdown();
+    m_closeFileHookEmuRk->shutdown();
+    m_ramDiskMem->shutdown();
+    m_ramDisk->shutdown();
+    m_ramDiskSelector->shutdown();
+    m_ramDiskMem2->shutdown();
+    m_ramDisk2->shutdown();
+    m_ramDiskSelector2->shutdown();
+    m_cpuWaits->shutdown();
 }
-
 
 void VectorCore::reset()
 {
-    for (const auto& device : m_devices)
-        device->reset();
+    m_window->reset();
+    m_ram->reset();
+    m_rom->reset();
+    m_cpu->reset();
+    m_addrSpace->reset();
+    m_ioAddrSpace->reset();
+    m_renderer->reset();
+    m_keyboard->reset();
+    m_kbdLayout->reset();
+    m_kbdTapper->reset();
+    m_ppiCircuit->reset();
+    m_tapeSoundSource->reset();
+    m_ppi->reset();
+    m_invertedPpi->reset();
+    m_colorReg->reset();
+    m_covox->reset();
+    m_covoxCircuit->reset();
+    m_ppi2->reset();
+    m_invertedPpi2->reset();
+    m_pit->reset();
+    m_sndSource->reset();
+    m_invertedPit->reset();
+    m_ay->reset();
+    m_psgSoundSource->reset();
+    m_fdc->reset();
+    m_invertedFdc->reset();
+    m_fddReg->reset();
+    m_ataDrive->reset();
+    m_hddRegisters->reset();
+    m_diskA->reset();
+    m_diskB->reset();
+    m_hdd->reset();
+    m_loader->reset();
+    m_tapeInFile->reset();
+    m_tapeOutFile->reset();
+    m_tapeInHookBas->reset();
+    m_tapeOutHookBas->reset();
+    m_closeFileHookBas->reset();
+    m_tapeInHookMon->reset();
+    m_tapeOutHookMon->reset();
+    m_skipHookMon->reset();
+    m_closeFileHookMon->reset();
+    m_tapeInHookEmuRk->reset();
+    m_tapeOutHookEmuRk->reset();
+    m_closeFileHookEmuRk->reset();
+    m_ramDiskMem->reset();
+    m_ramDisk->reset();
+    m_ramDiskSelector->reset();
+    m_ramDiskMem2->reset();
+    m_ramDisk2->reset();
+    m_ramDiskSelector2->reset();
+    m_cpuWaits->reset();
     m_intReq = false;
     m_intsEnabled = false;
 }
 
-
 VectorCore::~VectorCore()
 {
     shutdown();
-    for (auto& device : m_devices)
-        device.reset();
+    delete m_cpuWaits;
+    delete m_ramDiskSelector2;
+    delete m_ramDisk2;
+    delete m_ramDiskMem2;
+    delete m_ramDiskSelector;
+    delete m_ramDisk;
+    delete m_ramDiskMem;
+    delete m_closeFileHookEmuRk;
+    delete m_tapeOutHookEmuRk;
+    delete m_tapeInHookEmuRk;
+    delete m_closeFileHookMon;
+    delete m_skipHookMon;
+    delete m_tapeOutHookMon;
+    delete m_tapeInHookMon;
+    delete m_closeFileHookBas;
+    delete m_tapeOutHookBas;
+    delete m_tapeInHookBas;
+    delete m_tapeOutFile;
+    delete m_tapeInFile;
+    delete m_loader;
+    delete m_hdd;
+    delete m_diskB;
+    delete m_diskA;
+    delete m_hddRegisters;
+    delete m_ataDrive;
+    delete m_fddReg;
+    delete m_invertedFdc;
+    delete m_fdc;
+    delete m_psgSoundSource;
+    delete m_ay;
+    delete m_invertedPit;
+    delete m_sndSource;
+    delete m_pit;
+    delete m_invertedPpi2;
+    delete m_ppi2;
+    delete m_covoxCircuit;
+    delete m_covox;
+    delete m_colorReg;
+    delete m_invertedPpi;
+    delete m_ppi;
+    delete m_tapeSoundSource;
+    delete m_ppiCircuit;
+    delete m_kbdTapper;
+    delete m_kbdLayout;
+    delete m_keyboard;
+    delete m_renderer;
+    delete m_ioAddrSpace;
+    delete m_addrSpace;
+    delete m_cpu;
+    delete m_rom;
+    delete m_ram;
+    delete m_window;
 }
+
 
 
 void VectorCore::sysReq(SysReq sr)
@@ -1221,13 +1514,12 @@ void VectorCore::sysReq(SysReq sr)
             if (m_ramDisk2)
                 m_ramDisk2->saveFileAs();
             break;
-        case SR_TAPEHOOK:
-            if (!m_tapeHooks.empty()) {
-                bool enabled = !m_tapeHooks.front()->getEnabled();
-                for (CpuHook* hook : m_tapeHooks)
-                    hook->setEnabled(enabled);
-            }
+        case SR_TAPEHOOK: {
+            bool enabled = !m_tapeHooks[0]->getEnabled();
+            for (CpuHook* hook : m_tapeHooks)
+                hook->setEnabled(enabled);
             break;
+        }
         default:
             break;
     }
@@ -1266,6 +1558,16 @@ bool VectorCore::loadFile(string fileName, bool run)
     return false;
 }
 
+
+Cpu8080Compatible* VectorCore::getCpu()
+{
+    return m_cpu;
+}
+
+Keyboard* VectorCore::getKeyboard()
+{
+    return m_keyboard;
+}
 
 bool VectorCore::assignDiskAFileName(const std::string& fileName)
 {
