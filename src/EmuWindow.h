@@ -35,23 +35,13 @@ class PalWindow;
 class EmuWindow : public EmuObject, public PalWindow
 {
     public:
-        EmuWindow();
-        virtual ~EmuWindow() = default;
-
-
-        void init() override;
-
-        void calcDstRect(int srcWidth, int srcHeight, double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY) override;
-
+        ~EmuWindow() override = default;
 
         virtual void processKey(PalKeyCode, bool) {}
         virtual void closeRequest() {}
 
         void sysReq(SysReq sr);
 
-        void show();
-
-        bool isVisible() {return m_params.visible;}
 
 };
 

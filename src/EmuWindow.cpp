@@ -26,40 +26,6 @@
 using namespace std;
 
 
-EmuWindow::EmuWindow()
-{
-    m_params.visible = false;
-
-    applyParams();
-}
-
-
-void EmuWindow::init()
-{
-    initPalWindow();
-}
-
-
-
-
-void EmuWindow::show()
-{
-    m_params.visible = true;
-    applyParams();
-}
-
-
-void EmuWindow::calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY)
-{
-    (void)srcAspectRatio;
-
-    dstWidth = srcWidth * 2;
-    dstHeight = srcHeight * 2;
-    dstX = (wndWidth - dstWidth) / 2;
-    dstY = (wndHeight - dstHeight) / 2;
-}
-
-
 void EmuWindow::sysReq(SysReq sr)
 {
     switch (sr) {

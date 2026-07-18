@@ -1125,14 +1125,11 @@ VectorCore::VectorCore()
 
     reset();
 
-    if (m_window)
-        m_window->show();
 }
 
 
 void VectorCore::init()
 {
-    m_window->init();
     m_ram->init();
     m_rom->init();
     m_cpu->init();
