@@ -60,24 +60,6 @@ class CpuZ80 : public Cpu8080Compatible
 
         bool getInte() override; // у Z80 нет inte, сохранено для эмуляции Z80-Card
 
-        uint16_t getAF2();
-        uint16_t getBC2();
-        uint16_t getDE2();
-        uint16_t getHL2();
-        uint16_t getIX();
-        uint16_t getIY();
-
-        void setAF2(uint16_t value);
-        void setBC2(uint16_t value);
-        void setDE2(uint16_t value);
-        void setHL2(uint16_t value);
-        void setIX(uint16_t value);
-        void setIY(uint16_t value);
-
-        uint8_t  getIM();
-        uint8_t  getI();
-        uint8_t  getIFF();
-
         bool checkForStackOperation() override {return m_stackOperation;}
 
 
