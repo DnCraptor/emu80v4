@@ -29,7 +29,6 @@
 #include "EmuObjects.h"
 
 class Cpu;
-class EmuWindow;
 class SoundMixer;
 class WavReader;
 class PrnWriter;
@@ -61,7 +60,6 @@ class Emulation
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
-        void sysReq(EmuWindow* wnd, SysReq sr);
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);

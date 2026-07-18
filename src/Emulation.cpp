@@ -27,7 +27,6 @@
 #include "EmuObjects.h"
 #include "Emulation.h"
 #include "Vector.h"
-#include "EmuWindow.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "PrnWriter.h"
@@ -179,87 +178,6 @@ void Emulation::resetKeys()
         m_vector->resetKeys();
 }
 
-
-void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
-{
-    VectorCore* machine = m_vector && wnd == m_vector->getWindow()
-        ? m_vector : nullptr;
-
-    // enable debug if in paused state
-    if (sr == SR_DEBUG)
-        m_isPaused = false;
-
-    switch(sr) {
-        case SR_EXIT:
-            palRequestForQuit();
-            break;
-        case SR_CLOSE:
-            if (machine) {
-                delete m_vector;
-                m_vector = nullptr;
-                palRequestForQuit();
-            } else
-                wnd->closeRequest();
-            break;
-        case SR_PAUSE:
-            m_isPaused = !m_isPaused;
-            break;
-        case SR_SPEEDUP:
-            setTemporarySpeedUpFactorDbl(m_speedUpFactor <= 4 ? m_speedUpFactor * 4 : 16);
-            break;
-        case SR_FULLTHROTTLE:
-            m_fullThrottle = true;
-            setTemporarySpeedUpFactor(1);
-            break;
-        case SR_SPEEDNORMAL:
-            m_fullThrottle = false;
-            setTemporarySpeedUpFactor(0);
-            break;
-        case SR_SPEEDSTEPUP:
-            if (m_speedGrade < 44)
-                setSpeedByGrade(m_speedGrade += 4);
-            else
-                setSpeedByGrade(m_speedGrade = 48);
-            break;
-        case SR_SPEEDSTEPDOWN:
-            if (m_speedGrade > -44)
-                setSpeedByGrade(m_speedGrade -= 4);
-            else
-                setSpeedByGrade(m_speedGrade = -48);
-            break;
-        case SR_SPEEDSTEPUPFINE:
-            if (m_speedGrade < 48)
-                setSpeedByGrade(++m_speedGrade);
-            break;
-        case SR_SPEEDSTEPDOWNFINE:
-            if (m_speedGrade > -48)
-                setSpeedByGrade(--m_speedGrade);
-            break;
-        case SR_SPEEDSTEPNORMAL:
-            m_speedGrade = 0;
-            setSpeedByGrade(0);
-            break;
-        case SR_LOADWAV:
-            if (m_wavReader) {
-                m_wavReader->chooseAndLoadFile();
-            }
-            break;
-        case SR_PRNCAPTURE:
-            if (!m_prnWriter->isPrinting())
-                m_prnWriter->startPrinting();
-            else
-                m_prnWriter->stopPrinting();
-            break;
-        case SR_MUTE:
-            m_mixer->toggleMute();
-            break;
-        default:
-            if (wnd)
-                wnd->sysReq(sr);
-            if (machine)
-                machine->sysReq(sr);
-    }
-}
 
 void Emulation::mainLoopCycle()
 {

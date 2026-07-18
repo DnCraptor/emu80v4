@@ -30,8 +30,6 @@ class EmuWindow : public EmuObject, public PalWindow
     public:
         ~EmuWindow() override = default;
 
-        virtual void closeRequest() {}
-
         void sysReq(SysReq sr);
 
 
