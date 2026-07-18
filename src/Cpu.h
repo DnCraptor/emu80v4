@@ -41,7 +41,6 @@ class Cpu : public ActiveDevice
         void setStartAddr(unsigned addr) {m_startAddr = addr;}
         void attachCpuWaits(CpuWaits* waits) {m_waits = waits;}
 
-        //virtual int doInstruction() = 0;
         virtual void interrupt(int) {}
         virtual void hrq(int) {}
 

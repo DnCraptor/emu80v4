@@ -406,14 +406,6 @@ void VectorRenderer::prepareFrame()
 }
 
 
-void VectorRenderer::prepareDebugScreen()
-{
-    advanceTo(g_emulation->getCurClock());
-    enableSwapBuffersOnce();
-    renderFrame();
-}
-
-
 void VectorRenderer::setColorMode(bool colorMode)
 {
     m_colorMode = colorMode;

@@ -33,8 +33,6 @@ class CrtRenderer : public EmuObject
 
 
         virtual void renderFrame() = 0;
-        virtual void prepareDebugScreen();
-
         virtual void toggleColorMode() {}
         virtual void toggleCropping() {}
 
@@ -42,11 +40,7 @@ class CrtRenderer : public EmuObject
         int m_sizeX = 0;
         int m_sizeY = 0;
     protected:
-        virtual bool isRasterPresent() {return true;}
         void swapBuffers();
-
-        bool reqForSwapBuffers = false;
-        void enableSwapBuffersOnce() {reqForSwapBuffers = true;}
 };
 
 

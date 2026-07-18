@@ -31,34 +31,6 @@ CrtRenderer::~CrtRenderer()
 void CrtRenderer::swapBuffers()
 {
     // don't update if in debug or paused mode
-    if (!reqForSwapBuffers && (g_emulation->getPausedState() || g_emulation->isDebuggerActive()))
+    if (g_emulation->getPausedState() || g_emulation->isDebuggerActive())
         return;
-    reqForSwapBuffers = false;
-/**
-    int w,h, bs;
-    uint32_t* buf;
-
-    w = m_prevSizeX;
-    h = m_prevSizeY;
-    buf = m_prevPixelData;
-    bs = m_prevBufSize;
-
-    m_prevSizeX = m_sizeX;
-    m_prevSizeY = m_sizeY;
-    m_prevPixelData = m_pixelData;
-    m_prevBufSize = m_bufSize;
-    m_prevAspectRatio = m_aspectRatio;
-
-    m_sizeX = w;
-    m_sizeY = h;
-    m_pixelData = buf;
-    m_bufSize = bs;
-*/
-}
-
-
-void CrtRenderer::prepareDebugScreen()
-{
-    enableSwapBuffersOnce();
-    renderFrame();
 }

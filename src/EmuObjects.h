@@ -69,7 +69,6 @@ class IActive
         IActive();
         virtual ~IActive();
         uint64_t getClock() {return m_curClock;}
-        //void setClock(uint64_t clock) {m_curClock = clock;}
         void pause() {m_isPaused = true; m_curClock = -1;}
         void resume() {m_isPaused = false;}
         void syncronize(uint64_t curClock) {m_curClock = curClock;}

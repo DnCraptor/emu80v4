@@ -57,11 +57,6 @@ class PalFile
             UINT br;
             f_write(&m_file, &value, 1, &br);
         }
-        void write16(uint16_t value) {
-            if (!m_isOpen) return;
-            UINT br;
-            f_write(&m_file, &value, 2, &br);
-        }
         void write32(uint32_t value) {
             if (!m_isOpen) return;
             UINT br;
