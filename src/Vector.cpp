@@ -217,8 +217,6 @@ VectorRenderer::VectorRenderer()
 
 VectorRenderer::~VectorRenderer()
 {
-///    if (m_frameBuf)
-///        delete[] m_frameBuf;
 }
 
 
@@ -397,11 +395,9 @@ void VectorRenderer::prepareFrame()
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
-///        m_aspectRatio = 576.0 * 9 / 704 / 12;
     } else {
         m_sizeX = 626;
         m_sizeY = 288;
-///        m_aspectRatio = double(m_sizeY) * 4 / 3 / m_sizeX;
     }
 }
 
@@ -548,7 +544,6 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             if (addr == nextAddr + 1) {
                 f_lseek(&f, f_tell(&f) - 1);
                 f_read(&f, &nextAddr, 2, &br); // TODO: ensure order of bytes
-                ///nextAddr = (ptr[0] << 8) | ptr[-1];
                 f_lseek(&f, f_tell(&f) - 1);
             }
             uint8_t v;
@@ -589,7 +584,6 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     } else {
         as->enableRom();
         cpu->setPC(0xDF);
-        //cpu->setSP(0xDCF0);
     }
 
     return true;

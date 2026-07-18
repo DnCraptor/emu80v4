@@ -40,7 +40,6 @@ int Pit8253SoundSource::calcValue()
         for (int i = 0; i < 3; i++) {
             res += MAX_SND_AMP - (m_pit->getCounter(i)->getAvgOut());
             m_pit->getCounter(i)->resetStats();
-            //res += m_pit->getOut(i) ? MAX_SND_AMP : 0;
         }
     }
 

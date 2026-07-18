@@ -96,7 +96,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
                     m_track = 0;
                     m_directionIn = false;
                     m_accessMode = FAM_WAITING;
-                    //m_busy = true;
                     m_status = 0x01;
                     generateInt();
                     break;
@@ -105,7 +104,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
                     m_track = m_data;
                     if (m_track > 79)
                         m_track = 79;
-                    //m_busy = true;
                     m_status = 0x01;
                     generateInt();
                     break;
@@ -116,7 +114,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
                         ++m_track;
                     else if (!m_directionIn && m_track > 0)
                         --m_track;
-                    //m_busy = true;
                     m_status = 0x01;
                     generateInt();
                     break;
@@ -126,7 +123,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
                     m_directionIn = true;
                     if (m_track < 79)
                         ++m_track;
-                    //m_busy = true;
                     m_status = 0x01;
                     generateInt();
                     break;
@@ -136,7 +132,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
                     m_directionIn = false;
                     if (m_track > 0)
                         --m_track;
-                    //m_busy = true;
                     m_status = 0x01;
                     generateInt();
                     break;
@@ -222,7 +217,6 @@ void Fdc1793::writeByte(int addr, uint8_t value)
         case 3:
             // data register
             m_data = value;
-            //m_status &= ~2;
             if (m_images[m_disk] && m_accessMode == FAM_WRITING) {
                 if (m_lastCommand == 0xF) {
                     // write track

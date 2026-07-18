@@ -1315,7 +1315,6 @@ unsigned CpuZ80::simz80()
         PC--;
         if (m_debugOnHalt)
             g_emulation->debugRequest(this);
-        //return PC&0xffff;
         break; //!!!
     case 0x77:          /* LD (HL),A */
         PutBYTE(HL, hreg(AF));
@@ -2558,10 +2557,6 @@ void CpuZ80::operate()
     } else
         m_curClock += m_kDiv * simz80();
 
-///    if (m_stepReq) {
-///        m_stepReq = false;
-///        g_emulation->debugRequest(this);
-///    }
 }
 
 

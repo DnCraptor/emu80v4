@@ -253,8 +253,6 @@ class VectorCore
 class VectorAddrSpace : public AddressableDevice
 {
     public:
-        //VectorAddrSpace(std::string romFileName);
-        //~VectorAddrSpace() override;
 
         void reset() override;
 
@@ -404,7 +402,6 @@ class VectorColorRegister : public AddressableDevice
         void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
 
         void writeByte(int addr, uint8_t value) override;
-        //uint8_t readByte(int) override;
 
 
     private:

@@ -77,7 +77,6 @@ class IActive
         virtual void operate() = 0;
 
     protected:
-        //int m_kDiv = 1;
         uint64_t m_curClock = 0;
         bool m_isPaused = false;
 };

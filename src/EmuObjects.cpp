@@ -48,9 +48,3 @@ void IActive::syncronize()
 {
     m_curClock = g_emulation->getCurClock();
 }
-
-
-//bool IActive::isPaused()
-//{
-//    return (m_curClock == -1);
-//}

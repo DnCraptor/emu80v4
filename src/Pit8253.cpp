@@ -29,7 +29,6 @@ using namespace std;
 
 Pit8253Counter::Pit8253Counter(Pit8253* pit)
 {
-    //g_emulation->registerDevice(this);
     m_pit = pit;
     m_prevClock = g_emulation->getCurClock();
     m_isCounting = false;
@@ -204,7 +203,6 @@ void Pit8253Counter::updateState()
 #else
         m_tempAddOutClocks -= (m_prevFastClock % m_kDiv);
 #endif
-        //m_tempAddOutClocks += (m_kDiv - m_prevClock % m_kDiv) % m_kDiv;
 
     operateForTicks(ticks);
 
@@ -215,9 +213,6 @@ void Pit8253Counter::updateState()
         m_tempAddOutClocks += curFastClock % m_kDiv;
 #endif
 
-//    m_avgOut = 0;
-//    if (curClock != m_prevClock)
-//        m_avgOut = m_tempSumOut * 9 * MAX_SND_AMP / (curClock - m_prevClock + addClock);
 
     m_prevClock = curClock;
 #ifdef LESS_64BIT_DIVS
@@ -238,7 +233,6 @@ int Pit8253Counter::getAvgOut()
         m_avgOut = (m_tempSumOut * m_kDiv + m_tempAddOutClocks) * 4096 / dt;
 #endif
     }
-        //m_avgOut = m_tempSumOut * MAX_SND_AMP / (curClock / 9 - m_sampleClock / 9);
     return m_avgOut;
 }
 
@@ -291,7 +285,6 @@ void Pit8253Counter::setMode(int mode)
 
 void Pit8253Counter::setHalfOfCounter()
 {
-    //updateState();
 
     switch (m_mode) {
         case 0:
@@ -460,11 +453,8 @@ void Pit8253::writeByte(int addr, uint8_t value)
             // установка режима счетчика
             m_latches[counterNum] = 0;
             m_rlModes[counterNum] = (PitReadLoadMode)loadMode;
-//            bPITCountBCD[nCnt]=bValue&0x01;
             m_latched[counterNum] = false;
             m_waitingHi[counterNum] = (loadMode == PRLM_HIGHBYTE);
-            //m_PITWState[nCnt]=(bLoadMode==rlHighByte)?rwstWaitHigh:rwstWaitLow;
-          //m_counters[counterNum]->setCounter(0); //!!!???
             m_counters[counterNum]->setMode(counterMode);
         }
 
@@ -481,7 +471,6 @@ void Pit8253::writeByte(int addr, uint8_t value)
         }
         else { // if m_rlStates[addr] = PRLS_WAITHIGH
             m_latches[addr] = (m_latches[addr] & 0xff) | (value << 8);
-            //m_waitingHi[addr] = false;
             if (m_rlModes[addr] == PRLM_WORD)
                 m_waitingHi[addr] = false;
             m_counters[addr]->setCounter(m_latches[addr]);

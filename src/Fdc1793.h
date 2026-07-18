@@ -82,7 +82,6 @@ public:
 
         bool m_irq = false;
         int m_lastCommand = 0;
-        //bool m_busy = false;
 
         int m_addressIdCnt = 0;
         uint8_t m_addressId[6];

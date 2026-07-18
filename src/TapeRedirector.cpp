@@ -84,7 +84,6 @@ void TapeRedirector::openFile()
     m_isOpen = m_file.isOpen();
 
     m_cancelled = !m_isOpen;
-    //m_read = false;
 
     m_bytesLeftInBlock = 0;
 
@@ -98,7 +97,6 @@ void TapeRedirector::closeFile()
         m_isOpen = false;
     }
     m_cancelled = false;
-    //m_read = false;
 
     if (m_wavWriter) {
         delete m_wavWriter;
@@ -230,7 +228,6 @@ void TapeRedirector::switchToNextLvt()
             m_fileName[m_fileName.size() - 1] = letter;
             m_file.open(m_fileName, m_rwMode);
             m_isOpen = m_file.isOpen();
-            //m_cancelled = false;
         }
     }
 }
@@ -352,8 +349,6 @@ void TapeRedirector::advanceToNextBlock()
             skipBytes(12);
 
             // todo: check last 2 bytes for bitmapped options
-            //uint8_t buf[12];
-            //readBuffer(buf, 12);
 
             m_bytesLeftInBlock = blockSize - 12;
 

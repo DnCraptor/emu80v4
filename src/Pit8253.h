@@ -36,7 +36,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
 {
     public:
         explicit Pit8253Counter(Pit8253* pit);
-        //~Pit8253Counter();
 
         void setGate(bool gate);
         bool getOut();

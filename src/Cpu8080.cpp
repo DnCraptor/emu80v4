@@ -239,7 +239,6 @@ void Cpu8080::reset() {
     UN1_FLAG = 1;
     UN3_FLAG = 0;
     UN5_FLAG = 0;
-    //PC = 0;
     PC = m_startAddr;
 
     m_statusWord = 0xA2;
@@ -1718,7 +1717,6 @@ int Cpu8080::i8080_execute(int opcode) {
 
 
 Cpu8080::Cpu8080() {
-    //reset();
 }
 
 void Cpu8080::operate() {
@@ -1734,10 +1732,6 @@ void Cpu8080::operate() {
     } else
         m_curClock += m_kDiv * i8080_execute(RD_BYTE(PC++));
 
-///    if (m_stepReq) {
-///        m_stepReq = false;
-///        g_emulation->debugRequest(this);
-///    }
 }
 
 

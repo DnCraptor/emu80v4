@@ -59,7 +59,6 @@ class TapeRedirector : public EmuObject
         bool m_cancelled = false;
         bool m_lvt = false;
         bool m_tsx = false;
-        //bool m_read = false;
 
         WavWriter* m_wavWriter = nullptr;
 

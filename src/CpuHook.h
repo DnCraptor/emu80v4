@@ -33,7 +33,6 @@ class CpuHook : public EmuObject
 {
     public:
         CpuHook(int addr);
-        //CpuHook(int addr, uint8_t memCheck);
         virtual ~CpuHook();
 
 

@@ -92,7 +92,6 @@ class Cpu8080 : public Cpu8080Compatible
         uint16_t getDE() override;
         uint16_t getHL() override;
         uint16_t getSP() override;
-        //void exec(int nCmds) override;
 
         bool getInte() override;
         bool checkForStackOperation() override {return m_statusWord & 0x04;}
