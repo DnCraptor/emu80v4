@@ -327,25 +327,6 @@ void Emulation::setSampleRate(int sampleRate)
 }
 
 
-// Установка фокуса на окно
-void Emulation::setWndFocus(EmuWindow* wnd)
-{
-    wnd->focusChanged(true);
-}
-
-void Emulation::restoreFocus()
-{
-    if (m_vector)
-        m_vector->getWindow()->bringToFront();
-}
-
-
-void Emulation::dropFile(EmuWindow* wnd, const string& fileName)
-{
-    if (m_vector && wnd == m_vector->getWindow())
-        m_vector->loadFile(fileName);
-}
-
 
 void Emulation::updateFrequency()
 {

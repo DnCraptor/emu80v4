@@ -53,7 +53,6 @@ class EmuWindow : public EmuObject, public PalWindow
 
         void show();
         void hide();
-        void setCaption(std::string caption);
 
         void drawFrame(EmuPixelData frame);
         void drawOverlay(EmuPixelData frame);
@@ -61,12 +60,8 @@ class EmuWindow : public EmuObject, public PalWindow
 
         bool isVisible() {return m_params.visible;}
 
-        std::string getCaption();
-
-
 
     private:
-        std::string m_caption = "";
 
         int m_curImgWidth = 0;
         int m_curImgHeight = 0;

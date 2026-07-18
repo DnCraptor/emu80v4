@@ -40,7 +40,6 @@ void PrnWriter::startPrinting()
         m_fileName = m_permanentFileName;
     else {
         m_fileName = palOpenFileDialog("Save printer file", "TXT files (*.txt)|*.txt;*.TXT|PRN files (*.prn)|*.prn;*.PRN", true);
-        g_emulation->restoreFocus();
         if (m_fileName.empty())
             return;
     }

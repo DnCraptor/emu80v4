@@ -50,7 +50,6 @@ void RamDisk::saveToFile()
 {
     if (m_fileName.empty()) {
         m_fileName = palOpenFileDialog("Save RAM disk file", m_filter, true, m_machine->getWindow());
-        g_emulation->restoreFocus();
         if (m_fileName == "")
             return;
     }
@@ -84,7 +83,6 @@ void RamDisk::loadFromFile()
 {
     if (m_fileName.empty()) {
         m_fileName = palOpenFileDialog("Load RAM disk file", m_filter, false, m_machine->getWindow());
-        g_emulation->restoreFocus();
         if (m_fileName == "")
             return;
     }

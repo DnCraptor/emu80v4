@@ -28,15 +28,7 @@ using namespace std;
 
 EmuWindow::EmuWindow()
 {
-    m_windowType = EWT_EMULATION;
-
-    m_params.style = PWS_FIXED;
     m_params.visible = false;
-    m_params.width = 800;
-    m_params.height = 600;
-    m_params.title = "";
-    m_params.vsync = g_emulation->getVsync();
-    m_params.smoothing = ST_SHARP;
 
     applyParams();
 }
@@ -47,20 +39,6 @@ void EmuWindow::init()
     initPalWindow();
 }
 
-
-
-void EmuWindow::setCaption(string caption)
-{
-    m_caption = caption;
-    string ver = VERSION;
-    m_params.title = "Emu80 " + ver + ": " + caption;
-    applyParams();
-}
-
-string EmuWindow::getCaption()
-{
-    return m_caption;
-}
 
 
 

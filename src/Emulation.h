@@ -71,9 +71,6 @@ class Emulation
         void machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys(EmuWindow* wnd);
         void sysReq(EmuWindow* wnd, SysReq sr);
-        void setWndFocus(EmuWindow* wnd);
-        void dropFile(EmuWindow* wnd, const std::string& fileName);
-        void restoreFocus();
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);

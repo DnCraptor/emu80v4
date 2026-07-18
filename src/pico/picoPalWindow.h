@@ -2,41 +2,19 @@
 #define PIOCPALWINDOW_H
 
 #include <string>
-
-#include "../EmuTypes.h"
-#include "../PalKeys.h"
+#include <stdint.h>
 
 class PalWindow
 {
     public:
-    enum PalWindowStyle {
-        PWS_FIXED,
-        PWS_RESIZABLE,
-        PWS_FULLSCREEN
-    };
-
     struct PalWindowParams {
-        PalWindowStyle style;
-        SmoothingType smoothing;
-        bool vsync;
         bool visible;
-        int width;
-        int height;
-        std::string title;
     };
 
         PalWindow();
         virtual ~PalWindow();
         void initPalWindow() {}
 
-        static PalWindow* windowById(uint32_t id);
-        void bringToFront();
-        void maximize();
-        void focusChanged(bool isFocused);
-
-        virtual void mouseClick(int x, int y, PalMouseKey key) {}
-
-        EmuWindowType getWindowType() {return m_windowType;}
         virtual void calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY) = 0;
 
     protected:
@@ -44,7 +22,6 @@ class PalWindow
 ///        SDL_Renderer* m_renderer = nullptr;
         PalWindowParams m_params;
 
-        void setTitle(const std::string& title);
         void getSize(int& width, int& height);
         void applyParams();
 
@@ -54,7 +31,6 @@ class PalWindow
         void drawEnd();
         void screenshotRequest(const std::string& ssFileName);
 
-        EmuWindowType m_windowType = EWT_UNDEFINED;
 };
 
 

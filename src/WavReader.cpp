@@ -44,7 +44,6 @@ bool WavReader::chooseAndLoadFile()
     }
 
     string fileName = palOpenFileDialog("Open wave file", "Wav and csw files|*.wav;*.WAV;*.csw;*.CSW", false);
-    g_emulation->restoreFocus();
     if (fileName == "")
         return true;
 

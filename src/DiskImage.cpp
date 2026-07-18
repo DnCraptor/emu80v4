@@ -65,7 +65,6 @@ bool DiskImage::assignFileName(string fileName)
 void DiskImage::chooseFile()
 {
     string fileName = palOpenFileDialog("Open floppy disk image file", m_filter, false, m_machine->getWindow());
-    g_emulation->restoreFocus();
     if (fileName != "")
         assignFileName(fileName);
 }

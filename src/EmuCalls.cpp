@@ -46,19 +46,6 @@ void emuSysReq(PalWindow* wnd, SysReq sr)
 }
 
 
-// Active window changed
-void emuFocusWnd(PalWindow* wnd)
-{
-    g_emulation->setWndFocus(static_cast<EmuWindow*>(wnd));
-}
-
-
-// Drop files event
-void emuDropFile(PalWindow* wnd, const char* fileName)
-{
-    g_emulation->dropFile(static_cast<EmuWindow*>(wnd), std::string(fileName));
-}
-
 
 // Main emulation procedure
 void emuEmulationCycle()

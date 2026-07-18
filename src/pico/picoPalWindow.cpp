@@ -1,10 +1,6 @@
 #include "picoPalWindow.h"
 #include "graphics.h"
 
-void PalWindow::bringToFront() {
-// TODO:
-}
-
 void PalWindow::applyParams() {
     /// TODO:
 }

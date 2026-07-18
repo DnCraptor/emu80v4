@@ -66,7 +66,6 @@ void TapeRedirector::openFile()
             m_rwMode == "w",
             m_machine->getWindow()
         );
-        g_emulation->restoreFocus();
     }
     else
         m_fileName = m_permanentFileName;

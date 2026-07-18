@@ -443,7 +443,6 @@ void VectorRenderer::attachMemory(Ram* memory)
 bool VectorFileLoader::chooseAndLoadFile(bool run)
 {
     string fileName = palOpenFileDialog("Open file", m_filter, false, m_machine->getWindow());
-    g_emulation->restoreFocus();
     if (fileName.empty())
         return true;
     if (!loadFile(fileName, run)) {
@@ -858,7 +857,6 @@ VectorCore::VectorCore()
 
     m_window = new EmuWindow();
     m_window->setMachine(this);
-    m_window->setCaption("Вектор-06Ц");
 
     m_ram = new Ram(0x10000);
     m_ram->setMachine(this);

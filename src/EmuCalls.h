@@ -23,12 +23,12 @@
 #define EMUCALLS_H
 
 #include "PalWindow.h"
+#include "PalKeys.h"
+#include "EmuTypes.h"
 
 void emuKeyboard(PalWindow* wnd, PalKeyCode key, bool isPressed, unsigned unicodeKey = 0);
 void emuResetKeys(PalWindow* wnd);
 void emuSysReq(PalWindow* wnd, SysReq sr);
-void emuFocusWnd(PalWindow* wnd);
-void emuDropFile(PalWindow* wnd, const char* fileName);
 void emuEmulationCycle();
 double emuGetEmulationSpeedFactor();
 
