@@ -41,14 +41,4 @@ class Pit8253SoundSource : public SoundSource
 };
 
 
-class RkPit8253SoundSource : public Pit8253SoundSource
-{
-    public:
-        int calcValue() override;
-        void tuneupPit() override;
-        void reset() override;
-
-};
-
-
 #endif // PIT8253SOUND_H

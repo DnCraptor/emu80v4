@@ -244,18 +244,6 @@ class RkKbdLayout : public KbdLayout
 };
 
 
-class KrKbdLayout : public RkKbdLayout
-{
-    public:
-        KrKbdLayout() {/*m_separateRusLat = true;*/}
-
-
-    protected:
-        EmuKey translateKey(PalKeyCode keyCode) override;
-        EmuKey translateUnicodeKey(unsigned unicodeKey, PalKeyCode key, bool& shift, bool& lang) override;
-};
-
-
 class KbdLayoutHelper : public ActiveDevice
 {
     public:

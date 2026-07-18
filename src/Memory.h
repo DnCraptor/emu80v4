@@ -83,19 +83,4 @@ class Rom : public AddressableDevice
 
 
 
-class NullSpace : public AddressableDevice
-{
-    public:
-        NullSpace(uint8_t nullByte = 0xFF) {m_nullByte = nullByte;}
-        void writeByte(int, uint8_t)  override {}
-        uint8_t readByte(int)  override {return m_nullByte;}
-
-
-    protected:
-
-    private:
-        uint8_t m_nullByte = 0xFF;
-};
-
-
 #endif // MEM_H

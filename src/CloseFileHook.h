@@ -37,32 +37,5 @@ class CloseFileHook : public CpuHook
 };
 
 
-class ElapsedTimer : public ActiveDevice
-{
-    public:
-        ElapsedTimer();
-
-        void operate() override;
-
-        void start(unsigned ms);
-        void stop();
-
-    protected:
-        virtual void onElapse() = 0;
-};
-
-
-class CloseFileTimer : public ElapsedTimer
-{
-    public:
-        CloseFileTimer (TapeRedirector* tr);
-
-    protected:
-        void onElapse() override;
-
-    private:
-        TapeRedirector* m_tr;
-};
-
 
 #endif //CLOSEFILEHOOK_H
