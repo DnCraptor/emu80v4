@@ -166,9 +166,6 @@ class VectorCore
 
         EmuWindow* getWindow() {return m_window;}
         Cpu8080Compatible* getCpu() {return m_cpu;}
-        VectorFileLoader* getLoader() {return m_loader;}
-        KbdLayout* getKbdLayout() {return m_kbdLayout;}
-        CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
         bool assignDiskAFileName(const std::string& fileName);
 
