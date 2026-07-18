@@ -131,7 +131,7 @@ uint8_t VectorAddrSpace::readByte(int addr)
 }
 
 
-void VectorAddrSpace::attachRamDisk(int diskNum, AddressableDevice* ramDisk)
+void VectorAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
 {
     if (diskNum == 0)
         m_ramDisk = ramDisk;

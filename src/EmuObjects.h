@@ -29,7 +29,6 @@ class Cpu;
 class KbdLayout;
 class CrtRenderer;
 class DiskImage;
-class FileLoader;
 class RamDisk;
 class Keyboard;
 class KbdTapper;

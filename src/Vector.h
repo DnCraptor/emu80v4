@@ -35,6 +35,7 @@
 #include "EmuTypes.h"
 
 class Ram;
+class SRam;
 class Rom;
 class Fdc1793;
 class GeneralSoundSource;
@@ -218,10 +219,10 @@ class VectorAddrSpace : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        void attachRam(AddressableDevice* mem) {m_mainMemory = mem;}
+        void attachRam(Ram* mem) {m_mainMemory = mem;}
         void attachRom(Rom* rom) {m_rom = rom;}
         void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu;}
-        void attachRamDisk(int diskNum, AddressableDevice* ramDisk);
+        void attachRamDisk(int diskNum, SRam* ramDisk);
         void attachCrtRenderer(VectorRenderer* crtRenderer) {m_crtRenderer = crtRenderer;};
         void enableRom() {m_romEnabled = true;}
         void disableRom() {m_romEnabled = false;}
@@ -230,10 +231,10 @@ class VectorAddrSpace : public AddressableDevice
 
 
     private:
-        AddressableDevice* m_mainMemory = nullptr;
+        Ram* m_mainMemory = nullptr;
         Rom* m_rom = nullptr;
-        AddressableDevice* m_ramDisk = nullptr;
-        AddressableDevice* m_ramDisk2 = nullptr;
+        SRam* m_ramDisk = nullptr;
+        SRam* m_ramDisk2 = nullptr;
         Cpu8080Compatible* m_cpu = nullptr;
         VectorRenderer* m_crtRenderer = nullptr;
 
@@ -261,11 +262,11 @@ class VectorFileLoader : public EmuObject
     public:
         bool loadFile(const std::string& fileName, bool run = false);
         bool chooseAndLoadFile(bool run = false);
-        void attachAddrSpace(AddressableDevice* addrSpace) {m_addrSpace = addrSpace;}
+        void attachAddrSpace(Ram* addrSpace) {m_addrSpace = addrSpace;}
         void setFilter(const std::string& filter) {m_filter = filter;}
 
     private:
-        AddressableDevice* m_addrSpace = nullptr;
+        Ram* m_addrSpace = nullptr;
         std::string m_filter;
         int m_skipTicks = 2000000;
 };
