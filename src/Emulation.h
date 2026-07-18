@@ -43,14 +43,6 @@ class VectorCore;
     DevListItem* next;
 };*/
 
-struct DebuggerOptions {
-    bool mnemo8080UpperCase = true;
-    bool mnemoZ80UpperCase = false;
-    bool forceZ80Mnemonics = false;
-    bool swapF5F9 = true;
-    bool resetKeys = true;
-};
-
 class Emulation
 {
     public:
@@ -64,7 +56,6 @@ class Emulation
         void unregisterActiveDevice(IActive* device);
 
         inline void debugRequest(Cpu* cpu) {m_debugReqCpu = cpu;}
-        inline void debugRun() {m_debugReqCpu = nullptr;}
         inline bool isDebuggerActive() {return m_debugReqCpu;}
 
         void processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
@@ -85,7 +76,6 @@ class Emulation
         void setSampleRate(int sampleRate);             // установка частоты дискретизации звуковой карты
         int getSampleRate() {return m_sampleRate;}
         void setVsync(bool vsync);                      // установка vsync
-        bool getVsync() {return m_vsync;}
         void setTemporarySpeedUpFactor(unsigned speed);
         void setTemporarySpeedUpFactorDbl(double speed);
         void updateFrequency();
@@ -94,8 +84,6 @@ class Emulation
         bool getPausedState() {return m_isPaused;}
         bool getFullThrottleState() {return m_fullThrottle;}
 
-
-        const DebuggerOptions& getDebuggerOptions() {return m_debuggerOptions;}
 
     private:
         static constexpr int MAX_ACTIVE_DEVICES = 32;
@@ -124,8 +112,6 @@ class Emulation
         WavReader* m_wavReader = nullptr;
         PrnWriter* m_prnWriter = nullptr;
         VectorCore* m_vector = nullptr;
-
-        DebuggerOptions m_debuggerOptions;
 
         void setSpeedByGrade(int speedGrade);
 };

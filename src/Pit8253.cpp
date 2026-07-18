@@ -243,12 +243,6 @@ int Pit8253Counter::getAvgOut()
 }
 
 
-void Pit8253Counter::getStats(uint64_t& clocksTotal, uint64_t& clocksHi)
-{
-    clocksTotal = g_emulation->getCurClock() - m_sampleClock;
-    clocksHi = m_tempSumOut * m_kDiv + m_tempAddOutClocks;
-}
-
 
 void Pit8253Counter::resetStats()
 {

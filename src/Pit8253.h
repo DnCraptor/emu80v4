@@ -43,7 +43,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
 
         int getAvgOut();
         int getSumOutTicks() {return m_sumOutTicks;}
-        void getStats(uint64_t& clocksTotal, uint64_t& clocksHi);
         void resetStats();
 
         void updateState();
@@ -86,8 +85,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         void setHalfOfCounter();
         void setCounter(uint16_t counter);
 
-        void startCount();
-        void stopCount();
 
         void planIrq();
 };
@@ -149,7 +146,6 @@ public:
 private:
     Pit8253Counter* m_counter = nullptr;
 
-    void checkForInt();
 };
 
 #endif // PIT8253_H

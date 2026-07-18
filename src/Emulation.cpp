@@ -54,12 +54,6 @@ Emulation::Emulation()
     m_mixer->setVolume(6);
     setVsync(true);
 
-    m_debuggerOptions.swapF5F9 = true;
-    m_debuggerOptions.mnemo8080UpperCase = true;
-    m_debuggerOptions.mnemoZ80UpperCase = false;
-    m_debuggerOptions.forceZ80Mnemonics = false;
-    m_debuggerOptions.resetKeys = true;
-
     m_vector = new VectorCore();
     if (!m_vector->getWindow()) {
         delete m_vector;

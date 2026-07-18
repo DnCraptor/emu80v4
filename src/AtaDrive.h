@@ -87,8 +87,6 @@ class AtaDrive : public EmuObject, public DiskImageObserver
         void readSectors();
         void writeSectors();
 
-        void setReadOnly(bool ro);
-
         void seek();
 
 };
