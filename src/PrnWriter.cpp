@@ -36,13 +36,9 @@ void PrnWriter::startPrinting()
 {
     stopPrinting();
 
-    if (!m_permanentFileName.empty())
-        m_fileName = m_permanentFileName;
-    else {
-        m_fileName = palOpenFileDialog("Save printer file", "TXT files (*.txt)|*.txt;*.TXT|PRN files (*.prn)|*.prn;*.PRN", true);
-        if (m_fileName.empty())
-            return;
-    }
+    m_fileName = palOpenFileDialog("Save printer file", "TXT files (*.txt)|*.txt;*.TXT|PRN files (*.prn)|*.prn;*.PRN", true);
+    if (m_fileName.empty())
+        return;
 
     if (!m_file.open(m_fileName, "w")) {
         reportError("Can't open file " + m_fileName + " for writing!\n");

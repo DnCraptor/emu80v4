@@ -83,10 +83,6 @@ class PalFile
             f_lseek(&m_file, f_tell(&m_file) + len);
         }
 
-        static bool create(const std::string& fileName);
-        static bool del(const std::string& fileName);
-        static bool mkDir(const std::string& dirName);
-        static bool moveRename(const std::string& src, const std::string& dst);
 
     private:
         FIL m_file{};

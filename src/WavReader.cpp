@@ -329,21 +329,6 @@ bool WavReader::getCurValue()
 }
 
 
-string WavReader::posToTime(unsigned sampleNo)
-{
-    int sec = sampleNo / m_sampleRate;
-    int min = sec / 60;
-    sec = sec % 60;
-
-    stringstream ss;
-    ss << min << ":";
-    ss.width(2);
-    ss.fill('0');
-    ss << sec;
-    return ss.str();
-}
-
-
 
 
 WavSoundSource::WavSoundSource(WavReader* wavReader) : SoundSource()

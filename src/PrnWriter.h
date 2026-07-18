@@ -28,17 +28,13 @@ class PrnWriter
         ~PrnWriter();
 
 
-        void setPermanentFileName(const std::string& fileName) {m_permanentFileName = fileName;}
         void startPrinting();
         void stopPrinting();
         void printByte(uint8_t bt);
         bool isPrinting() {return m_isOpen;}
-        bool getReady() {return m_isOpen;}
-        const std::string& getFileName() {return m_fileName;}
 
     private:
         PalFile m_file;
-        std::string m_permanentFileName;
         std::string m_fileName;
         bool m_isOpen = false;
 

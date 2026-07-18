@@ -91,7 +91,6 @@ class WavReader
         void readNextWavSample();
         void readNextCswSample();
 
-        std::string posToTime(unsigned sampleNo);
 };
 
 
