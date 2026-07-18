@@ -49,6 +49,7 @@ class DiskImage;
 class KbdTapper;
 class CpuHook;
 class VectorFileLoader;
+class VectorAddrSpace;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -167,6 +168,7 @@ class VectorCore
         EmuWindow* getWindow() {return m_window;}
         Cpu8080Compatible* getCpu() {return m_cpu;}
         Keyboard* getKeyboard() {return m_keyboard;}
+        VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName);
 
         void vrtc(bool isActive);
@@ -187,6 +189,7 @@ class VectorCore
 
         std::vector<std::unique_ptr<EmuObject>> m_devices;
         Cpu8080Compatible* m_cpu = nullptr;
+        VectorAddrSpace* m_addrSpace = nullptr;
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;
         CrtRenderer* m_renderer = nullptr;

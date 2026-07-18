@@ -465,7 +465,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
             return false;
 
         Cpu8080Compatible* cpu = m_machine->getCpu();
-        auto* addrSpace = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
+        VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
         addrSpace->enableRom();
         cpu->setPC(0);
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
@@ -493,7 +493,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
     }
 
     Cpu8080Compatible* cpu = m_machine->getCpu();
-    VectorAddrSpace* as = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
+    VectorAddrSpace* as = m_machine->getAddrSpace();
     m_machine->reset();
     as->enableRom();
     cpu->disableHooks();
@@ -757,7 +757,7 @@ int VectorZ80CpuWaits::getCpuWaitStates(int opcode, int normalClocks)
 bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
     Cpu8080Compatible* cpu = m_machine->getCpu();
-    auto* addrSpace = static_cast<VectorAddrSpace*>(cpu->getAddrSpace());
+    VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
 
     if (keyCode == PK_F11) {
         //m_machine->getKeyboard()->disableKeysReset();
@@ -870,6 +870,7 @@ VectorCore::VectorCore()
     m_cpu = cpu;
 
     VectorAddrSpace* addrSpace = addDevice<VectorAddrSpace>();
+    m_addrSpace = addrSpace;
     addrSpace->attachRam(ram);
     addrSpace->attachRom(rom);
     addrSpace->attachCpu(cpu);
