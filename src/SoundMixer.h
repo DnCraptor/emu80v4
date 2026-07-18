@@ -21,8 +21,6 @@
 #ifndef SOUNDMIXER_H
 #define SOUNDMIXER_H
 
-#include <list>
-
 #include "EmuObjects.h"
 
 
@@ -100,8 +98,9 @@ class SoundMixer : public ActiveDevice
         int getVolume();
 
     private:
-        // Список источников звука
-        std::list<SoundSource*> m_soundSources;
+        static constexpr int MAX_SOUND_SOURCES = 8;
+        SoundSource* m_soundSources[MAX_SOUND_SOURCES] = {};
+        int m_soundSourceCount = 0;
 
         // частота дисктеризации
         int m_sampleRate = 48000; // some initial value

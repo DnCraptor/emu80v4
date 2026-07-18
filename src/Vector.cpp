@@ -464,8 +464,8 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         if (!m_machine->assignDiskAFileName(fileName))
             return false;
 
-        Cpu8080Compatible* cpu = m_machine->getCpu();
         VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
+        Cpu8080Compatible* cpu = m_machine->getCpu();
         addrSpace->enableRom();
         cpu->setPC(0);
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
@@ -756,15 +756,13 @@ int VectorZ80CpuWaits::getCpuWaitStates(int opcode, int normalClocks)
 
 bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
-    Cpu8080Compatible* cpu = m_machine->getCpu();
     VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
 
     if (keyCode == PK_F11) {
-        //m_machine->getKeyboard()->disableKeysReset();
-        //m_machine->reset();
-        //m_machine->getKeyboard()->enableKeysReset();
-        addrSpace->enableRom();
-        cpu->setPC(0);
+        Keyboard* keyboard = m_machine->getKeyboard();
+        keyboard->disableKeysReset();
+        m_machine->reset();
+        keyboard->enableKeysReset();
         return true;
     } else if (keyCode == PK_F12) {
         Keyboard* keyboard = m_machine->getKeyboard();
@@ -772,7 +770,6 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
         m_machine->reset();
         keyboard->enableKeysReset();
         addrSpace->disableRom();
-        //cpu->setPC(0);
         return true;
     }
     return false;
