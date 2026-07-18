@@ -24,8 +24,19 @@
 #include "SoundMixer.h"
 
 
-class WavSoundSource;
+class WavReader;
 class TapeRedirector;
+
+class WavSoundSource : public SoundSource
+{
+    public:
+        WavSoundSource(WavReader* wavReader);
+
+        int calcValue() override;
+
+    private:
+        WavReader* m_wavReader;
+};
 
 class WavReader
 {
@@ -69,7 +80,7 @@ class WavReader
         WavChannel m_channel = WC_LEFT;
         unsigned m_speedUpFactor = 1;
 
-        WavSoundSource* m_wavSource;
+        WavSoundSource m_wavSource;
 
         TapeRedirector* m_tapeRedirector = nullptr;
 
@@ -83,18 +94,6 @@ class WavReader
         std::string posToTime(unsigned sampleNo);
 };
 
-
-class WavSoundSource : public SoundSource
-{
-    public:
-        WavSoundSource(WavReader* wavReader);
-
-        // derived from SoundSOurce
-        int calcValue() override;
-
-    private:
-        WavReader* m_wavReader;
-};
 
 
 #endif // WAVREADER_H

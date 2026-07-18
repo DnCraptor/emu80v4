@@ -26,16 +26,12 @@
 
 using namespace std;
 
-WavReader::WavReader()
-{
-    m_wavSource = new WavSoundSource(this);
-}
+WavReader::WavReader() :
+    m_wavSource(this)
+{}
 
 
-WavReader::~WavReader()
-{
-    delete m_wavSource;
-}
+WavReader::~WavReader() = default;
 
 
 bool WavReader::chooseAndLoadFile()

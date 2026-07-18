@@ -125,6 +125,9 @@ class Pit8253 : public AddressableDevice
 
 
     private:
+        Pit8253Counter m_counter0;
+        Pit8253Counter m_counter1;
+        Pit8253Counter m_counter2;
         Pit8253Counter* m_counters[3];
         uint16_t m_latches[3];
         bool m_latched[3];

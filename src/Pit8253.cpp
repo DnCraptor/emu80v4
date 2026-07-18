@@ -394,12 +394,14 @@ bool Pit8253Counter::getOut()
 }
 
 
-Pit8253::Pit8253()
+Pit8253::Pit8253() :
+    m_counter0(this, 0),
+    m_counter1(this, 1),
+    m_counter2(this, 2),
+    m_counters{&m_counter0, &m_counter1, &m_counter2}
 {
-    for (int i = 0; i < 3; i++) {
-        m_counters[i] = new Pit8253Counter(this, i);
+    for (int i = 0; i < 3; i++)
         m_counters[i]->m_kDiv = m_kDiv;
-    }
 
     for (int i = 0; i < 3; i++) {
         m_latches[i] = 0;
@@ -407,11 +409,7 @@ Pit8253::Pit8253()
 }
 
 
-Pit8253::~Pit8253()
-{
-    for (int i = 0; i < 3; i++)
-        delete m_counters[i];
-}
+Pit8253::~Pit8253() = default;
 
 
 void Pit8253::setFrequency(int64_t freq)
