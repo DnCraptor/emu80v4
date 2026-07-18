@@ -22,7 +22,6 @@
 #include "WavReader.h"
 #include "Vector.h"
 #include "EmuWindow.h"
-#include "CloseFileHook.h" // ElapsedTimer
 
 #include "TapeRedirector.h"
 
@@ -47,28 +46,17 @@ void TapeRedirector::reset()
 }
 
 
-void TapeRedirector::assignFile(const string& fileName, const string& rwMode)
-{
-    m_permanentFileName = fileName;
-    m_rwMode = rwMode;
-}
-
-
 void TapeRedirector::openFile()
 {
     if (m_isOpen)
         closeFile();
 
-    if (m_permanentFileName == "") {
-        m_fileName = palOpenFileDialog(
-            m_rwMode == "w" ? "Save tape file" : "Open tape file",
-            m_filter + "|.wav|.csw",
-            m_rwMode == "w",
-            m_machine->getWindow()
-        );
-    }
-    else
-        m_fileName = m_permanentFileName;
+    m_fileName = palOpenFileDialog(
+        m_rwMode == "w" ? "Save tape file" : "Open tape file",
+        m_filter + "|.wav|.csw",
+        m_rwMode == "w",
+        m_machine->getWindow()
+    );
 
     string ext;
     if (m_fileName.size() >= 4)
@@ -100,7 +88,6 @@ void TapeRedirector::openFile()
 
     m_bytesLeftInBlock = 0;
 
-    updateTimer();
 }
 
 
@@ -118,15 +105,6 @@ void TapeRedirector::closeFile()
         m_wavWriter = nullptr;
     }
 
-    updateTimer();
-}
-
-
-void TapeRedirector::setFilePos(unsigned pos)
-{
-    if (m_isOpen) {
-        m_file.seek(pos);
-    }
 }
 
 
@@ -152,43 +130,8 @@ uint8_t TapeRedirector::readByte()
     if (m_tsx)
         --m_bytesLeftInBlock;
 
-    updateTimer();
 
     return buf;
-}
-
-
-uint8_t TapeRedirector::readByteSkipSeq(const uint8_t* seq, int len)
-{
-    uint8_t firstByte = readByte();
-    if (firstByte == *seq) {
-        int64_t savedPos = m_file.getPos();
-        int cnt = 1;
-        uint8_t inByte;
-        do {
-            inByte = readByte();
-            ++cnt;
-            ++seq;
-        } while (inByte == *seq && cnt < len);
-        if (cnt != len && !isEof()) {
-            m_file.seek(savedPos);
-        } else
-          firstByte = readByte();
-    }
-    return firstByte;
-}
-
-
-void TapeRedirector::skipSeq(const uint8_t* seq, int len)
-{
-    uint8_t curByte;
-    for (int i = 0; i < len; i++) {
-        curByte = readByte();
-        if (curByte != *(seq++)) {
-            closeFile();
-            break;
-        }
-    }
 }
 
 
@@ -217,7 +160,6 @@ void TapeRedirector::writeByte(uint8_t bt)
         m_file.write8(bt);
     }
 
-    updateTimer();
 }
 
 
@@ -270,37 +212,6 @@ bool TapeRedirector::isCancelled()
 }
 
 
-
-
-void TapeRedirector::updateTimer()
-{
-    if (m_timer && !m_isOpen) {
-        m_timer->stop();
-        delete m_timer;
-        m_timer = nullptr;
-        return;
-    }
-
-     if (m_timeout == 0 || !m_isOpen)
-        return;
-
-    if (!m_timer)
-        m_timer = new CloseFileTimer(this);
-
-    m_timer->start(m_timeout);
-}
-
-
-bool TapeRedirector::isLvt()
-{
-    return m_lvt;
-}
-
-
-bool TapeRedirector::isTsx()
-{
-    return m_tsx;
-}
 
 
 void TapeRedirector::switchToNextLvt()

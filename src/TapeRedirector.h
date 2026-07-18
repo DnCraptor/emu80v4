@@ -24,8 +24,6 @@
 #include "EmuObjects.h"
 #include "WavWriter.h"
 
-class ElapsedTimer;
-
 // Файловый редиректор. Обеспечивает перенаправление ф файл или из файла различных обращений эмулируемой платформы
 class TapeRedirector : public EmuObject
 {
@@ -37,30 +35,22 @@ class TapeRedirector : public EmuObject
 
         void openFile();
         void closeFile();
-        void setFilePos(unsigned pos);
-
-        void assignFile(const std::string& fileName, const std::string& rwMode);
         void setMode(const std::string& mode) {m_rwMode = mode;}
         void setFilter(const std::string& filter) {m_filter = filter;}
         uint8_t readByte();
         uint8_t peekByte();
         void writeByte(uint8_t bt);
         bool waitForSequence(const uint8_t* seq, int len);
-        void skipSeq(const uint8_t* seq, int len);
-        uint8_t readByteSkipSeq(const uint8_t* seq, int len);
         int getPos();
         bool isEof();
         bool isOpen();
         bool isCancelled();
-        bool isLvt();
-        bool isTsx();
         void switchToNextLvt();
         void advanceToNextBlock();
 
 
     private:
         std::string m_fileName;
-        std::string m_permanentFileName;
         std::string m_filter;
         std::string m_rwMode;
 
@@ -72,10 +62,6 @@ class TapeRedirector : public EmuObject
         //bool m_read = false;
 
         WavWriter* m_wavWriter = nullptr;
-
-        int m_timeout = 0;
-        ElapsedTimer* m_timer = nullptr;
-        void updateTimer();
 
         // TSX related
         bool bytesAvailable(int n);
