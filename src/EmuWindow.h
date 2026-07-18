@@ -47,8 +47,6 @@ class EmuWindow : public EmuObject, public PalWindow
         virtual void processKey(PalKeyCode, bool) {}
         virtual void closeRequest() {}
 
-        virtual bool translateCoords(int& x, int& y);
-
         void sysReq(SysReq sr);
 
         void show();
@@ -63,15 +61,6 @@ class EmuWindow : public EmuObject, public PalWindow
 
     private:
 
-        int m_curImgWidth = 0;
-        int m_curImgHeight = 0;
-
-        int m_dstX;
-        int m_dstY;
-        int m_dstWidth;
-        int m_dstHeight;
-
-        unsigned m_curFrameNo = unsigned(-1);
         bool m_frameDrawn = false;
 
 };

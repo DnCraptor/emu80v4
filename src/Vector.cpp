@@ -201,7 +201,6 @@ VectorRenderer::VectorRenderer()
     m_pixelData = new uint8_t[maxBufSize];
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
-    m_curScanlineClock = m_curClock;
 
     m_curFramePixel = 0;
     m_curFrameClock = m_curClock;
@@ -232,7 +231,6 @@ void VectorRenderer::operate()
     m_lineOffsetIsLatched = false;
     renderFrame();
     m_machine->vrtc(true);
-    m_mode512pxLatched = m_mode512px;
     m_lastColor = 0;
 }
 

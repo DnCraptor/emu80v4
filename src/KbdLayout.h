@@ -216,7 +216,6 @@ class KbdLayout : public EmuObject
 
     private:
         bool m_shiftPressed = false;
-        bool m_langPressed = false;
         bool m_prevLang = false;
         EmuKey m_lastNonUnicodeKey = EK_NONE;
         PalKeyCode m_lastPalKeyPressedCode = PK_NONE;

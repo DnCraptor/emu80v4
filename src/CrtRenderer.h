@@ -48,7 +48,6 @@ class CrtRenderer : public EmuObject
         virtual bool isRasterPresent() {return true;}
         void swapBuffers();
 
-        bool m_defaultDebugRendering = true;
         bool reqForSwapBuffers = false;
         void enableSwapBuffersOnce() {reqForSwapBuffers = true;}
 

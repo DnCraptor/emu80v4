@@ -67,19 +67,6 @@ void EmuWindow::calcDstRect(int srcWidth, int srcHeight,  double srcAspectRatio,
 }
 
 
-bool EmuWindow::translateCoords(int& x, int& y)
-{
-    if ((x < m_dstX) || (x >= m_dstX + m_dstWidth) || (y < m_dstY) || (y >= m_dstY + m_dstHeight))
-        return false;
-
-    x = (x - m_dstX) * m_curImgWidth / m_dstWidth;
-    y = (y - m_dstY) * m_curImgHeight / m_dstHeight;
-
-    return true;
-}
-
-
-
 void EmuWindow::drawFrame(EmuPixelData frame)
 {
     (void)frame;

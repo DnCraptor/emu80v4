@@ -63,8 +63,6 @@ public:
 protected:
     bool m_isWriteProtected = false;
     std::string m_fileName;
-    std::string m_permanentFileName;
-    bool m_autoMount = false;
     std::string m_filter;
     PalFile m_file;
     std::string m_label;
@@ -99,7 +97,6 @@ class FdImage : public DiskImage
 
 
     private:
-        int m_nTracks;
         int m_nHeads;
         int m_nSectors;
         int m_sectorSize;

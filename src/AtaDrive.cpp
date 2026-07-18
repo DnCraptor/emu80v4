@@ -347,8 +347,6 @@ void AtaDrive::diskImageChanged(DiskImage* image, bool isOpen)
             if (size / 512 > 0xFFFFFFFF) {
                 m_image->close();
             }
-            if (m_vectorGeometry)
-                setVectorGeometry();
         }
         m_rdData = 0xFFFF;
     } else

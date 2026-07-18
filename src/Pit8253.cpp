@@ -27,11 +27,10 @@
 using namespace std;
 
 
-Pit8253Counter::Pit8253Counter(Pit8253* pit, int number)
+Pit8253Counter::Pit8253Counter(Pit8253* pit)
 {
     //g_emulation->registerDevice(this);
     m_pit = pit;
-    m_number = number;
     m_prevClock = g_emulation->getCurClock();
     m_isCounting = false;
     m_gate = true;
@@ -395,9 +394,9 @@ bool Pit8253Counter::getOut()
 
 
 Pit8253::Pit8253() :
-    m_counter0(this, 0),
-    m_counter1(this, 1),
-    m_counter2(this, 2),
+    m_counter0(this),
+    m_counter1(this),
+    m_counter2(this),
     m_counters{&m_counter0, &m_counter1, &m_counter2}
 {
     for (int i = 0; i < 3; i++)

@@ -148,15 +148,12 @@ class VectorRenderer : public CrtRenderer, public IActive
         bool m_lineOffsetIsLatched = false;
         uint8_t m_borderColor = 0;
         bool m_mode512px = false;
-        bool m_mode512pxLatched = false;
         uint8_t m_colorPalette[16];
         uint8_t m_bwPalette[16];
         const uint8_t* m_palette = m_colorPalette;
         int m_lastColor = 0;
 
         unsigned m_ticksPerPixel;
-
-        uint64_t m_curScanlineClock;
 
         uint64_t m_curFrameClock;
         int m_curFramePixel;

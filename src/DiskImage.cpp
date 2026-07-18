@@ -143,7 +143,7 @@ uint8_t DiskImage::read8()
 
 FdImage::FdImage(int nTracks, int nHeads, int nSectors, int sectorSize)
 {
-    m_nTracks = nTracks;
+    (void)nTracks;
     m_nHeads = nHeads;
     m_nSectors = nSectors;
     m_sectorSize = sectorSize;

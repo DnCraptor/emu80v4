@@ -91,7 +91,6 @@ class AtaDrive : public EmuObject, public DiskImageObserver
 
         void seek();
 
-        bool m_vectorGeometry = false;
 };
 
 

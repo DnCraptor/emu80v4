@@ -65,8 +65,6 @@ void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
                 emuKey = translateKey(keyCode);
                 if (emuKey == EK_SHIFT)
                     m_shiftPressed = isPressed;
-                else if (emuKey == EK_LANG)
-                    m_langPressed = isPressed;
                 kbd->processKey(emuKey, isPressed);
                 if (isPressed && emuKey != EK_SHIFT && emuKey != EK_LANG) {// SDL issue, see below
                     m_lastNonUnicodeKey = emuKey;

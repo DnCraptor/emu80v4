@@ -88,8 +88,6 @@ void CrtRenderer::updateScreenOnce()
 
 void CrtRenderer::prepareDebugScreen()
 {
-    if (m_defaultDebugRendering) {
-        enableSwapBuffersOnce();
-        renderFrame();
-    }
+    enableSwapBuffersOnce();
+    renderFrame();
 }

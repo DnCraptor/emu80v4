@@ -35,7 +35,7 @@ class Pit8253Helper;
 class Pit8253Counter : public EmuObject //PassiveDevice
 {
     public:
-        Pit8253Counter(Pit8253* pit, int number);
+        explicit Pit8253Counter(Pit8253* pit);
         //~Pit8253Counter();
 
         void setGate(bool gate);
@@ -56,7 +56,6 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         friend class Pit8253Helper;
 
     private:
-        int m_number; // номер счетчика
         Pit8253* m_pit;
         Pit8253Helper* m_helper = nullptr;
         bool m_extClockMode = false;
