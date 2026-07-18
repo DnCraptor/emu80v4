@@ -19,8 +19,6 @@
 #ifndef CLOSEFILEHOOK_H
 #define CLOSEFILEHOOK_H
 
-#include <vector>
-
 #include "CpuHook.h"
 
 class TapeRedirector;
@@ -29,16 +27,13 @@ class TapeRedirector;
 class CloseFileHook : public CpuHook
 {
     public:
-        CloseFileHook(uint16_t addr) : CpuHook(addr) {}
-        void addTapeRedirector(TapeRedirector* fr);
+        CloseFileHook(uint16_t addr, TapeRedirector* first, TapeRedirector* second);
 
         bool hookProc() override;
 
 
     private:
-        std::vector<TapeRedirector*> m_frVector;
-        TapeRedirector** m_frs;
-        int m_nFr = 0;
+        TapeRedirector* m_frs[2];
 };
 
 

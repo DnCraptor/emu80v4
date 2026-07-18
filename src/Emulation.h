@@ -22,7 +22,6 @@
 #define EMULATION_H
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -81,9 +80,9 @@ class Emulation
         void exec(uint64_t ticks, bool forced = false);
 
         inline uint64_t getCurClock() {return m_curClock;}
-        inline SoundMixer* getSoundMixer() {return m_mixer.get();}
-        inline WavReader* getWavReader() {return m_wavReader.get();}
-        inline PrnWriter* getPrnWriter() {return m_prnWriter.get();}
+        inline SoundMixer* getSoundMixer() {return m_mixer;}
+        inline WavReader* getWavReader() {return m_wavReader;}
+        inline PrnWriter* getPrnWriter() {return m_prnWriter;}
 
         void setFrequency(int64_t freq);
         int64_t getFrequency() {return m_frequency;}
@@ -125,10 +124,10 @@ class Emulation
 
         uint64_t m_curClock = 0;
 
-        std::unique_ptr<SoundMixer> m_mixer;
-        std::unique_ptr<WavReader> m_wavReader;
-        std::unique_ptr<PrnWriter> m_prnWriter;
-        std::unique_ptr<VectorCore> m_vector;
+        SoundMixer* m_mixer = nullptr;
+        WavReader* m_wavReader = nullptr;
+        PrnWriter* m_prnWriter = nullptr;
+        VectorCore* m_vector = nullptr;
 
         DebuggerOptions m_debuggerOptions;
 

@@ -1070,12 +1070,10 @@ VectorCore::VectorCore()
     tapeOutHookBas->setTapeRedirector(tapeOutFile);
     cpu->addHook(tapeOutHookBas);
 
-    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E);
+    CloseFileHook* closeFileHookBas = new CloseFileHook(0x2B8E, tapeInFile, tapeOutFile);
     closeFileHookBas->setMachine(this);
     m_closeFileHookBas = closeFileHookBas;
     closeFileHookBas->setSignature("C506003A203C");
-    closeFileHookBas->addTapeRedirector(tapeInFile);
-    closeFileHookBas->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookBas);
 
     RkTapeInHook* tapeInHookMon = new RkTapeInHook(0xF840);
@@ -1099,12 +1097,10 @@ VectorCore::VectorCore()
     skipHookMon->setSignature("CD1097FB76F3");
     cpu->addHook(skipHookMon);
 
-    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF);
+    CloseFileHook* closeFileHookMon = new CloseFileHook(0xFEFF, tapeInFile, tapeOutFile);
     closeFileHookMon->setMachine(this);
     m_closeFileHookMon = closeFileHookMon;
     closeFileHookMon->setSignature("3AFDFFE604CD");
-    closeFileHookMon->addTapeRedirector(tapeInFile);
-    closeFileHookMon->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookMon);
 
     RkTapeInHook* tapeInHookEmuRk = new RkTapeInHook(0xFC31);
@@ -1122,12 +1118,10 @@ VectorCore::VectorCore()
     tapeOutHookEmuRk->setTapeRedirector(tapeOutFile);
     cpu->addHook(tapeOutHookEmuRk);
 
-    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18);
+    CloseFileHook* closeFileHookEmuRk = new CloseFileHook(0xFF18, tapeInFile, tapeOutFile);
     closeFileHookEmuRk->setMachine(this);
     m_closeFileHookEmuRk = closeFileHookEmuRk;
     closeFileHookEmuRk->setSignature("FB3A61F6E604");
-    closeFileHookEmuRk->addTapeRedirector(tapeInFile);
-    closeFileHookEmuRk->addTapeRedirector(tapeOutFile);
     cpu->addHook(closeFileHookEmuRk);
 
     SRam* ramDiskMem = new SRam(0x40000);

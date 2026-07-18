@@ -23,12 +23,10 @@
 
 using namespace std;
 
-void CloseFileHook::addTapeRedirector(TapeRedirector* fr)
-{
-    m_frVector.push_back(fr);
-    m_nFr++;
-    m_frs = m_frVector.data();
-}
+CloseFileHook::CloseFileHook(uint16_t addr, TapeRedirector* first, TapeRedirector* second) :
+    CpuHook(addr),
+    m_frs{first, second}
+{}
 
 
 bool CloseFileHook::hookProc()
@@ -36,8 +34,8 @@ bool CloseFileHook::hookProc()
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
         return false;
 
-    for (int i=0; i<m_nFr; i++)
-        m_frs[i]->closeFile();
+    for (TapeRedirector* redirector : m_frs)
+        redirector->closeFile();
 
     return false;
 }
