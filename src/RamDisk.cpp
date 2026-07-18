@@ -28,25 +28,9 @@
 using namespace std;
 
 
-RamDisk::RamDisk(unsigned nPages, unsigned defPageSize)
+RamDisk::RamDisk(unsigned defPageSize)
 {
-    m_nPages = nPages;
     m_defPageSize = defPageSize;
-    m_pages = new SRam* [nPages];
-    for (unsigned i = 0; i < nPages; i++)
-        m_pages[i] = nullptr;
-}
-
-
-RamDisk::~RamDisk()
-{
-    delete[] m_pages;
-}
-
-
-void RamDisk::attachPage(unsigned pageNo, SRam* ram)
-{
-    m_pages[pageNo] = ram;
 }
 
 
@@ -76,18 +60,11 @@ void RamDisk::saveToFile()
     if (!file.isOpen())
         return;
 
-    for (unsigned i = 0; i < m_nPages; i++) {
-        unsigned pageSize = m_defPageSize;
-
-        if (m_pages[i])
-            pageSize = m_pages[i]->getSize();
-
-        for (unsigned pos = 0; pos < pageSize; pos++)
-            file.write8(m_pages[i]->readByte(pos));
-        if (pageSize < m_defPageSize)
-            for (unsigned pos = 0; pos < m_defPageSize - pageSize; pos++)
-                file.write8(0);
-    }
+    unsigned pageSize = m_page ? m_page->getSize() : 0;
+    for (unsigned pos = 0; pos < pageSize; pos++)
+        file.write8(m_page->readByte(pos));
+    for (unsigned pos = pageSize; pos < m_defPageSize; pos++)
+        file.write8(0);
 
     file.close();
 }
@@ -117,33 +94,12 @@ void RamDisk::loadFromFile()
     if (!file.isOpen())
         return;
 
-    unsigned expectedSize = 0;
-    for (unsigned i = 0; i < m_nPages; i++) {
-        unsigned pageSize = m_defPageSize;
-
-        if (m_pages[i])
-            pageSize = m_pages[i]->getSize();
-        if (pageSize < m_defPageSize)
-            pageSize = m_defPageSize;
-
-        expectedSize += m_defPageSize;
-    }
-
-    if (file.getSize() == expectedSize) {
-
-        for (unsigned i = 0; i < m_nPages; i++) {
-            unsigned pageSize = m_defPageSize;
-
-            if (m_pages[i])
-                pageSize = m_pages[i]->getSize();
-
-            for (unsigned pos = 0; pos < pageSize; pos++)
-                m_pages[i]->writeByte(pos, file.read8());
-
-            if (pageSize < m_defPageSize)
-                for (unsigned pos = 0; pos < m_defPageSize - pageSize; pos++)
-                    file.read8();
-        }
+    if (file.getSize() == m_defPageSize) {
+        unsigned pageSize = m_page ? m_page->getSize() : 0;
+        for (unsigned pos = 0; pos < pageSize; pos++)
+            m_page->writeByte(pos, file.read8());
+        for (unsigned pos = pageSize; pos < m_defPageSize; pos++)
+            file.read8();
     } else {
         emuLog << "Invalid file size: " << m_fileName << "\n";
     }

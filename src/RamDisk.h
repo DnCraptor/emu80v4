@@ -29,10 +29,9 @@ class SRam;
 class RamDisk : public EmuObject
 {
     public:
-        RamDisk(unsigned nPages, unsigned pageSize = 0);
-        ~RamDisk();
+        explicit RamDisk(unsigned pageSize = 0);
 
-        void attachPage(unsigned pageNo, SRam* ram);
+        void attachPage(SRam* ram) {m_page = ram;}
         void setFilter(const std::string& filter) {m_filter = filter;}
         void setLabel(const std::string& label) {m_label = label;}
 
@@ -50,10 +49,8 @@ class RamDisk : public EmuObject
 
 
     private:
-        unsigned m_nPages;
         unsigned m_defPageSize;
-
-        SRam** m_pages = nullptr;
+        SRam* m_page = nullptr;
 
         std::string m_filter;
         std::string m_label;

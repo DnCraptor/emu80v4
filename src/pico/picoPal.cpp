@@ -113,27 +113,30 @@ void palCopyTextToClipboard(const char* text) {
     clipboard = text;
 }
 
-void palGetDirContent(const string& d, vector<PalFileInfo*>& fileList)
+static constexpr int MAX_FILE_DIALOG_ITEMS = 256;
+
+static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems)
 {
     DIR dir;
     FILINFO entry;
-    if (f_opendir(&dir, d.c_str()) != FR_OK) {
-        return;
-    }
-    while (f_readdir(&dir, &entry) == FR_OK && entry.fname[0] != '\0') {
-        PalFileInfo* newFile = new PalFileInfo;
-        newFile->fileName = entry.fname;
-        newFile->isDir = (entry.fattrib & AM_DIR) != 0;
-        newFile->size = entry.fsize;
-        newFile->year = 1980 + (entry.fdate >> 9);
-        newFile->month = (entry.fdate >> 5) & 0b111;
-        newFile->day = entry.fdate & 0b11111;
-        newFile->hour = entry.ftime >> 11;
-        newFile->minute =  (entry.ftime >> 5) & 0b1111111;
-        newFile->second = entry.ftime & 0b11111;
-        fileList.push_back(newFile);
+    if (f_opendir(&dir, d.c_str()) != FR_OK)
+        return 0;
+
+    int count = 0;
+    while (count < maxItems && f_readdir(&dir, &entry) == FR_OK && entry.fname[0] != '\0') {
+        PalFileInfo& file = fileList[count++];
+        file.fileName = entry.fname;
+        file.isDir = (entry.fattrib & AM_DIR) != 0;
+        file.size = entry.fsize;
+        file.year = 1980 + (entry.fdate >> 9);
+        file.month = (entry.fdate >> 5) & 0b111;
+        file.day = entry.fdate & 0b11111;
+        file.hour = entry.ftime >> 11;
+        file.minute = (entry.ftime >> 5) & 0b1111111;
+        file.second = entry.ftime & 0b11111;
     }
     f_closedir(&dir);
+    return count;
 }
 
 /// TODO: .h
@@ -179,30 +182,26 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         return "";
     f_closedir(&f_dir);
 
-    vector<PalFileInfo*> fileList;
+    static PalFileInfo fileList[MAX_FILE_DIALOG_ITEMS];
+    int fileCount = 0;
     int selected_file_n = 0;
     int shift_j = 0;
     int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
     if (visibleRows < 1) visibleRows = 1;
     PalFileInfo* selected_fi = nullptr;
 
-    auto freeFileList = [&]() {
-        for (auto* fi : fileList) delete fi;
-        fileList.clear();
-    };
-
     auto loadDirectory = [&]() {
-        freeFileList();
+        fileCount = 0;
         if (fdir.length() > 1) {
-            PalFileInfo* newFile = new PalFileInfo;
-            newFile->fileName = back;
-            newFile->isDir = 1;
-            fileList.push_back(newFile);
+            fileList[fileCount].fileName = back;
+            fileList[fileCount].isDir = true;
+            fileList[fileCount].size = 0;
+            fileCount++;
         }
-        palGetDirContent(fdir, fileList);
-        sort(fileList.begin(), fileList.end(), [](const PPalFileInfo& a, const PPalFileInfo& b) {
-            if (a->isDir == b->isDir) return a->fileName < b->fileName;
-            return a->isDir > b->isDir;
+        fileCount += palGetDirContent(fdir, fileList + fileCount, MAX_FILE_DIALOG_ITEMS - fileCount);
+        sort(fileList, fileList + fileCount, [](const PalFileInfo& a, const PalFileInfo& b) {
+            if (a.isDir == b.isDir) return a.fileName < b.fileName;
+            return a.isDir > b.isDir;
         });
     };
 
@@ -229,9 +228,9 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         uint32_t bg = selected ? RGB888(114, 114, 224) : RGB888(255, 255, 255);
         uint32_t fg = selected ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
         graphics_fill(x + 1, rowY, listW, fnth, bg);
-        if (itemIndex >= 0 && itemIndex < (int)fileList.size()) {
-            PalFileInfo* fi = fileList[itemIndex];
-            string name = fi->isDir ? "<" + fi->fileName + ">" : fi->fileName;
+        if (itemIndex >= 0 && itemIndex < fileCount) {
+            const PalFileInfo& fi = fileList[itemIndex];
+            string name = fi.isDir ? "<" + fi.fileName + ">" : fi.fileName;
             size_t maxChars = listW > 2 ? (listW - 2) / fntw : 0;
             if (name.length() > maxChars) name.resize(maxChars);
             graphics_type(xb, rowY, fg, name.c_str(), name.length());
@@ -242,7 +241,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         uint32_t trackY = yb;
         uint32_t trackH = y + h - 1 - trackY;
         graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
-        int total = (int)fileList.size();
+        int total = fileCount;
         if (total <= visibleRows || trackH == 0) return;
         uint32_t thumbH = (uint32_t)((uint64_t)trackH * visibleRows / total);
         if (thumbH < 4) thumbH = 4;
@@ -281,7 +280,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
 
         int oldSelected = selected_file_n;
         int oldShift = shift_j;
-        int count = (int)fileList.size();
+        int count = fileCount;
         if (count == 0) {
             if (pk.vk == PK_ESC && pk.pressed) break;
             continue;
@@ -300,7 +299,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         } else if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
             selected_file_n = count - 1;
         } else if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
-            selected_fi = fileList[selected_file_n];
+            selected_fi = &fileList[selected_file_n];
             if (write) {
                 res = fdir + "/" + t2;
                 break;
@@ -341,31 +340,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         }
     }
 
-    freeFileList();
     return res;
-}
-
-void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)
-{
-    DIR dir;
-    FILINFO entry;
-    if (f_opendir(&dir, d.c_str()) != FR_OK) {
-        return;
-    }
-    while (f_readdir(&dir, &entry) == FR_OK && entry.fname[0] != '\0') {
-        PalFileInfo* newFile = new PalFileInfo;
-        newFile->fileName = entry.fname;
-        newFile->isDir = (entry.fattrib & AM_DIR) != 0;
-        newFile->size = entry.fsize;
-        newFile->year = 1980 + (entry.fdate >> 9);
-        newFile->month = (entry.fdate >> 5) & 0b111;
-        newFile->day = entry.fdate & 0b11111;
-        newFile->hour = entry.ftime >> 11;
-        newFile->minute =  (entry.ftime >> 5) & 0b1111111;
-        newFile->second = entry.ftime & 0b11111;
-        fileList.push_back(newFile);
-    }
-    f_closedir(&dir);
 }
 
 #include "../EmuCalls.h"

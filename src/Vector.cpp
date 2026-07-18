@@ -464,10 +464,14 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
         if (!m_machine->assignDiskAFileName(fileName))
             return false;
 
-        VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
+        Keyboard* keyboard = m_machine->getKeyboard();
+        keyboard->disableKeysReset();
+        m_machine->reset();
+        keyboard->enableKeysReset();
+
         Cpu8080Compatible* cpu = m_machine->getCpu();
+        VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
         addrSpace->enableRom();
-        cpu->setPC(0);
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
 
         if (run) {
@@ -1080,10 +1084,10 @@ VectorCore::VectorCore()
     m_ramDiskMem->setMachine(this);
     m_addrSpace->attachRamDisk(0, m_ramDiskMem);
 
-    m_ramDisk = new RamDisk(1, 0x40000);
+    m_ramDisk = new RamDisk(0x40000);
     m_ramDisk->setMachine(this);
     m_ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    m_ramDisk->attachPage(0, m_ramDiskMem);
+    m_ramDisk->attachPage(m_ramDiskMem);
 
     m_ramDiskSelector = new VectorRamDiskSelector();
     m_ramDiskSelector->setMachine(this);
@@ -1095,11 +1099,11 @@ VectorCore::VectorCore()
     m_ramDiskMem2->setMachine(this);
     m_addrSpace->attachRamDisk(1, m_ramDiskMem2);
 
-    m_ramDisk2 = new RamDisk(1, 0x40000);
+    m_ramDisk2 = new RamDisk(0x40000);
     m_ramDisk2->setMachine(this);
     m_ramDisk2->setLabel("EDD2");
     m_ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    m_ramDisk2->attachPage(0, m_ramDiskMem2);
+    m_ramDisk2->attachPage(m_ramDiskMem2);
 
     m_ramDiskSelector2 = new VectorRamDiskSelector();
     m_ramDiskSelector2->setMachine(this);

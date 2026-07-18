@@ -359,32 +359,38 @@ PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 Emulation* g_emulation = nullptr;
 
 #if 1
-#include <queue>
-static std::queue<PalKeyCodeAction*> actions;
+static constexpr unsigned KEY_ACTION_QUEUE_SIZE = 64;
+static PalKeyCodeAction keyActions[KEY_ACTION_QUEUE_SIZE];
+static unsigned keyActionHead = 0;
+static unsigned keyActionTail = 0;
+static unsigned keyActionCount = 0;
 
 inline static void addKey(PalKeyCode vk, bool pressed) {
-    actions.push(new PalKeyCodeAction(vk, pressed));
+    if (keyActionCount >= KEY_ACTION_QUEUE_SIZE)
+        return;
+    keyActions[keyActionTail] = PalKeyCodeAction(vk, pressed);
+    keyActionTail = (keyActionTail + 1) % KEY_ACTION_QUEUE_SIZE;
+    keyActionCount++;
+}
+
+static PalKeyCodeAction popKeyAction() {
+    if (keyActionCount == 0)
+        return PalKeyCodeAction();
+    PalKeyCodeAction action = keyActions[keyActionHead];
+    keyActionHead = (keyActionHead + 1) % KEY_ACTION_QUEUE_SIZE;
+    keyActionCount--;
+    return action;
 }
 
 PalKeyCodeAction getKey() {
-    if (actions.empty()) return PalKeyCodeAction();
-    PalKeyCodeAction* p = actions.front();
-    actions.pop();
-    if (!p) return PalKeyCodeAction();
-    PalKeyCodeAction res = *p;
-    delete p;
-    return res;
+    return popKeyAction();
 }
 
 void processKeys() {
-    if (!actions.empty()) {
-        PalKeyCodeAction* p = actions.front();
-        actions.pop();
-        if (p && g_emulation) {
-            g_emulation->machineKey(p->vk, p->pressed);
-            delete p;
-        }
-    }
+    if (keyActionCount == 0 || !g_emulation)
+        return;
+    PalKeyCodeAction action = popKeyAction();
+    g_emulation->machineKey(action.vk, action.pressed);
 }
 #else
 volatile static PalKeyCodeAction lastKey;
