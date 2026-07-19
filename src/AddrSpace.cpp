@@ -46,6 +46,7 @@ void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* add
         m_readRanges[i] = m_readRanges[i - 1];
     m_readRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr, invertAddress};
     m_itemCountR++;
+    rebuildReadMap();
 }
 
 
@@ -61,11 +62,48 @@ void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* ad
         m_writeRanges[i] = m_writeRanges[i - 1];
     m_writeRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr, invertAddress};
     m_itemCountW++;
+    rebuildWriteMap();
+}
+
+
+void AddrSpace::rebuildReadMap()
+{
+    for (int addr = 0; addr < 256; addr++) {
+        const Range* selected = nullptr;
+        for (int i = 0; i < m_itemCountR && m_readRanges[i].firstAddress <= addr; i++)
+            selected = &m_readRanges[i];
+        m_readMap[addr] = selected && addr - selected->firstAddress < selected->itemSize
+            ? selected
+            : nullptr;
+    }
+}
+
+
+void AddrSpace::rebuildWriteMap()
+{
+    for (int addr = 0; addr < 256; addr++) {
+        const Range* selected = nullptr;
+        for (int i = 0; i < m_itemCountW && m_writeRanges[i].firstAddress <= addr; i++)
+            selected = &m_writeRanges[i];
+        m_writeMap[addr] = selected && addr - selected->firstAddress < selected->itemSize
+            ? selected
+            : nullptr;
+    }
 }
 
 
 uint8_t __not_in_flash_func(AddrSpace::readByte)(int addr)
 {
+    if (static_cast<unsigned>(addr) < 256) {
+        const Range* range = m_readMap[addr];
+        if (!range)
+            return m_nullByte;
+        int devAddr = addr - range->firstAddress + range->devFirstAddress;
+        if (range->invertAddress)
+            devAddr = ~devAddr;
+        return range->device->readByte(devAddr);
+    }
+
     int i = 0;
     while (i < m_itemCountR && m_readRanges[i].firstAddress <= addr)
         i++;
@@ -83,6 +121,17 @@ uint8_t __not_in_flash_func(AddrSpace::readByte)(int addr)
 
 void __not_in_flash_func(AddrSpace::writeByte)(int addr, uint8_t value)
 {
+    if (static_cast<unsigned>(addr) < 256) {
+        const Range* range = m_writeMap[addr];
+        if (!range)
+            return;
+        int devAddr = addr - range->firstAddress + range->devFirstAddress;
+        if (range->invertAddress)
+            devAddr = ~devAddr;
+        range->device->writeByte(devAddr, value);
+        return;
+    }
+
     int i = 0;
     while (i < m_itemCountW && m_writeRanges[i].firstAddress <= addr)
         i++;

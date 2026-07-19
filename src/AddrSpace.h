@@ -46,9 +46,14 @@ private:
             bool invertAddress = false;
         };
 
+        void rebuildReadMap();
+        void rebuildWriteMap();
+
         uint8_t m_nullByte;
         Range m_readRanges[MAX_RANGES] = {};
         Range m_writeRanges[MAX_RANGES] = {};
+        const Range* m_readMap[256] = {};
+        const Range* m_writeMap[256] = {};
         int m_itemCountR = 0;
         int m_itemCountW = 0;
 
