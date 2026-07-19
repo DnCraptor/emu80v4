@@ -608,7 +608,7 @@ __force_inline static void psram_write_async_fast(psram_spi_inst_t* spi, uint32_
     pio_spi_write_async(spi, write_async_fast_command, 6 + count);
 };
 
-extern volatile uint8_t* PSRAM_DATA;
+extern uint8_t* PSRAM_DATA;
 uint32_t __not_in_flash_func(butter_psram_size)();
 
 uint32_t init_psram();

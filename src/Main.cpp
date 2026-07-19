@@ -726,7 +726,7 @@ static int BUTTER_PSRAM_SIZE = -1;
 #define MB8 (8ul << 20)
 #define MB4 (4ul << 20)
 #define MB1 (1ul << 20)
-volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
+uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
 uint32_t __not_in_flash_func(butter_psram_size)() {
     if (BUTTER_PSRAM_SIZE != -1) return BUTTER_PSRAM_SIZE;
     for(register int i = MB8; i < MB16; i += 4096)
@@ -831,7 +831,7 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
         printf(fmt);
 }
 #else
-static uint8_t* PSRAM_DATA = (uint8_t*)0;
+uint8_t* PSRAM_DATA = (uint8_t*)0;
 uint32_t butter_psram_size() { return 0; }
 #endif
 

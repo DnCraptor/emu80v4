@@ -176,7 +176,14 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti -fno-threadsafe-statics>
 )
 target_link_options(${PROJECT_NAME} PRIVATE -Wl,--gc-sections)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)   # или -flto=auto вручную
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT IPO_SUPPORTED OUTPUT IPO_ERROR LANGUAGES C CXX)
+if (IPO_SUPPORTED)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+    message(WARNING "IPO/LTO is not supported: ${IPO_ERROR}")
+endif()
 
 IF(KBDUSB)
     add_subdirectory(drivers/ps2kbd)
