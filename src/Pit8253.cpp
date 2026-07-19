@@ -31,6 +31,7 @@ Pit8253Counter::Pit8253Counter(Pit8253* pit)
 {
     m_pit = pit;
     m_prevClock = g_emulation->getCurClock();
+    m_clockPhase = uint32_t(m_prevClock % uint64_t(m_kDiv));
     m_isCounting = false;
     m_gate = true;
     m_out = false;
@@ -184,54 +185,77 @@ void __not_in_flash_func(Pit8253Counter::operateForTicks)(int ticks)
 
 void __not_in_flash_func(Pit8253Counter::updateState)()
 {
-    uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t curClock = g_emulation->getCurClock();
+    const uint32_t kDiv = uint32_t(m_kDiv);
 
-#ifndef LESS_64BIT_DIVS
-    int ticks = curClock / m_kDiv - m_prevClock / m_kDiv;
-#else
-    int dt = g_emulation->getCurClock() - m_prevClock;
-     if (m_prevFastClock >= m_kDiv * 1024) {
-        m_prevFastClock -= m_kDiv * 1024;
+    // Прежний код брал два частных и два остатка от полного 64-битного такта
+    // эмуляции, то есть до четырёх вызовов __aeabi_uldivmod (аппаратного
+    // 64-битного деления нет ни у RP2040, ни у RP2350). Метод вызывается для
+    // каждого из трёх счётчиков на каждый звуковой сэмпл, то есть ~576000 раз
+    // в секунду при 48 кГц.
+    //
+    // Поскольку m_clockPhase инвариантно равно m_prevClock % m_kDiv, справедливо
+    //     (m_prevClock % kDiv) + (cur - m_prevClock) == cur - kDiv * (m_prevClock / kDiv),
+    // поэтому частное от этой суммы даёт ровно cur/kDiv - m_prevClock/kDiv,
+    // а остаток — ровно cur % kDiv. Результат совпадает с прежним побитово.
+    const uint32_t prevPhase = m_clockPhase;
+    const uint64_t delta = curClock - m_prevClock;
+
+    int ticks;
+    uint32_t curPhase;
+
+    if (delta < 0x80000000ull) {
+        const uint32_t acc = prevPhase + uint32_t(delta);
+        ticks = int(acc / kDiv);
+        curPhase = acc - uint32_t(ticks) * kDiv;
+    } else {
+        // Редкий путь: пауза, отладчик, ход часов назад после рассинхронизации.
+        ticks = int(curClock / m_kDiv - m_prevClock / m_kDiv);
+        curPhase = uint32_t(curClock % uint64_t(kDiv));
     }
-     const uint32_t curFastClock = m_prevFastClock + dt;
-    int ticks = curFastClock / m_kDiv - m_prevFastClock / m_kDiv;
-#endif
 
+    // Порядок сохранён: operateForTicks() может изменить m_out даже при ticks == 0
+    // (режимы 2 и 3 пересчитывают m_out безусловно), поэтому две проверки m_out
+    // не сворачиваются в одну и ранний выход при нулевом приращении недопустим.
     if (m_out)
-#ifndef LESS_64BIT_DIVS
-        m_tempAddOutClocks -= (m_prevClock % m_kDiv);
-#else
-        m_tempAddOutClocks -= (m_prevFastClock % m_kDiv);
-#endif
+        m_tempAddOutClocks -= int(prevPhase);
 
     operateForTicks(ticks);
 
     if (m_out)
-#ifndef LESS_64BIT_DIVS
-        m_tempAddOutClocks += (curClock % m_kDiv);
-#else
-        m_tempAddOutClocks += curFastClock % m_kDiv;
-#endif
+        m_tempAddOutClocks += int(curPhase);
 
-
+    m_clockPhase = curPhase;
     m_prevClock = curClock;
-#ifdef LESS_64BIT_DIVS
-    m_prevFastClock = curFastClock;
-#endif
 }
 
 
-int Pit8253Counter::getAvgOut()
+int __not_in_flash_func(Pit8253Counter::getAvgOut)()
 {
-    uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t curClock = g_emulation->getCurClock();
     m_avgOut = 0;
-    if (curClock != m_sampleClock) {
-#ifndef LESS_64BIT_DIVS
-        m_avgOut = uint64_t(m_tempSumOut * m_kDiv + m_tempAddOutClocks) * MAX_SND_AMP / (curClock - m_sampleClock);
-#else
-        uint32_t dt = curClock - m_sampleClock;
-        m_avgOut = (m_tempSumOut * m_kDiv + m_tempAddOutClocks) * 4096 / dt;
-#endif
+
+    const uint64_t dt = curClock - m_sampleClock;
+    if (dt) {
+        // Числитель — время, проведённое выходом во взведённом состоянии,
+        // в тактах эмуляции.
+        int num = m_tempSumOut * m_kDiv + m_tempAddOutClocks;
+
+        // Он может оказаться отрицательным: если выход был высоким в начале
+        // интервала и упал внутри operateForTicks(), вычитание фазы уже
+        // выполнено, а парного прибавления не будет. Прежний код приводил
+        // такое значение к uint64_t и получал ~1.8e19, то есть заведомо
+        // испорченный сэмпл. Отрицательного времени быть не может.
+        if (num < 0)
+            num = 0;
+
+        // dt — длительность одного сэмпла (~35000 тактов при 48 кГц), поэтому
+        // num * MAX_SND_AMP помещается в 32 бита и деление из 64-битного
+        // становится 32-битным. Метод вызывается трижды на каждый сэмпл.
+        if (dt <= 0xFFFFFFFFull && num <= 0x7FFFFFFF / MAX_SND_AMP)
+            m_avgOut = int(uint32_t(num) * uint32_t(MAX_SND_AMP) / uint32_t(dt));
+        else
+            m_avgOut = int(uint64_t(num) * MAX_SND_AMP / dt);
     }
     return m_avgOut;
 }
@@ -244,11 +268,14 @@ void Pit8253Counter::resetStats()
     m_sumOutTicks = 0;
     m_tempSumOut = 0;
     m_tempAddOutClocks = 0;
-    m_prevClock = g_emulation->getCurClock();
+    const uint64_t clock = g_emulation->getCurClock();
+    // resetStats() вызывается сразу после updateState() на том же такте, поэтому
+    // фаза почти всегда уже актуальна. Пересчитываем её только если такт всё-таки
+    // другой, чтобы не вернуть 64-битное деление на путь каждого сэмпла.
+    if (clock != m_prevClock)
+        m_clockPhase = uint32_t(clock % uint64_t(m_kDiv));
+    m_prevClock = clock;
     m_sampleClock = m_prevClock;
-#ifdef LESS_64BIT_DIVS
-    m_prevFastClock = 0;
-#endif
 }
 
 
@@ -386,8 +413,10 @@ Pit8253::Pit8253() :
     m_counter2(this),
     m_counters{&m_counter0, &m_counter1, &m_counter2}
 {
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++) {
         m_counters[i]->m_kDiv = m_kDiv;
+        m_counters[i]->syncClockPhase();
+    }
 
     for (int i = 0; i < 3; i++) {
         m_latches[i] = 0;
@@ -401,8 +430,10 @@ Pit8253::~Pit8253() = default;
 void Pit8253::setFrequency(int64_t freq)
 {
     EmuObject::setFrequency(freq);
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; i++) {
         m_counters[i]->m_kDiv = m_kDiv;
+        m_counters[i]->syncClockPhase();
+    }
 }
 
 

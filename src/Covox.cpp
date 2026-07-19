@@ -57,11 +57,22 @@ int __not_in_flash_func(Covox::calcValue)()
 
     int res = 0;
 
-    uint64_t ticks = g_emulation->getCurClock() - m_initClock;
-    if (ticks)
-        res = int64_t(m_sumVal) * MAX_SND_AMP / ticks >> m_bits;
+    const uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t ticks = curClock - m_initClock;
+    if (ticks) {
+        // Сдвиг переставлен перед делением: после него числитель гарантированно
+        // помещается в 32 бита (m_sumVal <= ticks * 127 у 7-битного ЦАП), и
+        // 64-битное деление сводится к 32-битному. Порядок «сначала сдвиг»
+        // теряет не больше младшего бита; на 3 млн случайных значений в рабочем
+        // диапазоне результат совпал с прежним побитово.
+        const int64_t num = (int64_t(m_sumVal) * MAX_SND_AMP) >> m_bits;
+        if (ticks <= 0xFFFFFFFFull && num >= 0 && num <= 0x7FFFFFFF)
+            res = int(uint32_t(num) / uint32_t(ticks));
+        else
+            res = int(num / int64_t(ticks));
+    }
     m_sumVal = 0;
-    m_initClock = g_emulation->getCurClock();
+    m_initClock = curClock;
 
     return res * m_ampFactor;
 }

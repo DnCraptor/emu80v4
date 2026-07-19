@@ -25,10 +25,6 @@
 
 #include "EmuObjects.h"
 
-// Uncomment for Raspberry Pi etc.
-// Thanks to Viacheslav Slavinsky aka svofski
-//#define LESS_64BIT_DIVS
-
 class Pit8253;
 class Pit8253Helper;
 
@@ -46,6 +42,9 @@ class Pit8253Counter : public EmuObject //PassiveDevice
 
         void updateState();
         void operateForTicks(int ticks);
+
+        // Пересчитать фазу после изменения m_kDiv (вызывается Pit8253)
+        void syncClockPhase() {m_clockPhase = uint32_t(m_prevClock % uint64_t(m_kDiv));}
 
         void setExtClockMode(bool extClockMode) {m_extClockMode = extClockMode;}
         inline bool getExtClockMode() {return m_extClockMode;}
@@ -66,9 +65,11 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         int m_tempSumOut = 0;
         int m_tempAddOutClocks = 0;
 
-#ifdef LESS_64BIT_DIVS
-        uint32_t m_prevFastClock = 0;
-#endif
+        // Инвариант: m_clockPhase == m_prevClock % m_kDiv.
+        // Позволяет получать число прошедших тактов счётчика и новую фазу
+        // одним 32-битным делением приращения вместо деления полного
+        // 64-битного такта эмуляции. См. updateState().
+        uint32_t m_clockPhase = 0;
 
         int m_mode;
         bool m_gate;

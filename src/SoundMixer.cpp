@@ -183,11 +183,21 @@ int __not_in_flash_func(GeneralSoundSource::calcValue)()
 
     int res = 0;
 
-    uint64_t ticks = g_emulation->getCurClock() - initClock;
-    if (ticks)
-            res = sumVal * MAX_SND_AMP / ticks;
+    const uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t ticks = curClock - initClock;
+    if (ticks) {
+        // ticks — длительность одного сэмпла (~35000 тактов при 48 кГц), то есть
+        // делитель по смыслу 32-битный. Он неявно расширялся до uint64_t, и
+        // каждый сэмпл стоил вызова __aeabi_uldivmod вместо одной инструкции
+        // деления. Умножение sumVal * MAX_SND_AMP как было 32-битным, так и
+        // остаётся, поэтому результат совпадает с прежним побитово.
+        if (ticks <= 0xFFFFFFFFull && sumVal >= 0 && sumVal <= 0x7FFFFFFF / MAX_SND_AMP)
+            res = int(uint32_t(sumVal) * uint32_t(MAX_SND_AMP) / uint32_t(ticks));
+        else
+            res = int(int64_t(sumVal) * MAX_SND_AMP / int64_t(ticks));
+    }
     sumVal = 0;
-    initClock = g_emulation->getCurClock();
+    initClock = curClock;
 
     return res * m_ampFactor;
 }

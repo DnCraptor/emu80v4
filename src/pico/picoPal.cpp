@@ -317,7 +317,6 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
 void palExecute() {
     while(1) {
         emuEmulationCycle();
-        sleep_ms(2);
     }
     __unreachable();
 }
