@@ -656,7 +656,6 @@ bool toggle_color() {
 }
 #endif
 
-#ifdef I2S_SOUND
 i2s_config_t i2s_config = {
 		.sample_freq = I2S_FREQUENCY, 
 		.channel_count = 2,
@@ -669,7 +668,6 @@ i2s_config_t i2s_config = {
         .dma_buf = NULL,
         .volume = 0
 	};
-#endif
 
 #ifdef LOAD_WAV_PIO
 inline static void inInit(uint gpio) {
@@ -679,30 +677,26 @@ inline static void inInit(uint gpio) {
 }
 #endif
 
-#ifdef AUDIO_PWM_PIN
 #include "hardware/pwm.h"
-#endif
 
 void init_sound() {
-#ifndef I2S_SOUND
-    pwm_config config = pwm_get_default_config();
-    gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
-    gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
-    pwm_config_set_clkdiv(&config, 1.0f);
-    pwm_config_set_wrap(&config, (1 << 8) - 1); // MAX PWM value
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN1), &config, true);
+    // Тип выхода определяется электрически: одна прошивка работает и с
+    // ШИМ-платой, и с I2S-платой. Сама инициализация выбранного тракта
+    // отложена до palSetSampleRate(), когда известна частота дискретизации.
+    if (!palProbeAudioOutput()) {
+        pwm_config config = pwm_get_default_config();
+        gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
+        gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
+        pwm_config_set_clkdiv(&config, 1.0f);
+        pwm_config_set_wrap(&config, (1 << 8) - 1); // MAX PWM value
+        pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);
+        pwm_init(pwm_gpio_to_slice_num(PWM_PIN1), &config, true);
     #if BEEPER_PIN
         gpio_set_function(BEEPER_PIN, GPIO_FUNC_PWM);
         pwm_config_set_clkdiv(&config, 127);
         pwm_init(pwm_gpio_to_slice_num(BEEPER_PIN), &config, true);
     #endif
-#else
-    i2s_config.sample_freq = I2S_FREQUENCY;
-    i2s_config.channel_count = 2;
-    i2s_config.dma_trans_count = 1;
-    i2s_init(&i2s_config);
-#endif
+    }
 #ifdef LOAD_WAV_PIO
     //пин ввода звука
     inInit(LOAD_WAV_PIO);

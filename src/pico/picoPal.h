@@ -44,6 +44,12 @@ class EmuLog
 
 extern EmuLog emuLog;
 
+// Определение типа звукового выхода (ШИМ или I2S) при старте
+bool palProbeAudioOutput();
+bool palAudioIsI2S();
+// Сырые результаты прозвонки: [0],[1] — время нарастания в мкс, [2] — внешняя запитка
+uint32_t palAudioProbe(int i);
+
 struct PalFileInfo {
     std::string fileName;   // 24 байта: указатель, длина и буфер коротких строк
     //char shortLatinFileName[11];

@@ -236,15 +236,21 @@ else()
 endif()
 
 
-IF(NOT I2S)
-    SET(BUILD_NAME "${BUILD_NAME}-PWM")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM)
-ELSEIF(I2S_CS4334)
+# Звук. Одна прошивка обслуживает и ШИМ-плату, и I2S-плату: тип выхода
+# определяется электрической прозвонкой выводов при старте (см.
+# palProbeAudioOutput). AUDIO_PWM определять НЕЛЬЗЯ — иначе в драйвере audio
+# включается ветка AUDIO_PWM_PIN и i2s_init() не настраивает PIO.
+IF(CS4334)
     target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
     SET(BUILD_NAME "${BUILD_NAME}-CS4334")
-ELSE()
-    SET(BUILD_NAME "${BUILD_NAME}-I2S")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_SOUND=1)
+ENDIF()
+# Принудительный выбор в обход прозвонки, если она ошибается на какой-то плате
+IF(AUDIO_FORCE_PWM)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_FORCE_PWM)
+    SET(BUILD_NAME "${BUILD_NAME}-forcePWM")
+ELSEIF(AUDIO_FORCE_I2S)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_FORCE_I2S)
+    SET(BUILD_NAME "${BUILD_NAME}-forceI2S")
 ENDIF()
 
 IF(TFT)

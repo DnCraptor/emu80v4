@@ -109,7 +109,7 @@ class Emulation
         uint64_t m_frequency;
         uint64_t m_curFrequency;
         bool m_vsync = true;
-        unsigned m_sampleRate = 48000;
+        unsigned m_sampleRate = 50000;
 
         uint64_t m_curClock = 0;
 

@@ -42,7 +42,7 @@ Emulation::Emulation()
     // но не разыменовывается, поэтому конструктор безопасен и при статическом
     // размещении объекта. Всё остальное перенесено в init().
     m_vsync = true;
-    m_sampleRate = 48000;
+    m_sampleRate = 50000;   // 20 мкс на отсчёт ровно, см. picoPal.cpp
 
     g_emulation = this;
 }
@@ -57,7 +57,7 @@ void Emulation::init()
     m_prnWriter = new PrnWriter();
 
     setFrequency(1680000000);
-    setSampleRate(48000);
+    setSampleRate(50000);
     m_mixer->setVolume(5);
     setVsync(true);
 
