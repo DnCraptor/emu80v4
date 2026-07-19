@@ -3,6 +3,8 @@
 
 #include <sstream>
 #include <iostream>
+#include <memory>
+#include <new>
 
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
@@ -96,13 +98,6 @@ static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems
         PalFileInfo& file = fileList[count++];
         file.fileName = entry.fname;
         file.isDir = (entry.fattrib & AM_DIR) != 0;
-        file.size = entry.fsize;
-        file.year = 1980 + (entry.fdate >> 9);
-        file.month = (entry.fdate >> 5) & 0b111;
-        file.day = entry.fdate & 0b11111;
-        file.hour = entry.ftime >> 11;
-        file.minute = (entry.ftime >> 5) & 0b1111111;
-        file.second = entry.ftime & 0b11111;
     }
     f_closedir(&dir);
     return count;
@@ -151,7 +146,16 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         return "";
     f_closedir(&f_dir);
 
-    static PalFileInfo fileList[MAX_FILE_DIALOG_ITEMS];
+    // Раньше здесь был static-массив: он занимал 14336 байт SRAM постоянно,
+    // хотя нужен только пока открыт диалог. Хуже того, строки имён в нём
+    // сохраняли свои блоки в куче и после закрытия диалога — сбрасывались они
+    // лишь при следующем открытии.
+    // Диалог модальный, поэтому список живёт ровно столько, сколько нужно.
+    std::unique_ptr<PalFileInfo[]> fileListHolder(
+        new (std::nothrow) PalFileInfo[MAX_FILE_DIALOG_ITEMS]);
+    if (!fileListHolder)
+        return "";
+    PalFileInfo* fileList = fileListHolder.get();
     int fileCount = 0;
     int selected_file_n = 0;
     int shift_j = 0;
@@ -164,7 +168,6 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         if (fdir.length() > 1) {
             fileList[fileCount].fileName = back;
             fileList[fileCount].isDir = true;
-            fileList[fileCount].size = 0;
             fileCount++;
         }
         fileCount += palGetDirContent(fdir, fileList + fileCount, MAX_FILE_DIALOG_ITEMS - fileCount);

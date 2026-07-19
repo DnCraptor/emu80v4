@@ -58,7 +58,7 @@ void Emulation::init()
 
     setFrequency(1680000000);
     setSampleRate(48000);
-    m_mixer->setVolume(6);
+    m_mixer->setVolume(5);
     setVsync(true);
 
     m_vector = new VectorCore();

@@ -45,16 +45,14 @@ class EmuLog
 extern EmuLog emuLog;
 
 struct PalFileInfo {
-    std::string fileName;
+    std::string fileName;   // 24 байта: указатель, длина и буфер коротких строк
     //char shortLatinFileName[11];
     bool isDir;
-    unsigned size;
-    int second;
-    int minute;
-    int hour;
-    int day;
-    int month;
-    int year;
+
+    // Здесь были ещё size и шесть int под дату и время. Они заполнялись в
+    // palGetDirContent(), но нигде не читались: список файлов показывает только
+    // имя и признак каталога, сортировка тоже смотрит только на них.
+    // 28 байт на запись при 256 записях — 7168 байт впустую.
 };
 
 #endif // PICOPAL_H
