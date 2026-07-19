@@ -31,6 +31,10 @@
 using namespace std;
 
 
+// Формат представления уровня выхода каналов: Q16, 65536 == 1.0
+static constexpr int PSG_AMP_BITS = 16;
+
+
 Psg3910::Psg3910()
 {
     m_prevClock = g_emulation->getCurClock();
@@ -67,8 +71,8 @@ void Psg3910::reset()
         m_counters[i].noiseGate = true;
         m_counters[i].counter = 0;
         m_counters[i].toneValue = false;
-        m_counters[i].outValue = 0.0;
-        m_accum[i] = 0.0;
+        m_counters[i].outValue = 0;
+        m_accum[i] = 0;
     }
 
 }
@@ -160,11 +164,14 @@ uint8_t Psg3910::readByte(int addr)
 }
 
 
-void Psg3910::step()
+void __not_in_flash_func(Psg3910::step)()
 {
-    // Logarithmic DAC table from Emuscriptoria
-    static const double logAmps[16] =
-    {0.0, 0.0137, 0.0205, 0.0291, 0.0424, 0.0618, 0.0847, 0.1369, 0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6837, 0.8482, 1.0};
+    // Logarithmic DAC table from Emuscriptoria, в формате Q16: round(x * 65536).
+    // Исходные значения:
+    // {0.0, 0.0137, 0.0205, 0.0291, 0.0424, 0.0618, 0.0847, 0.1369,
+    //  0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6837, 0.8482, 1.0}
+    static const int32_t logAmps[16] =
+    {0, 898, 1343, 1907, 2779, 4050, 5551, 8972, 11082, 17347, 23115, 29485, 37382, 44807, 55588, 65536};
 
     if (++m_noiseCounter >= m_noiseFreq) {
         m_noiseCounter = 0;
@@ -186,7 +193,7 @@ void Psg3910::step()
         bool tone = m_counters[i].toneValue;
         bool val = (m_counters[i].toneGate || tone) && (m_counters[i].noiseGate || m_noiseValue);
 
-        m_counters[i].outValue = val ? logAmps[m_counters[i].var ? m_envValue : m_counters[i].amp] : 0.0;
+        m_counters[i].outValue = val ? logAmps[m_counters[i].var ? m_envValue : m_counters[i].amp] : 0;
     }
 }
 
@@ -206,29 +213,54 @@ void Psg3910::envStep()
 }
 
 
-void Psg3910::updateState()
+void __not_in_flash_func(Psg3910::updateState)()
 {
-    uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t curClock = g_emulation->getCurClock();
+    const int stepTicks = m_kDiv * 8;
 
-    while(m_discreteClock < curClock) {
+    while (m_discreteClock < curClock) {
         step();
-        m_discreteClock += m_kDiv * 8;
+        m_discreteClock += stepTicks;
         for (int i = 0; i < 3; i++)
-            m_accum[i] += m_counters[i].outValue * m_kDiv * 8;
+            m_accum[i] += int64_t(m_counters[i].outValue) * stepTicks;
     }
 }
 
 
-void Psg3910::getOutputs(uint16_t* outputs)
+void __not_in_flash_func(Psg3910::getOutputs)(uint16_t* outputs)
 {
-
     updateState();
 
-    uint64_t curClock = g_emulation->getCurClock();
+    const uint64_t curClock = g_emulation->getCurClock();
+    const int64_t dt = int64_t(curClock - m_prevClock);
+
+    // После updateState() всегда m_discreteClock >= curClock, и разность лежит
+    // в пределах одного шага. Она одинакова для всех трёх каналов.
+    const int64_t tail = int64_t(m_discreteClock - curClock);
 
     for (int i = 0; i < 3; i++) {
-        double delta = m_counters[i].outValue * (m_discreteClock - curClock);
-        outputs[i] = (m_accum[i] - delta) / (curClock - m_prevClock) * MAX_SND_AMP;
+        const int64_t delta = int64_t(m_counters[i].outValue) * tail;
+        const int64_t num = m_accum[i] - delta;
+
+        // num измеряется в единицах «Q16 x такт»: делённое на dt оно даёт долю
+        // 0..65536. Умножение на MAX_SND_AMP и снятие Q16 выполняются ДО
+        // деления — тогда числитель помещается в 32 бита, и вместо деления
+        // double остаётся обычное 32-битное целочисленное.
+        int32_t out = 0;
+        if (dt > 0) {
+            const int64_t scaled = (num * MAX_SND_AMP) >> PSG_AMP_BITS;
+            if (dt <= 0x7FFFFFFF && scaled >= -0x7FFFFFFF - 1 && scaled <= 0x7FFFFFFF)
+                out = int32_t(scaled) / int32_t(dt);
+            else
+                out = int32_t(scaled / dt);
+        }
+
+        if (out < 0)
+            out = 0;
+        else if (out > MAX_SND_AMP)
+            out = MAX_SND_AMP;
+        outputs[i] = uint16_t(out);
+
         m_accum[i] = delta;
     }
 
@@ -236,14 +268,14 @@ void Psg3910::getOutputs(uint16_t* outputs)
 }
 
 
-int __not_in_flash_func(Psg3910SoundSource::calcValue)()
+int Psg3910SoundSource::calcValue()
 {
     // not used since getSample is implemented
     return 0; //m_psg ? m_psg->getOutput() * m_ampFactor : 0;
 }
 
 
-void Psg3910SoundSource::getSample(int& left, int& right)
+void __not_in_flash_func(Psg3910SoundSource::getSample)(int& left, int& right)
 {
 
     if (!m_psg) {

@@ -53,12 +53,18 @@ class Psg3910 : public AddressableDevice
 
             unsigned counter;
             bool toneValue;
-            double outValue;
+
+            // Уровень выхода канала в формате Q16: 0 .. 65536 соответствует
+            // 0.0 .. 1.0. Раньше здесь был double, а вся арифметика ниже шла
+            // программной эмуляцией двойной точности: у Cortex-M33 (RP2350)
+            // FPU только одинарной точности, у Cortex-M0+ (RP2040) FPU нет
+            // вовсе. При этом step() выполняется ~218000 раз в секунду.
+            int32_t outValue;
         };
 
         uint64_t m_prevClock = 0;
         uint64_t m_discreteClock = 0;
-        double m_accum[3];
+        int64_t m_accum[3];   // сумма outValue * такты, в единицах «Q16 x такт»
 
         Psg3910Counter m_counters[3];
         unsigned m_noiseFreq;
