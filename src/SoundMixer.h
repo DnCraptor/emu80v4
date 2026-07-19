@@ -33,6 +33,10 @@ class SoundSource : public EmuObject
         SoundSource();
         virtual ~SoundSource();
 
+        // Список создания, как у IActive: конструктор не трогает g_emulation
+        static SoundSource* firstSource() {return s_firstSource;}
+        SoundSource* nextSource() const {return m_nextSource;}
+
         // Получение текущего сэмпла
         virtual int calcValue() = 0;
         virtual void getSample(int& left, int& right); // default implementation for mono sound, uses calcValue, reimplement for stereo
@@ -49,6 +53,10 @@ class SoundSource : public EmuObject
         bool m_negative = false;
 
         void updateAmpFactor();
+
+        static SoundSource* s_firstSource;
+        static SoundSource* s_lastSource;
+        SoundSource* m_nextSource = nullptr;
 };
 
 
@@ -82,6 +90,11 @@ class SoundMixer : public ActiveDevice
         // Удаление источника звука
         void removeSoundSource(SoundSource* snd);
 
+        // Однократный сбор всех созданных источников. Вызывается из
+        // Emulation::init() после того, как все объекты машины созданы.
+        void collectSoundSources();
+        bool sourcesCollected() const {return m_sourcesCollected;}
+
         // derived from ActiveDevice
         void operate() override;
 
@@ -101,6 +114,7 @@ class SoundMixer : public ActiveDevice
         static constexpr int MAX_SOUND_SOURCES = 8;
         SoundSource* m_soundSources[MAX_SOUND_SOURCES] = {};
         int m_soundSourceCount = 0;
+        bool m_sourcesCollected = false;
 
         // частота дисктеризации
         int m_sampleRate = 48000; // some initial value

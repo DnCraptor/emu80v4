@@ -107,6 +107,9 @@ void RamDisk::loadFromFile()
 
 void RamDisk::init()
 {
+    if (m_page)
+        m_page->init();
+
     if (m_autoLoad && !m_fileName.empty())
         loadFromFile();
 }

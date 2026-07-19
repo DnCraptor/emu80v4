@@ -85,6 +85,7 @@ class VectorRenderer : public CrtRenderer, public IActive
 
         // derived from ActiveDevice
         void operate() override;
+        void init() override;
 
         void attachMemory(Ram* memory);
         void setVisibleArea(bool visible) {m_showBorder = visible;}

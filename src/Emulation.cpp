@@ -38,11 +38,18 @@ using namespace std;
 
 Emulation::Emulation()
 {
+    // Только присваивания полей. Указатель g_emulation выставляется здесь же,
+    // но не разыменовывается, поэтому конструктор безопасен и при статическом
+    // размещении объекта. Всё остальное перенесено в init().
     m_vsync = true;
     m_sampleRate = 48000;
 
     g_emulation = this;
+}
 
+
+void Emulation::init()
+{
     m_mixer = new SoundMixer();
 
     m_wavReader = new WavReader();
@@ -55,6 +62,22 @@ Emulation::Emulation()
     setVsync(true);
 
     m_vector = new VectorCore();
+
+    // Все объекты созданы — собираем активные устройства и источники звука.
+    // Порядок обхода списков совпадает с порядком создания, то есть с прежним
+    // порядком регистрации из конструкторов.
+    registerActiveDevices();
+    m_mixer->collectSoundSources();
+
+    m_vector->init();
+}
+
+
+void Emulation::registerActiveDevices()
+{
+    for (IActive* device = IActive::firstActive(); device; device = device->nextActive())
+        registerActiveDevice(device);
+    m_activeDevicesRegistered = true;
 }
 
 Emulation::~Emulation()

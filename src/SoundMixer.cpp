@@ -116,15 +116,48 @@ int SoundMixer::getVolume()
 }
 
 
+SoundSource* SoundSource::s_firstSource = nullptr;
+SoundSource* SoundSource::s_lastSource = nullptr;
+
+
 SoundSource::SoundSource()
 {
-    g_emulation->getSoundMixer()->addSoundSource(this);
+    if (s_lastSource)
+        s_lastSource->m_nextSource = this;
+    else
+        s_firstSource = this;
+    s_lastSource = this;
+
+    if (g_emulation && g_emulation->getSoundMixer()
+                    && g_emulation->getSoundMixer()->sourcesCollected())
+        g_emulation->getSoundMixer()->addSoundSource(this);
 }
 
 
 SoundSource::~SoundSource()
 {
-    g_emulation->getSoundMixer()->removeSoundSource(this);
+    SoundSource** link = &s_firstSource;
+    SoundSource* prev = nullptr;
+    while (*link && *link != this) {
+        prev = *link;
+        link = &(*link)->m_nextSource;
+    }
+    if (*link) {
+        *link = m_nextSource;
+        if (s_lastSource == this)
+            s_lastSource = prev;
+    }
+
+    if (g_emulation && g_emulation->getSoundMixer())
+        g_emulation->getSoundMixer()->removeSoundSource(this);
+}
+
+
+void SoundMixer::collectSoundSources()
+{
+    for (SoundSource* s = SoundSource::firstSource(); s; s = s->nextSource())
+        addSoundSource(s);
+    m_sourcesCollected = true;
 }
 
 

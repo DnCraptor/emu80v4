@@ -31,16 +31,43 @@ void EmuObject::setFrequency(int64_t freq)
 
 
 
+IActive* IActive::s_firstActive = nullptr;
+IActive* IActive::s_lastActive = nullptr;
+
+
 IActive::IActive()
 {
-    m_curClock = g_emulation->getCurClock();
-    g_emulation->registerActiveDevice(this);
+    if (s_lastActive)
+        s_lastActive->m_nextActive = this;
+    else
+        s_firstActive = this;
+    s_lastActive = this;
+
+    // Если стартовая регистрация уже прошла, устройство подхватывается на ходу.
+    // Проверка указателя безопасна и при статической инициализации.
+    if (g_emulation && g_emulation->activeDevicesRegistered()) {
+        m_curClock = g_emulation->getCurClock();
+        g_emulation->registerActiveDevice(this);
+    }
 }
 
 
 IActive::~IActive()
 {
-    g_emulation->unregisterActiveDevice(this);
+    IActive** link = &s_firstActive;
+    IActive* prev = nullptr;
+    while (*link && *link != this) {
+        prev = *link;
+        link = &(*link)->m_nextActive;
+    }
+    if (*link) {
+        *link = m_nextActive;
+        if (s_lastActive == this)
+            s_lastActive = prev;
+    }
+
+    if (g_emulation)
+        g_emulation->unregisterActiveDevice(this);
 }
 
 

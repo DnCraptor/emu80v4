@@ -304,17 +304,21 @@ VectorRenderer::VectorRenderer()
     m_sizeX = 512;
     m_sizeY = 256;
     m_pixelData = s_frameBuffer;
-
-    m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
-
-    m_curFramePixel = 0;
-    m_curFrameClock = m_curClock;
-
     m_frameBuf = m_pixelData;
 
     memset(m_colorPalette, 0, 16);
     memset(m_bwPalette, 0, 16);
     m_palette = m_colorPalette;
+}
+
+
+void VectorRenderer::init()
+{
+    // Требует готового g_emulation, поэтому не может выполняться в конструкторе
+    m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
+
+    m_curFramePixel = 0;
+    m_curFrameClock = m_curClock;
 
     prepareFrame(); // prepare 1st frame dimensions
 }
@@ -1209,6 +1213,7 @@ VectorCore::VectorCore()
 
 void VectorCore::init()
 {
+    m_wavWriter->init();
     m_ram->init();
     m_rom->init();
     m_cpu->init();

@@ -67,6 +67,14 @@ class IActive
     public:
         IActive();
         virtual ~IActive();
+
+        // Список всех созданных активных устройств. Строится конструкторами и
+        // не обращается к g_emulation, поэтому безопасен на этапе статической
+        // инициализации. Добавление в хвост сохраняет порядок создания, а он
+        // же был прежним порядком регистрации — это важно, потому что
+        // планировщик разрешает совпадение тактов по позиции в массиве.
+        static IActive* firstActive() {return s_firstActive;}
+        IActive* nextActive() const {return m_nextActive;}
         inline uint64_t getClock() {return m_curClock;}
         inline void pause() {m_isPaused = true; m_curClock = -1;}
         inline void resume() {m_isPaused = false;}
@@ -78,6 +86,11 @@ class IActive
     protected:
         uint64_t m_curClock = 0;
         bool m_isPaused = false;
+
+    private:
+        static IActive* s_firstActive;
+        static IActive* s_lastActive;
+        IActive* m_nextActive = nullptr;
 };
 
 

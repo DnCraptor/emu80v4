@@ -31,6 +31,7 @@ class SRam : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
         int getSize() { return m_size; }
+        void init() override;
 
     private:
         int m_size;
@@ -68,14 +69,16 @@ class Rom : public AddressableDevice
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int addr) override;
         int getSize() {return m_size;}
+        void init() override;
         virtual const uint8_t* getDataPtr() {return m_buf;}
         virtual const uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
 
 
     protected:
-        int m_size;
+        int m_size = 0;
         const uint8_t* m_buf = nullptr;
         bool b_ram = false;
+        std::string m_fileName;
 };
 
 

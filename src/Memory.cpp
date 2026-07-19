@@ -36,6 +36,13 @@ SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
 /// TODO:    memset(m_buf, 0, memSize);
     sram_used += m_size;
+}
+
+
+void SRam::init()
+{
+    // Файловая система готова только к моменту init(), в конструкторе её может
+    // ещё не быть
     f_open(&f, PAGEFILE, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
 }
 
@@ -121,14 +128,27 @@ uint8_t __not_in_flash_func(Ram::readByte)(int addr)
 Rom::Rom(unsigned memSize, const string& fileName)
 {
     if (fileName == "vector/loader.rom") {
+        // Встроенный образ: указатель и размер известны сразу, чтения нет
         m_buf = vector_loader_rom;
         m_size = sizeof(vector_loader_rom);
         return;
     }
-    m_buf = new uint8_t [memSize];
-    memset((uint8_t*)m_buf, 0xFF, memSize);
+
+    // Размер выставляется здесь, потому что getSize() нужен уже при построении
+    // карты страниц в attachRom(). Выделение памяти и чтение файла — в init().
     m_size = memSize;
-    if (palReadFromFile(fileName, 0, memSize, (uint8_t*)m_buf) == 0/*!= memSize*/) {
+    m_fileName = fileName;
+}
+
+
+void Rom::init()
+{
+    if (m_buf || m_fileName.empty())
+        return;   // встроенный образ либо уже загружено
+
+    m_buf = new uint8_t [m_size];
+    memset((uint8_t*)m_buf, 0xFF, m_size);
+    if (palReadFromFile(m_fileName, 0, m_size, (uint8_t*)m_buf) == 0/*!= m_size*/) {
         delete[] m_buf;
         m_buf = nullptr;
         return;

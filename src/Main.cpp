@@ -916,7 +916,7 @@ int main() {
 #endif
     int argc = 1;
     palInit(argc, (char**)argv);
-    new Emulation; // g_emulation присваивается в конструкторе
+    (new Emulation)->init(); // g_emulation присваивается в конструкторе
     palExecute();
     __unreachable();
 }

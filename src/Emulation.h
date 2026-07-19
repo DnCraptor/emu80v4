@@ -47,6 +47,14 @@ class Emulation
     public:
         Emulation(); //: EmuObject();
 
+        // Создание и инициализация машины. Вынесено из конструктора, чтобы тот
+        // не обращался к ещё не готовым глобальным объектам.
+        void init();
+
+        // Однократный сбор всех созданных активных устройств
+        void registerActiveDevices();
+        bool activeDevicesRegistered() const {return m_activeDevicesRegistered;}
+
         ~Emulation();
 
 
@@ -87,6 +95,7 @@ class Emulation
         IActive* m_activeDevices[MAX_ACTIVE_DEVICES] = {};
         int nDevices = 0;
         IActive* m_cpuDev = nullptr;
+        bool m_activeDevicesRegistered = false;
         uint64_t m_clockOffset = 0;
         uint64_t m_sysClock;
         uint64_t m_prevSysClock = 0;
