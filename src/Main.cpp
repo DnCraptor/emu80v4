@@ -575,12 +575,6 @@ void ///__not_in_flash_func(
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
                 else if (vk == PK_KP_MUL) graphics_inc_x();
                 else if (vk == PK_KP_DIV) graphics_dec_x();
-                else if (vk == PK_NUMLOCK) {
-                    numlock = !numlock;
-                    uint8_t m = ((uint8_t)graphics_get_mode() + 1);
-                    if (m >= UNSUPPORTED_MODE) m = GRAPHICSMODE_DEFAULT;
-                    graphics_set_mode((enum graphics_mode_t)m);
-                }
             }
         }
     }
@@ -864,8 +858,11 @@ int main() {
     static FATFS fs;
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
-    //vreg_set_voltage(VREG_VOLTAGE_1_50);
+#if CPU_MHZ > 500
     vreg_set_voltage(VREG_VOLTAGE_1_60); // TODO: dynamic per CPU freq.
+#else
+    vreg_set_voltage(VREG_VOLTAGE_1_50);
+#endif
     sleep_ms(33);
     bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
     flash_timings();
@@ -913,7 +910,7 @@ int main() {
     keyboard_send(0xFF);
 #endif
     f_mount(&fs, "SD", 1);
-    f_mkdir("/emu80");
+    f_mkdir("/vector06c");
 #if LOG
     f_unlink("/emu80.log");
 #endif
