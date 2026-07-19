@@ -83,8 +83,8 @@ class CpuZ80 : public Cpu8080Compatible
         bool m_stackOperation = false;
 
         unsigned cb_prefix(unsigned adr);
-        unsigned dfd_prefix(uint16_t& IXY);
-        unsigned simz80();
+        unsigned dfd_prefix(uint16_t& IXY, uint8_t op);
+        unsigned simz80(unsigned op, uint8_t& secondOp);
 };
 
 #endif // CPUZ80_H

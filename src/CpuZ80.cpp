@@ -297,11 +297,10 @@ unsigned CpuZ80::cb_prefix(unsigned adr)
     return cycles;
 }
 
-unsigned CpuZ80::dfd_prefix(uint16_t& IXY)
+unsigned __not_in_flash_func(CpuZ80::dfd_prefix)(uint16_t& IXY, uint8_t op)
 {
-    unsigned temp, adr, acu, op, sum, cbits;
+    unsigned temp, adr, acu, sum, cbits;
 
-        op = GetBYTE(PC);
         ++PC;
         unsigned cycles = cc_xy[op];
 
@@ -775,15 +774,13 @@ unsigned CpuZ80::dfd_prefix(uint16_t& IXY)
     return cycles;
 }
 
-unsigned __not_in_flash_func(CpuZ80::simz80)()
+unsigned __not_in_flash_func(CpuZ80::simz80)(unsigned op, uint8_t& secondOp)
 {
     unsigned temp, acu, sum, cbits;
-    unsigned op;
     unsigned cycles;
 
     m_stackOperation = false;
 
-    op = GetBYTE(PC);
     ++PC;
     cycles = cc_op[op];
 
@@ -1966,7 +1963,8 @@ unsigned __not_in_flash_func(CpuZ80::simz80)()
         CALLC(TSTFLAG(C));
         break;
     case 0xDD:          /* DD prefix */
-        cycles = dfd_prefix(ix);
+        secondOp = GetBYTE(PC);
+        cycles = dfd_prefix(ix, secondOp);
         break;
     case 0xDE:          /* SBC A,nn */
         temp = GetBYTE(PC);
@@ -2501,7 +2499,8 @@ unsigned __not_in_flash_func(CpuZ80::simz80)()
         CALLC(TSTFLAG(S));
         break;
     case 0xFD:          /* FD prefix */
-        cycles = dfd_prefix(iy);
+        secondOp = GetBYTE(PC);
+        cycles = dfd_prefix(iy, secondOp);
         break;
     case 0xFE:          /* CP nn */
         temp = GetBYTE(PC);
@@ -2544,37 +2543,53 @@ void __not_in_flash_func(CpuZ80::operate)()
 
     static constexpr uint8_t waits[24] = {0, 0, 0, 0, 0, 3, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1, 4, 3, 2, 1, 4, 3, 0, 5};
 
-    int opcode = m_addrSpace->readByte(PC) + (m_addrSpace->readByte(uint16_t(PC + 1)) << 8);
-    int clocks = simz80();
+    uint8_t op = GetBYTE(PC);
+    uint8_t secondOp = 0;
+
+    int clocks = simz80(op, secondOp);
     int waitClocks = waits[clocks];
 
     switch (clocks) {
     case 8:
-        if ((opcode & 0xFF) == 0x10) // DJNZ, if B==0
+        if (op == 0x10) // DJNZ, if B==0
             waitClocks = 4;
         break;
     case 11:
-        if ((opcode & 0xCF) == 0xC5 ||   // PUSH qq
-            (opcode & 0xC7) == 0xC0 ||   // RET cc if cc = true
-            (opcode & 0xC7) == 0xC7)     // RST p
+        if ((op & 0xCF) == 0xC5 ||   // PUSH qq
+            (op & 0xC7) == 0xC0 ||   // RET cc if cc = true
+            (op & 0xC7) == 0xC7)     // RST p
             waitClocks = 5;
         break;
     case 14:
-        if ((opcode & 0xFFDF) == 0xE1DD) // POP ix/iy
-            waitClocks = 6;
+        if (op == 0xDD || op == 0xFD) {
+            unsigned opcode = op | unsigned(secondOp) << 8;
+            if ((opcode & 0xFFDF) == 0xE1DD) // POP ix/iy
+                waitClocks = 6;
+        }
         break;
     case 15:
-        if ((opcode & 0xFFDF) == 0xE5DD) // PUSH ix/iy
-            waitClocks = 5;
+        if (op == 0xDD || op == 0xFD) {
+            unsigned opcode = op | unsigned(secondOp) << 8;
+            if ((opcode & 0xFFDF) == 0xE5DD) // PUSH ix/iy
+                waitClocks = 5;
+        }
         break;
     case 19:
-        if ((opcode & 0xFF) == 0xE3 ||   // EX (SP),HL
-            (opcode & 0xFFDF) == 0x36DD) // LD (ix+d),n
+        if (op == 0xE3) // EX (SP),HL
             waitClocks = 5;
+        else
+        if (op == 0xDD || op == 0xFD) {
+            unsigned opcode = op | unsigned(secondOp) << 8;
+            if ((opcode & 0xFFDF) == 0x36DD) // LD (ix+d),n
+                waitClocks = 5;
+        }
         break;
     case 23:
-        if ((opcode & 0xFEDF) == 0x34DD) // INC/DEC (ix/iy+d)
-            waitClocks = 1;
+        if (op == 0xDD || op == 0xFD) {
+            unsigned opcode = op | unsigned(secondOp) << 8;
+            if ((opcode & 0xFEDF) == 0x34DD) // INC/DEC (ix/iy+d)
+                waitClocks = 1;
+        }
         break;
     default:
         break;
