@@ -126,6 +126,28 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     const uint32_t scrollX = x + w - 1 - scrollW;
     const char back[] = "..";
 
+    // Каталог проверяется ДО отрисовки. Раньше рамка рисовалась первой, и при
+    // неудаче диалог закрывался сразу после неё — на экране это выглядело как
+    // мелькание, без каких-либо объяснений.
+    DIR f_dir;
+    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
+        fdir = "/";
+    else
+        f_closedir(&f_dir);
+    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK) {
+        graphics_fill(x, y, w, fnth + 4, RGB888(0, 0, 0));
+        const string msg = "Cannot open " + fdir;
+        graphics_type(x + 2, y + 2, RGB888(255, 80, 80), msg.c_str(), msg.length());
+        while (1) {
+            sleep_ms(100);
+            const PalKeyCodeAction k = getKey();
+            if (k.pressed && (k.vk == PK_ESC || k.vk == PK_ENTER || k.vk == PK_KP_ENTER))
+                break;
+        }
+        return "";
+    }
+    f_closedir(&f_dir);
+
     graphics_rect(x, y, w, h, RGB888(0, 0, 0));
     graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
     graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
@@ -137,25 +159,12 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         yb += fnth + 1;
     }
 
-    DIR f_dir;
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
-        fdir = "/";
-    else
-        f_closedir(&f_dir);
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
-        return "";
-    f_closedir(&f_dir);
-
-    // Раньше здесь был static-массив: он занимал 14336 байт SRAM постоянно,
-    // хотя нужен только пока открыт диалог. Хуже того, строки имён в нём
-    // сохраняли свои блоки в куче и после закрытия диалога — сбрасывались они
-    // лишь при следующем открытии.
-    // Диалог модальный, поэтому список живёт ровно столько, сколько нужно.
-    std::unique_ptr<PalFileInfo[]> fileListHolder(
-        new (std::nothrow) PalFileInfo[MAX_FILE_DIALOG_ITEMS]);
-    if (!fileListHolder)
-        return "";
-    PalFileInfo* fileList = fileListHolder.get();
+    // Список статический. В патче J он был переведён в кучу ради экономии
+    // 14 КБ, но выделение может не удаться, и тогда диалог молча закрывался
+    // сразу после отрисовки рамки. Диалог модальный и существует ровно один,
+    // так что память ему полагается фиксированная: 7168 байт в .bss вместо
+    // прежних 14336 — сокращение из патча J (обрезанная структура) осталось.
+    static PalFileInfo fileList[MAX_FILE_DIALOG_ITEMS];
     int fileCount = 0;
     int selected_file_n = 0;
     int shift_j = 0;
@@ -311,6 +320,10 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             drawRow(selected_file_n);
         }
     }
+
+    // Строки имён держат блоки в куче; список статический, поэтому чистим сами
+    for (int i = 0; i < fileCount; i++)
+        fileList[i].fileName.clear();
 
     return res;
 }

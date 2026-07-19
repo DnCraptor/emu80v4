@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -33,6 +33,7 @@
 #include "PrnWriter.h"
 #include "EmuCalls.h"
 #include "Shortcuts.h"
+#include "pico/picoMenu.h"
 
 using namespace std;
 
@@ -208,19 +209,85 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif
-    if (m_vector) {
-        if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT) isShiftPressed = isPressed;
-        else if (keyCode == PK_LALT || keyCode == PK_RALT) isAltPressed = isPressed;
-        else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL) isCtrlPressed = isPressed;
-        if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
-            watchdog_enable(100, true);
-            while(true) sleep_ms(20);
-        }
-        SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
-        if (sr) m_vector->sysReq(sr);
-        else m_vector->processKey(keyCode, isPressed, unicodeKey);
+    if (!m_vector)
+        return;
+
+    const bool altKey = keyCode == PK_LALT || keyCode == PK_RALT;
+    if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT)
+        isShiftPressed = isPressed;
+    else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL)
+        isCtrlPressed = isPressed;
+    else if (altKey)
+        isAltPressed = isPressed;
+
+    if (altKey && isPressed) {
+        if (palMainMenuIsOpen())
+            palCloseMainMenu();
+        else
+            palOpenMainMenu();
+        return;
     }
+
+    if (palMainMenuIsOpen()) {
+        // Отпускание Alt при открытом меню не делает ничего: меню закрывается
+        // либо по Esc, либо каскадно после выполнения команды.
+        if (altKey || !isPressed)
+            return;
+
+        // Навигация по меню имеет приоритет над горячими клавишами. Без этого
+        // стрелки ушли бы в SR_SPEEDSTEPUPFINE/SR_SPEEDSTEPDOWNFINE, а Enter
+        // не дошёл бы до раскрытия подменю.
+        switch (keyCode) {
+            case PK_ESC:
+            case PK_UP:
+            case PK_DOWN:
+            case PK_ENTER:
+            case PK_KP_ENTER:
+                palMainMenuHandleKey(keyCode, true);
+                return;
+            default:
+                break;
+        }
+
+        // Разрушительные команды из меню не запускаем
+        if (keyCode == PK_F10 || keyCode == PK_F11 || keyCode == PK_F12)
+            return;
+
+        // Открытое меню само по себе означает «Alt нажат», поэтому сочетания
+        // разбираются независимо от того, держится Alt физически или уже
+        // отпущен. Прежний код требовал взведённого isAltPressed, и после
+        // отпускания Alt клавиши F3/A/B переставали открывать файловый диалог.
+        const SysReq sr = TranslateKeyToSysReq(keyCode, true, true, isShiftPressed);
+        if (sr == SR_NONE)
+            return;
+
+        // Эмуляция остаётся на паузе, пока работает модальное окно: закрыв
+        // меню раньше, мы бы отпустили рендерер, и он затёр бы диалог.
+        m_vector->sysReq(sr);
+
+        // Модальный диалог читает очередь клавиш сам, через getKey(), поэтому
+        // отпускания Alt, Shift и Ctrl до machineKey не доходят и флаги
+        // остались бы взведёнными: следующая же буква сработала бы как
+        // сочетание с Alt, а стрелки в меню — как изменение скорости.
+        resetKeys();
+
+        // Каскадное закрытие: закрылось файловое меню — закрывается и главное
+        palCloseMainMenu();
+        return;
+    }
+
+    if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
+        watchdog_enable(100, true);
+        while(true) sleep_ms(20);
+    }
+
+    const SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
+    if (sr)
+        m_vector->sysReq(sr);
+    else
+        m_vector->processKey(keyCode, isPressed, unicodeKey);
 }
+
 
 void Emulation::resetKeys()
 {

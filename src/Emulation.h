@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -86,7 +86,8 @@ class Emulation
         void updateFrequency();
 
         double getSpeedUpFactor() {return m_currentSpeedUpFactor;}
-        bool getPausedState() {return m_isPaused;}
+        bool getPausedState() const {return m_isPaused;}
+        void setPaused(bool paused) {m_isPaused = paused;}
         bool getFullThrottleState() {return m_fullThrottle;}
 
 

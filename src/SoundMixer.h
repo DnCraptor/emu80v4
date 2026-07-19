@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2020
  *
@@ -103,6 +103,8 @@ class SoundMixer : public ActiveDevice
 
         // переключает беззвучный режим
         void toggleMute();
+        void setMuted(bool muted) {m_muted = muted;}
+        bool getMuted() const {return m_muted;}
 
         // устанавливает громкость (1-5, 5 - max)
         void setVolume(int volume);
