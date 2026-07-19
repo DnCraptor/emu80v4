@@ -77,10 +77,21 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
 // therefore report_desc = NULL, desc_len = 0
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
-  (void)dev_addr;
-  (void)instance;
-  (void)desc_report;
-  (void)desc_len;
+  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+  // Boot-protocol keyboards and mice have a fixed report format. Generic HID
+  // interfaces must be described here so process_generic_report() can match
+  // their report ID and usage.
+  hid_info[instance].report_count = 0;
+  if (itf_protocol == HID_ITF_PROTOCOL_NONE && desc_report && desc_len)
+  {
+    hid_info[instance].report_count = tuh_hid_parse_report_descriptor(
+        hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
+  }
+
+  // Arm the first interrupt-IN transfer. Further reports are re-armed in
+  // tuh_hid_report_received_cb().
+  tuh_hid_receive_report(dev_addr, instance);
 }
 
 // Invoked when device with hid interface is un-mounted

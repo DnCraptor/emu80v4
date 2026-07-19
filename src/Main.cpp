@@ -539,14 +539,42 @@ static PalKeyCode map_key(uint8_t kc) {
     return PalKeyCode::PK_NONE;
 }
 
+struct HidModifierMapping {
+    uint8_t mask;
+    PalKeyCode key;
+};
+
+static constexpr HidModifierMapping hidModifierMappings[] = {
+    { KEYBOARD_MODIFIER_LEFTCTRL,   PalKeyCode::PK_LCTRL  },
+    { KEYBOARD_MODIFIER_LEFTSHIFT,  PalKeyCode::PK_LSHIFT },
+    { KEYBOARD_MODIFIER_LEFTALT,    PalKeyCode::PK_LALT   },
+    { KEYBOARD_MODIFIER_LEFTGUI,    PalKeyCode::PK_F1     },
+    { KEYBOARD_MODIFIER_RIGHTCTRL,  PalKeyCode::PK_RCTRL  },
+    { KEYBOARD_MODIFIER_RIGHTSHIFT, PalKeyCode::PK_RSHIFT },
+    { KEYBOARD_MODIFIER_RIGHTALT,   PalKeyCode::PK_RALT   },
+    { KEYBOARD_MODIFIER_RIGHTGUI,   PalKeyCode::PK_F1     },
+};
+
+static inline bool isHidModifierKey(uint8_t keycode) {
+    return keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT;
+}
+
 void ///__not_in_flash_func(
     process_kbd_report(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
     static bool numlock = false;
+
+    const uint8_t changedModifiers = report->modifier ^ prev_report->modifier;
+    for (const HidModifierMapping &mapping: hidModifierMappings) {
+        if (changedModifiers & mapping.mask) {
+            addKey(mapping.key, (report->modifier & mapping.mask) != 0);
+        }
+    }
+
     for (uint8_t pkc: prev_report->keycode) {
-        if (!pkc) continue;
+        if (!pkc || isHidModifierKey(pkc)) continue;
         bool key_still_pressed = false;
         for (uint8_t kc: report->keycode) {
             if (kc == pkc) {
@@ -562,7 +590,7 @@ void ///__not_in_flash_func(
         }
     }
     for (uint8_t kc: report->keycode) {
-        if (!kc) continue;
+        if (!kc || isHidModifierKey(kc)) continue;
         PalKeyCode vk = pressed_key[kc];
         if (vk == PalKeyCode::PK_NONE) { // it was not yet pressed
             vk = map_key(kc);
