@@ -47,6 +47,13 @@ extern EmuLog emuLog;
 // Определение типа звукового выхода (ШИМ или I2S) при старте
 bool palProbeAudioOutput();
 bool palAudioIsI2S();
+
+// Состояние SD-карты: монтирование при старте могло не удаться
+void palSetSdMounted(bool mounted);
+bool palEnsureSdMounted();
+
+// Модальное сообщение в стиле меню, с ожиданием клавиши
+void palModalMessage(const char* title, const char* text);
 // Сырые результаты прозвонки: [0],[1] — время нарастания в мкс, [2] — внешняя запитка
 uint32_t palAudioProbe(int i);
 

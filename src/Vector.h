@@ -162,6 +162,12 @@ class VectorRenderer : public CrtRenderer, public IActive
 };
 
 
+enum VectorCpuType {
+    VECTOR_CPU_8080 = 0,
+    VECTOR_CPU_Z80  = 1
+};
+
+
 class VectorCore
 {
     public:
@@ -178,6 +184,12 @@ class VectorCore
         bool loadFile(const std::string& fileName, bool run = true);
 
         Cpu8080Compatible* getCpu();
+
+        // Смена ядра на ходу: старое разрушается, новое создаётся в том же
+        // буфере и получает всю обвязку заново. Вызывающий обязан после этого
+        // выполнить полный сброс машины.
+        VectorCpuType getCpuType() const;
+        void setCpuType(VectorCpuType type);
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName);

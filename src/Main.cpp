@@ -877,7 +877,6 @@ void __not_in_flash() flash_timings() {
 #endif
 
 int main() {
-    static FATFS fs;
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
 #if CPU_MHZ > 500
@@ -931,7 +930,10 @@ int main() {
 #ifndef KBDUSB
     keyboard_send(0xFF);
 #endif
-    f_mount(&fs, "SD", 1);
+    // Результат запоминается: при неудаче файловый диалог повторит попытку
+    // сам и покажет понятное сообщение вместо пустого экрана.
+    // Здесь же убран локальный FATFS, затенявший глобальный.
+    palSetSdMounted(f_mount(&fs, "SD", 1) == FR_OK);
     f_mkdir("/vector06c");
 #if LOG
     f_unlink("/emu80.log");

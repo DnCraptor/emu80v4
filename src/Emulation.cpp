@@ -102,6 +102,33 @@ void Emulation::registerActiveDevice(IActive* device)
 }
 
 
+int Emulation::getActiveDeviceIndex(IActive* device) const
+{
+    for (int i = 0; i < nDevices; i++)
+        if (m_activeDevices[i] == device)
+            return i;
+    return -1;
+}
+
+
+void Emulation::moveActiveDevice(IActive* device, int newIndex)
+{
+    const int from = getActiveDeviceIndex(device);
+    if (from < 0 || newIndex < 0 || newIndex >= nDevices || from == newIndex)
+        return;
+
+    if (from < newIndex)
+        for (int i = from; i < newIndex; i++)
+            m_activeDevices[i] = m_activeDevices[i + 1];
+    else
+        for (int i = from; i > newIndex; i--)
+            m_activeDevices[i] = m_activeDevices[i - 1];
+
+    m_activeDevices[newIndex] = device;
+    m_cpuDev = nullptr;   // индексы изменились
+}
+
+
 void Emulation::unregisterActiveDevice(IActive* device)
 {
     int index = 0;
@@ -125,7 +152,11 @@ extern void processKeys();
 void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 {
     processKeys();
-    if (m_isPaused)
+    // forced означает «выполнить несмотря ни на что»: так загрузчик .fdd
+    // прокручивает 25 млн тактов, чтобы ПЗУ успело загрузиться с дискеты.
+    // Пока меню держит эмуляцию на паузе, без этой оговорки exec() выходил
+    // сразу, и сценарий загрузки .fdd по Alt+F3 переставал работать.
+    if (m_isPaused && !forced)
         return;
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
@@ -241,8 +272,11 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
             case PK_ESC:
             case PK_UP:
             case PK_DOWN:
+            case PK_LEFT:
+            case PK_RIGHT:
             case PK_ENTER:
             case PK_KP_ENTER:
+            case PK_SPACE:
                 palMainMenuHandleKey(keyCode, true);
                 return;
             default:

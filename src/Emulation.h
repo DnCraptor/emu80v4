@@ -52,7 +52,14 @@ class Emulation
         void init();
 
         // Однократный сбор всех созданных активных устройств
+        VectorCore* getVector() {return m_vector;}
+
         void registerActiveDevices();
+
+        // Нужны при замене устройства на ходу (смена ядра CPU): позиция
+        // в массиве определяет разрешение совпадений тактов в планировщике
+        int getActiveDeviceIndex(IActive* device) const;
+        void moveActiveDevice(IActive* device, int newIndex);
         bool activeDevicesRegistered() const {return m_activeDevicesRegistered;}
 
         ~Emulation();

@@ -107,8 +107,43 @@ static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems
 extern PalKeyCodeAction getKey();
 extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
+#include "picoMenu.h"
 #include <algorithm>
 static std::string fdir = "/vector06c";
+
+// Состояние карты. Монтирование при старте могло не удаться (карта не
+// вставлена), поэтому результат запоминается, а повторная попытка делается
+// при каждом обращении к файловому диалогу.
+static FATFS s_sdFs;
+static bool s_sdMounted = false;
+
+void palSetSdMounted(bool mounted)
+{
+    s_sdMounted = mounted;
+}
+
+bool palEnsureSdMounted()
+{
+    if (s_sdMounted)
+        return true;
+    if (f_mount(&s_sdFs, "SD", 1) != FR_OK)
+        return false;
+    s_sdMounted = true;
+    f_mkdir("/vector06c");
+    return true;
+}
+
+// Сообщение в стиле меню с ожиданием клавиши
+void palModalMessage(const char* title, const char* text)
+{
+    palMessageBox(title, text);
+    while (1) {
+        sleep_ms(100);
+        const PalKeyCodeAction k = getKey();
+        if (k.pressed && (k.vk == PK_ESC || k.vk == PK_ENTER || k.vk == PK_KP_ENTER))
+            break;
+    }
+}
 std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write) {
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();
@@ -126,25 +161,29 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     const uint32_t scrollX = x + w - 1 - scrollW;
     const char back[] = "..";
 
-    // Каталог проверяется ДО отрисовки. Раньше рамка рисовалась первой, и при
-    // неудаче диалог закрывался сразу после неё — на экране это выглядело как
-    // мелькание, без каких-либо объяснений.
-    DIR f_dir;
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
-        fdir = "/";
-    else
-        f_closedir(&f_dir);
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK) {
-        graphics_fill(x, y, w, fnth + 4, RGB888(0, 0, 0));
-        const string msg = "Cannot open " + fdir;
-        graphics_type(x + 2, y + 2, RGB888(255, 80, 80), msg.c_str(), msg.length());
-        while (1) {
-            sleep_ms(100);
-            const PalKeyCodeAction k = getKey();
-            if (k.pressed && (k.vk == PK_ESC || k.vk == PK_ENTER || k.vk == PK_KP_ENTER))
-                break;
-        }
+    // Карта могла быть не смонтирована при старте или вынута позже.
+    // Пробуем ещё раз здесь, при каждом открытии диалога.
+    if (!palEnsureSdMounted()) {
+        palModalMessage("No SD-card", "Insert a card and try again");
         return "";
+    }
+
+    // Каталог проверяется ДО отрисовки: раньше рамка рисовалась первой, и при
+    // неудаче диалог закрывался сразу после неё — на экране это выглядело
+    // как мелькание без объяснений.
+    // Отката на корень тут нет намеренно: он затирал текущий каталог, и в
+    // сообщении об ошибке всегда оказывался корень вместо реального пути.
+    DIR f_dir;
+    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK) {
+        // Сначала сообщаем про реальный путь, и только потом откатываемся
+        // на корень. Если делать наоборот, в сообщении всегда оказывается
+        // корень; если не откатываться вовсе, исчезнувший с карты каталог
+        // блокирует диалог навсегда.
+        const string msg = "Cannot open " + fdir;
+        palModalMessage("Error", msg.c_str());
+        fdir = "/";
+        if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
+            return "";   // и корень недоступен — выходим молча
     }
     f_closedir(&f_dir);
 

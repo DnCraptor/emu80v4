@@ -9,6 +9,7 @@
 #include "graphics.h"
 #include "../Globals.h"
 #include "../Emulation.h"
+#include "../Vector.h"
 #include "../SoundMixer.h"
 
 namespace {
@@ -22,19 +23,54 @@ struct MenuItem {
 
 struct MenuPage {
     const char* title;
+    // Для страниц, чей заголовок зависит от состояния машины
+    const char* (*getTitle)();
     const MenuItem* items;
     int itemCount;
+    // Радиогруппа: текущее значение и его установка. Для обычных страниц null.
+    int (*getValue)();
+    void (*setValue)(int);
 };
 
-static const MenuPage processorPage {"Processor", nullptr, 0};
-static const MenuPage storagePage   {"Storage", nullptr, 0};
-static const MenuPage romPage       {"ROM", nullptr, 0};
-static const MenuPage soundPage     {"Sound", nullptr, 0};
-static const MenuPage tapePage      {"Tape", nullptr, 0};
-static const MenuPage snapshotPage  {"Snapshots", nullptr, 0};
-static const MenuPage videoPage     {"Video", nullptr, 0};
-static const MenuPage systemPage    {"System", nullptr, 0};
-static const MenuPage aboutPage     {"About", nullptr, 0};
+// --- Processor -------------------------------------------------------------
+
+int cpuGetValue()
+{
+    if (!g_emulation || !g_emulation->getVector())
+        return 0;
+    return static_cast<int>(g_emulation->getVector()->getCpuType());
+}
+
+void cpuSetValue(int value)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core)
+        return;
+    core->setCpuType(static_cast<VectorCpuType>(value));
+}
+
+static const MenuItem processorItems[] = {
+    {"KR580VM80A (i8080)", nullptr},
+    {"Zilog Z80", nullptr},
+};
+
+static const MenuPage processorPage {
+    "Processor",
+    nullptr,
+    processorItems,
+    static_cast<int>(sizeof(processorItems) / sizeof(processorItems[0])),
+    cpuGetValue,
+    cpuSetValue
+};
+
+static const MenuPage storagePage   {"Storage", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage soundPage     {"Sound", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage systemPage    {"System", nullptr, nullptr, 0, nullptr, nullptr};
+static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, nullptr};
 
 static const MenuItem rootItems[] = {
     {"Processor", &processorPage},
@@ -48,11 +84,86 @@ static const MenuItem rootItems[] = {
     {"About", &aboutPage},
 };
 
+// Заголовок корневой страницы отражает установленное ядро
+const char* rootTitle()
+{
+    if (g_emulation && g_emulation->getVector()
+        && g_emulation->getVector()->getCpuType() == VECTOR_CPU_Z80)
+        return "Vector-06C Z80";
+    return "Vector-06C 80A";
+}
+
 static const MenuPage rootPage {
     "Vector-06C 80A",
+    rootTitle,
     rootItems,
-    static_cast<int>(sizeof(rootItems) / sizeof(rootItems[0]))
+    static_cast<int>(sizeof(rootItems) / sizeof(rootItems[0])),
+    nullptr,
+    nullptr
 };
+
+// ---------------------------------------------------------------------------
+//  Подложка под каскад подменю.
+//
+//  Главное меню фон не сохраняет: закрывается оно вместе со снятием паузы,
+//  и рендерер перерисовывает кадр целиком за один проход.
+//
+//  А вот подменю раскрываются вбок, вправо от родителя, поверх изображения
+//  машины, и по «влево» область под ними должна вернуться к прежнему виду.
+//  Поэтому фон запоминается для каждого уровня отдельно, стеком: вход на
+//  уровень кладёт прямоугольник в пул, возврат снимает его оттуда.
+// ---------------------------------------------------------------------------
+static constexpr int c_menuBackupPool = 32768;
+static constexpr int c_menuMaxDepth = 8;
+
+static uint8_t s_menuBackup[c_menuBackupPool];
+static int s_backupUsed = 0;
+
+struct BackupRec {
+    int x, y, w, h, offset;
+    bool valid;
+};
+static BackupRec s_backup[c_menuMaxDepth];
+
+void pushBackground(int depth, int x, int y, int w, int h)
+{
+    BackupRec& r = s_backup[depth];
+    r.valid = false;
+    uint8_t* frame = graphics_get_frame();
+    if (!frame || depth < 0 || depth >= c_menuMaxDepth)
+        return;
+
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > screenW) w = screenW - x;
+    if (y + h > screenH) h = screenH - y;
+    if (w <= 0 || h <= 0 || s_backupUsed + w * h > c_menuBackupPool)
+        return;   // не влезло — просто не восстановим, кадр всё равно перерисуется
+
+    r = {x, y, w, h, s_backupUsed, true};
+    for (int row = 0; row < h; ++row)
+        std::memcpy(s_menuBackup + r.offset + row * w,
+                    frame + (y + row) * screenW + x, w);
+    s_backupUsed += w * h;
+}
+
+void popBackground(int depth)
+{
+    if (depth < 0 || depth >= c_menuMaxDepth)
+        return;
+    BackupRec& r = s_backup[depth];
+    uint8_t* frame = graphics_get_frame();
+    if (r.valid && frame) {
+        const int screenW = graphics_get_width();
+        for (int row = 0; row < r.h; ++row)
+            std::memcpy(frame + (r.y + row) * screenW + r.x,
+                        s_menuBackup + r.offset + row * r.w, r.w);
+        s_backupUsed = r.offset;
+    }
+    r.valid = false;
+}
 
 int pageHeight(const MenuPage& page)
 {
@@ -61,6 +172,10 @@ int pageHeight(const MenuPage& page)
     const int rows = page.itemCount > 0 ? page.itemCount : 1;
     return fontH + 6 + rows * rowH + 2;
 }
+
+int backupW = 0;
+int backupH = 0;
+bool backupValid = false;
 
 void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 {
@@ -73,7 +188,8 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
     graphics_rect(x, y, w, h, RGB888(0, 0, 0));
     graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
 
-    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), page.title, std::strlen(page.title));
+    const char* title = page.getTitle ? page.getTitle() : page.title;
+    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, std::strlen(title));
 
     if (!page.items || page.itemCount == 0) {
         const char emptyText[] = "Not implemented yet";
@@ -87,6 +203,12 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
             graphics_type(x + 6, rowY + 1,
                           current ? RGB888(255, 255, 255) : RGB888(0, 0, 0),
                           page.items[i].title, std::strlen(page.items[i].title));
+            if (page.getValue && page.getValue() == i) {
+                const char mark[] = "*";
+                graphics_type(x + w - fontW - 6, rowY + 1,
+                              current ? RGB888(255, 255, 255) : RGB888(0, 0, 0),
+                              mark, 1);
+            }
             if (page.items[i].submenu) {
                 const char arrow[] = ">";
                 graphics_type(x + w - fontW - 6, rowY + 1,
@@ -102,8 +224,12 @@ struct MenuState {
     bool wasPaused = false;
     bool wasMuted = false;
     SoundMixer* mixer = nullptr;
-    const MenuPage* stack[8] = {};
-    int selected[8] = {};
+    const MenuPage* stack[c_menuMaxDepth] = {};
+    int selected[c_menuMaxDepth] = {};
+    int pageX[c_menuMaxDepth] = {};
+    int pageY[c_menuMaxDepth] = {};
+    int pageW[c_menuMaxDepth] = {};
+    int pageH[c_menuMaxDepth] = {};
     int depth = 0;
     int screenH = 0;
     int menuW = 0;
@@ -111,12 +237,28 @@ struct MenuState {
 
 MenuState menu;
 
+// Перерисовывает только текущий уровень: родительские страницы остаются
+// на экране, каскад никуда не двигается
 void redrawMenu()
 {
     if (!menu.open)
         return;
-    const int menuH = std::min(pageHeight(*menu.stack[menu.depth]), menu.screenH);
-    drawPage(*menu.stack[menu.depth], menu.selected[menu.depth], 0, 0, menu.menuW, menuH);
+    const int d = menu.depth;
+    drawPage(*menu.stack[d], menu.selected[d],
+             menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
+}
+
+
+// Ширина страницы по самому длинному пункту
+int pageWidth(const MenuPage& page)
+{
+    const int fontW = graphics_get_font_width();
+    size_t longest = std::strlen(page.getTitle ? page.getTitle() : page.title);
+    for (int i = 0; i < page.itemCount; ++i)
+        longest = std::max(longest, std::strlen(page.items[i].title));
+    if (page.itemCount == 0)
+        longest = std::max(longest, sizeof("Not implemented yet") - 1);
+    return static_cast<int>(longest + 4) * fontW;
 }
 
 } // namespace
@@ -136,12 +278,18 @@ void palOpenMainMenu()
 
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
-    menu.menuW = std::min(300, screenW - 4);
-    // Подложка экрана больше не сохраняется. Прежде под неё выделялось
-    // 304 x 119 = 36176 байт из кучи — больше, чем весь остальной постоянный
-    // расход, и это выделение соседствовало с выделением списка файлов.
-    // Восстанавливать фон незачем: как только эмуляция снимается с паузы,
-    // рендерер перерисовывает весь кадр целиком за один проход, то есть за 20 мс.
+
+    // Главное меню фон не сохраняет: закрывается оно вместе со снятием паузы,
+    // и рендерер перерисует кадр целиком за один проход
+    s_backupUsed = 0;
+    for (int i = 0; i < c_menuMaxDepth; ++i)
+        s_backup[i].valid = false;
+
+    menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
+    menu.pageX[0] = 0;
+    menu.pageY[0] = 0;
+    menu.pageW[0] = menu.menuW;
+    menu.pageH[0] = std::min(pageHeight(rootPage), menu.screenH);
 
     menu.stack[0] = &rootPage;
     std::fill(std::begin(menu.selected), std::end(menu.selected), 0);
@@ -155,6 +303,9 @@ void palCloseMainMenu()
     if (!menu.open)
         return;
 
+    // Уровни снимаются в обратном порядке, чтобы фон под каскадом вернулся
+    for (int d = menu.depth; d >= 1; --d)
+        popBackground(d);
     menu.open = false;
     if (menu.mixer)
         menu.mixer->setMuted(menu.wasMuted);
@@ -177,24 +328,82 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         return true;
 
     const MenuPage* page = menu.stack[menu.depth];
-    if (keyCode == PK_ESC) {
+    const bool enter = keyCode == PK_ENTER || keyCode == PK_KP_ENTER
+                    || keyCode == PK_SPACE;
+
+    if (keyCode == PK_ESC || keyCode == PK_LEFT) {
+        // Влево и Esc возвращают на уровень выше, с верхнего — закрывают меню
         if (menu.depth == 0) {
-            palCloseMainMenu();
+            if (keyCode == PK_ESC)
+                palCloseMainMenu();
             return true;
         }
+        // Фон под закрываемым подменю возвращается на место
+        popBackground(menu.depth);
         --menu.depth;
+        return true;   // родительская страница уже на экране, перерисовка не нужна
     } else if (page->itemCount > 0 && keyCode == PK_UP) {
         menu.selected[menu.depth] = menu.selected[menu.depth] > 0
             ? menu.selected[menu.depth] - 1 : page->itemCount - 1;
     } else if (page->itemCount > 0 && keyCode == PK_DOWN) {
         menu.selected[menu.depth] = menu.selected[menu.depth] + 1 < page->itemCount
             ? menu.selected[menu.depth] + 1 : 0;
-    } else if (page->itemCount > 0 && (keyCode == PK_ENTER || keyCode == PK_KP_ENTER)) {
-        const MenuPage* submenu = page->items[menu.selected[menu.depth]].submenu;
-        if (submenu && menu.depth + 1 < static_cast<int>(sizeof(menu.stack) / sizeof(menu.stack[0]))) {
-            menu.stack[++menu.depth] = submenu;
-            menu.selected[menu.depth] = 0;
+    } else if (page->itemCount > 0 && (keyCode == PK_RIGHT || enter)) {
+        const int sel = menu.selected[menu.depth];
+
+        if (page->setValue) {
+            // Страница-радиогруппа: выбор пункта меняет значение.
+            // Меню закрывается, машина сбрасывается — так требует смена ядра.
+            if (page->getValue && page->getValue() != sel) {
+                page->setValue(sel);
+                palCloseMainMenu();
+                if (g_emulation && g_emulation->getVector())
+                    g_emulation->getVector()->reset();
+                return true;
+            }
+            if (keyCode == PK_RIGHT)
+                return true;   // значение уже выбрано, вправо ничего не делает
+            palCloseMainMenu();
+            return true;
         }
+
+        const MenuPage* submenu = page->items[sel].submenu;
+        if (!submenu)
+            return true;
+        if (menu.depth + 1 >= static_cast<int>(sizeof(menu.stack) / sizeof(menu.stack[0])))
+            return true;
+        // Каскад: подменю раскрывается вправо от родителя, верх выравнивается
+        // по выбранному пункту
+        const int d = menu.depth;
+        const int fontH = graphics_get_font_height();
+        const int rowH = fontH + 3;
+        const int screenW = graphics_get_width();
+
+        int nx = menu.pageX[d] + menu.pageW[d] + 2;
+        int ny = menu.pageY[d] + fontH + 5 + sel * rowH - 2;
+        int nw = std::min(pageWidth(*submenu), screenW - 4);
+        int nh = std::min(pageHeight(*submenu), menu.screenH);
+
+        if (nx + nw + 4 > screenW) nx = std::max(0, screenW - nw - 4);
+        if (ny + nh + 4 > menu.screenH) ny = std::max(0, menu.screenH - nh - 4);
+        if (ny < 0) ny = 0;
+
+        // graphics_fill и graphics_rect работают по включительным границам:
+        // x1 = x0 + width, цикл xi <= x1, то есть закрашивается width + 1
+        // пиксель. Страница вместе с тенью занимает nw + 5 на nh + 5, и
+        // сохранять надо именно столько — иначе от тени остаётся полоска
+        // в один пиксель.
+        pushBackground(d + 1, nx, ny, nw + 5, nh + 5);
+
+        menu.stack[++menu.depth] = submenu;
+        menu.pageX[menu.depth] = nx;
+        menu.pageY[menu.depth] = ny;
+        menu.pageW[menu.depth] = nw;
+        menu.pageH[menu.depth] = nh;
+        // В радиогруппе изначально выделено текущее значение
+        menu.selected[menu.depth] = submenu->getValue ? submenu->getValue() : 0;
+        if (menu.selected[menu.depth] < 0 || menu.selected[menu.depth] >= submenu->itemCount)
+            menu.selected[menu.depth] = 0;
     } else {
         return true;
     }
@@ -202,4 +411,28 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
     if (menu.open)
         redrawMenu();
     return true;
+}
+
+
+void palMessageBox(const char* title, const char* text)
+{
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    const int fontW = graphics_get_font_width();
+    const int fontH = graphics_get_font_height();
+
+    const int textLen = static_cast<int>(std::strlen(text));
+    const int titleLen = static_cast<int>(std::strlen(title));
+    int w = (std::max(textLen, titleLen) + 3) * fontW;
+    if (w > screenW - 8) w = screenW - 8;
+    const int h = fontH * 2 + 12;
+    const int x = (screenW - w) / 2;
+    const int y = (screenH - h) / 2;
+
+    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));            // тень
+    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128)); // заголовок
+    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, titleLen);
+    graphics_type(x + 5, y + fontH + 8, RGB888(0, 0, 0), text, textLen);
 }

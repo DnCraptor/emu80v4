@@ -103,10 +103,24 @@ namespace {
 struct CpuSlot {
     alignas(8) uint8_t storage[c_cpuSlotSize];
     Cpu8080Compatible* cpu = nullptr;
+    VectorCpuType type = VECTOR_CPU_8080;
 
     // Ядро создаётся здесь, а не в VectorCore, чтобы сохранить свою позицию
     // в порядке регистрации активных устройств
     CpuSlot() {cpu = new (storage) Cpu8080();}
+
+    // Замена ядра на ходу. Резидентно всегда одно: старое разрушается,
+    // новое создаётся тем же placement new в том же буфере.
+    void replace(VectorCpuType newType)
+    {
+        if (newType == type)
+            return;
+        cpu->~Cpu8080Compatible();
+        cpu = (newType == VECTOR_CPU_Z80)
+            ? static_cast<Cpu8080Compatible*>(new (storage) CpuZ80())
+            : static_cast<Cpu8080Compatible*>(new (storage) Cpu8080());
+        type = newType;
+    }
 };
 
 struct Devices {
@@ -1402,6 +1416,56 @@ void VectorCore::shutdown()
     m_ramDisk2->shutdown();
     m_ramDiskSelector2->shutdown();
 }
+
+VectorCpuType VectorCore::getCpuType() const
+{
+    return s_devices.cpuSlot.type;
+}
+
+
+void VectorCore::setCpuType(VectorCpuType type)
+{
+    if (type == s_devices.cpuSlot.type)
+        return;
+
+    // Позицию в массиве активных устройств надо сохранить: планировщик
+    // разрешает совпадение тактов по порядку регистрации, а совпадения CPU
+    // и рендерера случаются на каждой границе кадра. Деструктор старого ядра
+    // выкинет его из массива, конструктор нового допишет в конец — поэтому
+    // индекс запоминается заранее и восстанавливается после.
+    const int index = g_emulation->getActiveDeviceIndex(m_cpu);
+
+    s_devices.cpuSlot.replace(type);
+    m_cpu = s_devices.cpuSlot.cpu;
+
+    if (index >= 0)
+        g_emulation->moveActiveDevice(m_cpu, index);
+
+    // Вся обвязка заново, в том же порядке, что и в конструкторе
+    m_cpu->setMachine(this);
+    m_cpu->setFrequency(3000000);
+    m_cpu->setStartAddr(0x0000);
+    m_cpu->attachAddrSpace(m_addrSpace);
+    m_cpu->attachIoAddrSpace(m_ioAddrSpace);
+    m_cpu->attachCore(this);
+
+    // attachCpu перестраивает карту страниц уже в новом объекте
+    m_addrSpace->attachCpu(m_cpu);
+
+    m_cpu->addHook(m_tapeInHookBas);
+    m_cpu->addHook(m_tapeOutHookBas);
+    m_cpu->addHook(m_closeFileHookBas);
+    m_cpu->addHook(m_tapeInHookMon);
+    m_cpu->addHook(m_tapeOutHookMon);
+    m_cpu->addHook(m_skipHookMon);
+    m_cpu->addHook(m_closeFileHookMon);
+    m_cpu->addHook(m_tapeInHookEmuRk);
+    m_cpu->addHook(m_tapeOutHookEmuRk);
+    m_cpu->addHook(m_closeFileHookEmuRk);
+
+    m_cpu->init();
+}
+
 
 void VectorCore::reset()
 {
