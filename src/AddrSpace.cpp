@@ -27,14 +27,14 @@ AddrSpace::AddrSpace(uint8_t nullByte)
 }
 
 
-void AddrSpace::addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
+void AddrSpace::addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr, bool invertAddress)
 {
-    addReadRange(firstAddr, lastAddr, addrDevice, devFirstAddr);
-    addWriteRange(firstAddr, lastAddr, addrDevice, devFirstAddr);
+    addReadRange(firstAddr, lastAddr, addrDevice, devFirstAddr, invertAddress);
+    addWriteRange(firstAddr, lastAddr, addrDevice, devFirstAddr, invertAddress);
 }
 
 
-void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
+void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr, bool invertAddress)
 {
     if (m_itemCountR >= MAX_RANGES)
         return;
@@ -44,12 +44,12 @@ void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* add
         pos++;
     for (int i = m_itemCountR; i > pos; i--)
         m_readRanges[i] = m_readRanges[i - 1];
-    m_readRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr};
+    m_readRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr, invertAddress};
     m_itemCountR++;
 }
 
 
-void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
+void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr, bool invertAddress)
 {
     if (m_itemCountW >= MAX_RANGES)
         return;
@@ -59,7 +59,7 @@ void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* ad
         pos++;
     for (int i = m_itemCountW; i > pos; i--)
         m_writeRanges[i] = m_writeRanges[i - 1];
-    m_writeRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr};
+    m_writeRanges[pos] = {addrDevice, firstAddr, lastAddr - firstAddr + 1, devFirstAddr, invertAddress};
     m_itemCountW++;
 }
 
@@ -72,9 +72,12 @@ uint8_t __not_in_flash_func(AddrSpace::readByte)(int addr)
     if (i == 0)
         return m_nullByte;
     const Range& range = m_readRanges[i - 1];
-    return addr - range.firstAddress < range.itemSize
-        ? range.device->readByte(addr - range.firstAddress + range.devFirstAddress)
-        : m_nullByte;
+    if (addr - range.firstAddress >= range.itemSize)
+        return m_nullByte;
+    int devAddr = addr - range.firstAddress + range.devFirstAddress;
+    if (range.invertAddress)
+        devAddr = ~devAddr;
+    return range.device->readByte(devAddr);
 }
 
 
@@ -86,25 +89,10 @@ void __not_in_flash_func(AddrSpace::writeByte)(int addr, uint8_t value)
     if (i == 0)
         return;
     const Range& range = m_writeRanges[i - 1];
-    if (addr - range.firstAddress < range.itemSize)
-        range.device->writeByte(addr - range.firstAddress + range.devFirstAddress, value);
-}
-
-
-
-AddrSpaceInverter::AddrSpaceInverter(AddressableDevice* as)
-{
-    m_as = as;
-}
-
-
-uint8_t __not_in_flash_func(AddrSpaceInverter::readByte)(int addr)
-{
-    return m_as->readByte(~addr);
-}
-
-
-void __not_in_flash_func(AddrSpaceInverter::writeByte)(int addr, uint8_t value)
-{
-    m_as->writeByte(~addr, value);
+    if (addr - range.firstAddress < range.itemSize) {
+        int devAddr = addr - range.firstAddress + range.devFirstAddress;
+        if (range.invertAddress)
+            devAddr = ~devAddr;
+        range.device->writeByte(devAddr, value);
+    }
 }

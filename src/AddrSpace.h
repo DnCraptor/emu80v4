@@ -30,9 +30,9 @@ class AddrSpace : public AddressableDevice
         uint8_t readByte(int addr) override;
         void writeByte(int addr, uint8_t value) override;
 
-        void addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
-        void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
-        void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
+        void addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0, bool invertAddress = false);
+        void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0, bool invertAddress = false);
+        void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0, bool invertAddress = false);
 
 
 private:
@@ -43,6 +43,7 @@ private:
             int firstAddress = 0;
             int itemSize = 0;
             int devFirstAddress = 0;
+            bool invertAddress = false;
         };
 
         uint8_t m_nullByte;
@@ -51,21 +52,6 @@ private:
         int m_itemCountR = 0;
         int m_itemCountW = 0;
 
-};
-
-
-
-class AddrSpaceInverter : public AddressableDevice
-{
-    public:
-        AddrSpaceInverter(AddressableDevice* as);
-
-        void writeByte(int addr, uint8_t value) override;
-        uint8_t readByte(int addr) override;
-
-
-private:
-        AddressableDevice* m_as;
 };
 
 

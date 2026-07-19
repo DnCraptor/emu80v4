@@ -1001,9 +1001,7 @@ VectorCore::VectorCore()
     m_ppi->setNoReset(true);
     m_ppi->attachPpi8255Circuit(m_ppiCircuit);
 
-    m_invertedPpi = new AddrSpaceInverter(m_ppi);
-    m_invertedPpi->setMachine(this);
-    m_ioAddrSpace->addRange(0x00, 0x03, m_invertedPpi);
+    m_ioAddrSpace->addRange(0x00, 0x03, m_ppi, 0, true);
 
     m_colorReg = new VectorColorRegister();
     m_colorReg->setMachine(this);
@@ -1022,9 +1020,7 @@ VectorCore::VectorCore()
     m_ppi2->setMachine(this);
     m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
-    m_invertedPpi2 = new AddrSpaceInverter(m_ppi2);
-    m_invertedPpi2->setMachine(this);
-    m_ioAddrSpace->addRange(0x04, 0x07, m_invertedPpi2);
+    m_ioAddrSpace->addRange(0x04, 0x07, m_ppi2, 0, true);
 
     m_pit = new Pit8253();
     m_pit->setMachine(this);
@@ -1035,9 +1031,7 @@ VectorCore::VectorCore()
     m_sndSource->attachPit(m_pit);
     m_sndSource->setNegative(true);
 
-    m_invertedPit = new AddrSpaceInverter(m_pit);
-    m_invertedPit->setMachine(this);
-    m_ioAddrSpace->addRange(0x08, 0x0B, m_invertedPit);
+    m_ioAddrSpace->addRange(0x08, 0x0B, m_pit, 0, true);
 
     m_ay = new Psg3910();
     m_ay->setMachine(this);
@@ -1051,9 +1045,7 @@ VectorCore::VectorCore()
     m_fdc = new Fdc1793();
     m_fdc->setMachine(this);
 
-    m_invertedFdc = new AddrSpaceInverter(m_fdc);
-    m_invertedFdc->setMachine(this);
-    m_ioAddrSpace->addRange(0x18, 0x1B, m_invertedFdc);
+    m_ioAddrSpace->addRange(0x18, 0x1B, m_fdc, 0, true);
 
     m_fddReg = new VectorFddControlRegister();
     m_fddReg->setMachine(this);
@@ -1229,19 +1221,15 @@ void VectorCore::init()
     m_ppiCircuit->init();
     m_tapeSoundSource->init();
     m_ppi->init();
-    m_invertedPpi->init();
     m_colorReg->init();
     m_covox->init();
     m_covoxCircuit->init();
     m_ppi2->init();
-    m_invertedPpi2->init();
     m_pit->init();
     m_sndSource->init();
-    m_invertedPit->init();
     m_ay->init();
     m_psgSoundSource->init();
     m_fdc->init();
-    m_invertedFdc->init();
     m_fddReg->init();
     m_ataDrive->init();
     m_hddRegisters->init();
@@ -1283,19 +1271,15 @@ void VectorCore::shutdown()
     m_ppiCircuit->shutdown();
     m_tapeSoundSource->shutdown();
     m_ppi->shutdown();
-    m_invertedPpi->shutdown();
     m_colorReg->shutdown();
     m_covox->shutdown();
     m_covoxCircuit->shutdown();
     m_ppi2->shutdown();
-    m_invertedPpi2->shutdown();
     m_pit->shutdown();
     m_sndSource->shutdown();
-    m_invertedPit->shutdown();
     m_ay->shutdown();
     m_psgSoundSource->shutdown();
     m_fdc->shutdown();
-    m_invertedFdc->shutdown();
     m_fddReg->shutdown();
     m_ataDrive->shutdown();
     m_hddRegisters->shutdown();
@@ -1337,19 +1321,15 @@ void VectorCore::reset()
     m_ppiCircuit->reset();
     m_tapeSoundSource->reset();
     m_ppi->reset();
-    m_invertedPpi->reset();
     m_colorReg->reset();
     m_covox->reset();
     m_covoxCircuit->reset();
     m_ppi2->reset();
-    m_invertedPpi2->reset();
     m_pit->reset();
     m_sndSource->reset();
-    m_invertedPit->reset();
     m_ay->reset();
     m_psgSoundSource->reset();
     m_fdc->reset();
-    m_invertedFdc->reset();
     m_fddReg->reset();
     m_ataDrive->reset();
     m_hddRegisters->reset();
@@ -1408,19 +1388,15 @@ VectorCore::~VectorCore()
     delete m_hddRegisters;
     delete m_ataDrive;
     delete m_fddReg;
-    delete m_invertedFdc;
     delete m_fdc;
     delete m_psgSoundSource;
     delete m_ay;
-    delete m_invertedPit;
     delete m_sndSource;
     delete m_pit;
-    delete m_invertedPpi2;
     delete m_ppi2;
     delete m_covoxCircuit;
     delete m_covox;
     delete m_colorReg;
-    delete m_invertedPpi;
     delete m_ppi;
     delete m_tapeSoundSource;
     delete m_ppiCircuit;
