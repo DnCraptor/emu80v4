@@ -27,6 +27,7 @@ class KbdTapper : public ActiveDevice
 {
     public:
         KbdTapper();
+        void init() override;
         void operate() override;
         void reset() override;
 

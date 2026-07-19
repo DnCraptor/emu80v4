@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <new>
 
 #include "Globals.h"
 #include "EmuCalls.h"
@@ -71,6 +72,97 @@ static const int c_mainRamSize = 0x10000;
 
 static uint8_t s_frameBuffer[c_frameBufSize];
 static uint8_t s_mainRam[c_mainRamSize];
+
+
+// ---------------------------------------------------------------------------
+// Явное размещение устройств машины.
+//
+// Состав машины фиксирован, прошивка не завершается, деструкторы у этих
+// объектов никогда не отработают. Поэтому они размещены статически: попадают
+// в .bss и видны в отчёте линковщика, а не растворяются в куче.
+//
+// ПОРЯДОК ОБЪЯВЛЕНИЯ ЗНАЧИМ. Он совпадает с прежним порядком создания через
+// new, а от него зависит порядок регистрации активных устройств и источников
+// звука. Планировщик разрешает совпадение тактов по позиции в массиве
+// (совпадения CPU и рендерера случаются на каждой границе кадра), поэтому
+// переставлять поля нельзя.
+//
+// Конструкторы всех этих классов инертны: они не обращаются к g_emulation и
+// не трогают файловую систему, поэтому безопасно выполняются до main().
+// Вся настройка по-прежнему делается в конструкторе VectorCore, который
+// вызывается из Emulation::init(), когда глобальные объекты уже готовы.
+// ---------------------------------------------------------------------------
+
+// Ядро CPU заменяется на ходу (8080 <-> Z80), поэтому лежит в отдельном буфере
+// и создаётся placement new. Буфер рассчитан на большее из двух ядер.
+static constexpr size_t c_cpuSlotSize =
+    sizeof(Cpu8080) > sizeof(CpuZ80) ? sizeof(Cpu8080) : sizeof(CpuZ80);
+
+namespace {
+
+struct CpuSlot {
+    alignas(8) uint8_t storage[c_cpuSlotSize];
+    Cpu8080Compatible* cpu = nullptr;
+
+    // Ядро создаётся здесь, а не в VectorCore, чтобы сохранить свою позицию
+    // в порядке регистрации активных устройств
+    CpuSlot() {cpu = new (storage) Cpu8080();}
+};
+
+struct Devices {
+    Ram                      ram{s_mainRam, c_mainRamSize};
+    Rom                      rom{0x8000, "vector/loader.rom"};
+    CpuSlot                  cpuSlot;
+    VectorAddrSpace          addrSpace;
+    AddrSpace                ioAddrSpace;
+    VectorRenderer           renderer;
+    VectorKeyboard           keyboard;
+    VectorKbdLayout          kbdLayout;
+    KbdTapper                kbdTapper;
+    VectorPpi8255Circuit     ppiCircuit;
+    GeneralSoundSource       tapeSoundSource;
+    Ppi8255                  ppi;
+    VectorColorRegister      colorReg;
+    Covox                    covox{7};
+    VectorPpi8255Circuit2    covoxCircuit;
+    Ppi8255                  ppi2;
+    Pit8253                  pit;
+    Pit8253SoundSource       sndSource;
+    Psg3910                  ay;
+    Psg3910SoundSource       psgSoundSource;
+    Fdc1793                  fdc;
+    VectorFddControlRegister fddReg;
+    AtaDrive                 ataDrive;
+    VectorHddRegisters       hddRegisters;
+    FdImage                  diskA{80, 2, 5, 1024};
+    FdImage                  diskB{80, 2, 5, 1024};
+    DiskImage                hdd;
+    VectorFileLoader         loader;
+    WavWriter                wavWriter;
+    TapeRedirector           tapeInFile;
+    TapeRedirector           tapeOutFile;
+    RkTapeInHook             tapeInHookBas{0x2B05};
+    RkTapeOutHook            tapeOutHookBas{0x2B60};
+    CloseFileHook            closeFileHookBas{0x2B8E, &tapeInFile, &tapeOutFile};
+    RkTapeInHook             tapeInHookMon{0xF840};
+    RkTapeOutHook            tapeOutHookMon{0xF89B};
+    Ret8080Hook              skipHookMon{0xEDDC};
+    CloseFileHook            closeFileHookMon{0xFEFF, &tapeInFile, &tapeOutFile};
+    RkTapeInHook             tapeInHookEmuRk{0xFC31};
+    RkTapeOutHook            tapeOutHookEmuRk{0xFC7D};
+    CloseFileHook            closeFileHookEmuRk{0xFF18, &tapeInFile, &tapeOutFile};
+    SRam                     ramDiskMem{0x40000};
+    RamDisk                  ramDisk{0x40000};
+    VectorRamDiskSelector    ramDiskSelector;
+    SRam                     ramDiskMem2{0x40000};
+    RamDisk                  ramDisk2{0x40000};
+    VectorRamDiskSelector    ramDiskSelector2;
+};
+
+} // namespace
+
+static Devices s_devices;
+
 
 
 void VectorAddrSpace::reset() {
@@ -942,34 +1034,33 @@ VectorCore::VectorCore()
 {
 
     // Ram с внешним буфером: владения нет, деструктор ничего не освобождает
-    m_ram = new Ram(s_mainRam, c_mainRamSize);
+    m_ram = &s_devices.ram;
     m_ram->setMachine(this);
 
-    m_rom = new Rom(0x8000, "vector/loader.rom");
+    m_rom = &s_devices.rom;
     m_rom->setMachine(this);
 
-    if (m_z80_installed) {
-        m_cpu = new CpuZ80();
-    } else {
-        m_cpu = new Cpu8080();
-    }
+    // Ядро уже создано конструктором CpuSlot (см. s_devices) — так за ним
+    // сохраняется прежняя позиция в порядке регистрации активных устройств.
+    // Замена 8080 <-> Z80 на ходу выполняется через s_devices.cpuSlot.
+    m_cpu = s_devices.cpuSlot.cpu;
     m_cpu->setMachine(this);
     m_cpu->setFrequency(3000000);
     m_cpu->setStartAddr(0x0000);
 
-    m_addrSpace = new VectorAddrSpace();
+    m_addrSpace = &s_devices.addrSpace;
     m_addrSpace->setMachine(this);
     m_addrSpace->attachRam(m_ram);
     m_addrSpace->attachRom(m_rom);
     m_addrSpace->attachCpu(m_cpu);
 
-    m_ioAddrSpace = new AddrSpace();
+    m_ioAddrSpace = &s_devices.ioAddrSpace;
     m_ioAddrSpace->setMachine(this);
 
     m_cpu->attachAddrSpace(m_addrSpace);
     m_cpu->attachIoAddrSpace(m_ioAddrSpace);
 
-    m_renderer = new VectorRenderer();
+    m_renderer = &s_devices.renderer;
     m_renderer->setMachine(this);
     m_renderer->attachMemory(m_ram);
     m_renderer->setVisibleArea(true);
@@ -978,216 +1069,216 @@ VectorCore::VectorCore()
 
     m_cpu->attachCore(this);
 
-    m_keyboard = new VectorKeyboard();
+    m_keyboard = &s_devices.keyboard;
     m_keyboard->setMachine(this);
 
-    m_kbdLayout = new VectorKbdLayout();
+    m_kbdLayout = &s_devices.kbdLayout;
     m_kbdLayout->setMachine(this);
     m_kbdLayout->setQwertyMode();
 
-    m_kbdTapper = new KbdTapper();
+    m_kbdTapper = &s_devices.kbdTapper;
     m_kbdTapper->setMachine(this);
     m_kbdTapper->setPressTime(20);
     m_kbdTapper->setReleaseTime(20);
     m_kbdTapper->setCrDelay(100);
 
-    m_ppiCircuit = new VectorPpi8255Circuit();
+    m_ppiCircuit = &s_devices.ppiCircuit;
     m_ppiCircuit->setMachine(this);
     m_ppiCircuit->attachRenderer(m_renderer);
     m_ppiCircuit->attachKeyboard(m_keyboard);
 
-    m_tapeSoundSource = new GeneralSoundSource();
+    m_tapeSoundSource = &s_devices.tapeSoundSource;
     m_tapeSoundSource->setMachine(this);
     m_ppiCircuit->attachTapeSoundSource(m_tapeSoundSource);
 
-    m_ppi = new Ppi8255();
+    m_ppi = &s_devices.ppi;
     m_ppi->setMachine(this);
     m_ppi->setNoReset(true);
     m_ppi->attachPpi8255Circuit(m_ppiCircuit);
 
     m_ioAddrSpace->addRange(0x00, 0x03, m_ppi, 0, true);
 
-    m_colorReg = new VectorColorRegister();
+    m_colorReg = &s_devices.colorReg;
     m_colorReg->setMachine(this);
     m_colorReg->attachRenderer(m_renderer);
     m_ioAddrSpace->addRange(0x0C, 0x0F, m_colorReg);
 
-    m_covox = new Covox(7);
+    m_covox = &s_devices.covox;
     m_covox->setMachine(this);
     m_covox->setNegative(true);
 
-    m_covoxCircuit = new VectorPpi8255Circuit2();
+    m_covoxCircuit = &s_devices.covoxCircuit;
     m_covoxCircuit->setMachine(this);
     m_covoxCircuit->attachCovox(m_covox);
 
-    m_ppi2 = new Ppi8255();
+    m_ppi2 = &s_devices.ppi2;
     m_ppi2->setMachine(this);
     m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
     m_ioAddrSpace->addRange(0x04, 0x07, m_ppi2, 0, true);
 
-    m_pit = new Pit8253();
+    m_pit = &s_devices.pit;
     m_pit->setMachine(this);
     m_pit->setFrequency(1500000);
 
-    m_sndSource = new Pit8253SoundSource();
+    m_sndSource = &s_devices.sndSource;
     m_sndSource->setMachine(this);
     m_sndSource->attachPit(m_pit);
     m_sndSource->setNegative(true);
 
     m_ioAddrSpace->addRange(0x08, 0x0B, m_pit, 0, true);
 
-    m_ay = new Psg3910();
+    m_ay = &s_devices.ay;
     m_ay->setMachine(this);
     m_ay->setFrequency(1750000);
     m_ioAddrSpace->addRange(0x14, 0x15, m_ay);
 
-    m_psgSoundSource = new Psg3910SoundSource();
+    m_psgSoundSource = &s_devices.psgSoundSource;
     m_psgSoundSource->setMachine(this);
     m_psgSoundSource->attachPsg(m_ay);
 
-    m_fdc = new Fdc1793();
+    m_fdc = &s_devices.fdc;
     m_fdc->setMachine(this);
 
     m_ioAddrSpace->addRange(0x18, 0x1B, m_fdc, 0, true);
 
-    m_fddReg = new VectorFddControlRegister();
+    m_fddReg = &s_devices.fddReg;
     m_fddReg->setMachine(this);
     m_fddReg->attachFdc1793(m_fdc);
     m_ioAddrSpace->addRange(0x1C, 0x1C, m_fddReg);
 
-    m_ataDrive = new AtaDrive();
+    m_ataDrive = &s_devices.ataDrive;
     m_ataDrive->setMachine(this);
     m_ataDrive->setVectorGeometry();
 
-    m_hddRegisters = new VectorHddRegisters();
+    m_hddRegisters = &s_devices.hddRegisters;
     m_hddRegisters->setMachine(this);
     m_hddRegisters->attachAtaDrive(m_ataDrive);
     m_ioAddrSpace->addRange(0x50, 0x5F, m_hddRegisters);
 
-    m_diskA = new FdImage(80, 2, 5, 1024);
+    m_diskA = &s_devices.diskA;
     m_diskA->setMachine(this);
     m_diskA->setLabel("A");
     m_diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(0, m_diskA);
 
-    m_diskB = new FdImage(80, 2, 5, 1024);
+    m_diskB = &s_devices.diskB;
     m_diskB->setMachine(this);
     m_diskB->setLabel("B");
     m_diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(1, m_diskB);
 
-    m_hdd = new DiskImage();
+    m_hdd = &s_devices.hdd;
     m_hdd->setMachine(this);
     m_hdd->setLabel("HDD");
     m_hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
     m_ataDrive->assignDiskImage(m_hdd);
 
-    m_loader = new VectorFileLoader();
+    m_loader = &s_devices.loader;
     m_loader->setMachine(this);
     m_loader->attachAddrSpace(m_ram);
     m_loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
 
     // Единственный на прошивку. Регистрируется как активное устройство один
     // раз здесь и до открытия файла остаётся приостановленным.
-    m_wavWriter = new WavWriter();
+    m_wavWriter = &s_devices.wavWriter;
     m_wavWriter->setMachine(this);
 
-    m_tapeInFile = new TapeRedirector();
+    m_tapeInFile = &s_devices.tapeInFile;
     m_tapeInFile->setMachine(this);
     m_tapeInFile->setMode("r");
     m_tapeInFile->setFilter("Файлы RK-совместимых ПК (*.rk?)|*.rk;*.rk?;*.RK;*.RK?|Файлы Бейсика (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
 
-    m_tapeOutFile = new TapeRedirector();
+    m_tapeOutFile = &s_devices.tapeOutFile;
     m_tapeOutFile->setMachine(this);
     m_tapeOutFile->setMode("w");
     m_tapeOutFile->setFilter(".rk|.cas");
 
-    m_tapeInHookBas = new RkTapeInHook(0x2B05);
+    m_tapeInHookBas = &s_devices.tapeInHookBas;
     m_tapeInHookBas->setMachine(this);
     m_tapeInHookBas->setSignature("C5D50E0057DB");
     m_tapeInHookBas->setTapeRedirector(m_tapeInFile);
     m_cpu->addHook(m_tapeInHookBas);
 
-    m_tapeOutHookBas = new RkTapeOutHook(0x2B60);
+    m_tapeOutHookBas = &s_devices.tapeOutHookBas;
     m_tapeOutHookBas->setMachine(this);
     m_tapeOutHookBas->setOutputRegisterA(true);
     m_tapeOutHookBas->setSignature("C5D5F5570E08");
     m_tapeOutHookBas->setTapeRedirector(m_tapeOutFile);
     m_cpu->addHook(m_tapeOutHookBas);
 
-    m_closeFileHookBas = new CloseFileHook(0x2B8E, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookBas = &s_devices.closeFileHookBas;
     m_closeFileHookBas->setMachine(this);
     m_closeFileHookBas->setSignature("C506003A203C");
     m_cpu->addHook(m_closeFileHookBas);
 
-    m_tapeInHookMon = new RkTapeInHook(0xF840);
+    m_tapeInHookMon = &s_devices.tapeInHookMon;
     m_tapeInHookMon->setMachine(this);
     m_tapeInHookMon->setSignature("C5D50E0057DB");
     m_tapeInHookMon->setTapeRedirector(m_tapeInFile);
     m_cpu->addHook(m_tapeInHookMon);
 
-    m_tapeOutHookMon = new RkTapeOutHook(0xF89B);
+    m_tapeOutHookMon = &s_devices.tapeOutHookMon;
     m_tapeOutHookMon->setMachine(this);
     m_tapeOutHookMon->setOutputRegisterA(true);
     m_tapeOutHookMon->setSignature("C5D5F5573E02");
     m_tapeOutHookMon->setTapeRedirector(m_tapeOutFile);
     m_cpu->addHook(m_tapeOutHookMon);
 
-    m_skipHookMon = new Ret8080Hook(0xEDDC);
+    m_skipHookMon = &s_devices.skipHookMon;
     m_skipHookMon->setMachine(this);
     m_skipHookMon->setSignature("CD1097FB76F3");
     m_cpu->addHook(m_skipHookMon);
 
-    m_closeFileHookMon = new CloseFileHook(0xFEFF, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookMon = &s_devices.closeFileHookMon;
     m_closeFileHookMon->setMachine(this);
     m_closeFileHookMon->setSignature("3AFDFFE604CD");
     m_cpu->addHook(m_closeFileHookMon);
 
-    m_tapeInHookEmuRk = new RkTapeInHook(0xFC31);
+    m_tapeInHookEmuRk = &s_devices.tapeInHookEmuRk;
     m_tapeInHookEmuRk->setMachine(this);
     m_tapeInHookEmuRk->setSignature("F3C5D50E0057");
     m_tapeInHookEmuRk->setTapeRedirector(m_tapeInFile);
     m_cpu->addHook(m_tapeInHookEmuRk);
 
-    m_tapeOutHookEmuRk = new RkTapeOutHook(0xFC7D);
+    m_tapeOutHookEmuRk = &s_devices.tapeOutHookEmuRk;
     m_tapeOutHookEmuRk->setMachine(this);
     m_tapeOutHookEmuRk->setOutputRegisterA(true);
     m_tapeOutHookEmuRk->setSignature("F3C5D5F51608");
     m_tapeOutHookEmuRk->setTapeRedirector(m_tapeOutFile);
     m_cpu->addHook(m_tapeOutHookEmuRk);
 
-    m_closeFileHookEmuRk = new CloseFileHook(0xFF18, m_tapeInFile, m_tapeOutFile);
+    m_closeFileHookEmuRk = &s_devices.closeFileHookEmuRk;
     m_closeFileHookEmuRk->setMachine(this);
     m_closeFileHookEmuRk->setSignature("FB3A61F6E604");
     m_cpu->addHook(m_closeFileHookEmuRk);
 
-    m_ramDiskMem = new SRam(0x40000);
+    m_ramDiskMem = &s_devices.ramDiskMem;
     m_ramDiskMem->setMachine(this);
     m_addrSpace->attachRamDisk(0, m_ramDiskMem);
 
-    m_ramDisk = new RamDisk(0x40000);
+    m_ramDisk = &s_devices.ramDisk;
     m_ramDisk->setMachine(this);
     m_ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     m_ramDisk->attachPage(m_ramDiskMem);
 
-    m_ramDiskSelector = new VectorRamDiskSelector();
+    m_ramDiskSelector = &s_devices.ramDiskSelector;
     m_ramDiskSelector->setMachine(this);
     m_ramDiskSelector->attachVectorAddrSpace(m_addrSpace);
     m_ramDiskSelector->setDiskNum(0);
     m_ioAddrSpace->addRange(0x10, 0x10, m_ramDiskSelector);
 
-    m_ramDiskMem2 = new SRam(0x40000);
+    m_ramDiskMem2 = &s_devices.ramDiskMem2;
     m_ramDiskMem2->setMachine(this);
     m_addrSpace->attachRamDisk(1, m_ramDiskMem2);
 
-    m_ramDisk2 = new RamDisk(0x40000);
+    m_ramDisk2 = &s_devices.ramDisk2;
     m_ramDisk2->setMachine(this);
     m_ramDisk2->setLabel("EDD2");
     m_ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
     m_ramDisk2->attachPage(m_ramDiskMem2);
 
-    m_ramDiskSelector2 = new VectorRamDiskSelector();
+    m_ramDiskSelector2 = &s_devices.ramDiskSelector2;
     m_ramDiskSelector2->setMachine(this);
     m_ramDiskSelector2->attachVectorAddrSpace(m_addrSpace);
     m_ramDiskSelector2->setDiskNum(1);
@@ -1366,54 +1457,10 @@ void VectorCore::reset()
 
 VectorCore::~VectorCore()
 {
+    // Объекты размещены статически (см. s_devices) и живут всё время работы
+    // прошивки: удалять нечего. Явное уничтожение потребуется только при
+    // замене ядра CPU, и оно делается через CpuSlot.
     shutdown();
-    delete m_ramDiskSelector2;
-    delete m_ramDisk2;
-    delete m_ramDiskMem2;
-    delete m_ramDiskSelector;
-    delete m_ramDisk;
-    delete m_ramDiskMem;
-    delete m_closeFileHookEmuRk;
-    delete m_tapeOutHookEmuRk;
-    delete m_tapeInHookEmuRk;
-    delete m_closeFileHookMon;
-    delete m_skipHookMon;
-    delete m_tapeOutHookMon;
-    delete m_tapeInHookMon;
-    delete m_closeFileHookBas;
-    delete m_tapeOutHookBas;
-    delete m_tapeInHookBas;
-    delete m_tapeOutFile;
-    delete m_wavWriter;
-    delete m_tapeInFile;
-    delete m_loader;
-    delete m_hdd;
-    delete m_diskB;
-    delete m_diskA;
-    delete m_hddRegisters;
-    delete m_ataDrive;
-    delete m_fddReg;
-    delete m_fdc;
-    delete m_psgSoundSource;
-    delete m_ay;
-    delete m_sndSource;
-    delete m_pit;
-    delete m_ppi2;
-    delete m_covoxCircuit;
-    delete m_covox;
-    delete m_colorReg;
-    delete m_ppi;
-    delete m_tapeSoundSource;
-    delete m_ppiCircuit;
-    delete m_kbdTapper;
-    delete m_kbdLayout;
-    delete m_keyboard;
-    delete m_renderer;
-    delete m_ioAddrSpace;
-    delete m_addrSpace;
-    delete m_cpu;
-    delete m_rom;
-    delete m_ram;
 }
 
 

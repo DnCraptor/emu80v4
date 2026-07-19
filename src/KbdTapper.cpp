@@ -30,9 +30,14 @@ using namespace std;
 KbdTapper::KbdTapper()
 {
     pause();
-    ActiveDevice::setFrequency(1000); // 1 ms
+}
 
-    //typeText("D,FF\n");
+
+void KbdTapper::init()
+{
+    // setFrequency() читает g_emulation, поэтому не может выполняться
+    // в конструкторе статически размещённого объекта
+    ActiveDevice::setFrequency(1000); // 1 ms
 }
 
 
