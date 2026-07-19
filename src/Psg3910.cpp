@@ -45,6 +45,13 @@ Psg3910::Psg3910()
 
 void Psg3910::reset()
 {
+    // The emulation clock is not reset together with the machine devices.
+    // Drop all timing history here; otherwise getOutputs() keeps integrating
+    // from the pre-reset interval and may return silence after a disk/ROM reset.
+    m_prevClock = g_emulation->getCurClock();
+    const uint64_t stepTicks = uint64_t(m_kDiv) * 8;
+    m_discreteClock = m_prevClock - m_prevClock % stepTicks;
+
     m_curReg = 0;
     for (int i = 0; i < 16; i++)
         m_regs[i] = 0;
