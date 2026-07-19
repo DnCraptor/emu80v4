@@ -320,6 +320,15 @@ void __not_in_flash_func(VectorRenderer::operate)()
 }
 
 
+// Деление на 768 = 3 * 256. Сдвиг убирает множитель 256, а деление на 3
+// заменяется умножением: (n * 0xAAAB) >> 17 == n / 3 для всех n < 65536.
+// Аргумент здесь всегда меньше 312 * 768, поэтому n < 936 — с запасом.
+static inline int divBy768(int px)
+{
+    return int((unsigned(px) >> 8) * 0xAAABu >> 17);
+}
+
+
 void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
 {
     const int bias = 189;
@@ -327,7 +336,13 @@ void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
     if (clock <= m_curFrameClock)
         return;
 
-    int toPixel = (int64_t(clock) - int64_t(m_curFrameClock)) / m_ticksPerPixel + bias;
+    // Кадр длится m_ticksPerPixel * 768 * 312 = 33546240 тактов и заведомо
+    // помещается в 32 бита, а планировщик не даёт CPU уйти дальше ближайшего
+    // кадрового события. Прежнее 64-битное деление на каждую запись в
+    // видеопамять было вызовом __aeabi_uldivmod; теперь это обычное 32-битное.
+    const uint64_t delta = clock - m_curFrameClock;
+    int toPixel = (delta < 0x100000000ull ? int(uint32_t(delta) / m_ticksPerPixel)
+                                          : int(delta / m_ticksPerPixel)) + bias;
 
     if (toPixel <= m_curFramePixel) {
         if (toPixel < 40 * 768 || toPixel >= 296 * 768)
@@ -343,10 +358,10 @@ void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
         m_latchedLineOffset = m_lineOffset;
     }
 
-    int firstLine = m_curFramePixel / 768;
-    int firstPixel = m_curFramePixel % 768;
-    int lastLine = toPixel / 768;
-    int lastPixel = toPixel % 768;
+    const int firstLine = divBy768(m_curFramePixel);
+    const int firstPixel = m_curFramePixel - firstLine * 768;
+    const int lastLine = divBy768(toPixel);
+    const int lastPixel = toPixel - lastLine * 768;
     m_curFramePixel = toPixel;
     renderLine(firstLine, firstPixel, firstLine == lastLine ? lastPixel : 768);
     for (int line = firstLine + 1; line < lastLine; line++)
@@ -428,21 +443,45 @@ void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int
         // active area
         if (firstPx < 181) firstPx = 181;
         ptr = linePtr + firstPx - 124;
-        uint8_t rollOff = uint8_t(m_latchedLineOffset - nLine + 40);
-        for (int px = firstPx - 181; px < lastPx - 181 && px < 693 - 181; px++) {
-            int dot = (px & 0x0E) >> 1;
-            int offset = ((px & 0x1F0) << 4) | rollOff;
-            uint8_t btY = m_screenMemory[0x8000 + offset] << dot;
-            uint8_t btR = m_screenMemory[0xA000 + offset] << dot;
-            uint8_t btG = m_screenMemory[0xC000 + offset] << dot;
-            uint8_t btB = m_screenMemory[0xE000 + offset] << dot;
-            int logBGcolor = ((btG & 0x80) >> 6) | ((btB & 0x80) >> 7);
-            int logYRcolor = ((btY & 0x80) >> 4) | ((btR & 0x80) >> 5);
-            m_lastColor = logYRcolor | logBGcolor;
-            if (m_mode512px) {
-                *ptr++ = m_palette[px & 1 ? m_lastColor & 0x0c : m_lastColor & 0x03];
-            } else {
-                *ptr++ = m_palette[m_lastColor];
+        const uint8_t rollOff = uint8_t(m_latchedLineOffset - nLine + 40);
+
+        // Адрес байта в видеопамяти определяется битами 4..8 номера пикселя,
+        // то есть одна четвёрка байт обслуживает 16 подряд идущих пикселей
+        // (8 бит по два выходных пикселя на бит). Прежний цикл перечитывал эти
+        // четыре байта на каждом пикселе — 2048 обращений к памяти на строку
+        // вместо 128. Внутренняя часть цикла оставлена без изменений.
+        {
+            int px = firstPx - 181;
+            int endPx = lastPx - 181;
+            if (endPx > 693 - 181)
+                endPx = 693 - 181;
+
+            while (px < endPx) {
+                const int offset = ((px & 0x1F0) << 4) | rollOff;
+                const uint8_t bY = m_screenMemory[0x8000 + offset];
+                const uint8_t bR = m_screenMemory[0xA000 + offset];
+                const uint8_t bG = m_screenMemory[0xC000 + offset];
+                const uint8_t bB = m_screenMemory[0xE000 + offset];
+
+                int groupEnd = (px & ~0x0F) + 16;
+                if (groupEnd > endPx)
+                    groupEnd = endPx;
+
+                for (; px < groupEnd; px++) {
+                    const int dot = (px & 0x0E) >> 1;
+                    uint8_t btY = bY << dot;
+                    uint8_t btR = bR << dot;
+                    uint8_t btG = bG << dot;
+                    uint8_t btB = bB << dot;
+                    int logBGcolor = ((btG & 0x80) >> 6) | ((btB & 0x80) >> 7);
+                    int logYRcolor = ((btY & 0x80) >> 4) | ((btR & 0x80) >> 5);
+                    m_lastColor = logYRcolor | logBGcolor;
+                    if (m_mode512px) {
+                        *ptr++ = m_palette[px & 1 ? m_lastColor & 0x0c : m_lastColor & 0x03];
+                    } else {
+                        *ptr++ = m_palette[m_lastColor];
+                    }
+                }
             }
         }
 
