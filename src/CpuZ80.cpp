@@ -2537,7 +2537,7 @@ CpuZ80::CpuZ80()
 void __not_in_flash_func(CpuZ80::operate)()
 {
     if (!m_hooksDisabled) {
-        if (processHooks(PC))
+        if (mayHaveHook(PC) && processHooks(PC))
             return;
     }
 

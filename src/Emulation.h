@@ -86,7 +86,7 @@ class Emulation
         static constexpr int MAX_ACTIVE_DEVICES = 32;
         IActive* m_activeDevices[MAX_ACTIVE_DEVICES] = {};
         int nDevices = 0;
-        bool inCycle;
+        IActive* m_cpuDev = nullptr;
         uint64_t m_clockOffset = 0;
         uint64_t m_sysClock;
         uint64_t m_prevSysClock = 0;

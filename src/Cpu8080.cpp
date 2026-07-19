@@ -1719,7 +1719,7 @@ Cpu8080::Cpu8080() {
 }
 
 void __not_in_flash_func(Cpu8080::operate)() {
-    if (!m_hooksDisabled && processHooks(PC)) {
+    if (!m_hooksDisabled && mayHaveHook(PC) && processHooks(PC)) {
         return;
     }
 

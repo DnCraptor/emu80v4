@@ -27,6 +27,7 @@
 #include "EmuObjects.h"
 #include "Emulation.h"
 #include "Vector.h"
+#include "Cpu.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "PrnWriter.h"
@@ -74,7 +75,6 @@ void Emulation::registerActiveDevice(IActive* device)
     }
 
     m_activeDevices[nDevices++] = device;
-    inCycle = false;
 }
 
 
@@ -91,7 +91,7 @@ void Emulation::unregisterActiveDevice(IActive* device)
         m_activeDevices[i - 1] = m_activeDevices[i];
 
     m_activeDevices[--nDevices] = nullptr;
-    inCycle = false;
+    m_cpuDev = nullptr;   // индексы сдвинулись, определить CPU заново
 }
 
 
@@ -106,26 +106,62 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
 
-    while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
-        uint64_t time = -1;
-        IActive* curDev = nullptr;
+    // Указатель на CPU нужен, чтобы не пересканировать массив на каждой его
+    // команде. Состав активных устройств фиксирован с момента старта, поэтому
+    // достаточно определить его один раз.
+    if (!m_cpuDev && m_vector)
+        m_cpuDev = m_vector->getCpu();   // Cpu -> ActiveDevice -> IActive
 
-        inCycle = true;
-        IActive* device;
-        uint64_t tm;
-        for (int i = 0; i < nDevices && inCycle; i++) {
-            device = m_activeDevices[i];
-            if (!device->isPaused()) {
-                tm = device->getClock();
-                if (tm < time) {
-                    time = tm;
-                    curDev = device;
-                }
+    while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
+        // Ближайшее событие среди всех устройств, кроме CPU. Раньше этот проход
+        // выполнялся на каждую команду 8080, хотя побеждал в нём почти всегда
+        // сам CPU: ближайшее чужое событие — звуковой сэмпл раз в ~7 команд.
+        uint64_t next = uint64_t(-1);
+        IActive* nextDev = nullptr;
+        int nextIndex = nDevices;
+        int cpuIndex = nDevices;
+
+        for (int i = 0; i < nDevices; i++) {
+            IActive* device = m_activeDevices[i];
+            if (device == m_cpuDev) {
+                cpuIndex = i;
+                continue;
+            }
+            if (device->isPaused())
+                continue;
+            uint64_t tm = device->getClock();
+            if (tm < next) {
+                next = tm;
+                nextDev = device;
+                nextIndex = i;
             }
         }
 
-        m_curClock = time;
-        curDev->operate();
+        if (m_cpuDev && !m_cpuDev->isPaused()) {
+            // Прежний цикл при равенстве тактов отдавал ход тому устройству,
+            // которое стоит в массиве раньше. Совпадения такта CPU и рендерера
+            // случаются на каждой границе кадра, поэтому порядок сохраняем:
+            // граница включительная, если CPU зарегистрирован раньше соперника.
+            uint64_t cpuLimit;
+            if (!nextDev)
+                cpuLimit = uint64_t(-1);
+            else if (cpuIndex < nextIndex)
+                cpuLimit = next + 1;
+            else
+                cpuLimit = next;
+
+            uint64_t cpuClock;
+            while (m_curClock < toTime && (cpuClock = m_cpuDev->getClock()) < cpuLimit) {
+                m_curClock = cpuClock;
+                m_cpuDev->operate();
+            }
+        }
+
+        if (m_curClock >= toTime || !nextDev)
+            break;
+
+        m_curClock = next;
+        nextDev->operate();
     }
 
     m_clockOffset = m_curClock - toTime;

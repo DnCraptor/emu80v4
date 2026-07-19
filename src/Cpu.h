@@ -151,8 +151,19 @@ class Cpu8080Compatible : public Cpu
         void io_output(int port, int value);
         bool processHooks(uint16_t addr);
 
+        // Быстрый отсев по младшему байту адреса. Хуков десяток, срабатывают
+        // они раз в миллионы команд, а линейный перебор шёл на каждой. Фильтр
+        // на 256 бит стоит 32 байта и пропускает к перебору лишь те адреса,
+        // младший байт которых совпал с младшим байтом какого-нибудь хука.
+        // Ложное срабатывание безопасно: перебор просто ничего не найдёт.
+        inline bool mayHaveHook(uint16_t addr) const
+        {
+            return (m_hookAddrFilter[(addr & 0xFF) >> 5] >> (addr & 0x1F)) & 1;
+        }
+
         static constexpr int MAX_HOOKS = 32;
         CpuHook* m_hooks[MAX_HOOKS] = {};
+        uint32_t m_hookAddrFilter[8] = {};
         int m_hookCount = 0;
 };
 

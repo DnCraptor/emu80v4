@@ -91,6 +91,9 @@ void Cpu8080Compatible::addHook(CpuHook* hook)
         return;
     m_hooks[m_hookCount++] = hook;
     hook->setCpu(this);
+
+    const unsigned low = hook->getHookAddr() & 0xFF;
+    m_hookAddrFilter[low >> 5] |= uint32_t(1) << (low & 0x1F);
 }
 
 
