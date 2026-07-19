@@ -63,8 +63,9 @@ void TapeRedirector::openFile()
         m_cancelled = true;
         if (m_rwMode == "r")
             g_emulation->getWavReader()->loadFile(m_fileName, this);
-        else if (m_rwMode == "w") {
-            m_wavWriter = new WavWriter(m_machine, m_fileName, ext == ".csw" || ext == ".CSW");
+        else if (m_rwMode == "w" && m_machine->getWavWriter()) {
+            m_machine->getWavWriter()->open(m_machine, m_fileName,
+                                            ext == ".csw" || ext == ".CSW");
         }
         return;
     }
@@ -96,10 +97,8 @@ void TapeRedirector::closeFile()
     }
     m_cancelled = false;
 
-    if (m_wavWriter) {
-        delete m_wavWriter;
-        m_wavWriter = nullptr;
-    }
+    if (m_rwMode == "w" && m_machine && m_machine->getWavWriter())
+        m_machine->getWavWriter()->close();
 
 }
 

@@ -67,6 +67,7 @@ class RkTapeOutHook;
 class CloseFileHook;
 class Ret8080Hook;
 class VectorRamDiskSelector;
+class WavWriter;
 
 
 class VectorRenderer : public CrtRenderer, public IActive
@@ -185,6 +186,7 @@ class VectorCore
         void inte(bool isActive);
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
+        WavWriter* getWavWriter() {return m_wavWriter;}
 
     private:
         Ram* m_ram = nullptr;
@@ -222,6 +224,7 @@ class VectorCore
         VectorFileLoader* m_loader = nullptr;
         TapeRedirector* m_tapeInFile = nullptr;
         TapeRedirector* m_tapeOutFile = nullptr;
+        WavWriter* m_wavWriter = nullptr;
         RkTapeInHook* m_tapeInHookBas = nullptr;
         RkTapeOutHook* m_tapeOutHookBas = nullptr;
         CloseFileHook* m_closeFileHookBas = nullptr;

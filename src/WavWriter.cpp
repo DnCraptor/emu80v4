@@ -25,16 +25,31 @@
 using namespace std;
 
 
-WavWriter::WavWriter(VectorCore* core, const string& fileName, bool cswFormat)
+WavWriter::WavWriter()
 {
+    // Регистрация активного устройства выполняется один раз, конструктором
+    // ActiveDevice. До открытия файла устройство приостановлено и в выборе
+    // ближайшего события не участвует.
+    pause();
+}
+
+
+bool WavWriter::open(VectorCore* core, const string& fileName, bool cswFormat)
+{
+    if (m_open)
+        close();
+
     m_core = core;
     m_ticksPerSample = g_emulation->getFrequency() / 44100;
     m_open = m_file.open(fileName, "w");
     m_cswFormat = cswFormat;
     m_initialValue = m_core->getTapeOut();
+    m_size = 0;
+    m_cswRleCounter = 0;
+    m_cswCurValue = false;
 
     if (!m_open)
-        return;
+        return false;
 
     m_fileName = fileName;
 
@@ -48,13 +63,26 @@ WavWriter::WavWriter(VectorCore* core, const string& fileName, bool cswFormat)
             m_file.write8(c_wavHeader[i]);
 
     //m_file.write8(1); // 1 sample of initial value
+
+    syncronize();
+    resume();
+    return true;
 }
 
 
 WavWriter::~WavWriter()
 {
+    close();
+}
+
+
+void WavWriter::close()
+{
     if (!m_open)
         return;
+
+    pause();
+    m_open = false;
 
     if (!m_cswFormat)
     {

@@ -29,8 +29,17 @@ class VectorCore;
 class WavWriter : public ActiveDevice
 {
     public:
-        WavWriter(VectorCore* core, const std::string& fileName, bool cswFormat = false);
+        WavWriter();
         ~WavWriter();
+
+        // Объект существует всё время работы прошивки и зарегистрирован как
+        // активное устройство однократно, при старте. Пока файл не открыт, он
+        // находится в состоянии pause() и планировщиком не рассматривается.
+        // Прежде WavWriter создавался и удалялся по ходу эмуляции, из
+        // RkTapeOutHook::hookProc(), то есть регистрация активного устройства
+        // происходила прямо внутри обхода их массива в Emulation::exec().
+        bool open(VectorCore* core, const std::string& fileName, bool cswFormat);
+        void close();
 
         // derived from EmuObject
 
@@ -40,7 +49,7 @@ class WavWriter : public ActiveDevice
         bool isOpen() {return m_open;}
 
     private:
-        const uint8_t c_wavHeader[44] = {
+        static constexpr uint8_t c_wavHeader[44] = {
             0x52, 0x49, 0x46, 0x46, // RIFF
             0x24, 0x00, 0x00, 0x00, // file size - 8 = chunk size
             0x57, 0x41, 0x56, 0x45, // WAVE
@@ -56,7 +65,7 @@ class WavWriter : public ActiveDevice
             0x00, 0x00, 0x00, 0x00  // data size
             };
 
-        const uint8_t c_cswHeader[32] = {
+        static constexpr uint8_t c_cswHeader[32] = {
             0x43, 0x6F, 0x6D, 0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x20, // Compressed
             0x53, 0x71, 0x75, 0x61, 0x72, 0x65, 0x20,                         // Square
             0x57, 0x61, 0x76, 0x65, 0x1A,                                     // Wave
@@ -67,14 +76,14 @@ class WavWriter : public ActiveDevice
             0x00, 0x00, 0x00 // reserved
         };
 
-        unsigned m_ticksPerSample;  // тактов на сэмпл
+        unsigned m_ticksPerSample = 1;  // тактов на сэмпл
         PalFile m_file;
         std::string m_fileName;
         bool m_open = false;
-        VectorCore* m_core;
+        VectorCore* m_core = nullptr;
         unsigned m_size = 0;
-        bool m_initialValue;
-        bool m_cswFormat;
+        bool m_initialValue = false;
+        bool m_cswFormat = false;
 
         unsigned m_cswRleCounter = 0;
         bool m_cswCurValue = false;

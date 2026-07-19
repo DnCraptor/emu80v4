@@ -24,7 +24,8 @@ using namespace std;
 
 CrtRenderer::~CrtRenderer()
 {
-    delete[] m_pixelData;
+    // m_pixelData указывает на статический кадровый буфер (см. Vector.cpp),
+    // владения нет и освобождать нечего
 }
 
 

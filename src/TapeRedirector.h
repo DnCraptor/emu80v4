@@ -60,7 +60,6 @@ class TapeRedirector : public EmuObject
         bool m_lvt = false;
         bool m_tsx = false;
 
-        WavWriter* m_wavWriter = nullptr;
 
         // TSX related
         bool bytesAvailable(int n);

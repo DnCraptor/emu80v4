@@ -44,12 +44,33 @@
 #include "Pit8253Sound.h"
 #include "Psg3910.h"
 #include "TapeRedirector.h"
+#include "WavWriter.h"
 #include "RkTapeHooks.h"
 #include "CloseFileHook.h"
 #include "CpuHook.h"
 #include "RamDisk.h"
 
 using namespace std;
+
+
+// ---------------------------------------------------------------------------
+// Крупные буферы существуют ровно в одном экземпляре на всю прошивку, поэтому
+// размещены статически: так они попадают в .bss и видны в отчёте линковщика
+// (-Wl,--print-memory-usage), а не растворяются в куче, размер которой
+// определяется тем, что осталось. После этого печатаемое линковщиком значение
+// RAM и есть фактический статический бюджет, а разница до объёма SRAM —
+// запас под стеки и оставшиеся динамические объекты.
+//
+//   кадровый буфер   626 * 288 = 180 288 байт
+//   основное ОЗУ     64 * 1024 =  65 536 байт
+//   итого                        245 824 байта
+// ---------------------------------------------------------------------------
+
+static const int c_frameBufSize = 626 * 288;   // 626 = 704 / 13.5 * pixelFreq
+static const int c_mainRamSize = 0x10000;
+
+static uint8_t s_frameBuffer[c_frameBufSize];
+static uint8_t s_mainRam[c_mainRamSize];
 
 
 void VectorAddrSpace::reset() {
@@ -280,19 +301,16 @@ void VectorCore::vrtc(bool isActive)
 
 VectorRenderer::VectorRenderer()
 {
-    const int pixelFreq = 12; // MHz
-    const int maxBufSize = 626 * 288; // 626 = 704 / 13.5 * pixelFreq
-
     m_sizeX = 512;
     m_sizeY = 256;
-    m_pixelData = new uint8_t[maxBufSize];
+    m_pixelData = s_frameBuffer;
 
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
 
     m_curFramePixel = 0;
     m_curFrameClock = m_curClock;
 
-    m_frameBuf = m_pixelData; ///new uint8_t[maxBufSize];
+    m_frameBuf = m_pixelData;
 
     memset(m_colorPalette, 0, 16);
     memset(m_bwPalette, 0, 16);
@@ -919,7 +937,8 @@ uint8_t __not_in_flash_func(VectorHddRegisters::readByte)(int addr)
 VectorCore::VectorCore()
 {
 
-    m_ram = new Ram(0x10000);
+    // Ram с внешним буфером: владения нет, деструктор ничего не освобождает
+    m_ram = new Ram(s_mainRam, c_mainRamSize);
     m_ram->setMachine(this);
 
     m_rom = new Rom(0x8000, "vector/loader.rom");
@@ -1072,6 +1091,11 @@ VectorCore::VectorCore()
     m_loader->setMachine(this);
     m_loader->attachAddrSpace(m_ram);
     m_loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
+
+    // Единственный на прошивку. Регистрируется как активное устройство один
+    // раз здесь и до открытия файла остаётся приостановленным.
+    m_wavWriter = new WavWriter();
+    m_wavWriter->setMachine(this);
 
     m_tapeInFile = new TapeRedirector();
     m_tapeInFile->setMachine(this);
@@ -1375,6 +1399,7 @@ VectorCore::~VectorCore()
     delete m_tapeOutHookBas;
     delete m_tapeInHookBas;
     delete m_tapeOutFile;
+    delete m_wavWriter;
     delete m_tapeInFile;
     delete m_loader;
     delete m_hdd;
