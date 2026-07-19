@@ -140,8 +140,8 @@ if (PICO_CYW43_SUPPORTED)
     target_link_libraries(${PROJECT_NAME} pico_cyw43_arch_none)
 endif()
 
-##pico_enable_stdio_uart(${PROJECT_NAME} 0)
-##pico_enable_stdio_usb(${PROJECT_NAME} 1)
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
+pico_enable_stdio_usb(${PROJECT_NAME} 0)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(${PROJECT_NAME})
@@ -181,6 +181,16 @@ include(CheckIPOSupported)
 check_ipo_supported(RESULT IPO_SUPPORTED OUTPUT IPO_ERROR LANGUAGES C CXX)
 if (IPO_SUPPORTED)
     set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+    # pico_stdio provides the __wrap_printf/__wrap_puts/__wrap_putchar/
+    # __wrap_getchar symbols used by Pico SDK linker options.  GCC 14 LTO can
+    # lose those plugin-defined wrapper symbols during ltrans, producing both
+    # undefined and duplicate definitions.  Keep only this SDK translation
+    # unit outside LTO; the emulator and all hot paths remain LTO-enabled.
+    set_source_files_properties(
+        "${PICO_SDK_PATH}/src/rp2_common/pico_stdio/stdio.c"
+        PROPERTIES COMPILE_OPTIONS "-fno-lto"
+    )
 else()
     message(WARNING "IPO/LTO is not supported: ${IPO_ERROR}")
 endif()

@@ -16,11 +16,7 @@
 #endif
 #include "hardware/clocks.h"
 
-#ifdef DEBUG_PS2
-#define DBG_PRINTF(...) printf(__VA_ARGS__)
-#else
 #define DBG_PRINTF(...)
-#endif
 
 #define HID_KEYBOARD_REPORT_MAX_KEYS 6
 
@@ -324,12 +320,6 @@ void Ps2Kbd_Mrmltr::handleActions() {
       handleHidKeyPress(hidCode);
     }
   }
-  
-  DBG_PRINTF("PS/2 HID m=%2X ", _report.modifier);
-  #ifdef DEBUG_PS2
-  for (int i = 0; i < HID_KEYBOARD_REPORT_MAX_KEYS; ++i) printf("%2X ", _report.keycode[i]);
-  printf("\n");
-  #endif
 }
 
 void Ps2Kbd_Mrmltr::tick() {
@@ -338,8 +328,7 @@ void Ps2Kbd_Mrmltr::tick() {
     _overflow = true;
     while (!pio_sm_is_rx_fifo_empty(_pio, _sm)) {
       // pull a scan code from the PIO SM fifo
-      uint32_t rc = _pio->rxf[_sm];    
-      printf("PS/2 drain rc %4.4lX (%ld)\n", rc, rc);
+      (void)_pio->rxf[_sm];
     }
     clearHidKeys();
     clearActions();

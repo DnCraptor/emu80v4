@@ -623,7 +623,7 @@ void /// __scratch_x("render")
 #endif
 }
 
-void __scratch_x("render") render_core() {
+void __not_in_flash_func(render_core)() {
     multicore_lockout_victim_init();
     graphics_init();
     graphics_set_bgcolor(0x000000);
@@ -821,14 +821,21 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
 
     butter_psram_size();
 }
-void sigbus(void) {
-    printf("SIGBUS exception caught...\n");
-    // reset_usb_boot(0, 0);
+void __not_in_flash_func(sigbus)(void) {
+    while(true) {
+        sleep_ms(330);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(330);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
 }
 void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused const char *fmt, ...) {
-    printf("*** PANIC ***\n");
-    if (fmt)
-        printf(fmt);
+    while (true) {
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
 }
 #else
 uint8_t* PSRAM_DATA = (uint8_t*)0;

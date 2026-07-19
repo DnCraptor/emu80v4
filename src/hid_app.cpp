@@ -77,34 +77,17 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
 // therefore report_desc = NULL, desc_len = 0
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
-  printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
-
-  // Interface protocol (hid_interface_protocol_enum_t)
-  const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
-
-  printf("HID Interface Protocol = %s\r\n", protocol_str[itf_protocol]);
-
-  // By default host stack will use activate boot protocol on supported interface.
-  // Therefore for this simple example, we only need to parse generic report descriptor (with built-in parser)
-  if ( itf_protocol == HID_ITF_PROTOCOL_NONE )
-  {
-    hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
-    printf("HID has %u reports \r\n", hid_info[instance].report_count);
-  }
-
-  // request to receive report
-  // tuh_hid_report_received_cb() will be invoked when report is available
-  if ( !tuh_hid_receive_report(dev_addr, instance) )
-  {
-    printf("Error: cannot request to receive report\r\n");
-  }
+  (void)dev_addr;
+  (void)instance;
+  (void)desc_report;
+  (void)desc_len;
 }
 
 // Invoked when device with hid interface is un-mounted
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  (void)dev_addr;
+  (void)instance;
 }
 
 static hid_keyboard_report_t prev_report = { 0 , 0 , {0}};
@@ -134,10 +117,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   }
 
   // continue to request to receive report
-  if ( !tuh_hid_receive_report(dev_addr, instance) )
-  {
-    printf("Error: cannot request to receive report\r\n");
-  }
+  tuh_hid_receive_report(dev_addr, instance);
 }
 
 //--------------------------------------------------------------------+
@@ -159,59 +139,9 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
 // Mouse
 //--------------------------------------------------------------------+
 
-void cursor_movement(int8_t x, int8_t y, int8_t wheel)
-{
-#if USE_ANSI_ESCAPE
-  // Move X using ansi escape
-  if ( x < 0)
-  {
-    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
-  }else if ( x > 0)
-  {
-    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
-  }
-
-  // Move Y using ansi escape
-  if ( y < 0)
-  {
-    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
-  }else if ( y > 0)
-  {
-    printf(ANSI_CURSOR_DOWN(%d), y); // move down
-  }
-
-  // Scroll using ansi escape
-  if (wheel < 0)
-  {
-    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
-  }else if (wheel > 0)
-  {
-    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
-  }
-
-  printf("\r\n");
-#else
-  printf("(%d %d %d)\r\n", x, y, wheel);
-#endif
-}
-
 static void process_mouse_report(hid_mouse_report_t const * report)
 {
-  /**
-
-  //------------- button state  -------------//
-  uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
-  if ( button_changed_mask & report->buttons)
-  {
-    printf(" %c%c%c ",
-       report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
-       report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
-       report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
-  }
-
-  //------------- cursor movement -------------//
-  cursor_movement(report->x, report->y, report->wheel);
-  */
+  (void)report;
 }
 
 //--------------------------------------------------------------------+
@@ -247,12 +177,8 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
     report++;
     len--;
   }
-
   if (!rpt_info)
-  {
-    printf("Couldn't find the report info for this report !\r\n");
     return;
-  }
 
   // For complete list of Usage Page & Usage checkout src/class/hid/hid.h. For examples:
   // - Keyboard                     : Desktop, Keyboard
