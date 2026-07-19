@@ -254,13 +254,17 @@ class VectorAddrSpace : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        void attachRam(Ram* mem) {m_mainMemory = mem;}
-        void attachRom(Rom* rom) {m_rom = rom;}
-        void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu;}
+        void attachRam(Ram* mem) {m_mainMemory = mem; rebuildPageMap();}
+        void attachRom(Rom* rom) {m_rom = rom; rebuildPageMap();}
+        void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu; rebuildPageMap();}
         void attachRamDisk(int diskNum, SRam* ramDisk);
-        void attachCrtRenderer(VectorRenderer* crtRenderer) {m_crtRenderer = crtRenderer;};
-        void enableRom() {m_romEnabled = true;}
-        void disableRom() {m_romEnabled = false;}
+        void attachCrtRenderer(VectorRenderer* crtRenderer) {m_crtRenderer = crtRenderer; rebuildPageMap();}
+        void enableRom();
+        void disableRom();
+
+        // Перестроить быструю карту страниц в CPU по текущей конфигурации памяти.
+        // Вызывается из всех операций, меняющих раскладку; на горячем пути не лежит.
+        void rebuildPageMap();
         void ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage);
         void eramControl(int eramSegment, int eramPageStartAddr, int eramPageEndAddr);
 
@@ -289,6 +293,9 @@ class VectorAddrSpace : public AddressableDevice
         uint16_t m_eramPageStartAddr = 0xA000;
         uint16_t m_eramPageEndAddr = 0xDFFF;
         bool m_eram = false;
+
+        // Пересекается ли страница [first..last] с окном RAM-диска
+        bool pageHitsRamDisk(int first, int last) const;
 };
 
 

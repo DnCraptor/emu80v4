@@ -65,6 +65,7 @@ void VectorAddrSpace::reset() {
     m_eramSegment = 0;
     m_eramPageStartAddr = 0xA000;
     m_eramPageEndAddr = 0xDFFF;
+    rebuildPageMap();
 }
 
 
@@ -137,6 +138,90 @@ void VectorAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
         m_ramDisk = ramDisk;
     else // if (diskNum == 1)
         m_ramDisk2 = ramDisk;
+    rebuildPageMap();
+}
+
+
+void VectorAddrSpace::enableRom()
+{
+    m_romEnabled = true;
+    rebuildPageMap();
+}
+
+
+void VectorAddrSpace::disableRom()
+{
+    m_romEnabled = false;
+    rebuildPageMap();
+}
+
+
+// Пересекается ли страница [first..last] с областью, отданной RAM-диску.
+// Условия дословно повторяют readByte()/writeByte(), включая отсутствие
+// проверки указателя диска: если маска выставлена, страница уходит на прежний
+// путь и ведёт себя в точности как раньше.
+bool VectorAddrSpace::pageHitsRamDisk(int first, int last) const
+{
+    if (m_eram) {
+        // ERAM: окно задаётся произвольной парой адресов, поэтому проверяем
+        // пересечение интервалов, а не отдельные точки
+        return (m_inRamPagesMask & 2) &&
+               first <= int(m_eramPageEndAddr) && last >= int(m_eramPageStartAddr);
+    }
+
+    // Barkar: страницы по 8 КиБ в верхней половине адресного пространства.
+    // Номер банка внутри 256-байтной страницы постоянен.
+    if (first < 0x8000)
+        return false;
+    const int bank = 1 << ((first & 0x6000) >> 13);
+    return (m_inRamPagesMask & bank) || (m_inRamPagesMask2 & bank);
+}
+
+
+void VectorAddrSpace::rebuildPageMap()
+{
+    if (!m_cpu)
+        return;
+
+    m_cpu->attachCrtRenderer(m_crtRenderer);
+    m_cpu->clearPageMap();
+
+    // Переключение стековой страницы зависит от признака текущей команды
+    // (checkForStackOperation), поэтому в статическую карту не ложится:
+    // пока оно включено, карта остаётся пустой и работает прежний путь.
+    if (m_stackDiskEnabled || m_stackDiskEnabled2)
+        return;
+
+    if (!m_mainMemory || m_mainMemory->getSize() < 0x10000)
+        return;
+
+    uint8_t* ramBase = m_mainMemory->getDataPtr();
+    if (!ramBase)
+        return;
+
+    const uint8_t* romBase = m_rom ? m_rom->getDataPtr() : nullptr;
+    const int romSize = m_rom ? m_rom->getSize() : 0;
+    const bool romActive = m_romEnabled && romBase && romSize > 0;
+
+    for (int pg = 0; pg < 256; pg++) {
+        const int first = pg << 8;
+        const int last = first + 0xFF;
+
+        if (pageHitsRamDisk(first, last))
+            continue;   // обе карты остаются пустыми, страница идёт прежним путём
+
+        // Запись: ПЗУ для записи прозрачно, writeByte() всегда адресует
+        // основное ОЗУ. Уведомление рендерера для addr >= 0x8000 выполняет
+        // сам CPU в as_output().
+        m_cpu->setWritePage(pg, ramBase);
+
+        // Чтение: ПЗУ перекрывает начало адресного пространства
+        if (!romActive || first >= romSize)
+            m_cpu->setReadPage(pg, ramBase);
+        else if (last < romSize)
+            m_cpu->setReadPage(pg, romBase);
+        // иначе страница пересекает границу ПЗУ — оставляем прежний путь
+    }
 }
 
 void VectorAddrSpace::ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage)
@@ -152,6 +237,7 @@ void VectorAddrSpace::ramDiskControl(int diskNum, int inRamPagesMask, bool stack
         m_inRamDiskPage2 = inRamPage;
         m_stackDiskPage2 = stackPage;
     }
+    rebuildPageMap();
 }
 
 
@@ -160,6 +246,7 @@ void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int er
     m_eramSegment = eramSegment;
     m_eramPageStartAddr = eramPageStartAddr;
     m_eramPageEndAddr = eramPageEndAddr;
+    rebuildPageMap();
 }
 
 void VectorCore::inte(bool isActive)

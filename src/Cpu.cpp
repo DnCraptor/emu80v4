@@ -22,6 +22,7 @@
 #include "Cpu.h"
 #include "CpuHook.h"
 #include "Emulation.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -55,16 +56,22 @@ void Cpu::attachCore(VectorCore* core)
 }
 
 
-int Cpu::as_input(int addr)
+void Cpu::clearPageMap()
 {
-    return m_addrSpace->readByte(addr);
+    for (int i = 0; i < 256; i++) {
+        m_rdPage[i] = nullptr;
+        m_wrPage[i] = nullptr;
+    }
 }
 
 
-void Cpu::as_output(int addr, int value)
+void __not_in_flash_func(Cpu::vidWriteNotify)()
 {
-    m_addrSpace->writeByte(addr, value);
+    if (m_crt)
+        m_crt->vidMemWriteNotify();
 }
+
+
 
 Cpu8080Compatible::Cpu8080Compatible()
 {
