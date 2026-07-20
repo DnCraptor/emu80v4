@@ -1677,6 +1677,28 @@ bool VectorCore::floppyImageReadOnly(VectorFloppyDrive drive) const
     return disk && disk->getImagePresent() && disk->getWriteProtectStatus();
 }
 
+bool VectorCore::canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const
+{
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    if (!disk || !disk->getImagePresent())
+        return false;
+    if (readOnly)
+        return true;
+
+    FdImage* other = selectFloppy(m_diskA, m_diskB,
+        drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
+    return !other || !other->getImagePresent()
+        || other->getFileName() != disk->getFileName()
+        || other->getWriteProtectStatus();
+}
+
+void VectorCore::setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly)
+{
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    if (disk && canSetFloppyReadOnly(drive, readOnly))
+        disk->setWriteProtection(readOnly);
+}
+
 std::string VectorCore::getFloppyFileName(VectorFloppyDrive drive) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);

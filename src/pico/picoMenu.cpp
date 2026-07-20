@@ -25,6 +25,7 @@ struct MenuItem {
     const MenuPage* submenu;
     void (*action)();
     bool (*isEnabled)();
+    bool (*isChecked)();
 };
 
 struct MenuPage {
@@ -56,8 +57,8 @@ void cpuSetValue(int value)
 }
 
 static const MenuItem processorItems[] = {
-    {"KR580VM80A (i8080)", nullptr, nullptr, nullptr, nullptr},
-    {"Zilog Z80", nullptr, nullptr, nullptr, nullptr},
+    {"KR580VM80A (i8080)", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"Zilog Z80", nullptr, nullptr, nullptr, nullptr, nullptr},
 };
 
 static const MenuPage processorPage {
@@ -107,6 +108,26 @@ bool driveHasImage(VectorFloppyDrive drive)
 }
 void driveInsert(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseFloppyImage(drive); }
 void driveEject(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectFloppyImage(drive); }
+bool driveReadOnly(VectorFloppyDrive drive)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->floppyImageReadOnly(drive);
+}
+bool driveReadOnlyEnabled(VectorFloppyDrive drive)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core || !core->floppyImagePresent(drive))
+        return false;
+    return core->floppyImageReadOnly(drive)
+        ? core->canSetFloppyReadOnly(drive, false)
+        : core->canSetFloppyReadOnly(drive, true);
+}
+void driveToggleReadOnly(VectorFloppyDrive drive)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setFloppyReadOnly(drive, !core->floppyImageReadOnly(drive));
+}
 
 const char* driveATitle() { return driveTitle(VectorFloppyDrive::A); }
 const char* driveBTitle() { return driveTitle(VectorFloppyDrive::B); }
@@ -116,20 +137,28 @@ void driveAInsert() { driveInsert(VectorFloppyDrive::A); }
 void driveBInsert() { driveInsert(VectorFloppyDrive::B); }
 void driveAEject() { driveEject(VectorFloppyDrive::A); }
 void driveBEject() { driveEject(VectorFloppyDrive::B); }
+bool driveAReadOnly() { return driveReadOnly(VectorFloppyDrive::A); }
+bool driveBReadOnly() { return driveReadOnly(VectorFloppyDrive::B); }
+bool driveAReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::A); }
+bool driveBReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::B); }
+void driveAToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::A); }
+void driveBToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::B); }
 
 static const MenuItem driveAItems[] = {
-    {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr},
-    {"Eject", nullptr, nullptr, driveAEject, driveAHasImage},
+    {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr, nullptr},
+    {"Read only", nullptr, nullptr, driveAToggleReadOnly, driveAReadOnlyEnabled, driveAReadOnly},
+    {"Eject", nullptr, nullptr, driveAEject, driveAHasImage, nullptr},
 };
 static const MenuItem driveBItems[] = {
-    {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr},
-    {"Eject", nullptr, nullptr, driveBEject, driveBHasImage},
+    {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr, nullptr},
+    {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly},
+    {"Eject", nullptr, nullptr, driveBEject, driveBHasImage, nullptr},
 };
 static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
 static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
 static const MenuItem storageItems[] = {
-    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr},
-    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr},
+    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
+    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
 static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
@@ -141,15 +170,15 @@ static const MenuPage systemPage    {"System", nullptr, nullptr, 0, nullptr, nul
 static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, nullptr};
 
 static const MenuItem rootItems[] = {
-    {"Processor", nullptr, &processorPage, nullptr, nullptr},
-    {"Storage", nullptr, &storagePage, nullptr, nullptr},
-    {"ROM", nullptr, &romPage, nullptr, nullptr},
-    {"Sound", nullptr, &soundPage, nullptr, nullptr},
-    {"Tape", nullptr, &tapePage, nullptr, nullptr},
-    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr},
-    {"Video", nullptr, &videoPage, nullptr, nullptr},
-    {"System", nullptr, &systemPage, nullptr, nullptr},
-    {"About", nullptr, &aboutPage, nullptr, nullptr},
+    {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
+    {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
+    {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
+    {"Sound", nullptr, &soundPage, nullptr, nullptr, nullptr},
+    {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
+    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
+    {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
+    {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
+    {"About", nullptr, &aboutPage, nullptr, nullptr, nullptr},
 };
 
 // Заголовок корневой страницы отражает установленное ядро
@@ -281,7 +310,8 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
                           : page.items[index].title;
     graphics_type(x + 6, rowY + 1, fg, itemTitle, std::strlen(itemTitle));
 
-    if (page.getValue && page.getValue() == index) {
+    if ((page.getValue && page.getValue() == index)
+        || (page.items[index].isChecked && page.items[index].isChecked())) {
         const char mark[] = "*";
         graphics_type(x + w - fontW - 6, rowY + 1, fg, mark, 1);
     }

@@ -200,6 +200,8 @@ class VectorCore
         bool assignDiskAFileName(const std::string& fileName);
         bool floppyImagePresent(VectorFloppyDrive drive) const;
         bool floppyImageReadOnly(VectorFloppyDrive drive) const;
+        bool canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const;
+        void setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly);
         std::string getFloppyFileName(VectorFloppyDrive drive) const;
         void chooseFloppyImage(VectorFloppyDrive drive);
         void ejectFloppyImage(VectorFloppyDrive drive);
