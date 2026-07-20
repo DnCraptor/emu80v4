@@ -205,6 +205,10 @@ class VectorCore
         std::string getFloppyFileName(VectorFloppyDrive drive) const;
         void chooseFloppyImage(VectorFloppyDrive drive);
         void ejectFloppyImage(VectorFloppyDrive drive);
+        bool hddImagePresent() const;
+        std::string getHddFileName() const;
+        void chooseHddImage();
+        void ejectHddImage();
 
         void vrtc(bool isActive);
         void inte(bool isActive);

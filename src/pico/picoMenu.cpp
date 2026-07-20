@@ -154,11 +154,47 @@ static const MenuItem driveBItems[] = {
     {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly},
     {"Eject", nullptr, nullptr, driveBEject, driveBHasImage, nullptr},
 };
+char hddTitleBuffer[96];
+
+const char* hddTitle()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    const std::string fileName = core ? core->getHddFileName() : std::string();
+    constexpr char prefix[] = "HDD: ";
+    std::memcpy(hddTitleBuffer, prefix, sizeof(prefix));
+    if (fileName.empty()) {
+        constexpr char empty[] = "empty";
+        std::memcpy(hddTitleBuffer + sizeof(prefix) - 1, empty, sizeof(empty));
+        return hddTitleBuffer;
+    }
+    const size_t slash = fileName.find_last_of("/\\");
+    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
+    const size_t prefixLen = sizeof(prefix) - 1;
+    const size_t baseLen = std::min(std::strlen(base), sizeof(hddTitleBuffer) - prefixLen - 1);
+    std::memcpy(hddTitleBuffer + prefixLen, base, baseLen);
+    hddTitleBuffer[prefixLen + baseLen] = '\0';
+    return hddTitleBuffer;
+}
+
+bool hddHasImage()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->hddImagePresent();
+}
+void hddInsert() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseHddImage(); }
+void hddEject() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectHddImage(); }
+
+static const MenuItem hddItems[] = {
+    {"Insert image [Alt+F4]...", nullptr, nullptr, hddInsert, nullptr, nullptr},
+    {"Eject", nullptr, nullptr, hddEject, hddHasImage, nullptr},
+};
 static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
 static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
+static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeof(hddItems) / sizeof(hddItems[0])), nullptr, nullptr};
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
     {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
+    {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
 static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};

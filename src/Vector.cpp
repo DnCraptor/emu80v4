@@ -1568,10 +1568,8 @@ void VectorCore::sysReq(SysReq sr)
             chooseFloppyImage(VectorFloppyDrive::B);
             break;
         case SR_HDD:
-            // open HDD/CF image
-            if (m_hdd)
-                m_hdd->chooseFile();
-        break;
+            chooseHddImage();
+            break;
         case SR_LOAD:
             if (m_loader) {
                 m_loader->chooseAndLoadFile();
@@ -1713,7 +1711,10 @@ void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
     if (!disk)
         return;
     bool readOnly = false;
-    const std::string fileName = disk->chooseFileName(&readOnly);
+    const char* title = drive == VectorFloppyDrive::A
+        ? "FDD-image file as A"
+        : "FDD-image file as B";
+    const std::string fileName = disk->chooseFileName(title, &readOnly);
     if (fileName.empty())
         return;
     const std::string fullFileName = palMakeFullFileName(fileName);
@@ -1726,4 +1727,26 @@ void VectorCore::ejectFloppyImage(VectorFloppyDrive drive)
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     if (disk)
         disk->assignFileName("");
+}
+
+bool VectorCore::hddImagePresent() const
+{
+    return m_hdd && m_hdd->getImagePresent();
+}
+
+std::string VectorCore::getHddFileName() const
+{
+    return m_hdd ? m_hdd->getFileName() : std::string();
+}
+
+void VectorCore::chooseHddImage()
+{
+    if (m_hdd)
+        m_hdd->chooseFile("HDD-image file");
+}
+
+void VectorCore::ejectHddImage()
+{
+    if (m_hdd)
+        m_hdd->assignFileName("");
 }

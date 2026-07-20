@@ -30,6 +30,8 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_CLOSE;
             case PK_F3:
                 return SR_LOADRUN;
+            case PK_F4:
+                return SR_HDD;
             case PK_L:
                 return SR_LOAD;
             case PK_W:
@@ -61,7 +63,7 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
             case PK_P:
                 return isShiftPressed ? SR_PRNCAPTURE : SR_PAUSE;
             case PK_H:
-                return isShiftPressed ? SR_HDD : SR_SCREENSHOT;
+                return SR_SCREENSHOT;
             case PK_T:
                 return SR_TAPEHOOK;
             case PK_PGUP:

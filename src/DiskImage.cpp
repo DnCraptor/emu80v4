@@ -74,15 +74,15 @@ bool DiskImage::assignFileName(const string& fileName, bool isWriteProtected)
 }
 
 
-string DiskImage::chooseFileName(bool* readOnly)
+string DiskImage::chooseFileName(const string& title, bool* readOnly)
 {
-    return palOpenFileDialog("Open floppy disk image file", m_filter, false, readOnly);
+    return palOpenFileDialog(title, m_filter, false, readOnly);
 }
 
 
-void DiskImage::chooseFile()
+void DiskImage::chooseFile(const string& title)
 {
-    string fileName = chooseFileName();
+    string fileName = chooseFileName(title);
     if (fileName != "")
         assignFileName(fileName);
 }
