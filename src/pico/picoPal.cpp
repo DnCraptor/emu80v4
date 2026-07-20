@@ -193,7 +193,6 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
 
     string t2;
     if (write) {
-        t2 = "Type a name of ext: " + filter;
         graphics_fill(x + 1, yb, w - 2, fnth + 1, RGB888(207, 255, 255));
         yb += fnth + 1;
     }
@@ -298,7 +297,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             else if (pk.vk >= PK_A && pk.vk <= PK_Z) t2 += 'a' + pk.vk - PK_A;
             else if (pk.vk == PK_SPACE) t2 += ' ';
             else if (pk.vk == PK_PERIOD) t2 += '.';
-            else if (pk.vk == PK_BSP) t2.clear();
+            else if (pk.vk == PK_BSP && !t2.empty()) t2.pop_back();
             else changed = false;
             if (changed) drawInput();
         }
@@ -306,6 +305,14 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         if (readOnly && pk.vk == PK_SCRLOCK && pk.pressed) {
             openReadOnly = !openReadOnly;
             drawTitle();
+            continue;
+        }
+
+        if (write && (pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
+            if (!t2.empty()) {
+                res = fdir == "/" ? "/" + t2 : fdir + "/" + t2;
+                break;
+            }
             continue;
         }
 
@@ -331,10 +338,6 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             selected_file_n = count - 1;
         } else if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
             selected_fi = &fileList[selected_file_n];
-            if (write) {
-                res = fdir + "/" + t2;
-                break;
-            }
             if (selected_fi->isDir) {
                 if (selected_fi->fileName == back) {
                     fdir = fdir.substr(0, fdir.find_last_of('/'));

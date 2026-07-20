@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2024
  *
@@ -972,9 +972,17 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 
 
 
+void VectorRamDiskSelector::setEnabled(bool enabled)
+{
+    m_enabled = enabled;
+    if (!m_enabled && m_vectorAddrSpace)
+        m_vectorAddrSpace->ramDiskControl(m_diskNum, 0, false, 0, 0);
+}
+
+
 void VectorRamDiskSelector::writeByte(int, uint8_t value)
 {
-    if (m_vectorAddrSpace)
+    if (m_enabled && m_vectorAddrSpace)
         m_vectorAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
 }
 
@@ -1418,6 +1426,12 @@ void VectorCore::shutdown()
     m_ramDiskSelector2->shutdown();
 }
 
+void VectorCore::coldReinitialize()
+{
+    init();
+    reset();
+}
+
 VectorCpuType VectorCore::getCpuType() const
 {
     return s_devices.cpuSlot.type;
@@ -1436,6 +1450,7 @@ void VectorCore::setCpuType(VectorCpuType type)
     // индекс запоминается заранее и восстанавливается после.
     const int index = g_emulation->getActiveDeviceIndex(m_cpu);
 
+    shutdown();
     s_devices.cpuSlot.replace(type);
     m_cpu = s_devices.cpuSlot.cpu;
 
@@ -1464,7 +1479,7 @@ void VectorCore::setCpuType(VectorCpuType type)
     m_cpu->addHook(m_tapeOutHookEmuRk);
     m_cpu->addHook(m_closeFileHookEmuRk);
 
-    m_cpu->init();
+    coldReinitialize();
 }
 
 
@@ -1610,6 +1625,24 @@ void VectorCore::sysReq(SysReq sr)
             break;
     }
     g_emulation->resetKeys();
+}
+
+
+bool VectorCore::ramDiskEnabled(int diskNum) const
+{
+    const VectorRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
+    return selector && selector->getEnabled();
+}
+
+
+void VectorCore::setRamDiskEnabled(int diskNum, bool enabled)
+{
+    VectorRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
+    if (!selector || selector->getEnabled() == enabled)
+        return;
+    shutdown();
+    selector->setEnabled(enabled);
+    coldReinitialize();
 }
 
 

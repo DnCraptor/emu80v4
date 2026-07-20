@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2022
  *
@@ -182,6 +182,7 @@ class VectorCore
         void init();
         void shutdown();
         void reset();
+        void coldReinitialize();
 
         void sysReq(SysReq sr);
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
@@ -209,6 +210,9 @@ class VectorCore
         std::string getHddFileName() const;
         void chooseHddImage();
         void ejectHddImage();
+
+        bool ramDiskEnabled(int diskNum) const;
+        void setRamDiskEnabled(int diskNum, bool enabled);
 
         void vrtc(bool isActive);
         void inte(bool isActive);
@@ -454,6 +458,8 @@ class VectorRamDiskSelector : public AddressableDevice
 
         void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
         void setDiskNum(int diskNum) {m_diskNum = diskNum;}
+        bool getEnabled() const {return m_enabled;}
+        void setEnabled(bool enabled);
 
         void writeByte(int, uint8_t value) override;
         uint8_t readByte(int)  override {return 0xff;}
@@ -462,6 +468,7 @@ class VectorRamDiskSelector : public AddressableDevice
     private:
         VectorAddrSpace* m_vectorAddrSpace = nullptr;
         int m_diskNum = 0;
+        bool m_enabled = true;
 };
 
 

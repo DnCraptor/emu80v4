@@ -204,9 +204,15 @@ void eddSaveAs() { invokeSysReq(SR_SAVERAMDISKAS); }
 void edd2Open() { invokeSysReq(SR_OPENRAMDISK2); }
 void edd2SaveAs() { invokeSysReq(SR_SAVERAMDISK2AS); }
 
+bool eddEnabled()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->ramDiskEnabled(0);
+}
+
 static const MenuItem eddItems[] = {
-    {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, nullptr, nullptr},
-    {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, nullptr, nullptr},
+    {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, eddEnabled, nullptr},
+    {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, eddEnabled, nullptr},
 };
 static const MenuItem edd2Items[] = {
     {"Load image [Alt+Shift+E]...", nullptr, nullptr, edd2Open, nullptr, nullptr},
@@ -214,27 +220,42 @@ static const MenuItem edd2Items[] = {
 };
 static const MenuPage eddPage {"EDD", nullptr, eddItems, static_cast<int>(sizeof(eddItems) / sizeof(eddItems[0])), nullptr, nullptr};
 static const MenuPage edd2Page {"EDD2", nullptr, edd2Items, static_cast<int>(sizeof(edd2Items) / sizeof(edd2Items[0])), nullptr, nullptr};
+void romLoadAndRun() { invokeSysReq(SR_LOADRUN); }
+static const MenuItem romItems[] = {
+    {"Load and run...", nullptr, nullptr, romLoadAndRun, nullptr, nullptr},
+};
+static const MenuPage romPage {"ROM", nullptr, romItems, static_cast<int>(sizeof(romItems) / sizeof(romItems[0])), nullptr, nullptr};
 
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
     {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
     {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
-    {"EDD", nullptr, &eddPage, nullptr, nullptr, nullptr},
+    {"EDD", nullptr, &eddPage, nullptr, eddEnabled, nullptr},
     {"EDD2", nullptr, &edd2Page, nullptr, nullptr, nullptr},
+    {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
-static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage soundPage     {"Sound", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
-static const MenuPage systemPage    {"System", nullptr, nullptr, 0, nullptr, nullptr};
+
+void toggleEdd()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setRamDiskEnabled(0, !core->ramDiskEnabled(0));
+}
+
+static const MenuItem systemItems[] = {
+    {"EDD", nullptr, nullptr, toggleEdd, nullptr, eddEnabled},
+};
+static const MenuPage systemPage {"System", nullptr, systemItems, static_cast<int>(sizeof(systemItems) / sizeof(systemItems[0])), nullptr, nullptr};
 static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, nullptr};
 
 static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
-    {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
     {"Sound", nullptr, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
     {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},

@@ -127,6 +127,7 @@ uint8_t __not_in_flash_func(Ram::readByte)(int addr)
 
 Rom::Rom(unsigned memSize, const string& fileName)
 {
+    m_capacity = memSize;
     if (fileName == "vector/loader.rom") {
         // Встроенный образ: указатель и размер известны сразу, чтения нет
         m_buf = vector_loader_rom;
@@ -156,6 +157,34 @@ void Rom::init()
     b_ram = true;
 }
 
+
+
+bool Rom::loadFile(const string& fileName)
+{
+    uint8_t* data = new uint8_t [m_capacity];
+    memset(data, 0xFF, m_capacity);
+    if (palReadFromFile(fileName, 0, m_capacity, data, false) == 0) {
+        delete[] data;
+        return false;
+    }
+    if (b_ram)
+        delete[] m_buf;
+    m_buf = data;
+    m_size = m_capacity;
+    m_fileName = fileName;
+    b_ram = true;
+    return true;
+}
+
+void Rom::useBuiltIn()
+{
+    if (b_ram)
+        delete[] m_buf;
+    m_buf = vector_loader_rom;
+    m_size = sizeof(vector_loader_rom);
+    m_fileName.clear();
+    b_ram = false;
+}
 
 
 Rom::~Rom()

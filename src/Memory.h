@@ -70,12 +70,17 @@ class Rom : public AddressableDevice
         uint8_t readByte(int addr) override;
         int getSize() {return m_size;}
         void init() override;
+        bool loadFile(const std::string& fileName);
+        void useBuiltIn();
+        bool isBuiltIn() const {return !b_ram;}
+        const std::string& getFileName() const {return m_fileName;}
         virtual const uint8_t* getDataPtr() {return m_buf;}
         virtual const uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
 
 
     protected:
         int m_size = 0;
+        int m_capacity = 0;
         const uint8_t* m_buf = nullptr;
         bool b_ram = false;
         std::string m_fileName;
