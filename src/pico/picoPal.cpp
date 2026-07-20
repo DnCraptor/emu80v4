@@ -155,7 +155,14 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     uint32_t fnth = graphics_get_font_height();
     uint32_t msi = fnth + 1;
     uint32_t xb = x + 2;
-    uint32_t yb = y + fnth + 5;
+    const uint32_t contentTop = y + fnth + 5;
+    const uint32_t inputBoxH = write ? fnth + 4 : 0;
+    const uint32_t hintLineH = write ? fnth + 2 : 0;
+    const uint32_t bottomAreaH = inputBoxH + hintLineH + (write ? 2 : 0);
+    const uint32_t listBottom = y + h - 1 - bottomAreaH;
+    uint32_t yb = contentTop;
+    const uint32_t inputY = listBottom + 2;
+    const uint32_t hintY = inputY + inputBoxH;
     const uint32_t scrollW = 4;
     const uint32_t listW = w - 2 - scrollW;
     const uint32_t scrollX = x + w - 1 - scrollW;
@@ -192,10 +199,6 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
 
     string t2;
-    if (write) {
-        graphics_fill(x + 1, yb, w - 2, fnth + 1, RGB888(207, 255, 255));
-        yb += fnth + 1;
-    }
 
     // Список статический. В патче J он был переведён в кучу ради экономии
     // 14 КБ, но выделение может не удаться, и тогда диалог молча закрывался
@@ -206,7 +209,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     int fileCount = 0;
     int selected_file_n = 0;
     int shift_j = 0;
-    int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
+    int visibleRows = (int)((listBottom - yb) / msi);
     if (visibleRows < 1) visibleRows = 1;
     PalFileInfo* selected_fi = nullptr;
     bool openReadOnly = false;
@@ -238,10 +241,30 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         graphics_type(xt, y + 3, 0b101010, t.c_str(), t.length());
     };
 
+    bool inputFocused = write;
+    bool inputCursorVisible = true;
+    int inputCursorTicks = 0;
     auto drawInput = [&]() {
         if (!write) return;
-        graphics_fill(x + 1, y + fnth + 5, w - 2, fnth + 1, RGB888(207, 255, 255));
-        graphics_type(x + 2, y + fnth + 6, RGB888(0, 0, 0), t2.c_str(), t2.length());
+        const char label[] = "File name: ";
+        const size_t labelLen = sizeof(label) - 1;
+        const uint32_t bg = inputFocused ? RGB888(207, 255, 255) : RGB888(224, 224, 224);
+        graphics_fill(x + 1, inputY, w - 2, inputBoxH, RGB888(0, 0, 0));
+        graphics_fill(x + 2, inputY + 1, w - 4, inputBoxH - 2, bg);
+        graphics_type(x + 4, inputY + 2, RGB888(0, 0, 0), label, labelLen);
+        const uint32_t textX = x + 4 + labelLen * fntw;
+        graphics_type(textX, inputY + 2, RGB888(0, 0, 0), t2.c_str(), t2.length());
+        if (inputFocused && inputCursorVisible) {
+            const uint32_t cursorX = textX + t2.length() * fntw;
+            if (cursorX < x + w - 3)
+                graphics_fill(cursorX, inputY + 2, 1, fnth, RGB888(0, 0, 0));
+        }
+        const char hint[] = "Tab: switch  Enter: open/save  Esc: cancel";
+        graphics_fill(x + 1, hintY, w - 2, hintLineH, RGB888(0, 0, 0));
+        size_t hintLen = sizeof(hint) - 1;
+        const size_t maxHintChars = (w - 4) / fntw;
+        if (hintLen > maxHintChars) hintLen = maxHintChars;
+        graphics_type(x + 3, hintY + 1, RGB888(192, 192, 192), hint, hintLen);
     };
 
     auto drawRow = [&](int itemIndex) {
@@ -249,8 +272,10 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         int row = itemIndex - shift_j;
         uint32_t rowY = yb + row * msi;
         bool selected = itemIndex == selected_file_n;
-        uint32_t bg = selected ? RGB888(114, 114, 224) : RGB888(255, 255, 255);
-        uint32_t fg = selected ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+        bool activeSelection = selected && (!write || !inputFocused);
+        uint32_t bg = activeSelection ? RGB888(114, 114, 224)
+                                      : selected ? RGB888(208, 208, 208) : RGB888(255, 255, 255);
+        uint32_t fg = activeSelection ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
         graphics_fill(x + 1, rowY, listW, fnth, bg);
         if (itemIndex >= 0 && itemIndex < fileCount) {
             const PalFileInfo& fi = fileList[itemIndex];
@@ -263,7 +288,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
 
     auto drawScrollbar = [&]() {
         uint32_t trackY = yb;
-        uint32_t trackH = y + h - 1 - trackY;
+        uint32_t trackH = visibleRows * msi;
         graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
         int total = fileCount;
         if (total <= visibleRows || trackH == 0) return;
@@ -286,12 +311,59 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     drawInput();
     drawWindow();
 
+    auto makePath = [&](const string& name) {
+        return fdir == "/" ? "/" + name : fdir + "/" + name;
+    };
+
+    auto redrawDialog = [&]() {
+        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+        graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+        drawTitle();
+        drawInput();
+        drawWindow();
+    };
+
+    auto confirmOverwrite = [&](const string& path) {
+        const size_t slash = path.find_last_of('/');
+        const string name = slash == string::npos ? path : path.substr(slash + 1);
+        const string message = "Replace " + name + "?  Enter=yes  Esc=no";
+        palMessageBox("Overwrite file", message.c_str());
+        while (1) {
+            sleep_ms(100);
+            const PalKeyCodeAction k = getKey();
+            if (!k.pressed) continue;
+            if (k.vk == PK_ENTER || k.vk == PK_KP_ENTER) {
+                redrawDialog();
+                return true;
+            }
+            if (k.vk == PK_ESC) {
+                redrawDialog();
+                return false;
+            }
+        }
+    };
+
     string res;
     while (1) {
         sleep_ms(100);
         PalKeyCodeAction pk = getKey();
 
-        if (write && pk.pressed) {
+        if (write && inputFocused && ++inputCursorTicks >= 5) {
+            inputCursorTicks = 0;
+            inputCursorVisible = !inputCursorVisible;
+            drawInput();
+        }
+
+        if (write && pk.pressed && pk.vk == PK_TAB) {
+            inputFocused = !inputFocused;
+            inputCursorVisible = true;
+            inputCursorTicks = 0;
+            drawInput();
+            if (fileCount > 0) drawRow(selected_file_n);
+            continue;
+        }
+
+        if (write && inputFocused && pk.pressed) {
             bool changed = true;
             if (pk.vk >= PK_1 && pk.vk <= PK_0) t2 += '1' + pk.vk - PK_1;
             else if (pk.vk >= PK_A && pk.vk <= PK_Z) t2 += 'a' + pk.vk - PK_A;
@@ -299,7 +371,12 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             else if (pk.vk == PK_PERIOD) t2 += '.';
             else if (pk.vk == PK_BSP && !t2.empty()) t2.pop_back();
             else changed = false;
-            if (changed) drawInput();
+            if (changed) {
+                inputCursorVisible = true;
+                inputCursorTicks = 0;
+                drawInput();
+                continue;
+            }
         }
 
         if (readOnly && pk.vk == PK_SCRLOCK && pk.pressed) {
@@ -308,21 +385,34 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             continue;
         }
 
-        if (write && (pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
-            if (!t2.empty()) {
-                res = fdir == "/" ? "/" + t2 : fdir + "/" + t2;
-                break;
+        const bool enterPressed = (pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed;
+        if (write && inputFocused && enterPressed) {
+            if (t2.empty()) continue;
+            const string path = makePath(t2);
+            FILINFO existing;
+            if (f_stat(path.c_str(), &existing) == FR_OK) {
+                if (existing.fattrib & AM_DIR) {
+                    palModalMessage("Cannot save", "A directory has this name");
+                    redrawDialog();
+                    continue;
+                }
+                if (!confirmOverwrite(path))
+                    continue;
             }
-            continue;
+            res = path;
+            break;
         }
+
+        if (pk.vk == PK_ESC && pk.pressed)
+            break;
+
+        if (write && inputFocused)
+            continue;
 
         int oldSelected = selected_file_n;
         int oldShift = shift_j;
         int count = fileCount;
-        if (count == 0) {
-            if (pk.vk == PK_ESC && pk.pressed) break;
-            continue;
-        }
+        if (count == 0) continue;
 
         if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
             selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : count - 1;
@@ -336,7 +426,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             selected_file_n = 0;
         } else if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
             selected_file_n = count - 1;
-        } else if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
+        } else if (enterPressed) {
             selected_fi = &fileList[selected_file_n];
             if (selected_fi->isDir) {
                 if (selected_fi->fileName == back) {
@@ -353,11 +443,17 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
                 drawWindow();
                 continue;
             }
-            res = fdir + "/" + selected_fi->fileName;
-            if (readOnly)
-                *readOnly = openReadOnly;
-            break;
-        } else if (pk.vk == PK_ESC && pk.pressed) {
+            if (write) {
+                t2 = selected_fi->fileName;
+                inputFocused = true;
+                inputCursorVisible = true;
+                inputCursorTicks = 0;
+                drawInput();
+                drawRow(selected_file_n);
+                continue;
+            }
+            res = makePath(selected_fi->fileName);
+            if (readOnly) *readOnly = openReadOnly;
             break;
         } else {
             continue;
