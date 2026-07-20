@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <iterator>
+#include <string>
 
 #include <pico/time.h>
 
@@ -20,7 +21,10 @@ struct MenuPage;
 
 struct MenuItem {
     const char* title;
+    const char* (*getTitle)();
     const MenuPage* submenu;
+    void (*action)();
+    bool (*isEnabled)();
 };
 
 struct MenuPage {
@@ -52,8 +56,8 @@ void cpuSetValue(int value)
 }
 
 static const MenuItem processorItems[] = {
-    {"KR580VM80A (i8080)", nullptr},
-    {"Zilog Z80", nullptr},
+    {"KR580VM80A (i8080)", nullptr, nullptr, nullptr, nullptr},
+    {"Zilog Z80", nullptr, nullptr, nullptr, nullptr},
 };
 
 static const MenuPage processorPage {
@@ -65,7 +69,74 @@ static const MenuPage processorPage {
     cpuSetValue
 };
 
-static const MenuPage storagePage   {"Storage", nullptr, nullptr, 0, nullptr, nullptr};
+// --- Storage / Drive A ----------------------------------------------------
+
+char driveATitleBuffer[96];
+
+const char* driveATitle()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    const std::string fileName = core ? core->getDiskAFileName() : std::string();
+    if (fileName.empty())
+        return "Drive A: empty";
+
+    const size_t slash = fileName.find_last_of("/\\");
+    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
+
+    constexpr char prefix[] = "Drive A: ";
+    constexpr size_t prefixLen = sizeof(prefix) - 1;
+    std::memcpy(driveATitleBuffer, prefix, prefixLen);
+
+    const size_t maxBaseLen = sizeof(driveATitleBuffer) - prefixLen - 1;
+    const size_t baseLen = std::min(std::strlen(base), maxBaseLen);
+    std::memcpy(driveATitleBuffer + prefixLen, base, baseLen);
+    driveATitleBuffer[prefixLen + baseLen] = '\0';
+    return driveATitleBuffer;
+}
+
+bool driveAHasImage()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->diskAImagePresent();
+}
+
+void driveAInsert()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->chooseDiskAImage();
+}
+
+void driveAEject()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->ejectDiskAImage();
+}
+
+static const MenuItem driveAItems[] = {
+    {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr},
+    {"Eject", nullptr, nullptr, driveAEject, driveAHasImage},
+};
+
+static const MenuPage driveAPage {
+    "Drive A",
+    driveATitle,
+    driveAItems,
+    static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])),
+    nullptr,
+    nullptr
+};
+
+static const MenuItem storageItems[] = {
+    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr},
+};
+
+static const MenuPage storagePage {
+    "Storage", nullptr, storageItems,
+    static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])),
+    nullptr, nullptr
+};
 static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage soundPage     {"Sound", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
@@ -75,15 +146,15 @@ static const MenuPage systemPage    {"System", nullptr, nullptr, 0, nullptr, nul
 static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, nullptr};
 
 static const MenuItem rootItems[] = {
-    {"Processor", &processorPage},
-    {"Storage", &storagePage},
-    {"ROM", &romPage},
-    {"Sound", &soundPage},
-    {"Tape", &tapePage},
-    {"Snapshots", &snapshotPage},
-    {"Video", &videoPage},
-    {"System", &systemPage},
-    {"About", &aboutPage},
+    {"Processor", nullptr, &processorPage, nullptr, nullptr},
+    {"Storage", nullptr, &storagePage, nullptr, nullptr},
+    {"ROM", nullptr, &romPage, nullptr, nullptr},
+    {"Sound", nullptr, &soundPage, nullptr, nullptr},
+    {"Tape", nullptr, &tapePage, nullptr, nullptr},
+    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr},
+    {"Video", nullptr, &videoPage, nullptr, nullptr},
+    {"System", nullptr, &systemPage, nullptr, nullptr},
+    {"About", nullptr, &aboutPage, nullptr, nullptr},
 };
 
 // Заголовок корневой страницы отражает установленное ядро
@@ -204,12 +275,16 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
     const int rowH = fontH + 3;
     const int rowY = rowTop(y, index);
     const bool current = index == selected;
-    const uint8_t fg = current ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+    const bool enabled = !page.items[index].isEnabled || page.items[index].isEnabled();
+    const uint8_t fg = !enabled ? RGB888(128, 128, 128)
+                     : current ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
 
     graphics_fill(x + 2, rowY, w - 4, rowH,
                   current ? RGB888(64, 96, 192) : RGB888(232, 232, 232));
-    graphics_type(x + 6, rowY + 1, fg,
-                  page.items[index].title, std::strlen(page.items[index].title));
+    const char* itemTitle = page.items[index].getTitle
+                          ? page.items[index].getTitle()
+                          : page.items[index].title;
+    graphics_type(x + 6, rowY + 1, fg, itemTitle, std::strlen(itemTitle));
 
     if (page.getValue && page.getValue() == index) {
         const char mark[] = "*";
@@ -314,8 +389,12 @@ int pageWidth(const MenuPage& page)
 {
     const int fontW = graphics_get_font_width();
     size_t longest = std::strlen(page.getTitle ? page.getTitle() : page.title);
-    for (int i = 0; i < page.itemCount; ++i)
-        longest = std::max(longest, std::strlen(page.items[i].title));
+    for (int i = 0; i < page.itemCount; ++i) {
+        const char* itemTitle = page.items[i].getTitle
+                              ? page.items[i].getTitle()
+                              : page.items[i].title;
+        longest = std::max(longest, std::strlen(itemTitle));
+    }
     if (page.itemCount == 0)
         longest = std::max(longest, sizeof("Not implemented yet") - 1);
     return static_cast<int>(longest + 4) * fontW;
@@ -433,7 +512,16 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
             return true;
         }
 
-        const MenuPage* submenu = page->items[sel].submenu;
+        const MenuItem& item = page->items[sel];
+        if (item.isEnabled && !item.isEnabled())
+            return true;
+        if (item.action) {
+            item.action();
+            palCloseMainMenu();
+            return true;
+        }
+
+        const MenuPage* submenu = item.submenu;
         if (!submenu)
             return true;
         if (menu.depth + 1 >= static_cast<int>(sizeof(menu.stack) / sizeof(menu.stack[0])))

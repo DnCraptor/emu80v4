@@ -1657,3 +1657,28 @@ bool VectorCore::assignDiskAFileName(const std::string& fileName)
 {
     return m_diskA && m_diskA->assignFileName(fileName);
 }
+
+bool VectorCore::diskAImagePresent()
+{
+    return m_diskA && m_diskA->getImagePresent();
+}
+
+
+std::string VectorCore::getDiskAFileName() const
+{
+    return m_diskA ? m_diskA->getFileName() : std::string();
+}
+
+
+void VectorCore::chooseDiskAImage()
+{
+    if (m_diskA)
+        m_diskA->chooseFile();
+}
+
+
+void VectorCore::ejectDiskAImage()
+{
+    if (m_diskA)
+        m_diskA->assignFileName("");
+}

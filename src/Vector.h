@@ -193,6 +193,10 @@ class VectorCore
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName);
+        bool diskAImagePresent();
+        std::string getDiskAFileName() const;
+        void chooseDiskAImage();
+        void ejectDiskAImage();
 
         void vrtc(bool isActive);
         void inte(bool isActive);

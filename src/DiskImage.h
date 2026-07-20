@@ -48,6 +48,7 @@ public:
     inline void setLabel(const std::string& label) {m_label = label;}
     inline void setFilter(const std::string& filter) {m_filter = filter;}
     inline const std::string& getLabel() const {return m_label;}
+    inline const std::string& getFileName() const {return m_fileName;}
 
     bool getWriteProtectStatus();
     bool getImagePresent() {return m_file.isOpen();}
