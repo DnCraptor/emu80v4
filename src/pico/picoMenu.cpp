@@ -37,6 +37,8 @@ struct MenuPage {
     // Радиогруппа: текущее значение и его установка. Для обычных страниц null.
     int (*getValue)();
     void (*setValue)(int);
+    const char* (*getStatusLine1)() = nullptr;
+    const char* (*getStatusLine2)() = nullptr;
 };
 
 // --- Processor -------------------------------------------------------------
@@ -97,6 +99,46 @@ void cpuClockSetValue(int value)
     core->setCpuFrequency(cpuClockValues[value]);
 }
 
+
+char cpuFpsStatusBuffer[24];
+
+char* appendText(char* dst, const char* text)
+{
+    while (*text)
+        *dst++ = *text++;
+    return dst;
+}
+
+char* appendUnsigned(char* dst, unsigned value)
+{
+    char digits[10];
+    int count = 0;
+    do {
+        digits[count++] = static_cast<char>('0' + value % 10);
+        value /= 10;
+    } while (value != 0);
+    while (count != 0)
+        *dst++ = digits[--count];
+    return dst;
+}
+
+bool menuItemDisabled()
+{
+    return false;
+}
+
+const char* cpuFpsStatus()
+{
+    if (!g_emulation || !g_emulation->performanceStatsReady())
+        return "FPS: measuring...";
+
+    char* dst = appendText(cpuFpsStatusBuffer, "FPS: ");
+    dst = appendUnsigned(dst, g_emulation->getVideoFps());
+    dst = appendText(dst, " Hz");
+    *dst = '\0';
+    return cpuFpsStatusBuffer;
+}
+
 static const MenuItem cpuClockItems[] = {
     {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
@@ -107,6 +149,7 @@ static const MenuItem cpuClockItems[] = {
     {"20 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"24 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {nullptr, cpuFpsStatus, nullptr, nullptr, menuItemDisabled, nullptr},
 };
 
 static const MenuPage cpuClockPage {
@@ -403,7 +446,8 @@ int pageHeight(const MenuPage& page)
     const int fontH = graphics_get_font_height();
     const int rowH = fontH + 3;
     const int rows = page.itemCount > 0 ? page.itemCount : 1;
-    return fontH + 6 + rows * rowH + 2;
+    const int statusRows = (page.getStatusLine1 ? 1 : 0) + (page.getStatusLine2 ? 1 : 0);
+    return fontH + 6 + (rows + statusRows) * rowH + 2;
 }
 
 int backupW = 0;
@@ -473,6 +517,18 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 
     for (int i = 0; i < page.itemCount; ++i)
         drawItem(page, i, selected, x, y, w);
+
+    int statusIndex = page.itemCount;
+    if (page.getStatusLine1) {
+        const char* text = page.getStatusLine1();
+        graphics_type(x + 6, rowTop(y, statusIndex++) + 1,
+                      RGB888(0, 0, 0), text, std::strlen(text));
+    }
+    if (page.getStatusLine2) {
+        const char* text = page.getStatusLine2();
+        graphics_type(x + 6, rowTop(y, statusIndex) + 1,
+                      RGB888(0, 0, 0), text, std::strlen(text));
+    }
 }
 
 struct MenuState {
@@ -554,6 +610,10 @@ int pageWidth(const MenuPage& page)
     }
     if (page.itemCount == 0)
         longest = std::max(longest, sizeof("Not implemented yet") - 1);
+    if (page.getStatusLine1)
+        longest = std::max(longest, std::strlen(page.getStatusLine1()));
+    if (page.getStatusLine2)
+        longest = std::max(longest, std::strlen(page.getStatusLine2()));
     return static_cast<int>(longest + 4) * fontW;
 }
 
@@ -652,6 +712,9 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         return true;   // перерисованы только две строки, полная не нужна
     } else if (page->itemCount > 0 && (keyCode == PK_RIGHT || enter)) {
         const int sel = menu.selected[menu.depth];
+        const MenuItem& item = page->items[sel];
+        if (item.isEnabled && !item.isEnabled())
+            return true;
 
         if (page->setValue) {
             // Страница-радиогруппа: выбор пункта меняет значение.
@@ -667,9 +730,6 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
             return true;
         }
 
-        const MenuItem& item = page->items[sel];
-        if (item.isEnabled && !item.isEnabled())
-            return true;
         if (item.action) {
             item.action();
             palCloseMainMenu();

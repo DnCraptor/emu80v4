@@ -354,9 +354,9 @@ void Emulation::mainLoopCycle()
     uint64_t ticks = m_curFrequency * dt / palGetCounterFreq();
     m_prevSysClock = m_sysClock;
 
-    int64_t cntBeforeExec = palGetCounter();
+    const uint64_t cntBeforeExec = palGetCounter();
     exec(ticks);
-    int64_t cntAfterExec = palGetCounter();
+    uint64_t cntAfterExec = palGetCounter();
 
     int nn = 1;
     static int avgNn = 1;
@@ -369,6 +369,30 @@ void Emulation::mainLoopCycle()
         avgNn = (2 * avgNn + nn) / 3;
         m_mixer->setFrequency(m_frequency * avgNn);
     }
+
+    // FPS is measured over a real half-second window. This is independent of
+    // main-loop iteration rate, so a fast exec() loop cannot produce an empty
+    // 50-pass window between two rendered frames. While paused, the current
+    // window is discarded and the last completed value remains visible.
+    if (m_isPaused) {
+        m_fpsWindowStart = 0;
+        m_fpsWindowFrames = m_renderedFrames;
+    } else if (m_fpsWindowStart == 0) {
+        m_fpsWindowStart = cntAfterExec;
+        m_fpsWindowFrames = m_renderedFrames;
+    } else {
+        const uint64_t elapsed = cntAfterExec - m_fpsWindowStart;
+        const uint64_t window = palGetCounterFreq() / 2;
+        if (elapsed >= window && elapsed != 0) {
+            const uint64_t frames = m_renderedFrames - m_fpsWindowFrames;
+            m_videoFps = static_cast<unsigned>(
+                (frames * palGetCounterFreq() + elapsed / 2) / elapsed);
+            m_fpsReady = true;
+            m_fpsWindowStart = cntAfterExec;
+            m_fpsWindowFrames = m_renderedFrames;
+        }
+    }
+
 }
 
 

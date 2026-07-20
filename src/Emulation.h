@@ -78,6 +78,9 @@ class Emulation
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
+        void notifyFrameRendered() {++m_renderedFrames;}
+        bool performanceStatsReady() const {return m_fpsReady;}
+        unsigned getVideoFps() const {return m_videoFps;}
 
         inline uint64_t getCurClock() {return m_curClock;}
         inline SoundMixer* getSoundMixer() {return m_mixer;}
@@ -100,6 +103,7 @@ class Emulation
 
     private:
         static constexpr int MAX_ACTIVE_DEVICES = 32;
+        static constexpr int PERF_SAMPLE_COUNT = 50;
         IActive* m_activeDevices[MAX_ACTIVE_DEVICES] = {};
         int nDevices = 0;
         IActive* m_cpuDev = nullptr;
@@ -120,6 +124,12 @@ class Emulation
         unsigned m_sampleRate = 50000;
 
         uint64_t m_curClock = 0;
+
+        uint64_t m_renderedFrames = 0;
+        uint64_t m_fpsWindowStart = 0;
+        uint64_t m_fpsWindowFrames = 0;
+        unsigned m_videoFps = 0;
+        bool m_fpsReady = false;
 
         SoundMixer* m_mixer = nullptr;
         WavReader* m_wavReader = nullptr;

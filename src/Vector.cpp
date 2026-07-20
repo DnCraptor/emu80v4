@@ -627,6 +627,7 @@ void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int
 
 void VectorRenderer::renderFrame()
 {
+    g_emulation->notifyFrameRendered();
     /**
     if (m_showBorder)
         memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
