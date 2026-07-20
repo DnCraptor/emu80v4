@@ -262,8 +262,13 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
     if (palMainMenuIsOpen()) {
         // Отпускание Alt при открытом меню не делает ничего: меню закрывается
         // либо по Esc, либо каскадно после выполнения команды.
-        if (altKey || !isPressed)
+        if (altKey)
             return;
+        if (!isPressed) {
+            // Отпускание доводится до меню, чтобы оно погасило автоповтор
+            palMainMenuHandleKey(keyCode, false);
+            return;
+        }
 
         // Навигация по меню имеет приоритет над горячими клавишами. Без этого
         // стрелки ушли бы в SR_SPEEDSTEPUPFINE/SR_SPEEDSTEPDOWNFINE, а Enter
@@ -335,6 +340,8 @@ void Emulation::resetKeys()
 
 void Emulation::mainLoopCycle()
 {
+    palMainMenuTick();
+
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
     m_sysClock = palGetCounter();

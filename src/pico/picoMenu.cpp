@@ -6,6 +6,8 @@
 #include <memory>
 #include <iterator>
 
+#include <pico/time.h>
+
 #include "graphics.h"
 #include "../Globals.h"
 #include "../Emulation.h"
@@ -113,6 +115,10 @@ static const MenuPage rootPage {
 //  Поэтому фон запоминается для каждого уровня отдельно, стеком: вход на
 //  уровень кладёт прямоугольник в пул, возврат снимает его оттуда.
 // ---------------------------------------------------------------------------
+// Задержка до начала автоповтора и период повторов
+static constexpr uint64_t c_repeatDelayUs = 400000;
+static constexpr uint64_t c_repeatRateUs  = 60000;
+
 static constexpr int c_menuBackupPool = 32768;
 static constexpr int c_menuMaxDepth = 8;
 
@@ -177,11 +183,47 @@ int backupW = 0;
 int backupH = 0;
 bool backupValid = false;
 
-void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
+// Геометрия строки списка внутри страницы
+int rowTop(int y, int index)
 {
+    const int fontH = graphics_get_font_height();
+    return y + fontH + 5 + index * (fontH + 3);
+}
+
+// Одна строка списка. Вынесена отдельно, чтобы при перемещении выделения
+// перерисовывать только две строки — ту, с которой ушли, и ту, на которую
+// пришли. Полная перерисовка страницы на каждое нажатие давала заметное
+// мигание.
+void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w)
+{
+    if (!page.items || index < 0 || index >= page.itemCount)
+        return;
+
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
     const int rowH = fontH + 3;
+    const int rowY = rowTop(y, index);
+    const bool current = index == selected;
+    const uint8_t fg = current ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+
+    graphics_fill(x + 2, rowY, w - 4, rowH,
+                  current ? RGB888(64, 96, 192) : RGB888(232, 232, 232));
+    graphics_type(x + 6, rowY + 1, fg,
+                  page.items[index].title, std::strlen(page.items[index].title));
+
+    if (page.getValue && page.getValue() == index) {
+        const char mark[] = "*";
+        graphics_type(x + w - fontW - 6, rowY + 1, fg, mark, 1);
+    }
+    if (page.items[index].submenu) {
+        const char arrow[] = ">";
+        graphics_type(x + w - fontW - 6, rowY + 1, fg, arrow, 1);
+    }
+}
+
+void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
+{
+    const int fontH = graphics_get_font_height();
 
     graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
@@ -194,33 +236,22 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
     if (!page.items || page.itemCount == 0) {
         const char emptyText[] = "Not implemented yet";
         graphics_type(x + 6, y + fontH + 6, RGB888(0, 0, 0), emptyText, sizeof(emptyText) - 1);
-    } else {
-        for (int i = 0; i < page.itemCount; ++i) {
-            const int rowY = y + fontH + 5 + i * rowH;
-            const bool current = i == selected;
-            graphics_fill(x + 2, rowY, w - 4, rowH,
-                          current ? RGB888(64, 96, 192) : RGB888(232, 232, 232));
-            graphics_type(x + 6, rowY + 1,
-                          current ? RGB888(255, 255, 255) : RGB888(0, 0, 0),
-                          page.items[i].title, std::strlen(page.items[i].title));
-            if (page.getValue && page.getValue() == i) {
-                const char mark[] = "*";
-                graphics_type(x + w - fontW - 6, rowY + 1,
-                              current ? RGB888(255, 255, 255) : RGB888(0, 0, 0),
-                              mark, 1);
-            }
-            if (page.items[i].submenu) {
-                const char arrow[] = ">";
-                graphics_type(x + w - fontW - 6, rowY + 1,
-                              current ? RGB888(255, 255, 255) : RGB888(0, 0, 0),
-                              arrow, 1);
-            }
-        }
+        return;
     }
+
+    for (int i = 0; i < page.itemCount; ++i)
+        drawItem(page, i, selected, x, y, w);
 }
 
 struct MenuState {
     bool open = false;
+    // Автоповтор навигации. Ни HID-слой, ни PS/2-слой повторов не шлют:
+    // события идут только на изменение состояния клавиши, а repeat_handler()
+    // в Main.cpp — пустая заглушка. Файловый диалог обходится опросом
+    // pressed_key[] в собственном цикле, а меню событийное, поэтому повтор
+    // отсчитывается здесь, по тикам основного цикла.
+    PalKeyCode repeatKey = PK_NONE;
+    uint64_t repeatAt = 0;
     bool wasPaused = false;
     bool wasMuted = false;
     SoundMixer* mixer = nullptr;
@@ -246,6 +277,35 @@ void redrawMenu()
     const int d = menu.depth;
     drawPage(*menu.stack[d], menu.selected[d],
              menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
+}
+
+
+// Перемещение выделения: перерисовываются ровно две строки
+void redrawSelection(int oldSel, int newSel)
+{
+    if (!menu.open || oldSel == newSel)
+        return;
+    const int d = menu.depth;
+    const MenuPage& page = *menu.stack[d];
+    drawItem(page, oldSel, newSel, menu.pageX[d], menu.pageY[d], menu.pageW[d]);
+    drawItem(page, newSel, newSel, menu.pageX[d], menu.pageY[d], menu.pageW[d]);
+}
+
+
+// Шаг выделения с заворотом. Возвращает true, если позиция изменилась.
+bool moveSelection(int delta)
+{
+    const int d = menu.depth;
+    const MenuPage* page = menu.stack[d];
+    if (page->itemCount <= 0)
+        return false;
+    const int oldSel = menu.selected[d];
+    int sel = oldSel + delta;
+    if (sel < 0) sel = page->itemCount - 1;
+    else if (sel >= page->itemCount) sel = 0;
+    menu.selected[d] = sel;
+    redrawSelection(oldSel, sel);
+    return sel != oldSel;
 }
 
 
@@ -324,8 +384,15 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
     if (!menu.open)
         return false;
 
-    if (!isPressed)
+    if (!isPressed) {
+        // Отпускание клавиши гасит автоповтор
+        if (keyCode == menu.repeatKey)
+            menu.repeatKey = PK_NONE;
         return true;
+    }
+
+    // Новое нажатие всегда перезапускает отсчёт
+    menu.repeatKey = PK_NONE;
 
     const MenuPage* page = menu.stack[menu.depth];
     const bool enter = keyCode == PK_ENTER || keyCode == PK_KP_ENTER
@@ -342,12 +409,11 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         popBackground(menu.depth);
         --menu.depth;
         return true;   // родительская страница уже на экране, перерисовка не нужна
-    } else if (page->itemCount > 0 && keyCode == PK_UP) {
-        menu.selected[menu.depth] = menu.selected[menu.depth] > 0
-            ? menu.selected[menu.depth] - 1 : page->itemCount - 1;
-    } else if (page->itemCount > 0 && keyCode == PK_DOWN) {
-        menu.selected[menu.depth] = menu.selected[menu.depth] + 1 < page->itemCount
-            ? menu.selected[menu.depth] + 1 : 0;
+    } else if (page->itemCount > 0 && (keyCode == PK_UP || keyCode == PK_DOWN)) {
+        moveSelection(keyCode == PK_UP ? -1 : 1);
+        menu.repeatKey = keyCode;
+        menu.repeatAt = time_us_64() + c_repeatDelayUs;
+        return true;   // перерисованы только две строки, полная не нужна
     } else if (page->itemCount > 0 && (keyCode == PK_RIGHT || enter)) {
         const int sel = menu.selected[menu.depth];
 
@@ -435,4 +501,18 @@ void palMessageBox(const char* title, const char* text)
     graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128)); // заголовок
     graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, titleLen);
     graphics_type(x + 5, y + fontH + 8, RGB888(0, 0, 0), text, textLen);
+}
+
+
+void palMainMenuTick()
+{
+    if (!menu.open || menu.repeatKey == PK_NONE)
+        return;
+
+    const uint64_t now = time_us_64();
+    if (now < menu.repeatAt)
+        return;
+
+    moveSelection(menu.repeatKey == PK_UP ? -1 : 1);
+    menu.repeatAt = now + c_repeatRateUs;
 }
