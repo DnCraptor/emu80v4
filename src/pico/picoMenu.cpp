@@ -70,6 +70,54 @@ static const MenuPage processorPage {
     cpuSetValue
 };
 
+static constexpr unsigned cpuClockValues[] = {
+    3000000, 3500000, 6000000, 7000000, 12000000,
+    14000000, 20000000, 24000000, 28000000
+};
+
+int cpuClockGetValue()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core)
+        return 0;
+
+    const unsigned frequency = core->getCpuFrequency();
+    for (int i = 0; i < static_cast<int>(sizeof(cpuClockValues) / sizeof(cpuClockValues[0])); ++i)
+        if (cpuClockValues[i] == frequency)
+            return i;
+    return 0;
+}
+
+void cpuClockSetValue(int value)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core || value < 0
+        || value >= static_cast<int>(sizeof(cpuClockValues) / sizeof(cpuClockValues[0])))
+        return;
+    core->setCpuFrequency(cpuClockValues[value]);
+}
+
+static const MenuItem cpuClockItems[] = {
+    {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"6 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"7 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"12 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"14 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"20 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"24 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+};
+
+static const MenuPage cpuClockPage {
+    "CPU-Clock",
+    nullptr,
+    cpuClockItems,
+    static_cast<int>(sizeof(cpuClockItems) / sizeof(cpuClockItems[0])),
+    cpuClockGetValue,
+    cpuClockSetValue
+};
+
 // --- Storage / floppy drives ----------------------------------------------
 
 char driveTitleBuffer[2][96];
@@ -255,6 +303,7 @@ static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, null
 
 static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
+    {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
     {"Sound", nullptr, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
@@ -606,12 +655,10 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
 
         if (page->setValue) {
             // Страница-радиогруппа: выбор пункта меняет значение.
-            // Меню закрывается, машина сбрасывается — так требует смена ядра.
+            // Нужную реакцию (включая reset при смене ядра) выполняет setter.
             if (page->getValue && page->getValue() != sel) {
                 page->setValue(sel);
                 palCloseMainMenu();
-                if (g_emulation && g_emulation->getVector())
-                    g_emulation->getVector()->reset();
                 return true;
             }
             if (keyCode == PK_RIGHT)

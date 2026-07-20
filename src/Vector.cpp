@@ -1068,7 +1068,7 @@ VectorCore::VectorCore()
     // Замена 8080 <-> Z80 на ходу выполняется через s_devices.cpuSlot.
     m_cpu = s_devices.cpuSlot.cpu;
     m_cpu->setMachine(this);
-    m_cpu->setFrequency(3000000);
+    m_cpu->setFrequency(m_cpuFrequency);
     m_cpu->setStartAddr(0x0000);
 
     m_addrSpace = &s_devices.addrSpace;
@@ -1438,6 +1438,16 @@ VectorCpuType VectorCore::getCpuType() const
 }
 
 
+void VectorCore::setCpuFrequency(unsigned frequency)
+{
+    if (frequency == m_cpuFrequency)
+        return;
+
+    m_cpuFrequency = frequency;
+    m_cpu->setFrequency(m_cpuFrequency);
+}
+
+
 void VectorCore::setCpuType(VectorCpuType type)
 {
     if (type == s_devices.cpuSlot.type)
@@ -1459,7 +1469,7 @@ void VectorCore::setCpuType(VectorCpuType type)
 
     // Вся обвязка заново, в том же порядке, что и в конструкторе
     m_cpu->setMachine(this);
-    m_cpu->setFrequency(3000000);
+    m_cpu->setFrequency(m_cpuFrequency);
     m_cpu->setStartAddr(0x0000);
     m_cpu->attachAddrSpace(m_addrSpace);
     m_cpu->attachIoAddrSpace(m_ioAddrSpace);

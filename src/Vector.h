@@ -196,6 +196,8 @@ class VectorCore
         // выполнить полный сброс машины.
         VectorCpuType getCpuType() const;
         void setCpuType(VectorCpuType type);
+        unsigned getCpuFrequency() const {return m_cpuFrequency;}
+        void setCpuFrequency(unsigned frequency);
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName, bool readOnly = false);
@@ -225,6 +227,7 @@ class VectorCore
         Rom* m_rom = nullptr;
         bool m_z80_installed = false;
         Cpu8080Compatible* m_cpu = nullptr;
+        unsigned m_cpuFrequency = 3000000;
         VectorAddrSpace* m_addrSpace = nullptr;
         AddrSpace* m_ioAddrSpace = nullptr;
         VectorRenderer* m_renderer = nullptr;
