@@ -26,7 +26,7 @@ bool palSetSampleRate(int sampleRate);
 void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
-std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write);
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, bool* readOnly = nullptr);
 #endif //!PAL_WASM
 
 

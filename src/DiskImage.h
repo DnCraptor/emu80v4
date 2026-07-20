@@ -42,7 +42,7 @@ public:
 
     bool assignFileName(const std::string& fileName);
     bool assignFileName(const std::string& fileName, bool isWriteProtected);
-    std::string chooseFileName();
+    std::string chooseFileName(bool* readOnly = nullptr);
     void chooseFile();
     void close();
     int64_t getSize();

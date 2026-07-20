@@ -197,7 +197,7 @@ class VectorCore
         void setCpuType(VectorCpuType type);
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
-        bool assignDiskAFileName(const std::string& fileName);
+        bool assignDiskAFileName(const std::string& fileName, bool readOnly = false);
         bool floppyImagePresent(VectorFloppyDrive drive) const;
         bool floppyImageReadOnly(VectorFloppyDrive drive) const;
         bool canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const;
@@ -325,7 +325,7 @@ class VectorAddrSpace : public AddressableDevice
 class VectorFileLoader : public EmuObject
 {
     public:
-        bool loadFile(const std::string& fileName, bool run = false);
+        bool loadFile(const std::string& fileName, bool run = false, bool readOnly = false);
         bool chooseAndLoadFile(bool run = false);
         void attachAddrSpace(Ram* addrSpace) {m_addrSpace = addrSpace;}
         void setFilter(const std::string& filter) {m_filter = filter;}

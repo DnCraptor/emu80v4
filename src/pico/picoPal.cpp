@@ -144,7 +144,7 @@ void palModalMessage(const char* title, const char* text)
             break;
     }
 }
-std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write) {
+std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, bool* readOnly) {
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();
     uint32_t w = sw - 10;
@@ -210,6 +210,9 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
     if (visibleRows < 1) visibleRows = 1;
     PalFileInfo* selected_fi = nullptr;
+    bool openReadOnly = false;
+    if (readOnly)
+        *readOnly = false;
 
     auto loadDirectory = [&]() {
         fileCount = 0;
@@ -228,6 +231,8 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     auto drawTitle = [&]() {
         graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
         string t = title + ": " + fdir;
+        if (readOnly)
+            t += openReadOnly ? " [RO]" : " [RW]";
         uint32_t xt = x + 1;
         if (t.length() * fntw < w - 2)
             xt = x + 1 + (w - 2 - t.length() * fntw) / 2;
@@ -298,6 +303,12 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             if (changed) drawInput();
         }
 
+        if (readOnly && pk.vk == PK_SCRLOCK && pk.pressed) {
+            openReadOnly = !openReadOnly;
+            drawTitle();
+            continue;
+        }
+
         int oldSelected = selected_file_n;
         int oldShift = shift_j;
         int count = fileCount;
@@ -340,6 +351,8 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
                 continue;
             }
             res = fdir + "/" + selected_fi->fileName;
+            if (readOnly)
+                *readOnly = openReadOnly;
             break;
         } else if (pk.vk == PK_ESC && pk.pressed) {
             break;

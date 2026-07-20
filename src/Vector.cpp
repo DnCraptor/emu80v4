@@ -682,10 +682,11 @@ void VectorRenderer::attachMemory(Ram* memory)
 
 bool VectorFileLoader::chooseAndLoadFile(bool run)
 {
-    string fileName = palOpenFileDialog("Open file", m_filter, false);
+    bool readOnly = false;
+    string fileName = palOpenFileDialog("Open file", m_filter, false, &readOnly);
     if (fileName.empty())
         return true;
-    if (!loadFile(fileName, run)) {
+    if (!loadFile(fileName, run, readOnly)) {
         emuLog << "Error loading file: " << fileName << "\n";
         return false;
     }
@@ -693,13 +694,13 @@ bool VectorFileLoader::chooseAndLoadFile(bool run)
 }
 
 
-bool VectorFileLoader::loadFile(const std::string& fileName, bool run)
+bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool readOnly)
 {
     auto periodPos = fileName.find_last_of(".");
     string ext = periodPos != string::npos ? fileName.substr(periodPos) : fileName;
     transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".fdd") {
-        if (!m_machine->assignDiskAFileName(fileName))
+        if (!m_machine->assignDiskAFileName(fileName, readOnly))
             return false;
 
         Keyboard* keyboard = m_machine->getKeyboard();
@@ -1656,13 +1657,13 @@ FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, VectorFloppyDrive drive)
 }
 }
 
-bool VectorCore::assignDiskAFileName(const std::string& fileName)
+bool VectorCore::assignDiskAFileName(const std::string& fileName, bool readOnly)
 {
     if (!m_diskA)
         return false;
     const std::string fullFileName = fileName.empty() ? std::string() : palMakeFullFileName(fileName);
     const bool duplicate = m_diskB && m_diskB->getImagePresent() && m_diskB->getFileName() == fullFileName;
-    return m_diskA->assignFileName(fullFileName, duplicate);
+    return m_diskA->assignFileName(fullFileName, readOnly || duplicate);
 }
 
 bool VectorCore::floppyImagePresent(VectorFloppyDrive drive) const
@@ -1711,12 +1712,13 @@ void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
     FdImage* other = selectFloppy(m_diskA, m_diskB, drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
     if (!disk)
         return;
-    const std::string fileName = disk->chooseFileName();
+    bool readOnly = false;
+    const std::string fileName = disk->chooseFileName(&readOnly);
     if (fileName.empty())
         return;
     const std::string fullFileName = palMakeFullFileName(fileName);
     const bool duplicate = other && other->getImagePresent() && other->getFileName() == fullFileName;
-    disk->assignFileName(fullFileName, duplicate);
+    disk->assignFileName(fullFileName, readOnly || duplicate);
 }
 
 void VectorCore::ejectFloppyImage(VectorFloppyDrive drive)
