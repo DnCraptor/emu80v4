@@ -191,10 +191,36 @@ static const MenuItem hddItems[] = {
 static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
 static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
 static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeof(hddItems) / sizeof(hddItems[0])), nullptr, nullptr};
+
+void invokeSysReq(SysReq request)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->sysReq(request);
+}
+
+void eddOpen() { invokeSysReq(SR_OPENRAMDISK); }
+void eddSaveAs() { invokeSysReq(SR_SAVERAMDISKAS); }
+void edd2Open() { invokeSysReq(SR_OPENRAMDISK2); }
+void edd2SaveAs() { invokeSysReq(SR_SAVERAMDISK2AS); }
+
+static const MenuItem eddItems[] = {
+    {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, nullptr, nullptr},
+    {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, nullptr, nullptr},
+};
+static const MenuItem edd2Items[] = {
+    {"Load image [Alt+Shift+E]...", nullptr, nullptr, edd2Open, nullptr, nullptr},
+    {"Save image as [Alt+Shift+O]...", nullptr, nullptr, edd2SaveAs, nullptr, nullptr},
+};
+static const MenuPage eddPage {"EDD", nullptr, eddItems, static_cast<int>(sizeof(eddItems) / sizeof(eddItems[0])), nullptr, nullptr};
+static const MenuPage edd2Page {"EDD2", nullptr, edd2Items, static_cast<int>(sizeof(edd2Items) / sizeof(edd2Items[0])), nullptr, nullptr};
+
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
     {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
     {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
+    {"EDD", nullptr, &eddPage, nullptr, nullptr, nullptr},
+    {"EDD2", nullptr, &edd2Page, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
 static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
