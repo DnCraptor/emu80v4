@@ -69,133 +69,69 @@ static const MenuPage processorPage {
     cpuSetValue
 };
 
-// --- Storage / Drive A ----------------------------------------------------
+// --- Storage / floppy drives ----------------------------------------------
 
-char driveATitleBuffer[96];
+char driveTitleBuffer[2][96];
 
-const char* driveATitle()
+const char* driveTitle(VectorFloppyDrive drive)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    const std::string fileName = core ? core->getDiskAFileName() : std::string();
-    if (fileName.empty())
-        return "Drive A: empty";
-
+    const std::string fileName = core ? core->getFloppyFileName(drive) : std::string();
+    char* buffer = driveTitleBuffer[static_cast<int>(drive)];
+    constexpr char prefix[] = "Drive A: ";
+    std::memcpy(buffer, prefix, sizeof(prefix));
+    buffer[6] = drive == VectorFloppyDrive::A ? 'A' : 'B';
+    if (fileName.empty()) {
+        constexpr char empty[] = "empty";
+        std::memcpy(buffer + sizeof(prefix) - 1, empty, sizeof(empty));
+        return buffer;
+    }
     const size_t slash = fileName.find_last_of("/\\");
     const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
-
-    constexpr char prefix[] = "Drive A: ";
-    constexpr size_t prefixLen = sizeof(prefix) - 1;
-    std::memcpy(driveATitleBuffer, prefix, prefixLen);
-
-    const size_t maxBaseLen = sizeof(driveATitleBuffer) - prefixLen - 1;
-    const size_t baseLen = std::min(std::strlen(base), maxBaseLen);
-    std::memcpy(driveATitleBuffer + prefixLen, base, baseLen);
-    driveATitleBuffer[prefixLen + baseLen] = '\0';
-    return driveATitleBuffer;
+    const size_t prefixLen = sizeof(prefix) - 1;
+    constexpr char readOnlySuffix[] = " (ro)";
+    const bool readOnly = core && core->floppyImageReadOnly(drive);
+    const size_t suffixLen = readOnly ? sizeof(readOnlySuffix) - 1 : 0;
+    const size_t baseLen = std::min(std::strlen(base), sizeof(driveTitleBuffer[0]) - prefixLen - suffixLen - 1);
+    std::memcpy(buffer + prefixLen, base, baseLen);
+    if (readOnly)
+        std::memcpy(buffer + prefixLen + baseLen, readOnlySuffix, suffixLen);
+    buffer[prefixLen + baseLen + suffixLen] = '\0';
+    return buffer;
 }
 
-bool driveAHasImage()
+bool driveHasImage(VectorFloppyDrive drive)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->diskAImagePresent();
+    return core && core->floppyImagePresent(drive);
 }
+void driveInsert(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseFloppyImage(drive); }
+void driveEject(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectFloppyImage(drive); }
 
-void driveAInsert()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->chooseDiskAImage();
-}
-
-void driveAEject()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->ejectDiskAImage();
-}
+const char* driveATitle() { return driveTitle(VectorFloppyDrive::A); }
+const char* driveBTitle() { return driveTitle(VectorFloppyDrive::B); }
+bool driveAHasImage() { return driveHasImage(VectorFloppyDrive::A); }
+bool driveBHasImage() { return driveHasImage(VectorFloppyDrive::B); }
+void driveAInsert() { driveInsert(VectorFloppyDrive::A); }
+void driveBInsert() { driveInsert(VectorFloppyDrive::B); }
+void driveAEject() { driveEject(VectorFloppyDrive::A); }
+void driveBEject() { driveEject(VectorFloppyDrive::B); }
 
 static const MenuItem driveAItems[] = {
     {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr},
     {"Eject", nullptr, nullptr, driveAEject, driveAHasImage},
 };
-
-static const MenuPage driveAPage {
-    "Drive A",
-    driveATitle,
-    driveAItems,
-    static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])),
-    nullptr,
-    nullptr
-};
-
-// --- Storage / Drive B ----------------------------------------------------
-
-char driveBTitleBuffer[96];
-
-const char* driveBTitle()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    const std::string fileName = core ? core->getDiskBFileName() : std::string();
-    if (fileName.empty())
-        return "Drive B: empty";
-
-    const size_t slash = fileName.find_last_of("/\\");
-    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
-    static constexpr char prefix[] = "Drive B: ";
-    const size_t prefixLen = sizeof(prefix) - 1;
-    std::memcpy(driveBTitleBuffer, prefix, prefixLen);
-
-    const size_t maxBaseLen = sizeof(driveBTitleBuffer) - prefixLen - 1;
-    const size_t baseLen = std::min(std::strlen(base), maxBaseLen);
-    std::memcpy(driveBTitleBuffer + prefixLen, base, baseLen);
-    driveBTitleBuffer[prefixLen + baseLen] = '\0';
-    return driveBTitleBuffer;
-}
-
-bool driveBHasImage()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->diskBImagePresent();
-}
-
-void driveBInsert()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->chooseDiskBImage();
-}
-
-void driveBEject()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->ejectDiskBImage();
-}
-
 static const MenuItem driveBItems[] = {
     {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr},
     {"Eject", nullptr, nullptr, driveBEject, driveBHasImage},
 };
-
-static const MenuPage driveBPage {
-    "Drive B",
-    driveBTitle,
-    driveBItems,
-    static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])),
-    nullptr,
-    nullptr
-};
-
+static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
+static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr},
     {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr},
 };
-
-static const MenuPage storagePage {
-    "Storage", nullptr, storageItems,
-    static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])),
-    nullptr, nullptr
-};
+static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
 static const MenuPage romPage       {"ROM", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage soundPage     {"Sound", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};

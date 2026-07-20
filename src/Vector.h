@@ -167,6 +167,11 @@ enum VectorCpuType {
     VECTOR_CPU_Z80  = 1
 };
 
+enum class VectorFloppyDrive : uint8_t {
+    A = 0,
+    B = 1
+};
+
 
 class VectorCore
 {
@@ -193,14 +198,11 @@ class VectorCore
         Keyboard* getKeyboard();
         VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName);
-        bool diskAImagePresent();
-        std::string getDiskAFileName() const;
-        void chooseDiskAImage();
-        void ejectDiskAImage();
-        bool diskBImagePresent() const;
-        std::string getDiskBFileName() const;
-        void chooseDiskBImage();
-        void ejectDiskBImage();
+        bool floppyImagePresent(VectorFloppyDrive drive) const;
+        bool floppyImageReadOnly(VectorFloppyDrive drive) const;
+        std::string getFloppyFileName(VectorFloppyDrive drive) const;
+        void chooseFloppyImage(VectorFloppyDrive drive);
+        void ejectFloppyImage(VectorFloppyDrive drive);
 
         void vrtc(bool isActive);
         void inte(bool isActive);

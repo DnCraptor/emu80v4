@@ -61,9 +61,28 @@ bool DiskImage::assignFileName(const string& fileName)
 }
 
 
+bool DiskImage::assignFileName(const string& fileName, bool isWriteProtected)
+{
+    const string fullFileName = fileName.empty() ? string() : palMakeFullFileName(fileName);
+    if (m_file.isOpen() && fullFileName == m_fileName) {
+        setWriteProtection(isWriteProtected);
+        return true;
+    }
+
+    m_isWriteProtected = isWriteProtected;
+    return assignFileName(fullFileName);
+}
+
+
+string DiskImage::chooseFileName()
+{
+    return palOpenFileDialog("Open floppy disk image file", m_filter, false);
+}
+
+
 void DiskImage::chooseFile()
 {
-    string fileName = palOpenFileDialog("Open floppy disk image file", m_filter, false);
+    string fileName = chooseFileName();
     if (fileName != "")
         assignFileName(fileName);
 }

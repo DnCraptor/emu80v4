@@ -1561,14 +1561,10 @@ void VectorCore::sysReq(SysReq sr)
             }
             break;
         case SR_DISKA:
-            // open disk A image
-            if (m_diskA)
-                m_diskA->chooseFile();
+            chooseFloppyImage(VectorFloppyDrive::A);
             break;
         case SR_DISKB:
-            // open disk B image
-            if (m_diskB)
-                m_diskB->chooseFile();
+            chooseFloppyImage(VectorFloppyDrive::B);
             break;
         case SR_HDD:
             // open HDD/CF image
@@ -1653,54 +1649,57 @@ Keyboard* __not_in_flash_func(VectorCore::getKeyboard)()
     return m_keyboard;
 }
 
+namespace {
+FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, VectorFloppyDrive drive)
+{
+    return drive == VectorFloppyDrive::A ? diskA : diskB;
+}
+}
+
 bool VectorCore::assignDiskAFileName(const std::string& fileName)
 {
-    return m_diskA && m_diskA->assignFileName(fileName);
+    if (!m_diskA)
+        return false;
+    const std::string fullFileName = fileName.empty() ? std::string() : palMakeFullFileName(fileName);
+    const bool duplicate = m_diskB && m_diskB->getImagePresent() && m_diskB->getFileName() == fullFileName;
+    return m_diskA->assignFileName(fullFileName, duplicate);
 }
 
-bool VectorCore::diskAImagePresent()
+bool VectorCore::floppyImagePresent(VectorFloppyDrive drive) const
 {
-    return m_diskA && m_diskA->getImagePresent();
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    return disk && disk->getImagePresent();
 }
 
-
-std::string VectorCore::getDiskAFileName() const
+bool VectorCore::floppyImageReadOnly(VectorFloppyDrive drive) const
 {
-    return m_diskA ? m_diskA->getFileName() : std::string();
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    return disk && disk->getImagePresent() && disk->getWriteProtectStatus();
 }
 
-
-void VectorCore::chooseDiskAImage()
+std::string VectorCore::getFloppyFileName(VectorFloppyDrive drive) const
 {
-    if (m_diskA)
-        m_diskA->chooseFile();
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    return disk ? disk->getFileName() : std::string();
 }
 
-
-void VectorCore::ejectDiskAImage()
+void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
 {
-    if (m_diskA)
-        m_diskA->assignFileName("");
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* other = selectFloppy(m_diskA, m_diskB, drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
+    if (!disk)
+        return;
+    const std::string fileName = disk->chooseFileName();
+    if (fileName.empty())
+        return;
+    const std::string fullFileName = palMakeFullFileName(fileName);
+    const bool duplicate = other && other->getImagePresent() && other->getFileName() == fullFileName;
+    disk->assignFileName(fullFileName, duplicate);
 }
 
-bool VectorCore::diskBImagePresent() const
+void VectorCore::ejectFloppyImage(VectorFloppyDrive drive)
 {
-    return m_diskB && m_diskB->getImagePresent();
-}
-
-std::string VectorCore::getDiskBFileName() const
-{
-    return m_diskB ? m_diskB->getFileName() : std::string();
-}
-
-void VectorCore::chooseDiskBImage()
-{
-    if (m_diskB)
-        m_diskB->chooseFile();
-}
-
-void VectorCore::ejectDiskBImage()
-{
-    if (m_diskB)
-        m_diskB->assignFileName("");
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    if (disk)
+        disk->assignFileName("");
 }
