@@ -197,6 +197,10 @@ class VectorCore
         std::string getDiskAFileName() const;
         void chooseDiskAImage();
         void ejectDiskAImage();
+        bool diskBImagePresent() const;
+        std::string getDiskBFileName() const;
+        void chooseDiskBImage();
+        void ejectDiskBImage();
 
         void vrtc(bool isActive);
         void inte(bool isActive);

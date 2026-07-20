@@ -128,8 +128,67 @@ static const MenuPage driveAPage {
     nullptr
 };
 
+// --- Storage / Drive B ----------------------------------------------------
+
+char driveBTitleBuffer[96];
+
+const char* driveBTitle()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    const std::string fileName = core ? core->getDiskBFileName() : std::string();
+    if (fileName.empty())
+        return "Drive B: empty";
+
+    const size_t slash = fileName.find_last_of("/\\");
+    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
+    static constexpr char prefix[] = "Drive B: ";
+    const size_t prefixLen = sizeof(prefix) - 1;
+    std::memcpy(driveBTitleBuffer, prefix, prefixLen);
+
+    const size_t maxBaseLen = sizeof(driveBTitleBuffer) - prefixLen - 1;
+    const size_t baseLen = std::min(std::strlen(base), maxBaseLen);
+    std::memcpy(driveBTitleBuffer + prefixLen, base, baseLen);
+    driveBTitleBuffer[prefixLen + baseLen] = '\0';
+    return driveBTitleBuffer;
+}
+
+bool driveBHasImage()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->diskBImagePresent();
+}
+
+void driveBInsert()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->chooseDiskBImage();
+}
+
+void driveBEject()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->ejectDiskBImage();
+}
+
+static const MenuItem driveBItems[] = {
+    {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr},
+    {"Eject", nullptr, nullptr, driveBEject, driveBHasImage},
+};
+
+static const MenuPage driveBPage {
+    "Drive B",
+    driveBTitle,
+    driveBItems,
+    static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])),
+    nullptr,
+    nullptr
+};
+
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr},
+    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr},
 };
 
 static const MenuPage storagePage {
