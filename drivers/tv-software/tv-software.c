@@ -2,6 +2,7 @@
 //программный композит
 #include <stdio.h>
 #include "graphics.h"
+#include "font8x8.h"
 #include "hardware/clocks.h"
 #include <stdalign.h>
 
@@ -18,23 +19,21 @@
 
 static uint8_t map64colors[64] = { 0 };
 
-typedef struct tv_out_mode_t {
-    // double color_freq;
-    float color_index;
-    COLOR_FREQ_t c_freq;
-    enum graphics_mode_t mode_bpp;
-    g_out_TV_t tv_system;
-    NUM_TV_LINES_t N_lines;
-    bool cb_sync_PI_shift_lines;
-    bool cb_sync_PI_shift_half_frame;
-} tv_out_mode_t;
-
 //параметры по умолчанию
+// Вектор-06Ц выдаёт PAL, и кадровый буфер эмулятора повторяет его развёртку,
+// поэтому PAL здесь основной режим. NTSC остаётся собираемым по ключу TV_NTSC.
 tv_out_mode_t tv_out_mode = {
+#if defined(TV_NTSC)
     .tv_system = g_TV_OUT_NTSC,
     .N_lines = _524_lines,
     .mode_bpp = GRAPHICSMODE_DEFAULT,
     .c_freq = _3579545,
+#else
+    .tv_system = g_TV_OUT_PAL,
+    .N_lines = _624_lines,
+    .mode_bpp = GRAPHICSMODE_DEFAULT,
+    .c_freq = _4433619,
+#endif
     .color_index = 1.0, //0-1
     .cb_sync_PI_shift_lines = false,
     .cb_sync_PI_shift_half_frame = true
@@ -107,9 +106,13 @@ static TV_MODE video_mode = {
 static G_BUFFER graphics_buffer = {
     .shift_x = 0,
     .shift_y = 0,
-    .height = 240,
-    .width = 320
+    .height = 288,   // PAL: столько строк рисует эмулятор
+    .width = 626
 };
+
+// Указатель на кадровый буфер. Прежний набросок его не сохранял вовсе и брал
+// строки через внешний getLineBuffer() из порта ZX Spectrum.
+static uint8_t* graphics_framebuffer = NULL;
 
 
 //пины
@@ -437,8 +440,13 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 }
 
 
-uint8_t* getLineBuffer(int line);
-void ESPectrum_vsync();
+// Строка кадрового буфера. Шаг строки равен ширине: эмулятор пишет
+// в буфер 626 x 288 именно так.
+static inline uint8_t* getLineBuffer(int line) {
+    if (!graphics_framebuffer || line < 0 || line >= (int)graphics_buffer.height)
+        return NULL;
+    return graphics_framebuffer + (uint)line * graphics_buffer.width;
+}
 
 //основная функция заполнения буферов видеоданных
 static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) {
@@ -878,30 +886,40 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
             switch (tv_out_mode.N_lines) {
                 case _624_lines:
                 case _625_lines:
-                    di = (tv_out_mode.c_freq == _4433619) ? 0xD7 / 2 : 0x10B / 2;
                     d_end = (tv_out_mode.c_freq == _4433619) ? 152 : 118;
                     buffer_shift = (tv_out_mode.c_freq == _4433619) ? 72 : 60;
-                    if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; }; //-23
-                    if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; }; //-335
-                    y -= 24;
+                    // Прежний вычет 24 строк подгонял 240-строчную картинку
+                    // порта ZX под центр PAL-кадра. У нас строк 288, то есть
+                    // почти вся активная область, и подгонять нечего.
+                    if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; };
+                    if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; };
                     break;
                 case _524_lines:
                 case _525_lines:
-                    di = (tv_out_mode.c_freq == _4433619) ? 0xB6 / 2 : 0xDE / 2;
 
 
                     if ((line_active > 8) && (line_active < 262)) { y = line_active - 20; };
                     if ((line_active > 271)) { y = line_active - 282; };
                     break;
             }
+            // Высота берётся из кадрового буфера: у Вектора это 288 строк PAL,
+            // а не 240, как было жёстко записано в наброске
+            const int img_H = (int)graphics_buffer.height;
+            // Коэффициент сжатия считается по фактической ширине кадрового
+            // буфера, а не берётся готовой константой под 320 пикселей:
+            // источник у нас 626 точек в строке.
+            {
+                const int outW = video_mode.img_W - d_end;
+                if (outW > 0 && graphics_buffer.width > 0)
+                    di = (uint16_t)((0x100u * graphics_buffer.width) / (uint)outW);
+                if (di == 0) di = 1;
+            }
+
             uint8_t* input_buffer = NULL;
-            if (y < 240 && y >= 0) {
+            if (y < img_H && y >= 0) {
                 input_buffer = getLineBuffer(y);
             }
-            if (y == 240) { // last line passed
-                ESPectrum_vsync();
-            }
-            if ((y >= 240) || (y < 0) || (input_buffer == NULL)) {
+            if ((y >= img_H) || (y < 0) || (input_buffer == NULL)) {
                 //вне изображения
                 memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W);
             }
@@ -918,7 +936,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                         case GRAPHICSMODE_DEFAULT: {
                             // для 8-битного буфера
                             register size_t x = 0;
-                            register uint8_t c = input_buffer[(x++) ^ 2];
+                            register uint8_t c = input_buffer[x++];
                             // todo bgcolor
                             uint8_t color = graphics_buffer.shift_x ? 200 : map64colors[c & 0b00111111];
                             uint32_t cout32 = conv_color[li][color];
@@ -929,7 +947,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                                 *output_buffer8++ = c_4[i % 4];
                                 next_ibuf -= di;
                                 if (next_ibuf <= 0) {
-                                    c = input_buffer[(x++) ^ 2];
+                                    c = input_buffer[x++];
                                     if (x > graphics_buffer.shift_x && x < graphics_buffer.shift_x + graphics_buffer.
                                         width) {
                                         color = map64colors[c & 0b00111111];
@@ -959,6 +977,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
+    graphics_framebuffer = buffer;
     graphics_buffer.width = width;
     graphics_buffer.height = height;
 }
@@ -1184,4 +1203,101 @@ void graphics_set_mode(const enum graphics_mode_t mode) {
      // tv_out_mode.color_index = tv_out_mode.color_index < 1 ? 0 : 1;
     graphics_set_modeTV(tv_out_mode);
 ///    clrScr(0);
+}
+
+
+// ---------------------------------------------------------------------------
+//  Примитивы рисования.
+//
+//  В наброске их не было вовсе: они реализованы в vga.c, и сборка с SOFTTV
+//  просто не линковалась. Реализация повторяет вариант VGA, включая
+//  включительные границы у rect и fill — на них рассчитан код меню.
+// ---------------------------------------------------------------------------
+
+uint32_t graphics_get_width() {
+    return graphics_buffer.width;
+}
+
+uint32_t graphics_get_height() {
+    return graphics_buffer.height;
+}
+
+uint8_t* graphics_get_frame() {
+    return graphics_framebuffer;
+}
+
+uint32_t graphics_get_font_width() {
+    return 8;
+}
+
+uint32_t graphics_get_font_height() {
+    return 8;
+}
+
+void graphics_set_duplicateLines(bool v) {
+    (void)v;
+}
+
+void graphics_inc_x(void) {}
+void graphics_dec_x(void) {}
+void graphics_inc_y(void) {}
+void graphics_dec_y(void) {}
+
+static inline void _plot(int32_t x, int32_t y, uint8_t color) {
+    if (!graphics_framebuffer) return;
+    if (x < 0 || x >= (int32_t)graphics_buffer.width) return;
+    if (y < 0 || y >= (int32_t)graphics_buffer.height) return;
+    graphics_framebuffer[graphics_buffer.width * y + x] = color;
+}
+
+static void tv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t color) {
+    if (x0 == x1) {
+        if (y1 < y0) { int32_t t = y0; y0 = y1; y1 = t; }
+        for (int32_t yi = y0; yi <= y1; ++yi) _plot(x0, yi, color);
+        return;
+    }
+    if (y0 == y1) {
+        if (x1 < x0) { int32_t t = x0; x0 = x1; x1 = t; }
+        for (int32_t xi = x0; xi <= x1; ++xi) _plot(xi, y0, color);
+        return;
+    }
+    const int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    const int32_t dy = y1 > y0 ? y1 - y0 : y0 - y1;
+    if (dx > dy) {
+        for (int32_t xi = 0; xi <= dx; ++xi)
+            _plot(x0 + (x1 > x0 ? xi : -xi), y0 + (y1 > y0 ? xi * dy / dx : -(xi * dy / dx)), color);
+    } else {
+        for (int32_t yi = 0; yi <= dy; ++yi)
+            _plot(x0 + (x1 > x0 ? yi * dx / dy : -(yi * dx / dy)), y0 + (y1 > y0 ? yi : -yi), color);
+    }
+}
+
+void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t color) {
+    const int32_t x1 = x0 + (int32_t)width;
+    const int32_t y1 = y0 + (int32_t)height;
+    tv_line(x0, y0, x1, y0, color);
+    tv_line(x1, y0, x1, y1, color);
+    tv_line(x1, y1, x0, y1, color);
+    tv_line(x0, y1, x0, y0, color);
+}
+
+void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
+    const int32_t x1 = x0 + (int32_t)width;
+    const int32_t y1 = y0 + (int32_t)height;
+    for (int32_t xi = x0; xi <= x1; ++xi)
+        tv_line(xi, y0, xi, y1, bgcolor);
+}
+
+void graphics_type(int x, int y, uint8_t color, const char* msg, size_t msg_len) {
+    for (size_t i = 0; i < msg_len; ++i) {
+        const uint8_t ch = (uint8_t)msg[i];
+        const uint8_t* glyph = font_8x8 + ch * 8;
+        const uint32_t xt = x + i * graphics_get_font_width();
+        for (uint32_t j = 0; j < graphics_get_font_height(); ++j) {
+            const uint8_t row = glyph[j];
+            for (uint32_t k = 0; k < 8; ++k)
+                if (row & (1u << k))
+                    _plot(xt + k, y + j, color);
+        }
+    }
 }

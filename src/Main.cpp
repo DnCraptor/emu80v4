@@ -659,17 +659,8 @@ void __not_in_flash_func(render_core)() {
 }
 
 #if SOFTTV
-typedef struct tv_out_mode_t {
-    // double color_freq;
-    float color_index;
-    COLOR_FREQ_t c_freq;
-    enum graphics_mode_t mode_bpp;
-    g_out_TV_t tv_system;
-    NUM_TV_LINES_t N_lines;
-    bool cb_sync_PI_shift_lines;
-    bool cb_sync_PI_shift_half_frame;
-} tv_out_mode_t;
-extern tv_out_mode_t tv_out_mode;
+// tv_out_mode_t и сам tv_out_mode объявлены в tv-software.h,
+// который подтягивается через graphics.h
 
 bool color_mode=true;
 bool toggle_color() {

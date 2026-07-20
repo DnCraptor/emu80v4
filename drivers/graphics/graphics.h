@@ -13,6 +13,14 @@ extern "C" {
 #include "stdio.h"
 #include "stdint.h"
 
+// Режим вывода. Перечисление используют драйверы st7789, hdmi, tv и
+// tv-software, а также Main.cpp, но объявлено оно не было нигде — сборка
+// с любым из них, кроме VGA, не проходила.
+enum graphics_mode_t {
+    GRAPHICSMODE_DEFAULT = 0,
+    TEXTMODE_DEFAULT,
+};
+
 #ifdef TFT
 #include "st7789.h"
 #endif
