@@ -151,6 +151,7 @@ extern void processKeys();
 
 void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 {
+    m_lastExecDidWork = false;
     processKeys();
     // forced означает «выполнить несмотря ни на что»: так загрузчик .fdd
     // прокручивает 25 млн тактов, чтобы ПЗУ успело загрузиться с дискеты.
@@ -208,6 +209,7 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
             uint64_t cpuClock;
             while (m_curClock < toTime && (cpuClock = m_cpuDev->getClock()) < cpuLimit) {
                 m_curClock = cpuClock;
+                m_lastExecDidWork = true;
                 m_cpuDev->operate();
             }
         }
@@ -216,6 +218,7 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
             break;
 
         m_curClock = next;
+        m_lastExecDidWork = true;
         nextDev->operate();
     }
 
@@ -357,14 +360,19 @@ void Emulation::mainLoopCycle()
     const uint64_t cntBeforeExec = palGetCounter();
     exec(ticks);
     uint64_t cntAfterExec = palGetCounter();
+    if (m_lastExecDidWork)
+        m_perfWindowBusy += cntAfterExec - cntBeforeExec;
 
     int nn = 1;
     static int avgNn = 1;
     if (m_fullThrottle) {
         while (cntAfterExec - cntBeforeExec < (dt * 7 / 8)) {
             nn++;
+            const uint64_t repeatBeforeExec = palGetCounter();
             exec(ticks);
             cntAfterExec = palGetCounter();
+            if (m_lastExecDidWork)
+                m_perfWindowBusy += cntAfterExec - repeatBeforeExec;
         }
         avgNn = (2 * avgNn + nn) / 3;
         m_mixer->setFrequency(m_frequency * avgNn);
@@ -377,9 +385,11 @@ void Emulation::mainLoopCycle()
     if (m_isPaused) {
         m_fpsWindowStart = 0;
         m_fpsWindowFrames = m_renderedFrames;
+        m_perfWindowBusy = 0;
     } else if (m_fpsWindowStart == 0) {
         m_fpsWindowStart = cntAfterExec;
         m_fpsWindowFrames = m_renderedFrames;
+        m_perfWindowBusy = 0;
     } else {
         const uint64_t elapsed = cntAfterExec - m_fpsWindowStart;
         const uint64_t window = palGetCounterFreq() / 2;
@@ -387,9 +397,14 @@ void Emulation::mainLoopCycle()
             const uint64_t frames = m_renderedFrames - m_fpsWindowFrames;
             m_videoFps = static_cast<unsigned>(
                 (frames * palGetCounterFreq() + elapsed / 2) / elapsed);
+            uint64_t busy = m_perfWindowBusy;
+            if (busy > elapsed)
+                busy = elapsed;
+            m_cpuLoad = static_cast<unsigned>((busy * 100 + elapsed / 2) / elapsed);
             m_fpsReady = true;
             m_fpsWindowStart = cntAfterExec;
             m_fpsWindowFrames = m_renderedFrames;
+            m_perfWindowBusy = 0;
         }
     }
 

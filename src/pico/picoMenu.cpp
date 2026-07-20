@@ -101,6 +101,7 @@ void cpuClockSetValue(int value)
 
 
 char cpuFpsStatusBuffer[24];
+char cpuLoadStatusBuffer[24];
 
 char* appendText(char* dst, const char* text)
 {
@@ -139,6 +140,19 @@ const char* cpuFpsStatus()
     return cpuFpsStatusBuffer;
 }
 
+
+const char* cpuLoadStatus()
+{
+    if (!g_emulation || !g_emulation->performanceStatsReady())
+        return "CPU Load: measuring...";
+
+    char* dst = appendText(cpuLoadStatusBuffer, "CPU Load: ");
+    dst = appendUnsigned(dst, g_emulation->getCpuLoad());
+    *dst++ = '%';
+    *dst = '\0';
+    return cpuLoadStatusBuffer;
+}
+
 static const MenuItem cpuClockItems[] = {
     {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
@@ -150,6 +164,7 @@ static const MenuItem cpuClockItems[] = {
     {"24 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {nullptr, cpuFpsStatus, nullptr, nullptr, menuItemDisabled, nullptr},
+    {nullptr, cpuLoadStatus, nullptr, nullptr, menuItemDisabled, nullptr},
 };
 
 static const MenuPage cpuClockPage {

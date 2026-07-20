@@ -81,6 +81,7 @@ class Emulation
         void notifyFrameRendered() {++m_renderedFrames;}
         bool performanceStatsReady() const {return m_fpsReady;}
         unsigned getVideoFps() const {return m_videoFps;}
+        unsigned getCpuLoad() const {return m_cpuLoad;}
 
         inline uint64_t getCurClock() {return m_curClock;}
         inline SoundMixer* getSoundMixer() {return m_mixer;}
@@ -125,10 +126,13 @@ class Emulation
 
         uint64_t m_curClock = 0;
 
+        bool m_lastExecDidWork = false;
         uint64_t m_renderedFrames = 0;
         uint64_t m_fpsWindowStart = 0;
         uint64_t m_fpsWindowFrames = 0;
+        uint64_t m_perfWindowBusy = 0;
         unsigned m_videoFps = 0;
+        unsigned m_cpuLoad = 0;
         bool m_fpsReady = false;
 
         SoundMixer* m_mixer = nullptr;
