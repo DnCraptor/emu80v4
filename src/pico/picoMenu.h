@@ -17,6 +17,10 @@ void palMainMenuShift(int dx, int dy);
 
 // Автоповтор для клавиш сдвига; реализация в Main.cpp
 void palShiftKeysTick();
+
+// Опрос клавиатуры и USB из основного цикла: нужен, когда ядро 1 занято
+// кодированием HDMI. Реализация в Main.cpp.
+void palInputTick();
 int palMainMenuOriginX();
 int palMainMenuOriginY();
 

@@ -32,6 +32,9 @@
 #include "Pal.h"
 #include "Emulation.h"
 #include "pico/picoMenu.h"
+#ifdef HDMI_DVI
+#include "hdmi-dvi.h"
+#endif
 
 #pragma GCC optimize("Ofast")
 
@@ -603,6 +606,16 @@ static void applyShiftKey(PalKeyCode vk, bool pressed) {
     s_shiftRepeatAt = time_us_64() + c_shiftDelayUs;
 }
 
+// При HDMI ядро 1 занято кодированием, поэтому ввод обслуживается отсюда.
+// Внутри repeat_me_for_input стоит собственное ограничение в 60 Гц, так что
+// вызывать её на каждой итерации основного цикла не накладно.
+void palInputTick() {
+#ifdef HDMI_DVI
+    extern void repeat_me_for_input();
+    repeat_me_for_input();
+#endif
+}
+
 void palShiftKeysTick() {
     if (s_shiftKey == PalKeyCode::PK_NONE)
         return;
@@ -703,10 +716,17 @@ void __not_in_flash_func(render_core)() {
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
     sem_acquire_blocking(&vga_start_semaphore);
+#ifdef HDMI_DVI
+    // libdvi занимает ядро целиком: кодирование TMDS идёт непрерывно и
+    // возврата из цикла нет. Опрос клавиатуры и USB переезжает на core0,
+    // в palShiftKeysTick рядом с остальными тиками основного цикла.
+    hdmi_dvi_core_loop();
+#else
     while (true) {
         repeat_me_for_input();
         tight_loop_contents();
     }
+#endif
     __unreachable();
 }
 
@@ -915,7 +935,7 @@ void __not_in_flash() flash_timings() {
 int main() {
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
-#if CPU_MHZ > 500
+#if CPU_MHZ > 440
     vreg_set_voltage(VREG_VOLTAGE_1_60); // TODO: dynamic per CPU freq.
 #else
     vreg_set_voltage(VREG_VOLTAGE_1_50);
@@ -978,5 +998,6 @@ int main() {
     palInit(argc, (char**)argv);
     (new Emulation)->init(); // g_emulation присваивается в конструкторе
     palExecute();
+ //while(1);
     __unreachable();
 }

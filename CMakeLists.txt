@@ -24,13 +24,12 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
-set(SOFTTV ON)
+#set(SOFTTV ON)
 #set(TV_NTSC ON)
-#set(TFT ON)
-#set(ILI9341 ON)
 #set(VGA_DRV ON)
-#set(HDMI ON)
+set(HDMI_DVI ON)
 
+#ignored for HDMI
 #set(CPU_MHZ 366)
 #set(CPU_MHZ 372)
 #set(CPU_MHZ 378)
@@ -40,8 +39,21 @@ set(SOFTTV ON)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set(CPU_MHZ 520)
+set(CPU_MHZ 500)
+#set(CPU_MHZ 520)
+
 set (PORT_VERSION "0.5.5")
+
+# При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
+# системной, а 800x600@72 требует ровно 500 МГц. Задать это надо здесь:
+# ниже CPU_MHZ уходит в target_compile_definitions, и присваивание внутри
+# ветки выбора видеодрайвера было бы уже поздним и молча не сработало.
+IF(HDMI_DVI)
+    IF(NOT CPU_MHZ EQUAL 500)
+        message(STATUS ">>> HDMI_DVI: CPU_MHZ принудительно 500 (было ${CPU_MHZ})")
+    ENDIF()
+    SET(CPU_MHZ 500)
+ENDIF()
 
 
 set(KBDUSB ON)
@@ -82,6 +94,12 @@ add_subdirectory(drivers/hdmi)
 add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
 add_subdirectory(drivers/graphics)
+IF(HDMI_DVI)
+    # libdvi берётся из PICO-BK: скопировать drivers/libdvi в дерево,
+    # убрав из его CMakeLists строку с bk.c (это склейка под БК-0010)
+    add_subdirectory(drivers/libdvi)
+    add_subdirectory(drivers/hdmi-dvi)
+ENDIF()
 add_subdirectory(drivers/psram)
 
 #target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
@@ -271,6 +289,27 @@ ELSEIF(TV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE TV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv)
     SET(BUILD_NAME "${BUILD_NAME}-TV-${PORT_VERSION}")
+ELSEIF(HDMI_DVI)
+    # VESA DMT 800x600@72: пиксельная 50.0 МГц ровно, битовая 500 МГц,
+    # делитель PIO единичный.
+    #
+    # Конфигурация выводов берётся по плате: у murmulator 1.x разъём HDMI
+    # начинается с GPIO 6 (данные 8/10/12, такт 6), у murmulator 2.0 —
+    # с GPIO 12 (данные 14/16/18, такт 12). Обе таблицы есть в libdvi,
+    # в common_dvi_pin_configs.h.
+    IF(${PICO_BOARD} MATCHES "murmulator2")
+        SET(DVI_PIN_CFG murmulator2_cfg)
+    ELSE()
+        SET(DVI_PIN_CFG murmulator_cfg)
+    ENDIF()
+    message(STATUS ">>> DVI_DEFAULT_SERIAL_CONFIG=${DVI_PIN_CFG}")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        HDMI_DVI
+        DVI_DEFAULT_SERIAL_CONFIG=${DVI_PIN_CFG}
+        DVI_N_TMDS_BUFFERS=3
+    )
+    target_link_libraries(${PROJECT_NAME} PRIVATE hdmi-dvi)
+    SET(BUILD_NAME "${BUILD_NAME}-HDMI-DVI-${PORT_VERSION}")
 ELSEIF(SOFTTV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE SOFTTV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv-software)

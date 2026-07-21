@@ -33,6 +33,10 @@ enum graphics_mode_t {
 #ifdef TV
 #include "tv.h"
 #endif
+#ifdef HDMI_DVI
+#include "hdmi-dvi.h"
+#endif
+
 #ifdef SOFTTV
 #include "tv-software.h"
 #endif
