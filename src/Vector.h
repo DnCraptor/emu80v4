@@ -203,6 +203,7 @@ class VectorCore
         bool assignDiskAFileName(const std::string& fileName, bool readOnly = false);
         bool floppyImagePresent(VectorFloppyDrive drive) const;
         bool floppyImageReadOnly(VectorFloppyDrive drive) const;
+        bool floppyReadOnlyMode(VectorFloppyDrive drive) const;
         bool canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const;
         void setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly);
         std::string getFloppyFileName(VectorFloppyDrive drive) const;
@@ -251,6 +252,7 @@ class VectorCore
         VectorHddRegisters* m_hddRegisters = nullptr;
         FdImage* m_diskA = nullptr;
         FdImage* m_diskB = nullptr;
+        bool m_floppyReadOnlyMode[2] = {false, false};
         DiskImage* m_hdd = nullptr;
         VectorFileLoader* m_loader = nullptr;
         TapeRedirector* m_tapeInFile = nullptr;

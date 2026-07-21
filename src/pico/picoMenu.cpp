@@ -198,12 +198,13 @@ const char* driveTitle(VectorFloppyDrive drive)
     const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
     const size_t prefixLen = sizeof(prefix) - 1;
     constexpr char readOnlySuffix[] = " (ro)";
+    constexpr char readWriteSuffix[] = " (rw)";
     const bool readOnly = core && core->floppyImageReadOnly(drive);
-    const size_t suffixLen = readOnly ? sizeof(readOnlySuffix) - 1 : 0;
+    const char* suffix = readOnly ? readOnlySuffix : readWriteSuffix;
+    const size_t suffixLen = sizeof(readOnlySuffix) - 1;
     const size_t baseLen = std::min(std::strlen(base), sizeof(driveTitleBuffer[0]) - prefixLen - suffixLen - 1);
     std::memcpy(buffer + prefixLen, base, baseLen);
-    if (readOnly)
-        std::memcpy(buffer + prefixLen + baseLen, readOnlySuffix, suffixLen);
+    std::memcpy(buffer + prefixLen + baseLen, suffix, suffixLen);
     buffer[prefixLen + baseLen + suffixLen] = '\0';
     return buffer;
 }
@@ -218,14 +219,14 @@ void driveEject(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVe
 bool driveReadOnly(VectorFloppyDrive drive)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->floppyImageReadOnly(drive);
+    return core && core->floppyReadOnlyMode(drive);
 }
 bool driveReadOnlyEnabled(VectorFloppyDrive drive)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (!core || !core->floppyImagePresent(drive))
+    if (!core)
         return false;
-    return core->floppyImageReadOnly(drive)
+    return core->floppyReadOnlyMode(drive)
         ? core->canSetFloppyReadOnly(drive, false)
         : core->canSetFloppyReadOnly(drive, true);
 }
@@ -233,7 +234,7 @@ void driveToggleReadOnly(VectorFloppyDrive drive)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
     if (core)
-        core->setFloppyReadOnly(drive, !core->floppyImageReadOnly(drive));
+        core->setFloppyReadOnly(drive, !core->floppyReadOnlyMode(drive));
 }
 
 const char* driveATitle() { return driveTitle(VectorFloppyDrive::A); }
@@ -253,12 +254,12 @@ void driveBToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::B); }
 
 static const MenuItem driveAItems[] = {
     {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr, nullptr},
-    {"Read only", nullptr, nullptr, driveAToggleReadOnly, driveAReadOnlyEnabled, driveAReadOnly},
+    {"Read only", nullptr, nullptr, driveAToggleReadOnly, driveAReadOnlyEnabled, driveAReadOnly, true},
     {"Eject", nullptr, nullptr, driveAEject, driveAHasImage, nullptr},
 };
 static const MenuItem driveBItems[] = {
     {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr, nullptr},
-    {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly},
+    {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly, true},
     {"Eject", nullptr, nullptr, driveBEject, driveBHasImage, nullptr},
 };
 char hddTitleBuffer[96];
@@ -591,6 +592,20 @@ void redrawMenu()
              menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
 }
 
+// Обновляет выбранный пункт родителя и текущую страницу. Текущая
+// страница рисуется последней, поэтому каскад остаётся поверх родителя.
+void redrawMenuAndParentItem()
+{
+    if (!menu.open)
+        return;
+    const int d = menu.depth;
+    if (d > 0) {
+        drawItem(*menu.stack[d - 1], menu.selected[d - 1], menu.selected[d - 1],
+                 menu.pageX[d - 1], menu.pageY[d - 1], menu.pageW[d - 1]);
+    }
+    redrawMenu();
+}
+
 
 // Перемещение выделения: перерисовываются ровно две строки
 void redrawSelection(int oldSel, int newSel)
@@ -757,7 +772,10 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         if (item.action) {
             item.action();
             if (item.keepOpen) {
-                redrawMenu();
+                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly)
+                    redrawMenuAndParentItem();
+                else
+                    redrawMenu();
                 return true;
             }
             palCloseMainMenu();

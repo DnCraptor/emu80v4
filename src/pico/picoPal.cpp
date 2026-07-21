@@ -212,9 +212,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     int visibleRows = (int)((listBottom - yb) / msi);
     if (visibleRows < 1) visibleRows = 1;
     PalFileInfo* selected_fi = nullptr;
-    bool openReadOnly = false;
-    if (readOnly)
-        *readOnly = false;
+    bool openReadOnly = readOnly && *readOnly;
 
     auto loadDirectory = [&]() {
         fileCount = 0;

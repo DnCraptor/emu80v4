@@ -1717,11 +1717,18 @@ bool VectorCore::floppyImageReadOnly(VectorFloppyDrive drive) const
     return disk && disk->getImagePresent() && disk->getWriteProtectStatus();
 }
 
+bool VectorCore::floppyReadOnlyMode(VectorFloppyDrive drive) const
+{
+    return m_floppyReadOnlyMode[static_cast<int>(drive)];
+}
+
 bool VectorCore::canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
-    if (!disk || !disk->getImagePresent())
+    if (!disk)
         return false;
+    if (!disk->getImagePresent())
+        return true;
     if (readOnly)
         return true;
 
@@ -1735,7 +1742,11 @@ bool VectorCore::canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) co
 void VectorCore::setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly)
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
-    if (disk && canSetFloppyReadOnly(drive, readOnly))
+    if (!disk || !canSetFloppyReadOnly(drive, readOnly))
+        return;
+
+    m_floppyReadOnlyMode[static_cast<int>(drive)] = readOnly;
+    if (disk->getImagePresent())
         disk->setWriteProtection(readOnly);
 }
 
@@ -1751,13 +1762,14 @@ void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
     FdImage* other = selectFloppy(m_diskA, m_diskB, drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
     if (!disk)
         return;
-    bool readOnly = false;
+    bool readOnly = m_floppyReadOnlyMode[static_cast<int>(drive)];
     const char* title = drive == VectorFloppyDrive::A
         ? "FDD-image file as A"
         : "FDD-image file as B";
     const std::string fileName = disk->chooseFileName(title, &readOnly);
     if (fileName.empty())
         return;
+    m_floppyReadOnlyMode[static_cast<int>(drive)] = readOnly;
     const std::string fullFileName = palMakeFullFileName(fileName);
     const bool duplicate = other && other->getImagePresent() && other->getFileName() == fullFileName;
     disk->assignFileName(fullFileName, readOnly || duplicate);
