@@ -607,8 +607,11 @@ bool palProbeAudioOutput()
     s_audioProbe[1] = audioRiseTimeUs(PWM_PIN1);
     s_audioProbe[2] = backFed ? 1 : 0;
 
-    s_audioI2S = !backFed
-              && s_audioProbe[0] < c_bareInputUs
+    // На некоторых I2S-модулях входы имеют внутреннюю подтяжку и тест
+    // backFed закономерно видит единицу. Отличительный признак здесь именно
+    // быстрое нарастание на обоих общих выводах; RC-фильтр PWM остаётся
+    // медленным независимо от установившегося уровня.
+    s_audioI2S = s_audioProbe[0] < c_bareInputUs
               && s_audioProbe[1] < c_bareInputUs;
 #endif
     return s_audioI2S;

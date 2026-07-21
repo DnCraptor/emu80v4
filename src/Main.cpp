@@ -677,8 +677,8 @@ bool toggle_color() {
 i2s_config_t i2s_config = {
 		.sample_freq = I2S_FREQUENCY, 
 		.channel_count = 2,
-		.data_pin = PWM_PIN0,
-		.clock_pin_base = PWM_PIN1,
+		.data_pin = AUDIO_DATA_PIN,
+		.clock_pin_base = AUDIO_CLOCK_PIN,
 		.pio = pio1,
 		.sm = 0,
         .dma_channel = 0,

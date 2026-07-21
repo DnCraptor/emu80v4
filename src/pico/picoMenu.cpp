@@ -370,7 +370,7 @@ const char* soundTitle()
 
 const char* soundOutputTitle()
 {
-    return palAudioIsI2S() ? "Output: I2S" : "Output: PWM";
+    return palAudioIsI2S() ? "Switch to PWM" : "Switch to I2S";
 }
 
 bool soundOutputEnabled()
