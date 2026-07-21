@@ -14,6 +14,7 @@
 #include "../Emulation.h"
 #include "../Vector.h"
 #include "../SoundMixer.h"
+#include "pico/picoPal.h"
 
 namespace {
 
@@ -361,7 +362,31 @@ static const MenuItem storageItems[] = {
     {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
-static const MenuPage soundPage     {"Sound", nullptr, nullptr, 0, nullptr, nullptr};
+
+const char* soundTitle()
+{
+    return palAudioIsI2S() ? "Sound (I2S)" : "Sound (PWM)";
+}
+
+const char* soundOutputTitle()
+{
+    return palAudioIsI2S() ? "Output: I2S" : "Output: PWM";
+}
+
+bool soundOutputEnabled()
+{
+    return palAudioOutputCanSwitch();
+}
+
+void toggleSoundOutput()
+{
+    palSetAudioOutputI2S(!palAudioIsI2S());
+}
+
+static const MenuItem soundItems[] = {
+    {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
+};
+static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
@@ -373,7 +398,7 @@ static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
-    {"Sound", nullptr, &soundPage, nullptr, nullptr, nullptr},
+    {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
     {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
@@ -772,7 +797,8 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         if (item.action) {
             item.action();
             if (item.keepOpen) {
-                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly)
+                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
+                    || item.action == toggleSoundOutput)
                     redrawMenuAndParentItem();
                 else
                     redrawMenu();

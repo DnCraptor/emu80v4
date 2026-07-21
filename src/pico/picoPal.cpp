@@ -524,7 +524,17 @@ extern i2s_config_t i2s_config;
 // ===========================================================================
 
 static bool s_audioI2S = false;
+static bool s_audioOutputInitialized = false;
 bool palAudioIsI2S() {return s_audioI2S;}
+
+bool palAudioOutputCanSwitch()
+{
+#if defined(AUDIO_FORCE_PWM) || defined(AUDIO_FORCE_I2S)
+    return false;
+#else
+    return true;
+#endif
+}
 
 // Результаты прозвонки, доступны снаружи для отладки:
 // [0], [1] — время нарастания на PWM_PIN0 / PWM_PIN1, мкс
@@ -625,11 +635,12 @@ bool palProbeAudioOutput()
 static constexpr unsigned c_audioRingSize = 1024;
 static constexpr unsigned c_audioRingMask = c_audioRingSize - 1;
 
-// Оба канала в одном слове: младшая половина — левый, старшая — правый
+// Оба знаковых 16-битных канала в одном слове: младшая половина — левый,
+// старшая — правый. Квантование до 8 бит выполняется только в PWM callback.
 static uint32_t s_audioRing[c_audioRingSize];
 static volatile unsigned s_audioWrite = 0;
 static volatile unsigned s_audioRead = 0;
-static uint32_t s_audioLast = (uint32_t(128) << 16) | 128;
+static uint32_t s_audioLast = 0;
 static bool s_audioPaced = false;
 static repeating_timer_t s_audioTimer;
 
@@ -637,100 +648,174 @@ static repeating_timer_t s_audioTimer;
 static int s_audioErrL = 0;
 static int s_audioErrR = 0;
 
+extern i2s_config_t i2s_config;
+
+static void audioWritePwm(uint32_t sample)
+{
+    int xL = int(int16_t(sample & 0xFFFF)) + 32768 + s_audioErrL;
+    if (xL < 0) xL = 0; else if (xL > 0xFFFF) xL = 0xFFFF;
+    const uint16_t outL = uint16_t(unsigned(xL) >> 8);
+    s_audioErrL = xL - (int(outL) << 8);
+
+    int xR = int(int16_t(sample >> 16)) + 32768 + s_audioErrR;
+    if (xR < 0) xR = 0; else if (xR > 0xFFFF) xR = 0xFFFF;
+    const uint16_t outR = uint16_t(unsigned(xR) >> 8);
+    s_audioErrR = xR - (int(outR) << 8);
+
+    pwm_set_gpio_level(PWM_PIN0, outL);
+    pwm_set_gpio_level(PWM_PIN1, outR);
+}
+
 static bool __not_in_flash_func(audioTimerCb)(repeating_timer_t*)
 {
     if (s_audioRead != s_audioWrite) {
         s_audioLast = s_audioRing[s_audioRead];
         s_audioRead = (s_audioRead + 1) & c_audioRingMask;
     }
-    // При опустошении буфера удерживается последний уровень: эмуляция могла
-    // встать (диалог, пауза), и повторять по кругу старое содержимое нельзя.
-    pwm_set_gpio_level(PWM_PIN0, uint16_t(s_audioLast & 0xFFFF));
-    pwm_set_gpio_level(PWM_PIN1, uint16_t(s_audioLast >> 16));
+    if (s_audioI2S) {
+        if (!pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
+            pio_sm_put(i2s_config.pio, i2s_config.sm, s_audioLast);
+    } else {
+        audioWritePwm(s_audioLast);
+    }
     return true;
 }
 
-static void audioStartPacedOutput(int sampleRate)
+static void audioStopPacedOutput()
 {
-#if !defined(AUDIO_FORCE_I2S)
-    // i2s_init() внутри вызывает pio_claim_unused_sm(..., true) и
-    // pio_add_program(..., true) — оба при нехватке ресурсов делают panic().
-    // Пока определение типа платы не подтверждено на железе, тракт I2S
-    // поднимается только по явному требованию AUDIO_FORCE_I2S.
-    s_audioI2S = false;
-#endif
-    if (sampleRate <= 0)
+    if (s_audioPaced) {
+        cancel_repeating_timer(&s_audioTimer);
+        s_audioPaced = false;
+    }
+}
+
+static bool audioInitOutput(int sampleRate)
+{
+    if (s_audioI2S) {
+        i2s_config.sample_freq = sampleRate;
+        i2s_config.dma_trans_count = 0;
+        if (!i2s_init(&i2s_config))
+            return false;
+    } else {
+        pwm_config config = pwm_get_default_config();
+        pwm_config_set_clkdiv(&config, 1.0f);
+        pwm_config_set_wrap(&config, (1 << 8) - 1);
+        gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
+        gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
+        pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);
+        pwm_init(pwm_gpio_to_slice_num(PWM_PIN1), &config, true);
+    }
+    s_audioOutputInitialized = true;
+    return true;
+}
+
+static void audioDeinitOutput()
+{
+    if (!s_audioOutputInitialized)
         return;
+    if (s_audioI2S) {
+        i2s_deinit(&i2s_config);
+    } else {
+        const uint slice0 = pwm_gpio_to_slice_num(PWM_PIN0);
+        const uint slice1 = pwm_gpio_to_slice_num(PWM_PIN1);
+        pwm_set_enabled(slice0, false);
+        if (slice1 != slice0)
+            pwm_set_enabled(slice1, false);
+        gpio_deinit(PWM_PIN0);
+        gpio_deinit(PWM_PIN1);
+    }
+    s_audioOutputInitialized = false;
+}
+
+static bool audioStartPacedOutput(int sampleRate)
+{
+    if (sampleRate <= 0)
+        return false;
 
     const int periodUs = 1000000 / sampleRate;
     if (periodUs <= 0)
-        return;
+        return false;
 
     s_audioRead = 0;
     s_audioWrite = 0;
-    s_audioLast = (uint32_t(128) << 16) | 128;
+    s_audioLast = 0;
+    s_audioErrL = 0;
+    s_audioErrR = 0;
     for (unsigned i = 0; i < c_audioRingSize; i++)
-        s_audioRing[i] = s_audioLast;
+        s_audioRing[i] = 0;
 
-    // Отрицательная задержка — период отсчитывается от предыдущего срабатывания,
-    // а не от конца обработчика, поэтому частота не уплывает
     if (!add_repeating_timer_us(-periodUs, audioTimerCb, nullptr, &s_audioTimer))
-        return;
+        return false;
 
     s_audioPaced = true;
+    return true;
 }
 
 void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
-    // Перенос ошибки квантования в следующий отсчёт. ЦАП восьмибитный, простое
-    // отбрасывание младших восьми бит даёт равномерный шум по всей полосе.
-    // Накопление остатка сдвигает шум вверх по спектру и возвращает около 5 дБ
-    // в полосе до 8 кГц. Приём взят из pico-spec (pwm_audio.cpp).
-    int xL = int(left) + 32768 + s_audioErrL;
-    if (xL < 0) xL = 0; else if (xL > 0xFFFF) xL = 0xFFFF;
-    const uint16_t outL = uint16_t(unsigned(xL) >> 8);
-    s_audioErrL = xL - (int(outL) << 8);
-
-    int xR = int(right) + 32768 + s_audioErrR;
-    if (xR < 0) xR = 0; else if (xR > 0xFFFF) xR = 0xFFFF;
-    const uint16_t outR = uint16_t(unsigned(xR) >> 8);
-    s_audioErrR = xR - (int(outR) << 8);
+    const uint32_t sample = uint16_t(left) | (uint32_t(uint16_t(right)) << 16);
 
     if (!s_audioPaced) {
-        // Запасной путь: таймер не поднялся. По джиттеру это прежнее поведение,
-        // но звук есть — молчать здесь нельзя ни при каких обстоятельствах.
-        pwm_set_gpio_level(PWM_PIN0, outL);
-        pwm_set_gpio_level(PWM_PIN1, outR);
+        if (s_audioI2S) {
+            if (s_audioOutputInitialized
+                && !pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
+                pio_sm_put(i2s_config.pio, i2s_config.sm, sample);
+        } else if (s_audioOutputInitialized) {
+            audioWritePwm(sample);
+        }
         return;
     }
 
     const unsigned next = (s_audioWrite + 1) & c_audioRingMask;
-
-    // Буфер полон: эмулятор ушёл вперёд реального времени (перемотка ленты,
-    // догон после провала главного цикла). Отсчёт отбрасываем — это правильнее,
-    // чем затирать ещё не воспроизведённое.
     if (next == s_audioRead)
         return;
 
-    s_audioRing[s_audioWrite] = (uint32_t(outR) << 16) | outL;
+    s_audioRing[s_audioWrite] = sample;
     s_audioWrite = next;
 }
 
-bool isRunning = true;
-int sampleRate = 48000;
+int sampleRate = 50000;
 
-bool palSetSampleRate(int sampleRate)
+bool palSetSampleRate(int newSampleRate)
 {
-    // ВНИМАНИЕ: isRunning инициализируется значением true и нигде в дереве не
-    // сбрасывается, поэтому проверка ниже срабатывает всегда, а весь остаток
-    // функции недостижим. Запуск вывода поэтому вынесен ВЫШЕ неё — раньше он
-    // стоял под ней и не выполнялся ни разу.
-    if (!s_audioPaced)
-        audioStartPacedOutput(sampleRate);
-
-    if (isRunning)
+    if (newSampleRate <= 0)
         return false;
-    ::sampleRate = sampleRate;
+
+    if (s_audioOutputInitialized && newSampleRate == sampleRate)
+        return true;
+
+    audioStopPacedOutput();
+    audioDeinitOutput();
+    sampleRate = newSampleRate;
+    if (!audioInitOutput(sampleRate))
+        return false;
+    if (!audioStartPacedOutput(sampleRate)) {
+        audioDeinitOutput();
+        return false;
+    }
     return true;
+}
+
+bool palSetAudioOutputI2S(bool i2s)
+{
+    if (!palAudioOutputCanSwitch())
+        return i2s == s_audioI2S;
+    if (i2s == s_audioI2S)
+        return true;
+
+    const bool previous = s_audioI2S;
+    audioStopPacedOutput();
+    audioDeinitOutput();
+
+    s_audioI2S = i2s;
+    if (audioInitOutput(sampleRate) && audioStartPacedOutput(sampleRate))
+        return true;
+
+    audioStopPacedOutput();
+    audioDeinitOutput();
+    s_audioI2S = previous;
+    if (audioInitOutput(sampleRate))
+        audioStartPacedOutput(sampleRate);
+    return false;
 }
 
 int palGetSampleRate()

@@ -1,4 +1,4 @@
-﻿// Platform Abstraction Layer (pico version)
+// Platform Abstraction Layer (pico version)
 
 #ifndef PICOPAL_H
 #define PICOPAL_H
@@ -47,6 +47,8 @@ extern EmuLog emuLog;
 // Определение типа звукового выхода (ШИМ или I2S) при старте
 bool palProbeAudioOutput();
 bool palAudioIsI2S();
+bool palAudioOutputCanSwitch();
+bool palSetAudioOutputI2S(bool i2s);
 
 // Состояние SD-карты: монтирование при старте могло не удаться
 void palSetSdMounted(bool mounted);
