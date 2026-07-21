@@ -392,7 +392,84 @@ static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, 
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
 
 static const MenuPage systemPage {"System", nullptr, nullptr, 0, nullptr, nullptr};
-static const MenuPage aboutPage     {"About", nullptr, nullptr, 0, nullptr, nullptr};
+
+static bool s_aboutOpen = false;
+
+void drawAboutDialog()
+{
+    static const char* const lines[] = {
+        "Vector-06C emulator for",
+        "Murmulator 1.x / Murmulator 2.0",
+        "and Raspberry Pi Pico 2 (RP2350)",
+        "",
+        "This firmware is a port of the",
+        "Vector-06C platform from the",
+        "multi-system emulator emu80v4.",
+        "",
+        "Original emulator:",
+        "Victor Pykhonyn (Pyk)",
+        "https://emu80.org/",
+        "",
+        "Port author: @Michael_V1973",
+        "",
+        "Special thanks to Victor Pykhonyn (Pyk)",
+        "for his invaluable contribution to",
+        "preserving and promoting classic",
+        "8-bit computer platforms.",
+        "",
+        "Murmulator community:",
+        "https://t.me/ZX_MURMULATOR/279905",
+        "",
+        "Build: " __DATE__ " " __TIME__,
+        "",
+        "Enter / Esc - close"
+    };
+
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    const int visibleH = static_cast<int>(graphics_get_visible_height());
+    const int fontW = graphics_get_font_width();
+    const int fontH = graphics_get_font_height();
+    const int rowH = fontH + 2;
+    const int lineCount = static_cast<int>(sizeof(lines) / sizeof(lines[0]));
+
+    size_t longest = std::strlen("About");
+    for (const char* line : lines)
+        longest = std::max(longest, std::strlen(line));
+
+    int w = static_cast<int>(longest + 4) * fontW;
+    int h = fontH + 7 + lineCount * rowH + 4;
+    w = std::min(w, screenW - 8);
+    h = std::min(h, visibleH - 8);
+
+    // TV-out может сдвигать видимую область относительно framebuffer.
+    int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
+    int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
+    x = std::max(0, std::min(x, screenW - w));
+    y = std::max(0, std::min(y, screenH - h));
+
+    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
+    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
+
+    const char title[] = "About";
+    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, sizeof(title) - 1);
+
+    int lineY = y + fontH + 7;
+    for (const char* line : lines) {
+        const int len = static_cast<int>(std::strlen(line));
+        const int lineX = x + std::max(5, (w - len * fontW) / 2);
+        graphics_type(lineX, lineY, RGB888(0, 0, 0), line, len);
+        lineY += rowH;
+    }
+}
+
+void showAboutDialog()
+{
+    s_aboutOpen = true;
+    drawAboutDialog();
+}
 
 static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
@@ -403,7 +480,7 @@ static const MenuItem rootItems[] = {
     {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
-    {"About", nullptr, &aboutPage, nullptr, nullptr, nullptr},
+    {"About", nullptr, nullptr, showAboutDialog, nullptr, nullptr},
 };
 
 // Заголовок корневой страницы отражает установленное ядро
@@ -806,6 +883,15 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
     if (!menu.open)
         return false;
 
+    if (s_aboutOpen) {
+        if (isPressed && (keyCode == PK_ESC || keyCode == PK_ENTER
+                       || keyCode == PK_KP_ENTER || keyCode == PK_SPACE)) {
+            s_aboutOpen = false;
+            redrawMenu();
+        }
+        return true;
+    }
+
     if (!isPressed) {
         // Отпускание клавиши гасит автоповтор
         if (keyCode == menu.repeatKey)
@@ -858,6 +944,8 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
 
         if (item.action) {
             item.action();
+            if (s_aboutOpen)
+                return true;
             if (item.keepOpen) {
                 if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
                     || item.action == toggleSoundOutput)
