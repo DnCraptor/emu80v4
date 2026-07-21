@@ -5,7 +5,11 @@
 
 #define PIO_VIDEO pio0
 
+// База выхода по умолчанию. На конкретной плате переопределяется в .c по
+// VGA_BASE_PIN: композит сидит на том же резисторном ЦАП, что и VGA.
+#ifndef TV_BASE_PIN
 #define TV_BASE_PIN (6)
+#endif
 
 #define TEXTMODE_COLS 40
 #define TEXTMODE_ROWS 30

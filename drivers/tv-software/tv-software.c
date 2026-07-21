@@ -16,6 +16,16 @@
 #include "pico/stdlib.h"
 #include "stdlib.h"
 
+// Выход композита использует тот же резисторный ЦАП, что и VGA, поэтому база
+// берётся из заголовка платы. В наброске она была жёстко задана как 6, что на
+// murmulator2 попадает на SPI SD-карты (6, 7) и на аудио (9, 10), а самого
+// видео-ЦАП (12..19) касается лишь краем — картинки при этом нет.
+// Заголовок платы подключается через pico/stdlib.h, то есть уже виден здесь.
+#if defined(VGA_BASE_PIN)
+#undef TV_BASE_PIN
+#define TV_BASE_PIN VGA_BASE_PIN
+#endif
+
 // graphics_set_palette() принимает 24-битный цвет и разбирает его на R, G, B
 // сдвигами. Общий RGB888 из graphics.h — это, наоборот, упаковка в 6 бит
 // (по два на канал): именно такие байты эмулятор кладёт в кадровый буфер.
@@ -912,6 +922,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     // почти вся активная область, и подгонять нечего.
                     if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; };
                     if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; };
+                    if (y >= 0) y -= graphics_buffer.shift_y;
                     break;
                 case _524_lines:
                 case _525_lines:
@@ -919,6 +930,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
                     if ((line_active > 8) && (line_active < 262)) { y = line_active - 20; };
                     if ((line_active > 271)) { y = line_active - 282; };
+                    if (y >= 0) y -= graphics_buffer.shift_y;
                     break;
             }
             // Высота берётся из кадрового буфера: у Вектора это 288 строк PAL,
@@ -957,23 +969,31 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                             register size_t x = 0;
                             register uint8_t c = input_buffer[x++];
                             // todo bgcolor
-                            uint8_t color = graphics_buffer.shift_x ? 200 : map64colors[c & 0b00111111];
+                            uint8_t color = map64colors[c & 0b00111111];
                             uint32_t cout32 = conv_color[li][color];
                             uint8_t* c_4 = (uint8_t*)&cout32;
-                            output_buffer8 += buffer_shift;
+
+                            // Горизонтальный сдвиг картинки внутри строки.
+                            // Прежний код сравнивал shift_x с номером ИСХОДНОГО
+                            // пикселя и просто гасил всё за окном, а при любом
+                            // ненулевом сдвиге ещё и красил первый пиксель в
+                            // чёрный. Сдвигать надо точку, с которой начинается
+                            // вывод активной зоны в строку развёртки.
+                            {
+                                int shx = buffer_shift + graphics_buffer.shift_x;
+                                const int room = (int)(LINE_SIZE_MAX - video_mode.begin_img_shx)
+                                               - (video_mode.img_W - d_end);
+                                if (shx < 0) shx = 0;
+                                if (shx > room) shx = room > 0 ? room : 0;
+                                output_buffer8 += shx;
+                            }
 #pragma unroll(640)
                             for (int i = 0; i < video_mode.img_W - d_end; i++) {
                                 *output_buffer8++ = c_4[i % 4];
                                 next_ibuf -= di;
                                 if (next_ibuf <= 0) {
                                     c = input_buffer[x++];
-                                    if (x > graphics_buffer.shift_x && x < graphics_buffer.shift_x + graphics_buffer.
-                                        width) {
-                                        color = map64colors[c & 0b00111111];
-                                    }
-                                    else {
-                                        color = 200;
-                                    }
+                                    color = map64colors[c & 0b00111111];
                                     cout32 = conv_color[li][color];
                                     next_ibuf += 0x100;
                                 }
@@ -1212,10 +1232,13 @@ void graphics_set_duplicateLines(bool v) {
     (void)v;
 }
 
-void graphics_inc_x(void) {}
-void graphics_dec_x(void) {}
-void graphics_inc_y(void) {}
-void graphics_dec_y(void) {}
+// Сдвиг картинки с клавиатуры (серые + - * / на цифровом блоке).
+// В патче X это были заглушки, поэтому для TV кнопки не работали.
+// Для NTSC особенно нужно: реальных строк растра там меньше, чем строк кадра.
+void graphics_inc_x(void) { graphics_buffer.shift_x++; }
+void graphics_dec_x(void) { graphics_buffer.shift_x--; }
+void graphics_inc_y(void) { graphics_buffer.shift_y++; }
+void graphics_dec_y(void) { graphics_buffer.shift_y--; }
 
 static inline void _plot(int32_t x, int32_t y, uint8_t color) {
     if (!graphics_framebuffer) return;
