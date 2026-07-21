@@ -37,6 +37,10 @@
 // Начало области палитры под все 64 кода кадрового буфера. Индексы 64..127
 // свободны: по умолчанию там серая шкала, а именованные цвета лежат в 200..216.
 #define TV_PAL_BASE 64
+
+// Насколько приподнимается картинка в NTSC: верхняя рамка 16 строк плюс
+// половина от нехватки (256 - 242) / 2 = 7.
+#define c_ntscShiftY 23
 #pragma GCC optimize("Ofast")
 
 static uint8_t map64colors[64] = { 0 };
@@ -1064,6 +1068,13 @@ void graphics_init() {
     //установка параметров по умолчанию
     graphics_set_modeTV(tv_out_mode);
 
+    // У NTSC в растр попадает 242 строки из 288, снизу срезается 46.
+    // Активная часть кадра Вектора занимает строки 16..271 буфера, поэтому
+    // по умолчанию приподнимаем картинку, чтобы обрезка легла симметрично.
+    // Меню компенсирует этот сдвиг своим началом и остаётся на месте экрана.
+    if (tv_out_mode.N_lines == _524_lines || tv_out_mode.N_lines == _525_lines)
+        graphics_buffer.shift_y = -c_ntscShiftY;
+
     //настройки DMA
 
     //основной рабочий канал
@@ -1214,6 +1225,32 @@ uint32_t graphics_get_width() {
 
 uint32_t graphics_get_height() {
     return graphics_buffer.height;
+}
+
+// Сколько строк кадрового буфера реально попадает в растр. Границы те же, что
+// и в вычислении y при отрисовке строки. У NTSC строк заметно меньше высоты
+// буфера, и без этого низ окон оказывается за пределами экрана.
+int graphics_get_shift_y() {
+    return graphics_buffer.shift_y;
+}
+
+uint32_t graphics_get_visible_height() {
+    int last;
+    switch (tv_out_mode.N_lines) {
+        case _624_lines:
+        case _625_lines:
+            last = 309 - 23;   // line_active < 310, y = line_active - 23
+            break;
+        default:
+            last = 261 - 20;   // line_active < 262, y = line_active - 20
+            break;
+    }
+    last -= graphics_buffer.shift_y;
+    if (last < 0)
+        return 0;
+    if ((uint32_t)(last + 1) > graphics_buffer.height)
+        return graphics_buffer.height;
+    return (uint32_t)(last + 1);
 }
 
 uint8_t* graphics_get_frame() {

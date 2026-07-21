@@ -63,6 +63,14 @@ void clrScr(uint8_t color);
 
 uint32_t graphics_get_width();
 uint32_t graphics_get_height();
+
+// Сколько строк кадрового буфера реально видно. Для VGA совпадает с высотой,
+// для композита меньше — растр короче буфера, особенно у NTSC.
+uint32_t graphics_get_visible_height();
+
+// Текущий вертикальный сдвиг картинки. Нужен, чтобы меню могло встать на своё
+// место на экране: сдвиг двигает вместе с картинкой и всё нарисованное поверх.
+int graphics_get_shift_y();
 uint32_t graphics_get_font_width();
 uint32_t graphics_get_font_height();
 uint8_t* graphics_get_frame();

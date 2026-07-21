@@ -581,6 +581,17 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
     }
 }
 
+// Начало меню на экране. Пока меню открыто, кнопки сдвига двигают его, а не
+// картинку: иначе, сдвинув изображение для удобства, часть меню и файлового
+// диалога уезжает за пределы видимой области и вернуть её нечем.
+int s_menuOriginX = 0;
+int s_menuOriginY = 0;
+// Пока пользователь сам не подвинул меню, его начало подстраивается под
+// вертикальный сдвиг картинки: сдвиг двигает всё нарисованное в буфере,
+// включая само меню, и без компенсации в NTSC оно уехало бы вверх вместе
+// с картинкой.
+bool s_menuOriginMoved = false;
+
 struct MenuState {
     bool open = false;
     // Автоповтор навигации. Ни HID-слой, ни PS/2-слой повторов не шлют:
@@ -681,6 +692,61 @@ int pageWidth(const MenuPage& page)
     return static_cast<int>(longest + 4) * fontW;
 }
 
+
+// Геометрия одного уровня каскада. Корневой уровень стоит в начале меню,
+// подменю раскрывается вправо от родителя с выравниванием по выбранному пункту.
+void layoutLevel(int d)
+{
+    const int screenW = graphics_get_width();
+    const MenuPage& page = *menu.stack[d];
+
+    int nw = std::min(pageWidth(page), screenW - 4);
+    int nh = std::min(pageHeight(page), menu.screenH);
+    int nx, ny;
+
+    if (d == 0) {
+        nx = s_menuOriginX;
+        ny = s_menuOriginY;
+    } else {
+        const int fontH = graphics_get_font_height();
+        nx = menu.pageX[d - 1] + menu.pageW[d - 1] + 2;
+        ny = menu.pageY[d - 1] + fontH + 5 + menu.selected[d - 1] * (fontH + 3) - 2;
+    }
+
+    if (nx + nw + 4 > screenW) nx = std::max(0, screenW - nw - 4);
+    if (ny + nh + 4 > menu.screenH) ny = std::max(0, menu.screenH - nh - 4);
+    if (nx < 0) nx = 0;
+    if (ny < 0) ny = 0;
+
+    menu.pageX[d] = nx;
+    menu.pageY[d] = ny;
+    menu.pageW[d] = nw;
+    menu.pageH[d] = nh;
+}
+
+// Полная перекладка каскада: нужна при открытии меню и при его сдвиге.
+// Все уровни снимаются в обратном порядке, затем раскладываются заново
+// от нового начала и рисуются сверху вниз.
+//
+// Фон сохраняется и для корневого уровня. Раньше он не сохранялся, потому что
+// при закрытии кадр всё равно перерисовывается целиком, — но меню теперь можно
+// двигать, а без сохранённого фона сдвинутая страница оставляла бы за собой
+// след: стереть его нечем, эмуляция стоит на паузе.
+void relayoutMenu()
+{
+    for (int d = menu.depth; d >= 0; --d)
+        popBackground(d);
+    s_backupUsed = 0;
+
+    for (int d = 0; d <= menu.depth; ++d) {
+        layoutLevel(d);
+        pushBackground(d, menu.pageX[d], menu.pageY[d],
+                       menu.pageW[d] + 5, menu.pageH[d] + 5);
+        drawPage(*menu.stack[d], menu.selected[d],
+                 menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
+    }
+}
+
 } // namespace
 
 void palOpenMainMenu()
@@ -699,23 +765,22 @@ void palOpenMainMenu()
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
 
-    // Главное меню фон не сохраняет: закрывается оно вместе со снятием паузы,
-    // и рендерер перерисует кадр целиком за один проход
     s_backupUsed = 0;
     for (int i = 0; i < c_menuMaxDepth; ++i)
         s_backup[i].valid = false;
 
-    menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
-    menu.pageX[0] = 0;
-    menu.pageY[0] = 0;
-    menu.pageW[0] = menu.menuW;
-    menu.pageH[0] = std::min(pageHeight(rootPage), menu.screenH);
+    if (!s_menuOriginMoved) {
+        const int shiftY = graphics_get_shift_y();
+        s_menuOriginX = 0;
+        s_menuOriginY = shiftY < 0 ? -shiftY : 0;
+    }
 
+    menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
     menu.stack[0] = &rootPage;
     std::fill(std::begin(menu.selected), std::end(menu.selected), 0);
     menu.depth = 0;
     menu.open = true;
-    redrawMenu();
+    relayoutMenu();
 }
 
 void palCloseMainMenu()
@@ -723,8 +788,10 @@ void palCloseMainMenu()
     if (!menu.open)
         return;
 
-    // Уровни снимаются в обратном порядке, чтобы фон под каскадом вернулся
-    for (int d = menu.depth; d >= 1; --d)
+    // Уровни снимаются в обратном порядке, чтобы фон вернулся на место.
+    // Корневой уровень тоже: его фон теперь сохраняется, потому что меню
+    // можно двигать.
+    for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
     menu.open = false;
     if (menu.mixer)
@@ -813,34 +880,14 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
             return true;
         if (menu.depth + 1 >= static_cast<int>(sizeof(menu.stack) / sizeof(menu.stack[0])))
             return true;
-        // Каскад: подменю раскрывается вправо от родителя, верх выравнивается
-        // по выбранному пункту
-        const int d = menu.depth;
-        const int fontH = graphics_get_font_height();
-        const int rowH = fontH + 3;
-        const int screenW = graphics_get_width();
-
-        int nx = menu.pageX[d] + menu.pageW[d] + 2;
-        int ny = menu.pageY[d] + fontH + 5 + sel * rowH - 2;
-        int nw = std::min(pageWidth(*submenu), screenW - 4);
-        int nh = std::min(pageHeight(*submenu), menu.screenH);
-
-        if (nx + nw + 4 > screenW) nx = std::max(0, screenW - nw - 4);
-        if (ny + nh + 4 > menu.screenH) ny = std::max(0, menu.screenH - nh - 4);
-        if (ny < 0) ny = 0;
-
-        // graphics_fill и graphics_rect работают по включительным границам:
-        // x1 = x0 + width, цикл xi <= x1, то есть закрашивается width + 1
-        // пиксель. Страница вместе с тенью занимает nw + 5 на nh + 5, и
-        // сохранять надо именно столько — иначе от тени остаётся полоска
-        // в один пиксель.
-        pushBackground(d + 1, nx, ny, nw + 5, nh + 5);
-
-        menu.stack[++menu.depth] = submenu;
-        menu.pageX[menu.depth] = nx;
-        menu.pageY[menu.depth] = ny;
-        menu.pageW[menu.depth] = nw;
-        menu.pageH[menu.depth] = nh;
+        menu.stack[menu.depth + 1] = submenu;
+        ++menu.depth;
+        layoutLevel(menu.depth);
+        // graphics_fill и graphics_rect работают по включительным границам,
+        // а тень уходит на 4 пикселя вправо и вниз, поэтому сохраняем
+        // на пиксель больше по каждой оси
+        pushBackground(menu.depth, menu.pageX[menu.depth], menu.pageY[menu.depth],
+                       menu.pageW[menu.depth] + 5, menu.pageH[menu.depth] + 5);
         // В радиогруппе изначально выделено текущее значение
         menu.selected[menu.depth] = submenu->getValue ? submenu->getValue() : 0;
         if (menu.selected[menu.depth] < 0 || menu.selected[menu.depth] >= submenu->itemCount)
@@ -891,3 +938,29 @@ void palMainMenuTick()
     moveSelection(menu.repeatKey == PK_UP ? -1 : 1);
     menu.repeatAt = now + c_repeatRateUs;
 }
+
+
+void palMainMenuShift(int dx, int dy)
+{
+    if (!menu.open)
+        return;
+
+    const int screenW = graphics_get_width();
+    const int visibleH = (int)graphics_get_visible_height();
+
+    s_menuOriginX += dx;
+    s_menuOriginY += dy;
+    s_menuOriginMoved = true;
+
+    // Начало меню не должно уходить за пределы видимой области, иначе его
+    // уже не вернуть теми же кнопками
+    if (s_menuOriginX < 0) s_menuOriginX = 0;
+    if (s_menuOriginY < 0) s_menuOriginY = 0;
+    if (s_menuOriginX > screenW - 16) s_menuOriginX = std::max(0, screenW - 16);
+    if (s_menuOriginY > visibleH - 16) s_menuOriginY = std::max(0, visibleH - 16);
+
+    relayoutMenu();
+}
+
+int palMainMenuOriginX() {return s_menuOriginX;}
+int palMainMenuOriginY() {return s_menuOriginY;}

@@ -31,6 +31,7 @@
 
 #include "Pal.h"
 #include "Emulation.h"
+#include "pico/picoMenu.h"
 
 #pragma GCC optimize("Ofast")
 
@@ -558,6 +559,60 @@ static inline bool isHidModifierKey(uint8_t keycode) {
     return keycode >= HID_KEY_CONTROL_LEFT && keycode <= HID_KEY_GUI_RIGHT;
 }
 
+// Сдвиг картинки и меню серыми клавишами цифрового блока.
+//
+// Повторов при удержании ни HID-, ни PS/2-слой не присылают: события идут
+// только на изменение состояния клавиши. Поэтому отсчёт ведётся здесь, по
+// тикам основного цикла, так же как это сделано для навигации в меню.
+static PalKeyCode s_shiftKey = PalKeyCode::PK_NONE;
+static uint64_t s_shiftRepeatAt = 0;
+static constexpr uint64_t c_shiftDelayUs = 400000;
+static constexpr uint64_t c_shiftRateUs = 60000;
+
+static bool isShiftKey(PalKeyCode vk) {
+    return vk == PK_KP_PLUS || vk == PK_KP_MINUS || vk == PK_KP_MUL || vk == PK_KP_DIV;
+}
+
+static void doShift(PalKeyCode vk) {
+    // Пока меню на экране, сдвиг применяется к нему, а не к картинке: иначе,
+    // сдвинув изображение, часть меню и файлового диалога уезжает за пределы
+    // видимой области.
+    if (palMainMenuIsOpen()) {
+        if (vk == PK_KP_PLUS) palMainMenuShift(0, 1);
+        else if (vk == PK_KP_MINUS) palMainMenuShift(0, -1);
+        else if (vk == PK_KP_MUL) palMainMenuShift(1, 0);
+        else if (vk == PK_KP_DIV) palMainMenuShift(-1, 0);
+        return;
+    }
+    if (vk == PK_KP_PLUS) graphics_inc_y();
+    else if (vk == PK_KP_MINUS) graphics_dec_y();
+    else if (vk == PK_KP_MUL) graphics_inc_x();
+    else if (vk == PK_KP_DIV) graphics_dec_x();
+}
+
+static void applyShiftKey(PalKeyCode vk, bool pressed) {
+    if (!isShiftKey(vk))
+        return;
+    if (!pressed) {
+        if (vk == s_shiftKey)
+            s_shiftKey = PalKeyCode::PK_NONE;
+        return;
+    }
+    doShift(vk);
+    s_shiftKey = vk;
+    s_shiftRepeatAt = time_us_64() + c_shiftDelayUs;
+}
+
+void palShiftKeysTick() {
+    if (s_shiftKey == PalKeyCode::PK_NONE)
+        return;
+    const uint64_t now = time_us_64();
+    if (now < s_shiftRepeatAt)
+        return;
+    doShift(s_shiftKey);
+    s_shiftRepeatAt = now + c_shiftRateUs;
+}
+
 void ///__not_in_flash_func(
     process_kbd_report(
     hid_keyboard_report_t const *report,
@@ -585,6 +640,7 @@ void ///__not_in_flash_func(
             if (g_emulation) {
                 addKey(pressed_key[pkc], false);
             }
+            applyShiftKey(pressed_key[pkc], false);
             pressed_key[pkc] = PalKeyCode::PK_NONE;
         }
     }
@@ -598,10 +654,7 @@ void ///__not_in_flash_func(
                 if (g_emulation) {
                     addKey(vk, true);
                 }
-                if (vk == PK_KP_PLUS) graphics_inc_y();
-                else if (vk == PK_KP_MINUS) graphics_dec_y();
-                else if (vk == PK_KP_MUL) graphics_inc_x();
-                else if (vk == PK_KP_DIV) graphics_dec_x();
+                applyShiftKey(vk, true);
             }
         }
     }

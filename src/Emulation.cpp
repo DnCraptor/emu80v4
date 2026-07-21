@@ -344,6 +344,7 @@ void Emulation::resetKeys()
 void Emulation::mainLoopCycle()
 {
     palMainMenuTick();
+    palShiftKeysTick();
 
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;

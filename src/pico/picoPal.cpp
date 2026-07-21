@@ -145,12 +145,23 @@ void palModalMessage(const char* title, const char* text)
     }
 }
 std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, bool* readOnly) {
-    uint32_t sw = graphics_get_width();
-    uint32_t sh = graphics_get_height();
+    const uint32_t sw = graphics_get_width();
+    // Низ окна ограничивается последней реально видимой строкой, а не высотой
+    // кадрового буфера: у композита растр короче буфера, особенно у NTSC.
+    const uint32_t sh = graphics_get_visible_height();
+
     uint32_t w = sw - 10;
-    uint32_t h = sh - 6;
-    int32_t x = (sw - w) / 2;
-    int32_t y = (sh - h) / 2;
+    int32_t x = (int32_t)(sw - w) / 2;
+
+    // Верх отсчитывается от верха главного меню, если оно открыто: меню можно
+    // двигать, и диалог должен ехать вместе с ним.
+    int32_t y = palMainMenuIsOpen() ? palMainMenuOriginY() : 3;
+    if (y < 0) y = 0;
+    if ((uint32_t)y > sh) y = (int32_t)sh;
+
+    int32_t hs = (int32_t)sh - y - 3;
+    if (hs < 0) hs = 0;
+    uint32_t h = (uint32_t)hs;
     uint32_t fntw = graphics_get_font_width();
     uint32_t fnth = graphics_get_font_height();
     uint32_t msi = fnth + 1;

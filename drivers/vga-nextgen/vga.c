@@ -402,6 +402,15 @@ void graphics_init() {
 uint32_t graphics_get_width() {
     return client_buffer_width;
 }
+int graphics_get_shift_y() {
+    return graphics_buffer_shift_y;
+}
+
+// У VGA виден весь буфер
+uint32_t graphics_get_visible_height() {
+    return graphics_get_height();
+}
+
 uint32_t graphics_get_height() {
     return client_buffer_height;
 }
