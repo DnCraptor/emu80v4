@@ -40,7 +40,7 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
 set(CPU_MHZ 520)
-set (PORT_VERSION "0.5.2")
+set (PORT_VERSION "0.5.3")
 
 
 set(KBDUSB ON)

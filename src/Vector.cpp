@@ -1649,11 +1649,8 @@ bool VectorCore::ramDiskEnabled(int diskNum) const
 void VectorCore::setRamDiskEnabled(int diskNum, bool enabled)
 {
     VectorRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
-    if (!selector || selector->getEnabled() == enabled)
-        return;
-    shutdown();
-    selector->setEnabled(enabled);
-    coldReinitialize();
+    if (selector && selector->getEnabled() != enabled)
+        selector->setEnabled(enabled);
 }
 
 
