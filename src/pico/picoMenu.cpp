@@ -26,6 +26,7 @@ struct MenuItem {
     void (*action)();
     bool (*isEnabled)();
     bool (*isChecked)();
+    bool keepOpen = false;
 };
 
 struct MenuPage {
@@ -319,6 +320,9 @@ bool ramDiskEnabled(int diskNum)
 bool eddEnabled() { return ramDiskEnabled(0); }
 bool edd2Enabled() { return ramDiskEnabled(1); }
 
+const char* eddToggleTitle() { return eddEnabled() ? "Disable" : "Enable"; }
+const char* edd2ToggleTitle() { return edd2Enabled() ? "Disable" : "Enable"; }
+
 void toggleRamDisk(int diskNum)
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
@@ -330,12 +334,12 @@ void toggleEdd() { toggleRamDisk(0); }
 void toggleEdd2() { toggleRamDisk(1); }
 
 static const MenuItem eddItems[] = {
-    {"Enabled", nullptr, nullptr, toggleEdd, nullptr, eddEnabled},
+    {nullptr, eddToggleTitle, nullptr, toggleEdd, nullptr, nullptr, true},
     {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, nullptr, nullptr},
     {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, nullptr, nullptr},
 };
 static const MenuItem edd2Items[] = {
-    {"Enabled", nullptr, nullptr, toggleEdd2, nullptr, edd2Enabled},
+    {nullptr, edd2ToggleTitle, nullptr, toggleEdd2, nullptr, nullptr, true},
     {"Load image [Alt+Shift+E]...", nullptr, nullptr, edd2Open, nullptr, nullptr},
     {"Save image as [Alt+Shift+O]...", nullptr, nullptr, edd2SaveAs, nullptr, nullptr},
 };
@@ -752,6 +756,10 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
 
         if (item.action) {
             item.action();
+            if (item.keepOpen) {
+                redrawMenu();
+                return true;
+            }
             palCloseMainMenu();
             return true;
         }
