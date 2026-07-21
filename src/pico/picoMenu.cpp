@@ -16,6 +16,8 @@
 #include "../SoundMixer.h"
 #include "pico/picoPal.h"
 
+extern PalKeyCodeAction getKey();
+
 namespace {
 
 struct MenuPage;
@@ -393,8 +395,6 @@ static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, null
 
 static const MenuPage systemPage {"System", nullptr, nullptr, 0, nullptr, nullptr};
 
-static bool s_aboutOpen = false;
-
 void drawAboutDialog()
 {
     static const char* const lines[] = {
@@ -467,8 +467,14 @@ void drawAboutDialog()
 
 void showAboutDialog()
 {
-    s_aboutOpen = true;
     drawAboutDialog();
+    while (true) {
+        sleep_ms(100);
+        const PalKeyCodeAction key = getKey();
+        if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
+                         || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
+            return;
+    }
 }
 
 static const MenuItem rootItems[] = {
@@ -883,15 +889,6 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
     if (!menu.open)
         return false;
 
-    if (s_aboutOpen) {
-        if (isPressed && (keyCode == PK_ESC || keyCode == PK_ENTER
-                       || keyCode == PK_KP_ENTER || keyCode == PK_SPACE)) {
-            s_aboutOpen = false;
-            redrawMenu();
-        }
-        return true;
-    }
-
     if (!isPressed) {
         // Отпускание клавиши гасит автоповтор
         if (keyCode == menu.repeatKey)
@@ -944,8 +941,6 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
 
         if (item.action) {
             item.action();
-            if (s_aboutOpen)
-                return true;
             if (item.keepOpen) {
                 if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
                     || item.action == toggleSoundOutput)
