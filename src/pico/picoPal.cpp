@@ -537,60 +537,121 @@ bool palAudioOutputCanSwitch()
 }
 
 // Результаты прозвонки, доступны снаружи для отладки:
-// [0], [1] — время нарастания на PWM_PIN0 / PWM_PIN1, мкс
-// [2]      — признак внешней запитки (вывод читается единицей при подтяжке вниз)
+// [0] — пассивная сигнатура пары DIN/BCK:
+//       bits 4..1 = DIN(PD), DIN(PU), BCK(PD), BCK(PU);
+// [1] — результат активной проверки связи между линиями;
+// [2] — полный код testPins; ненулевой код означает обнаруженный I2S-модуль.
 static uint32_t s_audioProbe[3] = {0, 0, 0};
 uint32_t palAudioProbe(int i) {return (i >= 0 && i < 3) ? s_audioProbe[i] : 0;}
 
-// Время нарастания на выводе при внутренней подтяжке вверх (около 50 кОм).
-//
-// Это и есть различающий признак. Вход ЦАП на I2S-плате — просто вход КМОП,
-// нагрузка порядка единиц пикофарад, уровень поднимается за микросекунды.
-// Вывод ШИМ-платы нагружен конденсатором RC-фильтра, и на это уходят сотни
-// микросекунд, а то и больше.
-//
-// Прежний вариант, перенесённый из pico-spec, различал не это: там достаточно
-// было, чтобы вывод не оказался прижат к земле. Но конденсатор RC-фильтра за
-// отведённые 33 мс успевает зарядиться через ту же подтяжку, и ШИМ-плата
-// читается ровно как свободный вход. Отсюда и ложное определение I2S.
-static uint32_t audioRiseTimeUs(unsigned pin)
+static int audioTest0000(unsigned pin0, unsigned pin1, int res)
 {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_OUT);
-    gpio_put(pin, 0);
-    sleep_ms(2);                       // гарантированно разряжаем ёмкость
-    gpio_set_dir(pin, GPIO_IN);
-    gpio_pull_up(pin);
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 1);
 
-    const uint32_t t0 = time_us_32();
-    uint32_t dt = 0;
-    while (!gpio_get(pin)) {
-        dt = time_us_32() - t0;
-        if (dt >= 5000)                // потолок: заведомо ёмкостная нагрузка
-            break;
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1);
+    sleep_ms(33);
+    if (gpio_get(pin1))
+        res |= (1 << 5) | 1;
+
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+static int audioTest0101(unsigned pin0, unsigned pin1, int res)
+{
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 1);
+
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1);
+    sleep_ms(33);
+    if (gpio_get(pin1))
+        res |= (1 << 5) | 1;
+
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+static int audioTest1111(unsigned pin0, unsigned pin1, int res)
+{
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 0);
+
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_up(pin1);
+    sleep_ms(33);
+    if (!gpio_get(pin1))
+        res |= 1;
+
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+// Полный testPins из pico-spec. Пассивных уровней недостаточно: после них
+// рабочий алгоритм дополнительно возбуждает одну линию и проверяет отклик
+// второй. Именно этот активный этап отличает установленный I2S-модуль.
+static int audioTestPins(unsigned pin0, unsigned pin1)
+{
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_IN);
+    gpio_pull_down(pin0);
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1);
+    sleep_ms(33);
+    const int pin0vPD = gpio_get(pin0);
+    const int pin1vPD = gpio_get(pin1);
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_IN);
+    gpio_pull_up(pin0);
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_up(pin1);
+    sleep_ms(33);
+    const int pin0vPU = gpio_get(pin0);
+    const int pin1vPU = gpio_get(pin1);
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+
+    int res = (pin0vPD << 4) | (pin0vPU << 3)
+            | (pin1vPD << 2) | (pin1vPU << 1);
+    s_audioProbe[0] = uint32_t(res);
+
+    if (pin0vPD == 1) {
+        if (pin0vPU == 1 && pin1vPD == 1 && pin1vPU == 1)
+            res = audioTest1111(pin0, pin1, res);
+        else if (pin0vPU == 0 && pin1vPD == 1 && pin1vPU == 0)
+            res |= (1 << 5) | 1;
+    } else if (pin0vPU == 1) {
+        if (pin1vPD == 0 && pin1vPU == 1)
+            res = audioTest0101(pin0, pin1, res);
+    } else if (pin1vPD == 0 && pin1vPU == 0) {
+        res = audioTest0000(pin0, pin1, res);
     }
-    gpio_deinit(pin);
-    return dt;
+
+    s_audioProbe[1] = uint32_t(res & 0x21);
+    s_audioProbe[2] = uint32_t(res);
+    return res;
 }
 
-// Читается ли вывод единицей при подтяжке вниз — значит, запитан извне
-static bool audioBackFed(unsigned pin)
-{
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-    gpio_pull_down(pin);
-    sleep_ms(10);
-    const bool v = gpio_get(pin);
-    gpio_deinit(pin);
-    return v;
-}
-
-// Возвращает true, если обнаружена I2S-плата.
-//
-// Правило намеренно осторожное: I2S выбирается только при положительном
-// признаке, во всех неоднозначных случаях остаётся ШИМ. Ошибка в эту сторону
-// даёт лишь чуть худший звук, а в обратную — поток PIO прямо в аналоговый
-// усилитель, то есть громкий хрип при старте.
+// Возвращает true, если полный тест связи DIN/BCK обнаружил I2S-модуль.
 bool palProbeAudioOutput()
 {
 #if defined(AUDIO_FORCE_PWM)
@@ -598,21 +659,7 @@ bool palProbeAudioOutput()
 #elif defined(AUDIO_FORCE_I2S)
     s_audioI2S = true;
 #else
-    // Порог с большим запасом: свободный вход поднимается за единицы
-    // микросекунд, ёмкость RC-фильтра — минимум за сотни.
-    static constexpr uint32_t c_bareInputUs = 100;
-
-    const bool backFed = audioBackFed(PWM_PIN0) || audioBackFed(PWM_PIN1);
-    s_audioProbe[0] = audioRiseTimeUs(PWM_PIN0);
-    s_audioProbe[1] = audioRiseTimeUs(PWM_PIN1);
-    s_audioProbe[2] = backFed ? 1 : 0;
-
-    // На некоторых I2S-модулях входы имеют внутреннюю подтяжку и тест
-    // backFed закономерно видит единицу. Отличительный признак здесь именно
-    // быстрое нарастание на обоих общих выводах; RC-фильтр PWM остаётся
-    // медленным независимо от установившегося уровня.
-    s_audioI2S = s_audioProbe[0] < c_bareInputUs
-              && s_audioProbe[1] < c_bareInputUs;
+    s_audioI2S = audioTestPins(AUDIO_DATA_PIN, AUDIO_CLOCK_PIN) != 0;
 #endif
     return s_audioI2S;
 }
@@ -639,7 +686,7 @@ static constexpr unsigned c_audioRingSize = 1024;
 static constexpr unsigned c_audioRingMask = c_audioRingSize - 1;
 
 // Оба знаковых 16-битных канала в одном слове: младшая половина — левый,
-// старшая — правый. Квантование до 8 бит выполняется только в PWM callback.
+// старшая — правый. Квантование до 12 бит выполняется только в PWM callback.
 static uint32_t s_audioRing[c_audioRingSize];
 static volatile unsigned s_audioWrite = 0;
 static volatile unsigned s_audioRead = 0;
@@ -657,13 +704,13 @@ static void audioWritePwm(uint32_t sample)
 {
     int xL = int(int16_t(sample & 0xFFFF)) + 32768 + s_audioErrL;
     if (xL < 0) xL = 0; else if (xL > 0xFFFF) xL = 0xFFFF;
-    const uint16_t outL = uint16_t(unsigned(xL) >> 8);
-    s_audioErrL = xL - (int(outL) << 8);
+    const uint16_t outL = uint16_t(unsigned(xL) >> 4);
+    s_audioErrL = xL - (int(outL) << 4);
 
     int xR = int(int16_t(sample >> 16)) + 32768 + s_audioErrR;
     if (xR < 0) xR = 0; else if (xR > 0xFFFF) xR = 0xFFFF;
-    const uint16_t outR = uint16_t(unsigned(xR) >> 8);
-    s_audioErrR = xR - (int(outR) << 8);
+    const uint16_t outR = uint16_t(unsigned(xR) >> 4);
+    s_audioErrR = xR - (int(outR) << 4);
 
     pwm_set_gpio_level(PWM_PIN0, outL);
     pwm_set_gpio_level(PWM_PIN1, outR);
@@ -702,7 +749,7 @@ static bool audioInitOutput(int sampleRate)
     } else {
         pwm_config config = pwm_get_default_config();
         pwm_config_set_clkdiv(&config, 1.0f);
-        pwm_config_set_wrap(&config, (1 << 8) - 1);
+        pwm_config_set_wrap(&config, (1 << 12) - 1);
         gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
         gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
         pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);

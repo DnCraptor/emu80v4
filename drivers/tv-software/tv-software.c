@@ -15,6 +15,18 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "stdlib.h"
+
+// graphics_set_palette() принимает 24-битный цвет и разбирает его на R, G, B
+// сдвигами. Общий RGB888 из graphics.h — это, наоборот, упаковка в 6 бит
+// (по два на канал): именно такие байты эмулятор кладёт в кадровый буфер.
+// Одно имя, два разных смысла. Если задавать палитру драйвера общим макросом,
+// R и G всегда оказываются нулями и все 256 цветов становятся чёрными —
+// синхронизация есть, картинки нет. Поэтому у палитры драйвера свой макрос.
+#define TV_RGB24(r, g, b) (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))
+
+// Начало области палитры под все 64 кода кадрового буфера. Индексы 64..127
+// свободны: по умолчанию там серая шкала, а именованные цвета лежат в 200..216.
+#define TV_PAL_BASE 64
 #pragma GCC optimize("Ofast")
 
 static uint8_t map64colors[64] = { 0 };
@@ -219,7 +231,12 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     };
     video_mode.LVL_BLACK_TMPL = CONV_DAC(video_mode.LVL_BLACK) | (1 << SYNC_PIN);
 
-    sm_config_set_clkdiv(PIO_VIDEO->sm, clock_get_hz(clk_sys) / (color_freq * 4));
+    // Здесь настраивается уже работающий автомат состояний, а не заготовка
+    // конфигурации: sm_config_set_clkdiv() принимает pio_sm_config*, тогда как
+    // PIO_VIDEO->sm — массив регистров pio_sm_hw_t. Для живого SM нужен
+    // pio_sm_set_clkdiv().
+    pio_sm_set_clkdiv(PIO_VIDEO, SM_video,
+                      (float)(clock_get_hz(clk_sys) / (color_freq * 4)));
 
 };
 
@@ -253,8 +270,10 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
     int8_t Y8 = ((int)(Y * video_mode.LVL_Y_MAX)) + base8;
 
     uint32_t cd0_32, cd1_32;
-    int8_t* cd0 = &cd0_32;
-    int8_t* cd1 = &cd1_32;
+    // Доступ к слову по байтам: приведение обязательно, иначе типы
+    // несовместимы
+    int8_t* cd0 = (int8_t*)&cd0_32;
+    int8_t* cd1 = (int8_t*)&cd1_32;
 
     float sin[] = { 0, 1, 0, -1 };
     // float sin[]={-1,1,1,-1,-1};//test
@@ -421,14 +440,14 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 
 
     uint32_t Y32 = (Y8 << 24) | (Y8 << 16) | (Y8 << 8) | (Y8 << 0);
-    int8_t* yi = &Y32;
-    int8_t* ci = &cd0_32;
+    int8_t* yi = (int8_t*)&Y32;
+    int8_t* ci = (int8_t*)&cd0_32;
 
     for (int i = 0; i < 4; i++) { yi[i] = CONV_DAC(yi[i]+ci[i]) | (1 << SYNC_PIN); };
     conv_color[0][i] = Y32;
 
     Y32 = (Y8 << 24) | (Y8 << 16) | (Y8 << 8) | (Y8 << 0);
-    ci = &cd1_32;
+    ci = (int8_t*)&cd1_32;
     for (int i = 0; i < 4; i++) { yi[i] = CONV_DAC(yi[i]+ci[i]) | (1 << SYNC_PIN); };
     conv_color[1][i] = Y32;
 
@@ -1104,91 +1123,46 @@ void graphics_init() {
     // graphics_get_default_modeTV();
     graphics_set_modeTV(tv_out_mode);
 
-    for (uint8_t c = 0; c <= 0b00111111; ++c) {
-        switch (c)
-        {
-        case 0b000000: map64colors[c] = 200; break; // black
-
-        case 0b000001: map64colors[c] = 204; break; // red
-        case 0b000010: map64colors[c] = 204; break;
-
-        case 0b000011: map64colors[c] = 212; break; // light red
-        case 0b010011: map64colors[c] = 212; break;
-
-        case 0b000100: map64colors[c] = 202; break; // green
-        case 0b001000: map64colors[c] = 202; break;
-        case 0b001001: map64colors[c] = 202; break;
-
-        case 0b001100: map64colors[c] = 210; break; // light green
-
-        case 0b010000: map64colors[c] = 201; break; // blue
-        case 0b100000: map64colors[c] = 201; break;
-
-        case 0b110000: map64colors[c] = 209; break; // light blue
-
-        case 0b000101: map64colors[c] = 208; break; // yellow
-        case 0b000110: map64colors[c] = 208; break;
-        case 0b001010: map64colors[c] = 208; break;
-        case 0b001011: map64colors[c] = 208; break;
-        case 0b001110: map64colors[c] = 208; break;
-
-        case 0b001111: map64colors[c] = 214; break; // light tellow
-
-        case 0b010001: map64colors[c] = 205; break; // magenta
-        case 0b010010: map64colors[c] = 205; break;
-        case 0b100001: map64colors[c] = 205; break;
-        case 0b100010: map64colors[c] = 205; break;
-        case 0b110010: map64colors[c] = 205; break;
-        case 0b100011: map64colors[c] = 205; break;
-
-        case 0b110011: map64colors[c] = 213; break; // light magenta
-
-        case 0b010100: map64colors[c] = 203; break; // cyan
-        case 0b100100: map64colors[c] = 203; break;
-        case 0b011000: map64colors[c] = 203; break;
-        case 0b101000: map64colors[c] = 203; break;
-        case 0b111000: map64colors[c] = 203; break;
-        case 0b101100: map64colors[c] = 203; break;
-
-        case 0b111100: map64colors[c] = 211; break; // light cyan
-
-        case 0b010101: map64colors[c] = 207; break; // gray
-        case 0b010110: map64colors[c] = 207; break;
-        case 0b100101: map64colors[c] = 207; break;
-        case 0b100110: map64colors[c] = 207; break;
-        case 0b010111: map64colors[c] = 207; break;
-        case 0b011001: map64colors[c] = 207; break;
-        case 0b011111: map64colors[c] = 207; break;
-        case 0b111001: map64colors[c] = 207; break;
-        case 0b111010: map64colors[c] = 207; break;
-        case 0b101001: map64colors[c] = 207; break;
-        case 0b101010: map64colors[c] = 207; break;
-
-        case 0b111111: map64colors[c] = 215; break; // white
-
-        case 0b000111: map64colors[c] = 216; break; // orange
-
-        default: map64colors[c] = 215; break;
+    // Полная таблица цветов.
+    //
+    // Прежняя сводила все 64 кода к семнадцати именованным цветам палитры,
+    // причём расписано было лишь 45 кодов из 64 — остальные попадали в default
+    // и выводились белым. Вместо приближения каждому коду отдаётся собственная
+    // запись палитры: место под них есть, индексы 64..127 ничем не заняты.
+    //
+    // Цвет собирается прямо из кода в том порядке бит, который задаёт RGB888
+    // из graphics.h: [5:4] = R, [3:2] = G, [1:0] = B. Поэтому перестановка
+    // красного с синим здесь больше не нужна — она была следствием того, что
+    // старая таблица была расписана в обратном порядке.
+    {
+        static const uint8_t lvl[4] = { 0, 85, 170, 255 };   // два бита на канал
+        for (uint8_t c = 0; c <= 0b00111111; ++c) {
+            const uint8_t r = (c >> 4) & 0x03;
+            const uint8_t g = (c >> 2) & 0x03;
+            const uint8_t b = (c >> 0) & 0x03;
+            graphics_set_palette(TV_PAL_BASE + c, TV_RGB24(lvl[r], lvl[g], lvl[b]));
+            map64colors[c] = TV_PAL_BASE + c;
         }
     }
-    graphics_set_palette(200, RGB888(0x00, 0x00, 0x00)); //black
-    graphics_set_palette(201, RGB888(0x00, 0x00, 0xC4)); //blue
-    graphics_set_palette(202, RGB888(0x00, 0xC4, 0x00)); //green
-    graphics_set_palette(203, RGB888(0x00, 0xC4, 0xC4)); //cyan
-    graphics_set_palette(204, RGB888(0xC4, 0x00, 0x00)); //red
-    graphics_set_palette(205, RGB888(0xC4, 0x00, 0xC4)); //magenta
-    graphics_set_palette(206, RGB888(0xC4, 0x7E, 0x00)); //brown
-    graphics_set_palette(207, RGB888(0xC4, 0xC4, 0xC4)); //light gray
-//    graphics_set_palette(208, RGB888(0x4E, 0x4E, 0x4E)); //dark gray
-    graphics_set_palette(208, RGB888(0xC4, 0xC4, 0x00)); //yellow
-    graphics_set_palette(209, RGB888(0x4E, 0x4E, 0xDC)); //light blue
-    graphics_set_palette(210, RGB888(0x4E, 0xDC, 0x4E)); //light green
-    graphics_set_palette(211, RGB888(0x4E, 0xF3, 0xF3)); //light cyan
-    graphics_set_palette(212, RGB888(0xDC, 0x4E, 0x4E)); //light red
-    graphics_set_palette(213, RGB888(0xF3, 0x4E, 0xF3)); //light magenta
-    graphics_set_palette(214, RGB888(0xF3, 0xF3, 0x4E)); //light yellow
-    graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
-    graphics_set_palette(216, RGB888(0xFF, 0x7E, 0x00)); //orange
+
+    graphics_set_palette(200, TV_RGB24(0x00, 0x00, 0x00)); //black
+    graphics_set_palette(201, TV_RGB24(0x00, 0x00, 0xC4)); //blue
+    graphics_set_palette(202, TV_RGB24(0x00, 0xC4, 0x00)); //green
+    graphics_set_palette(203, TV_RGB24(0x00, 0xC4, 0xC4)); //cyan
+    graphics_set_palette(204, TV_RGB24(0xC4, 0x00, 0x00)); //red
+    graphics_set_palette(205, TV_RGB24(0xC4, 0x00, 0xC4)); //magenta
+    graphics_set_palette(206, TV_RGB24(0xC4, 0x7E, 0x00)); //brown
+    graphics_set_palette(207, TV_RGB24(0xC4, 0xC4, 0xC4)); //light gray
+//    graphics_set_palette(208, TV_RGB24(0x4E, 0x4E, 0x4E)); //dark gray
+    graphics_set_palette(208, TV_RGB24(0xC4, 0xC4, 0x00)); //yellow
+    graphics_set_palette(209, TV_RGB24(0x4E, 0x4E, 0xDC)); //light blue
+    graphics_set_palette(210, TV_RGB24(0x4E, 0xDC, 0x4E)); //light green
+    graphics_set_palette(211, TV_RGB24(0x4E, 0xF3, 0xF3)); //light cyan
+    graphics_set_palette(212, TV_RGB24(0xDC, 0x4E, 0x4E)); //light red
+    graphics_set_palette(213, TV_RGB24(0xF3, 0x4E, 0xF3)); //light magenta
+    graphics_set_palette(214, TV_RGB24(0xF3, 0xF3, 0x4E)); //light yellow
+    graphics_set_palette(215, TV_RGB24(0xFF, 0xFF, 0xFF)); //white
+    graphics_set_palette(216, TV_RGB24(0xFF, 0x7E, 0x00)); //orange
 };
 
 void graphics_set_offset(const int x, const int y) {
