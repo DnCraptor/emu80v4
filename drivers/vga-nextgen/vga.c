@@ -402,8 +402,14 @@ void graphics_init() {
 uint32_t graphics_get_width() {
     return client_buffer_width;
 }
-int graphics_get_shift_y() {
-    return graphics_buffer_shift_y;
+// Строка экрана n показывает строку буфера n + shift_y, то есть рост shift_y
+// поднимает картинку вверх — наружу отдаём смещение вниз, с обратным знаком.
+int graphics_get_picture_shift_y() {
+    return -graphics_buffer_shift_y;
+}
+
+int graphics_get_picture_shift_x() {
+    return graphics_buffer_shift_x;
 }
 
 // У VGA виден весь буфер

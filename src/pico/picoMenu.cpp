@@ -584,13 +584,13 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 // Начало меню на экране. Пока меню открыто, кнопки сдвига двигают его, а не
 // картинку: иначе, сдвинув изображение для удобства, часть меню и файлового
 // диалога уезжает за пределы видимой области и вернуть её нечем.
-int s_menuOriginX = 0;
-int s_menuOriginY = 0;
-// Пока пользователь сам не подвинул меню, его начало подстраивается под
-// вертикальный сдвиг картинки: сдвиг двигает всё нарисованное в буфере,
-// включая само меню, и без компенсации в NTSC оно уехало бы вверх вместе
-// с картинкой.
-bool s_menuOriginMoved = false;
+// Положение меню хранится в координатах ЭКРАНА, а не кадрового буфера.
+// Меню рисуется в тот же буфер, что и картинка, поэтому сдвиг картинки уносил
+// бы его вместе с собой. Перевод в координаты буфера делается при раскладке:
+// сколько прибавили экрану, столько вычитается у меню. Заодно это само собой
+// даёт нужное поведение в NTSC, где картинка по умолчанию приподнята.
+int s_menuScreenX = 0;
+int s_menuScreenY = 0;
 
 struct MenuState {
     bool open = false;
@@ -705,8 +705,9 @@ void layoutLevel(int d)
     int nx, ny;
 
     if (d == 0) {
-        nx = s_menuOriginX;
-        ny = s_menuOriginY;
+        // из экранных координат в координаты буфера
+        nx = s_menuScreenX - graphics_get_picture_shift_x();
+        ny = s_menuScreenY - graphics_get_picture_shift_y();
     } else {
         const int fontH = graphics_get_font_height();
         nx = menu.pageX[d - 1] + menu.pageW[d - 1] + 2;
@@ -768,12 +769,6 @@ void palOpenMainMenu()
     s_backupUsed = 0;
     for (int i = 0; i < c_menuMaxDepth; ++i)
         s_backup[i].valid = false;
-
-    if (!s_menuOriginMoved) {
-        const int shiftY = graphics_get_shift_y();
-        s_menuOriginX = 0;
-        s_menuOriginY = shiftY < 0 ? -shiftY : 0;
-    }
 
     menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
     menu.stack[0] = &rootPage;
@@ -948,19 +943,19 @@ void palMainMenuShift(int dx, int dy)
     const int screenW = graphics_get_width();
     const int visibleH = (int)graphics_get_visible_height();
 
-    s_menuOriginX += dx;
-    s_menuOriginY += dy;
-    s_menuOriginMoved = true;
+    s_menuScreenX += dx;
+    s_menuScreenY += dy;
 
-    // Начало меню не должно уходить за пределы видимой области, иначе его
-    // уже не вернуть теми же кнопками
-    if (s_menuOriginX < 0) s_menuOriginX = 0;
-    if (s_menuOriginY < 0) s_menuOriginY = 0;
-    if (s_menuOriginX > screenW - 16) s_menuOriginX = std::max(0, screenW - 16);
-    if (s_menuOriginY > visibleH - 16) s_menuOriginY = std::max(0, visibleH - 16);
+    // Меню не должно уходить за пределы видимой области, иначе его уже
+    // не вернуть теми же кнопками
+    if (s_menuScreenX < 0) s_menuScreenX = 0;
+    if (s_menuScreenY < 0) s_menuScreenY = 0;
+    if (s_menuScreenX > screenW - 16) s_menuScreenX = std::max(0, screenW - 16);
+    if (s_menuScreenY > visibleH - 16) s_menuScreenY = std::max(0, visibleH - 16);
 
     relayoutMenu();
 }
 
-int palMainMenuOriginX() {return s_menuOriginX;}
-int palMainMenuOriginY() {return s_menuOriginY;}
+// Наружу отдаются координаты буфера: файловый диалог рисуется туда же
+int palMainMenuOriginX() {return s_menuScreenX - graphics_get_picture_shift_x();}
+int palMainMenuOriginY() {return s_menuScreenY - graphics_get_picture_shift_y();}

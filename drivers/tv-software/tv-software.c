@@ -1230,8 +1230,14 @@ uint32_t graphics_get_height() {
 // Сколько строк кадрового буфера реально попадает в растр. Границы те же, что
 // и в вычислении y при отрисовке строки. У NTSC строк заметно меньше высоты
 // буфера, и без этого низ окон оказывается за пределами экрана.
-int graphics_get_shift_y() {
+// Строка буфера y попадает на строку растра y + 23 + shift_y, то есть рост
+// shift_y опускает картинку вниз — знак уже такой, какой нужен наружу.
+int graphics_get_picture_shift_y() {
     return graphics_buffer.shift_y;
+}
+
+int graphics_get_picture_shift_x() {
+    return graphics_buffer.shift_x;
 }
 
 uint32_t graphics_get_visible_height() {
