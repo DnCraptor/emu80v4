@@ -54,6 +54,7 @@ class WavReader
 
         bool loadFile(const std::string& fileName, TapeRedirector* tapeRedirecotr = nullptr);
         bool chooseAndLoadFile();
+        void stop();
         bool isPlaying() {return m_isOpen;}
 
         bool getCurValue();

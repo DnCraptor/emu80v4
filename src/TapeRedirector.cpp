@@ -89,6 +89,15 @@ void TapeRedirector::openFile()
 }
 
 
+void TapeRedirector::ejectFile()
+{
+    if (m_rwMode == "r" && g_emulation && g_emulation->getWavReader()->isPlaying())
+        g_emulation->getWavReader()->stop();
+    closeFile();
+    m_fileName.clear();
+}
+
+
 void TapeRedirector::closeFile()
 {
     if (m_isOpen) {

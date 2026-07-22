@@ -457,7 +457,92 @@ static const MenuItem soundItems[] = {
     {"PSG channels", nullptr, &psgOrderPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
-static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
+
+char tapeInputStatusBuffer[96];
+char tapeOutputStatusBuffer[96];
+
+const char* tapeStatus(char* buffer, const char* prefix, const std::string& fileName)
+{
+    char* dst = appendText(buffer, prefix);
+    if (fileName.empty()) {
+        dst = appendText(dst, "empty");
+    } else {
+        const size_t slash = fileName.find_last_of("/\\");
+        const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
+        const size_t used = static_cast<size_t>(dst - buffer);
+        const size_t len = std::min(std::strlen(base), sizeof(tapeInputStatusBuffer) - used - 1);
+        std::memcpy(dst, base, len);
+        dst += len;
+    }
+    *dst = '\0';
+    return buffer;
+}
+
+const char* tapeInputStatus()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return tapeStatus(tapeInputStatusBuffer, "Input: ",
+                      core ? core->getTapeInputFileName() : std::string());
+}
+
+const char* tapeOutputStatus()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return tapeStatus(tapeOutputStatusBuffer, "Output: ",
+                      core ? core->getTapeOutputFileName() : std::string());
+}
+
+bool tapeHooksChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->tapeHooksEnabled();
+}
+
+void toggleTapeHooks()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setTapeHooksEnabled(!core->tapeHooksEnabled());
+}
+
+void tapeLoad()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->chooseTapeInput();
+}
+
+void tapeCreate()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->chooseTapeOutput();
+}
+
+bool tapeEjectEnabled()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->tapeFilePresent();
+}
+
+void tapeEject()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->ejectTapeFiles();
+}
+
+static const MenuItem tapeItems[] = {
+    {"Redirect tape I/O", nullptr, nullptr, toggleTapeHooks, nullptr, tapeHooksChecked, true},
+    {"Load tape image...", nullptr, nullptr, tapeLoad, nullptr, nullptr},
+    {"Create new tape...", nullptr, nullptr, tapeCreate, nullptr, nullptr},
+    {"Eject", nullptr, nullptr, tapeEject, tapeEjectEnabled, nullptr, true},
+};
+static const MenuPage tapePage {
+    "Tape", nullptr, tapeItems,
+    static_cast<int>(sizeof(tapeItems) / sizeof(tapeItems[0])),
+    nullptr, nullptr, tapeInputStatus, tapeOutputStatus
+};
 static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
 
@@ -1013,7 +1098,8 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
             item.action();
             if (item.keepOpen) {
                 if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
-                    || item.action == toggleSoundOutput || item.action == togglePsgStereo)
+                    || item.action == toggleSoundOutput || item.action == togglePsgStereo
+                    || item.action == tapeEject)
                     redrawMenuAndParentItem();
                 else
                     redrawMenu();

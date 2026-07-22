@@ -214,6 +214,15 @@ class VectorCore
         void chooseHddImage();
         void ejectHddImage();
 
+        bool tapeHooksEnabled() const;
+        void setTapeHooksEnabled(bool enabled);
+        void chooseTapeInput();
+        void chooseTapeOutput();
+        void ejectTapeFiles();
+        bool tapeFilePresent() const;
+        std::string getTapeInputFileName() const;
+        std::string getTapeOutputFileName() const;
+
         bool ramDiskEnabled(int diskNum) const;
         void setRamDiskEnabled(int diskNum, bool enabled);
 

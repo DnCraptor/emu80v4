@@ -1652,16 +1652,69 @@ void VectorCore::sysReq(SysReq sr)
             if (m_ramDisk2)
                 m_ramDisk2->saveFileAs();
             break;
-        case SR_TAPEHOOK: {
-            bool enabled = !m_tapeHooks[0]->getEnabled();
-            for (CpuHook* hook : m_tapeHooks)
-                hook->setEnabled(enabled);
+        case SR_TAPEHOOK:
+            setTapeHooksEnabled(!tapeHooksEnabled());
             break;
-        }
         default:
             break;
     }
     g_emulation->resetKeys();
+}
+
+
+bool VectorCore::tapeHooksEnabled() const
+{
+    return m_tapeHooks[0] && m_tapeHooks[0]->getEnabled();
+}
+
+
+void VectorCore::setTapeHooksEnabled(bool enabled)
+{
+    for (CpuHook* hook : m_tapeHooks)
+        if (hook)
+            hook->setEnabled(enabled);
+}
+
+
+void VectorCore::chooseTapeInput()
+{
+    if (m_tapeInFile)
+        m_tapeInFile->openFile();
+}
+
+
+void VectorCore::chooseTapeOutput()
+{
+    if (m_tapeOutFile)
+        m_tapeOutFile->openFile();
+}
+
+
+void VectorCore::ejectTapeFiles()
+{
+    if (m_tapeInFile)
+        m_tapeInFile->ejectFile();
+    if (m_tapeOutFile)
+        m_tapeOutFile->ejectFile();
+}
+
+
+bool VectorCore::tapeFilePresent() const
+{
+    return (m_tapeInFile && m_tapeInFile->hasFile())
+        || (m_tapeOutFile && m_tapeOutFile->hasFile());
+}
+
+
+std::string VectorCore::getTapeInputFileName() const
+{
+    return m_tapeInFile ? m_tapeInFile->getFileName() : std::string();
+}
+
+
+std::string VectorCore::getTapeOutputFileName() const
+{
+    return m_tapeOutFile ? m_tapeOutFile->getFileName() : std::string();
 }
 
 

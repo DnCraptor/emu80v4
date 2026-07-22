@@ -37,9 +37,7 @@ WavReader::~WavReader() = default;
 bool WavReader::chooseAndLoadFile()
 {
     if (m_isOpen) {
-        m_file.close();
-        g_emulation->setTemporarySpeedUpFactor(0);
-        m_isOpen = false;
+        stop();
         return false;
     }
 
@@ -49,6 +47,18 @@ bool WavReader::chooseAndLoadFile()
 
     return loadFile(fileName);
 }
+
+void WavReader::stop()
+{
+    if (m_isOpen)
+        m_file.close();
+    m_isOpen = false;
+    m_hasMoreSamples = false;
+    m_tapeRedirector = nullptr;
+    if (g_emulation)
+        g_emulation->setTemporarySpeedUpFactor(0);
+}
+
 
 void WavReader::reportError(const std::string& errorStr)
 {
