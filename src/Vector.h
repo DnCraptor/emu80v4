@@ -189,6 +189,20 @@ class VectorCore
         void resetKeys();
         bool loadFile(const std::string& fileName, bool run = true);
         bool saveSnapshot(unsigned slot);
+        bool removeSnapshot(unsigned slot);
+
+        enum class SnapshotLoadResult {
+            Ok,
+            InvalidSlot,
+            NotFound,
+            IoError,
+            InvalidFile,
+            IncompatibleFormat
+        };
+        SnapshotLoadResult loadSnapshot(unsigned slot,
+                                        std::string* firmwareVersion = nullptr,
+                                        uint16_t* fileFormatVersion = nullptr);
+        static uint16_t snapshotFormatVersion();
 
         Cpu8080Compatible* getCpu();
 

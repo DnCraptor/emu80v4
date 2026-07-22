@@ -18,6 +18,26 @@
 
 extern PalKeyCodeAction getKey();
 
+char* appendText(char* dst, const char* text)
+{
+    while (*text)
+        *dst++ = *text++;
+    return dst;
+}
+
+char* appendUnsigned(char* dst, unsigned value)
+{
+    char digits[10];
+    int count = 0;
+    do {
+        digits[count++] = static_cast<char>('0' + value % 10);
+        value /= 10;
+    } while (value != 0);
+    while (count != 0)
+        *dst++ = digits[--count];
+    return dst;
+}
+
 namespace {
 
 struct MenuPage;
@@ -106,26 +126,6 @@ void cpuClockSetValue(int value)
 
 char cpuFpsStatusBuffer[24];
 char cpuLoadStatusBuffer[24];
-
-char* appendText(char* dst, const char* text)
-{
-    while (*text)
-        *dst++ = *text++;
-    return dst;
-}
-
-char* appendUnsigned(char* dst, unsigned value)
-{
-    char digits[10];
-    int count = 0;
-    do {
-        digits[count++] = static_cast<char>('0' + value % 10);
-        value /= 10;
-    } while (value != 0);
-    while (count != 0)
-        *dst++ = digits[--count];
-    return dst;
-}
 
 bool menuItemDisabled()
 {
@@ -587,7 +587,284 @@ static const MenuPage tapePage {
     static_cast<int>(sizeof(tapeItems) / sizeof(tapeItems[0])),
     nullptr, nullptr, tapeInputStatus, tapeOutputStatus
 };
-static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
+void showSnapshotMessage(const char* title, const char* line1, const char* line2 = nullptr)
+{
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    const int visibleH = static_cast<int>(graphics_get_visible_height());
+    const int fontW = graphics_get_font_width();
+    const int fontH = graphics_get_font_height();
+    const int rowH = fontH + 2;
+
+    size_t longest = std::max(std::strlen(title), std::strlen(line1));
+    if (line2)
+        longest = std::max(longest, std::strlen(line2));
+    longest = std::max(longest, std::strlen("Enter / Esc - close"));
+
+    int w = static_cast<int>(longest + 4) * fontW;
+    int h = fontH + 7 + (line2 ? 3 : 2) * rowH + 4;
+    w = std::min(w, screenW - 8);
+    h = std::min(h, visibleH - 8);
+    int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
+    int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
+    x = std::max(0, std::min(x, screenW - w));
+    y = std::max(0, std::min(y, screenH - h));
+
+    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
+    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
+    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, std::strlen(title));
+
+    int lineY = y + fontH + 7;
+    graphics_type(x + 5, lineY, RGB888(0, 0, 0), line1, std::strlen(line1));
+    lineY += rowH;
+    if (line2) {
+        graphics_type(x + 5, lineY, RGB888(0, 0, 0), line2, std::strlen(line2));
+        lineY += rowH;
+    }
+    static const char closeText[] = "Enter / Esc - close";
+    graphics_type(x + 5, lineY, RGB888(0, 0, 0), closeText, sizeof(closeText) - 1);
+
+    while (true) {
+        sleep_ms(100);
+        palInputTick();
+        const PalKeyCodeAction key = getKey();
+        if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
+                         || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
+            return;
+    }
+}
+
+void saveSnapshotSlot(unsigned slot)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core || !core->saveSnapshot(slot))
+        showSnapshotMessage("Snapshot", "Unable to save snapshot.");
+}
+
+void loadSnapshotSlot(unsigned slot)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core)
+        return;
+
+    std::string firmwareVersion;
+    uint16_t fileFormatVersion = 0;
+    const VectorCore::SnapshotLoadResult result =
+        core->loadSnapshot(slot, &firmwareVersion, &fileFormatVersion);
+
+    switch (result) {
+    case VectorCore::SnapshotLoadResult::Ok:
+        return;
+    case VectorCore::SnapshotLoadResult::NotFound:
+        showSnapshotMessage("Snapshot", "Snapshot is empty.");
+        return;
+    case VectorCore::SnapshotLoadResult::IncompatibleFormat: {
+        char versions[64];
+        char* dst = appendText(versions, "Format: expected ");
+        dst = appendUnsigned(dst, VectorCore::snapshotFormatVersion());
+        dst = appendText(dst, ", file ");
+        dst = appendUnsigned(dst, fileFormatVersion);
+        *dst = '\0';
+
+        char firmware[64];
+        dst = appendText(firmware, "Created by: ");
+        dst = appendText(dst, firmwareVersion.empty() ? "unknown" : firmwareVersion.c_str());
+        *dst = '\0';
+        showSnapshotMessage("Incompatible snapshot", versions, firmware);
+        return;
+    }
+    case VectorCore::SnapshotLoadResult::InvalidFile:
+        showSnapshotMessage("Snapshot", "Invalid snapshot file.");
+        return;
+    default:
+        showSnapshotMessage("Snapshot", "Unable to load snapshot.");
+        return;
+    }
+}
+
+void removeSnapshotSlot(unsigned slot)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (!core || !core->removeSnapshot(slot))
+        showSnapshotMessage("Snapshot", "Unable to remove snapshot.");
+}
+
+void saveSnapshot1() { saveSnapshotSlot(1); }
+void loadSnapshot1() { loadSnapshotSlot(1); }
+void removeSnapshot1() { removeSnapshotSlot(1); }
+static const MenuItem snapshot1Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot1, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot1, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot1, nullptr, nullptr},
+};
+static const MenuPage snapshot1Page {
+    "Snapshot 1", nullptr, snapshot1Items,
+    static_cast<int>(sizeof(snapshot1Items) / sizeof(snapshot1Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot2() { saveSnapshotSlot(2); }
+void loadSnapshot2() { loadSnapshotSlot(2); }
+void removeSnapshot2() { removeSnapshotSlot(2); }
+static const MenuItem snapshot2Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot2, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot2, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot2, nullptr, nullptr},
+};
+static const MenuPage snapshot2Page {
+    "Snapshot 2", nullptr, snapshot2Items,
+    static_cast<int>(sizeof(snapshot2Items) / sizeof(snapshot2Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot3() { saveSnapshotSlot(3); }
+void loadSnapshot3() { loadSnapshotSlot(3); }
+void removeSnapshot3() { removeSnapshotSlot(3); }
+static const MenuItem snapshot3Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot3, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot3, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot3, nullptr, nullptr},
+};
+static const MenuPage snapshot3Page {
+    "Snapshot 3", nullptr, snapshot3Items,
+    static_cast<int>(sizeof(snapshot3Items) / sizeof(snapshot3Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot4() { saveSnapshotSlot(4); }
+void loadSnapshot4() { loadSnapshotSlot(4); }
+void removeSnapshot4() { removeSnapshotSlot(4); }
+static const MenuItem snapshot4Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot4, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot4, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot4, nullptr, nullptr},
+};
+static const MenuPage snapshot4Page {
+    "Snapshot 4", nullptr, snapshot4Items,
+    static_cast<int>(sizeof(snapshot4Items) / sizeof(snapshot4Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot5() { saveSnapshotSlot(5); }
+void loadSnapshot5() { loadSnapshotSlot(5); }
+void removeSnapshot5() { removeSnapshotSlot(5); }
+static const MenuItem snapshot5Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot5, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot5, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot5, nullptr, nullptr},
+};
+static const MenuPage snapshot5Page {
+    "Snapshot 5", nullptr, snapshot5Items,
+    static_cast<int>(sizeof(snapshot5Items) / sizeof(snapshot5Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot6() { saveSnapshotSlot(6); }
+void loadSnapshot6() { loadSnapshotSlot(6); }
+void removeSnapshot6() { removeSnapshotSlot(6); }
+static const MenuItem snapshot6Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot6, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot6, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot6, nullptr, nullptr},
+};
+static const MenuPage snapshot6Page {
+    "Snapshot 6", nullptr, snapshot6Items,
+    static_cast<int>(sizeof(snapshot6Items) / sizeof(snapshot6Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot7() { saveSnapshotSlot(7); }
+void loadSnapshot7() { loadSnapshotSlot(7); }
+void removeSnapshot7() { removeSnapshotSlot(7); }
+static const MenuItem snapshot7Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot7, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot7, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot7, nullptr, nullptr},
+};
+static const MenuPage snapshot7Page {
+    "Snapshot 7", nullptr, snapshot7Items,
+    static_cast<int>(sizeof(snapshot7Items) / sizeof(snapshot7Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot8() { saveSnapshotSlot(8); }
+void loadSnapshot8() { loadSnapshotSlot(8); }
+void removeSnapshot8() { removeSnapshotSlot(8); }
+static const MenuItem snapshot8Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot8, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot8, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot8, nullptr, nullptr},
+};
+static const MenuPage snapshot8Page {
+    "Snapshot 8", nullptr, snapshot8Items,
+    static_cast<int>(sizeof(snapshot8Items) / sizeof(snapshot8Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot9() { saveSnapshotSlot(9); }
+void loadSnapshot9() { loadSnapshotSlot(9); }
+void removeSnapshot9() { removeSnapshotSlot(9); }
+static const MenuItem snapshot9Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot9, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot9, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot9, nullptr, nullptr},
+};
+static const MenuPage snapshot9Page {
+    "Snapshot 9", nullptr, snapshot9Items,
+    static_cast<int>(sizeof(snapshot9Items) / sizeof(snapshot9Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot10() { saveSnapshotSlot(10); }
+void loadSnapshot10() { loadSnapshotSlot(10); }
+void removeSnapshot10() { removeSnapshotSlot(10); }
+static const MenuItem snapshot10Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot10, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot10, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot10, nullptr, nullptr},
+};
+static const MenuPage snapshot10Page {
+    "Snapshot 10", nullptr, snapshot10Items,
+    static_cast<int>(sizeof(snapshot10Items) / sizeof(snapshot10Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot11() { saveSnapshotSlot(11); }
+void loadSnapshot11() { loadSnapshotSlot(11); }
+void removeSnapshot11() { removeSnapshotSlot(11); }
+static const MenuItem snapshot11Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot11, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot11, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot11, nullptr, nullptr},
+};
+static const MenuPage snapshot11Page {
+    "Snapshot 11", nullptr, snapshot11Items,
+    static_cast<int>(sizeof(snapshot11Items) / sizeof(snapshot11Items[0])), nullptr, nullptr
+};
+
+void saveSnapshot12() { saveSnapshotSlot(12); }
+void loadSnapshot12() { loadSnapshotSlot(12); }
+void removeSnapshot12() { removeSnapshotSlot(12); }
+static const MenuItem snapshot12Items[] = {
+    {"Save", nullptr, nullptr, saveSnapshot12, nullptr, nullptr},
+    {"Load", nullptr, nullptr, loadSnapshot12, nullptr, nullptr},
+    {"Remove", nullptr, nullptr, removeSnapshot12, nullptr, nullptr},
+};
+static const MenuPage snapshot12Page {
+    "Snapshot 12", nullptr, snapshot12Items,
+    static_cast<int>(sizeof(snapshot12Items) / sizeof(snapshot12Items[0])), nullptr, nullptr
+};
+
+static const MenuItem snapshotItems[] = {
+    {"Snapshot 1", nullptr, &snapshot1Page, nullptr, nullptr, nullptr},
+    {"Snapshot 2", nullptr, &snapshot2Page, nullptr, nullptr, nullptr},
+    {"Snapshot 3", nullptr, &snapshot3Page, nullptr, nullptr, nullptr},
+    {"Snapshot 4", nullptr, &snapshot4Page, nullptr, nullptr, nullptr},
+    {"Snapshot 5", nullptr, &snapshot5Page, nullptr, nullptr, nullptr},
+    {"Snapshot 6", nullptr, &snapshot6Page, nullptr, nullptr, nullptr},
+    {"Snapshot 7", nullptr, &snapshot7Page, nullptr, nullptr, nullptr},
+    {"Snapshot 8", nullptr, &snapshot8Page, nullptr, nullptr, nullptr},
+    {"Snapshot 9", nullptr, &snapshot9Page, nullptr, nullptr, nullptr},
+    {"Snapshot 10", nullptr, &snapshot10Page, nullptr, nullptr, nullptr},
+    {"Snapshot 11", nullptr, &snapshot11Page, nullptr, nullptr, nullptr},
+    {"Snapshot 12", nullptr, &snapshot12Page, nullptr, nullptr, nullptr},
+};
+static const MenuPage snapshotPage {
+    "Snapshots", nullptr, snapshotItems,
+    static_cast<int>(sizeof(snapshotItems) / sizeof(snapshotItems[0])), nullptr, nullptr
+};
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
 
 static constexpr uint16_t coreVoltageValues[] = {1300, 1400, 1500, 1600, 1650};

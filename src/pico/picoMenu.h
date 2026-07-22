@@ -3,6 +3,9 @@
 
 #include "../PalKeys.h"
 
+char* appendText(char* dst, const char* text);
+char* appendUnsigned(char* dst, unsigned value);
+
 void palOpenMainMenu();
 void palCloseMainMenu();
 bool palMainMenuIsOpen();

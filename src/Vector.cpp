@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstring>
 #include <new>
-#include <cstdio>
 
 #include "Globals.h"
 #include "EmuCalls.h"
@@ -53,6 +52,7 @@
 #include "RamDisk.h"
 #include "Version.h"
 #include "ff.h"
+#include "pico/picoMenu.h"
 
 using namespace std;
 
@@ -2006,6 +2006,38 @@ static bool snapshotWriteAddressableSection(FIL& file, uint32_t id,
     return true;
 }
 
+static bool snapshotRead(FIL& file, void* data, UINT size)
+{
+    UINT read = 0;
+    return f_read(&file, data, size, &read) == FR_OK && read == size;
+}
+
+static bool snapshotReadAddressable(FIL& file, AddressableDevice& memory, uint32_t size)
+{
+    uint8_t buffer[512];
+    for (uint32_t offset = 0; offset < size; offset += sizeof(buffer)) {
+        const uint32_t blockSize = std::min<uint32_t>(sizeof(buffer), size - offset);
+        if (!snapshotRead(file, buffer, blockSize))
+            return false;
+        for (uint32_t i = 0; i < blockSize; ++i)
+            memory.writeByte(offset + i, buffer[i]);
+    }
+    return true;
+}
+
+static bool snapshotSkip(FIL& file, uint32_t size)
+{
+    const FSIZE_t pos = f_tell(&file);
+    return f_lseek(&file, pos + size) == FR_OK;
+}
+
+static void snapshotFileName(char* fileName, unsigned slot)
+{
+    char* dst = appendText(fileName, "/vector06c/.snap");
+    dst = appendUnsigned(dst, slot);
+    *dst = '\0';
+}
+
 } // namespace
 
 
@@ -2017,7 +2049,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
     f_mkdir("/vector06c");
 
     char fileName[32];
-    std::snprintf(fileName, sizeof(fileName), "/vector06c/.snap%u", slot);
+    snapshotFileName(fileName, slot);
 
     FIL file{};
     if (f_open(&file, fileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
@@ -2029,10 +2061,17 @@ bool VectorCore::saveSnapshot(unsigned slot)
     header.headerSize = sizeof(header);
     header.sectionCount = 5;
 #ifdef PORT_VERSION
-    std::snprintf(header.firmwareVersion, sizeof(header.firmwareVersion),
-                  "%s/%s", VER_STR, PORT_VERSION);
+    {
+        char* dst = appendText(header.firmwareVersion, VER_STR);
+        *dst++ = '/';
+        dst = appendText(dst, PORT_VERSION);
+        *dst = '\0';
+    }
 #else
-    std::snprintf(header.firmwareVersion, sizeof(header.firmwareVersion), "%s", VER_STR);
+    {
+        char* dst = appendText(header.firmwareVersion, VER_STR);
+        *dst = '\0';
+    }
 #endif
 
     const SnapshotCpuState cpuState{
@@ -2076,4 +2115,175 @@ bool VectorCore::saveSnapshot(unsigned slot)
     if (!ok)
         f_unlink(fileName);
     return ok;
+}
+
+bool VectorCore::removeSnapshot(unsigned slot)
+{
+    if (slot < 1 || slot > 12)
+        return false;
+
+    char fileName[32];
+    snapshotFileName(fileName, slot);
+    const FRESULT result = f_unlink(fileName);
+    return result == FR_OK || result == FR_NO_FILE || result == FR_NO_PATH;
+}
+
+
+uint16_t VectorCore::snapshotFormatVersion()
+{
+    return c_snapshotFormatVersion;
+}
+
+
+VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
+                                                        std::string* firmwareVersion,
+                                                        uint16_t* fileFormatVersion)
+{
+    if (firmwareVersion)
+        firmwareVersion->clear();
+    if (fileFormatVersion)
+        *fileFormatVersion = 0;
+    if (slot < 1 || slot > 12)
+        return SnapshotLoadResult::InvalidSlot;
+
+    char fileName[32];
+    snapshotFileName(fileName, slot);
+
+    FIL file{};
+    const FRESULT openResult = f_open(&file, fileName, FA_READ);
+    if (openResult == FR_NO_FILE || openResult == FR_NO_PATH)
+        return SnapshotLoadResult::NotFound;
+    if (openResult != FR_OK)
+        return SnapshotLoadResult::IoError;
+
+    SnapshotHeader header{};
+    SnapshotLoadResult result = SnapshotLoadResult::Ok;
+    if (!snapshotRead(file, &header, sizeof(header))) {
+        result = SnapshotLoadResult::InvalidFile;
+    } else {
+        header.firmwareVersion[sizeof(header.firmwareVersion) - 1] = 0;
+        if (firmwareVersion)
+            *firmwareVersion = header.firmwareVersion;
+        if (fileFormatVersion)
+            *fileFormatVersion = header.formatVersion;
+
+        if (std::memcmp(header.magic, "V06SNAP", 7) != 0 ||
+            header.headerSize < sizeof(SnapshotHeader)) {
+            result = SnapshotLoadResult::InvalidFile;
+        } else if (header.formatVersion != c_snapshotFormatVersion) {
+            result = SnapshotLoadResult::IncompatibleFormat;
+        } else if (header.headerSize > sizeof(SnapshotHeader) &&
+                   !snapshotSkip(file, header.headerSize - sizeof(SnapshotHeader))) {
+            result = SnapshotLoadResult::IoError;
+        }
+    }
+
+    SnapshotCpuState cpuState{};
+    SnapshotConfigState configState{};
+    bool haveCpu = false;
+    bool haveRam = false;
+    bool haveRamDisk1 = false;
+    bool haveRamDisk2 = false;
+    bool haveConfig = false;
+
+    if (result == SnapshotLoadResult::Ok) {
+        for (uint32_t i = 0; i < header.sectionCount; ++i) {
+            SnapshotSectionHeader section{};
+            if (!snapshotRead(file, &section, sizeof(section))) {
+                result = SnapshotLoadResult::InvalidFile;
+                break;
+            }
+
+            switch (section.id) {
+                case c_snapshotSectionCpu:
+                    if (section.size != sizeof(cpuState) ||
+                        !snapshotRead(file, &cpuState, sizeof(cpuState)))
+                        result = SnapshotLoadResult::InvalidFile;
+                    else {
+                        const VectorCpuType cpuType = static_cast<VectorCpuType>(cpuState.cpuType);
+                        if (cpuType != VECTOR_CPU_8080 && cpuType != VECTOR_CPU_Z80) {
+                            result = SnapshotLoadResult::InvalidFile;
+                        } else {
+                            // CPU replacement reinitializes the machine and must happen
+                            // before RAM and peripheral sections are restored.
+                            setCpuType(cpuType);
+                            setCpuFrequency(cpuState.frequency);
+                            haveCpu = true;
+                        }
+                    }
+                    break;
+
+                case c_snapshotSectionRam:
+                    if (section.size != m_ram->getSize() ||
+                        !snapshotRead(file, m_ram->getDataPtr(), section.size))
+                        result = SnapshotLoadResult::InvalidFile;
+                    else
+                        haveRam = true;
+                    break;
+
+                case c_snapshotSectionRamDisk1:
+                    if (section.size != m_ramDiskMem->getSize() ||
+                        !snapshotReadAddressable(file, *m_ramDiskMem, section.size))
+                        result = SnapshotLoadResult::InvalidFile;
+                    else
+                        haveRamDisk1 = true;
+                    break;
+
+                case c_snapshotSectionRamDisk2:
+                    if (section.size != m_ramDiskMem2->getSize() ||
+                        !snapshotReadAddressable(file, *m_ramDiskMem2, section.size))
+                        result = SnapshotLoadResult::InvalidFile;
+                    else
+                        haveRamDisk2 = true;
+                    break;
+
+                case c_snapshotSectionConfig:
+                    if (section.size != sizeof(configState) ||
+                        !snapshotRead(file, &configState, sizeof(configState)))
+                        result = SnapshotLoadResult::InvalidFile;
+                    else
+                        haveConfig = true;
+                    break;
+
+                default:
+                    if (!snapshotSkip(file, section.size))
+                        result = SnapshotLoadResult::IoError;
+                    break;
+            }
+
+            if (result != SnapshotLoadResult::Ok)
+                break;
+        }
+
+        if (result == SnapshotLoadResult::Ok &&
+            (!haveCpu || !haveRam || !haveRamDisk1 || !haveRamDisk2 || !haveConfig))
+            result = SnapshotLoadResult::InvalidFile;
+    }
+
+    if (f_close(&file) != FR_OK && result == SnapshotLoadResult::Ok)
+        result = SnapshotLoadResult::IoError;
+    if (result != SnapshotLoadResult::Ok)
+        return result;
+
+    // This centralized restoration is intentionally temporary.  Each device
+    // must eventually own its snapshot serializer/deserializer, while
+    // VectorCore only coordinates versioned sections.
+    m_cpu->setAF(cpuState.af);
+    m_cpu->setBC(cpuState.bc);
+    m_cpu->setDE(cpuState.de);
+    m_cpu->setHL(cpuState.hl);
+    m_cpu->setSP(cpuState.sp);
+    m_cpu->setPC(cpuState.pc);
+    m_cpu->setIFF(cpuState.interruptsEnabled != 0);
+
+    setRamDiskEnabled(0, configState.ramDisk1Enabled != 0);
+    setRamDiskEnabled(1, configState.ramDisk2Enabled != 0);
+    setPsgEnabled(configState.psgEnabled != 0);
+    setPsgStereo(configState.psgStereo != 0);
+    setPsgAcbOrder(configState.psgAcbOrder != 0);
+    setHddEnabled(configState.hddEnabled != 0);
+    setTapeHooksEnabled(configState.tapeHooksEnabled != 0);
+    m_tapeOut = configState.tapeOut != 0;
+
+    return SnapshotLoadResult::Ok;
 }
