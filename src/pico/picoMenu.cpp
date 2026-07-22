@@ -691,6 +691,39 @@ void removeSnapshotSlot(unsigned slot)
         showSnapshotMessage("Snapshot", "Unable to remove snapshot.");
 }
 
+const char* snapshotSlotTitle(unsigned slot)
+{
+    static char titles[12][64];
+    char* dst = appendText(titles[slot - 1], "Snapshot ");
+    dst = appendUnsigned(dst, slot);
+    dst = appendText(dst, "  ");
+
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    VectorCore::SnapshotInfo info;
+    if (!core || !core->readSnapshotInfo(slot, info))
+        dst = appendText(dst, info.present ? "(invalid)" : "(error)");
+    else if (!info.present)
+        dst = appendText(dst, "(empty)");
+    else
+        dst = appendText(dst, info.firmwareVersion.empty()
+                              ? "unknown" : info.firmwareVersion.c_str());
+    *dst = '\0';
+    return titles[slot - 1];
+}
+
+const char* snapshotTitle1() { return snapshotSlotTitle(1); }
+const char* snapshotTitle2() { return snapshotSlotTitle(2); }
+const char* snapshotTitle3() { return snapshotSlotTitle(3); }
+const char* snapshotTitle4() { return snapshotSlotTitle(4); }
+const char* snapshotTitle5() { return snapshotSlotTitle(5); }
+const char* snapshotTitle6() { return snapshotSlotTitle(6); }
+const char* snapshotTitle7() { return snapshotSlotTitle(7); }
+const char* snapshotTitle8() { return snapshotSlotTitle(8); }
+const char* snapshotTitle9() { return snapshotSlotTitle(9); }
+const char* snapshotTitle10() { return snapshotSlotTitle(10); }
+const char* snapshotTitle11() { return snapshotSlotTitle(11); }
+const char* snapshotTitle12() { return snapshotSlotTitle(12); }
+
 void saveSnapshot1() { saveSnapshotSlot(1); }
 void loadSnapshot1() { loadSnapshotSlot(1); }
 void removeSnapshot1() { removeSnapshotSlot(1); }
@@ -848,18 +881,18 @@ static const MenuPage snapshot12Page {
 };
 
 static const MenuItem snapshotItems[] = {
-    {"Snapshot 1", nullptr, &snapshot1Page, nullptr, nullptr, nullptr},
-    {"Snapshot 2", nullptr, &snapshot2Page, nullptr, nullptr, nullptr},
-    {"Snapshot 3", nullptr, &snapshot3Page, nullptr, nullptr, nullptr},
-    {"Snapshot 4", nullptr, &snapshot4Page, nullptr, nullptr, nullptr},
-    {"Snapshot 5", nullptr, &snapshot5Page, nullptr, nullptr, nullptr},
-    {"Snapshot 6", nullptr, &snapshot6Page, nullptr, nullptr, nullptr},
-    {"Snapshot 7", nullptr, &snapshot7Page, nullptr, nullptr, nullptr},
-    {"Snapshot 8", nullptr, &snapshot8Page, nullptr, nullptr, nullptr},
-    {"Snapshot 9", nullptr, &snapshot9Page, nullptr, nullptr, nullptr},
-    {"Snapshot 10", nullptr, &snapshot10Page, nullptr, nullptr, nullptr},
-    {"Snapshot 11", nullptr, &snapshot11Page, nullptr, nullptr, nullptr},
-    {"Snapshot 12", nullptr, &snapshot12Page, nullptr, nullptr, nullptr},
+    {"Snapshot 1", snapshotTitle1, &snapshot1Page, nullptr, nullptr, nullptr},
+    {"Snapshot 2", snapshotTitle2, &snapshot2Page, nullptr, nullptr, nullptr},
+    {"Snapshot 3", snapshotTitle3, &snapshot3Page, nullptr, nullptr, nullptr},
+    {"Snapshot 4", snapshotTitle4, &snapshot4Page, nullptr, nullptr, nullptr},
+    {"Snapshot 5", snapshotTitle5, &snapshot5Page, nullptr, nullptr, nullptr},
+    {"Snapshot 6", snapshotTitle6, &snapshot6Page, nullptr, nullptr, nullptr},
+    {"Snapshot 7", snapshotTitle7, &snapshot7Page, nullptr, nullptr, nullptr},
+    {"Snapshot 8", snapshotTitle8, &snapshot8Page, nullptr, nullptr, nullptr},
+    {"Snapshot 9", snapshotTitle9, &snapshot9Page, nullptr, nullptr, nullptr},
+    {"Snapshot 10", snapshotTitle10, &snapshot10Page, nullptr, nullptr, nullptr},
+    {"Snapshot 11", snapshotTitle11, &snapshot11Page, nullptr, nullptr, nullptr},
+    {"Snapshot 12", snapshotTitle12, &snapshot12Page, nullptr, nullptr, nullptr},
 };
 static const MenuPage snapshotPage {
     "Snapshots", nullptr, snapshotItems,

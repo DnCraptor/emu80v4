@@ -2135,6 +2135,37 @@ uint16_t VectorCore::snapshotFormatVersion()
 }
 
 
+bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
+{
+    info = SnapshotInfo{};
+    if (slot < 1 || slot > 12)
+        return false;
+
+    char fileName[32];
+    snapshotFileName(fileName, slot);
+
+    FIL file{};
+    const FRESULT openResult = f_open(&file, fileName, FA_READ);
+    if (openResult == FR_NO_FILE || openResult == FR_NO_PATH)
+        return true;
+    if (openResult != FR_OK)
+        return false;
+
+    info.present = true;
+    SnapshotHeader header{};
+    const bool readOk = snapshotRead(file, &header, sizeof(header));
+    const bool closeOk = f_close(&file) == FR_OK;
+    if (!readOk || !closeOk)
+        return false;
+
+    header.firmwareVersion[sizeof(header.firmwareVersion) - 1] = 0;
+    info.formatVersion = header.formatVersion;
+    info.firmwareVersion = header.firmwareVersion;
+    return std::memcmp(header.magic, "V06SNAP", 7) == 0 &&
+           header.headerSize >= sizeof(SnapshotHeader);
+}
+
+
 VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
                                                         std::string* firmwareVersion,
                                                         uint16_t* fileFormatVersion)

@@ -199,6 +199,12 @@ class VectorCore
             InvalidFile,
             IncompatibleFormat
         };
+        struct SnapshotInfo {
+            bool present = false;
+            uint16_t formatVersion = 0;
+            std::string firmwareVersion;
+        };
+        bool readSnapshotInfo(unsigned slot, SnapshotInfo& info) const;
         SnapshotLoadResult loadSnapshot(unsigned slot,
                                         std::string* firmwareVersion = nullptr,
                                         uint16_t* fileFormatVersion = nullptr);
