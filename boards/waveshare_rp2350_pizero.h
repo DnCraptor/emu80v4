@@ -89,12 +89,14 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define SDCARD_PIN_SPI0_CS 43
 
 // PS2KBD
-#define PS2KBD_GPIO_FIRST 0
+#define PS2KBD_GPIO_FIRST 2      // GP2 = CLOCK, GP3 = DATA
 
 // NES Gamepad
-#define NES_GPIO_CLK 7
-#define NES_GPIO_LAT 8
-#define NES_GPIO_DATA 9
+#define NES_GPIO_CLK 4           // GP4
+#define NES_GPIO_LAT 5           // GP5
+#define NES_GPIO_DATA 7          // GP7 = joy1; joy2 = DATA+1 = GP8
+
+#define LOAD_WAV_PIO 17          // GP17
 
 // HDMI 8 pins starts from pin:
 #define HDMI_BASE_PIN 32

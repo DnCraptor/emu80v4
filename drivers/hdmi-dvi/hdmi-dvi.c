@@ -217,6 +217,12 @@ void graphics_init(void) {
 
     dvi0.timing = &dvi_timing_800x600p_60hz;
     dvi0.ser_cfg = DVI_DEFAULT_SERIAL_CONFIG;
+#if defined(ZERO2)
+    // RP2350-PiZero: разъём HDMI разведён на GPIO 32..38, а PIO по умолчанию
+    // адресует окно GPIO 0..31. Сдвигаем окно на 16 (охватывает 16..47) ДО
+    // dvi_init(), иначе pio_gpio_init() на ногах >=32 не сработает.
+    pio_set_gpio_base(dvi0.ser_cfg.pio, 16);
+#endif
     dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
     // Как в PICO-BK: приоритет шины ядру 1, иначе обращения ядра 0 к памяти
