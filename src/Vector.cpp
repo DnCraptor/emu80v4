@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstring>
 #include <new>
+#include <cstdio>
 
 #include "Globals.h"
 #include "EmuCalls.h"
@@ -50,6 +51,8 @@
 #include "CloseFileHook.h"
 #include "CpuHook.h"
 #include "RamDisk.h"
+#include "Version.h"
+#include "ff.h"
 
 using namespace std;
 
@@ -1920,4 +1923,157 @@ void VectorCore::ejectHddImage()
 {
     if (m_hdd)
         m_hdd->assignFileName("");
+}
+
+
+namespace {
+
+static constexpr uint16_t c_snapshotFormatVersion = 1;
+static constexpr uint32_t c_snapshotSectionCpu = 0x20555043;      // "CPU "
+static constexpr uint32_t c_snapshotSectionRam = 0x204D4152;      // "RAM "
+static constexpr uint32_t c_snapshotSectionRamDisk1 = 0x31445252; // "RRD1"
+static constexpr uint32_t c_snapshotSectionRamDisk2 = 0x32445252; // "RRD2"
+static constexpr uint32_t c_snapshotSectionConfig = 0x47464356;   // "VCFG"
+
+#pragma pack(push, 1)
+struct SnapshotHeader {
+    char magic[8];
+    uint16_t formatVersion;
+    uint16_t headerSize;
+    uint32_t sectionCount;
+    char firmwareVersion[32];
+    uint8_t reserved[16];
+};
+
+struct SnapshotSectionHeader {
+    uint32_t id;
+    uint32_t size;
+};
+
+struct SnapshotCpuState {
+    uint8_t cpuType;
+    uint8_t interruptsEnabled;
+    uint16_t reserved;
+    uint32_t frequency;
+    uint16_t af;
+    uint16_t bc;
+    uint16_t de;
+    uint16_t hl;
+    uint16_t sp;
+    uint16_t pc;
+};
+
+struct SnapshotConfigState {
+    uint8_t ramDisk1Enabled;
+    uint8_t ramDisk2Enabled;
+    uint8_t psgEnabled;
+    uint8_t psgStereo;
+    uint8_t psgAcbOrder;
+    uint8_t hddEnabled;
+    uint8_t tapeHooksEnabled;
+    uint8_t tapeOut;
+};
+#pragma pack(pop)
+
+static bool snapshotWrite(FIL& file, const void* data, UINT size)
+{
+    UINT written = 0;
+    return f_write(&file, data, size, &written) == FR_OK && written == size;
+}
+
+static bool snapshotWriteSection(FIL& file, uint32_t id, const void* data, uint32_t size)
+{
+    const SnapshotSectionHeader section{id, size};
+    return snapshotWrite(file, &section, sizeof(section)) &&
+           snapshotWrite(file, data, size);
+}
+
+static bool snapshotWriteAddressableSection(FIL& file, uint32_t id,
+                                            AddressableDevice& memory, uint32_t size)
+{
+    const SnapshotSectionHeader section{id, size};
+    if (!snapshotWrite(file, &section, sizeof(section)))
+        return false;
+
+    uint8_t buffer[512];
+    for (uint32_t offset = 0; offset < size; offset += sizeof(buffer)) {
+        const uint32_t blockSize = std::min<uint32_t>(sizeof(buffer), size - offset);
+        for (uint32_t i = 0; i < blockSize; ++i)
+            buffer[i] = memory.readByte(offset + i);
+        if (!snapshotWrite(file, buffer, blockSize))
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
+
+bool VectorCore::saveSnapshot(unsigned slot)
+{
+    if (slot < 1 || slot > 12)
+        return false;
+
+    f_mkdir("/vector06c");
+
+    char fileName[32];
+    std::snprintf(fileName, sizeof(fileName), "/vector06c/.snap%u", slot);
+
+    FIL file{};
+    if (f_open(&file, fileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+        return false;
+
+    SnapshotHeader header{};
+    std::memcpy(header.magic, "V06SNAP", 7);
+    header.formatVersion = c_snapshotFormatVersion;
+    header.headerSize = sizeof(header);
+    header.sectionCount = 5;
+#ifdef PORT_VERSION
+    std::snprintf(header.firmwareVersion, sizeof(header.firmwareVersion),
+                  "%s/%s", VER_STR, PORT_VERSION);
+#else
+    std::snprintf(header.firmwareVersion, sizeof(header.firmwareVersion), "%s", VER_STR);
+#endif
+
+    const SnapshotCpuState cpuState{
+        static_cast<uint8_t>(getCpuType()),
+        static_cast<uint8_t>(m_cpu->getInte()),
+        0,
+        m_cpuFrequency,
+        m_cpu->getAF(),
+        m_cpu->getBC(),
+        m_cpu->getDE(),
+        m_cpu->getHL(),
+        m_cpu->getSP(),
+        m_cpu->getPC()
+    };
+
+    const SnapshotConfigState configState{
+        static_cast<uint8_t>(ramDiskEnabled(0)),
+        static_cast<uint8_t>(ramDiskEnabled(1)),
+        static_cast<uint8_t>(getPsgEnabled()),
+        static_cast<uint8_t>(getPsgStereo()),
+        static_cast<uint8_t>(getPsgAcbOrder()),
+        static_cast<uint8_t>(getHddEnabled()),
+        static_cast<uint8_t>(tapeHooksEnabled()),
+        static_cast<uint8_t>(m_tapeOut)
+    };
+
+    bool ok = snapshotWrite(file, &header, sizeof(header));
+    ok = ok && snapshotWriteSection(file, c_snapshotSectionCpu,
+                                    &cpuState, sizeof(cpuState));
+    ok = ok && snapshotWriteSection(file, c_snapshotSectionRam,
+                                    m_ram->getDataPtr(), m_ram->getSize());
+    ok = ok && snapshotWriteAddressableSection(file, c_snapshotSectionRamDisk1,
+                                               *m_ramDiskMem, m_ramDiskMem->getSize());
+    ok = ok && snapshotWriteAddressableSection(file, c_snapshotSectionRamDisk2,
+                                               *m_ramDiskMem2, m_ramDiskMem2->getSize());
+    ok = ok && snapshotWriteSection(file, c_snapshotSectionConfig,
+                                    &configState, sizeof(configState));
+
+    if (f_close(&file) != FR_OK)
+        ok = false;
+    if (!ok)
+        f_unlink(fileName);
+    return ok;
 }

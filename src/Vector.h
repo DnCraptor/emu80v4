@@ -188,6 +188,7 @@ class VectorCore
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
         bool loadFile(const std::string& fileName, bool run = true);
+        bool saveSnapshot(unsigned slot);
 
         Cpu8080Compatible* getCpu();
 
