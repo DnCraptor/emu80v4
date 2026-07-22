@@ -24,10 +24,10 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
-#set(SOFTTV ON)
+set(SOFTTV ON)
 #set(TV_NTSC ON)
 #set(VGA_DRV ON)
-set(HDMI_DVI ON)
+#set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)
@@ -227,6 +227,7 @@ ENDIF()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PORT_VERSION="${PORT_VERSION}"
     CPU_MHZ=${CPU_MHZ}
+    USE_NESPAD=1
 )
 
 if(${PICO_PLATFORM} MATCHES "rp2040")

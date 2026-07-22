@@ -327,6 +327,7 @@ static void nespad_tick1(void) {
     nespad_read();
     gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
     gamepad1_bits.b = (nespad_state & DPAD_B) != 0;
+    gamepad1_bits.select = (nespad_state & DPAD_SELECT) != 0;
     gamepad1_bits.start = (nespad_state & DPAD_START) != 0;
     gamepad1_bits.up = (nespad_state & DPAD_UP) != 0;
     gamepad1_bits.down = (nespad_state & DPAD_DOWN) != 0;
@@ -345,6 +346,48 @@ static void nespad_tick2(void) {
     gamepad2_bits.right = (nespad_state2 & DPAD_RIGHT) != 0;
 }
 #endif
+
+inline static void addKey(PalKeyCode vk, bool pressed);
+
+static void gamepad_to_keyboard_tick()
+{
+    static input_bits_t previous = { false, false, false, false, false, false, false, false };
+    const input_bits_t current = {
+        gamepad1_bits.a || gamepad2_bits.a,
+        gamepad1_bits.b || gamepad2_bits.b,
+        gamepad1_bits.select || gamepad2_bits.select,
+        gamepad1_bits.start || gamepad2_bits.start,
+        gamepad1_bits.right || gamepad2_bits.right,
+        gamepad1_bits.left || gamepad2_bits.left,
+        gamepad1_bits.up || gamepad2_bits.up,
+        gamepad1_bits.down || gamepad2_bits.down
+    };
+
+    if (current.up != previous.up) {
+        addKey(PalKeyCode::PK_UP, current.up);
+    }
+    if (current.down != previous.down) {
+        addKey(PalKeyCode::PK_DOWN, current.down);
+    }
+    if (current.left != previous.left) {
+        addKey(PalKeyCode::PK_LEFT, current.left);
+    }
+    if (current.right != previous.right) {
+        addKey(PalKeyCode::PK_RIGHT, current.right);
+    }
+    if (current.a != previous.a) {
+        addKey(PalKeyCode::PK_SPACE, current.a);
+    }
+    if (current.b != previous.b) {
+        addKey(PalKeyCode::PK_ENTER, current.b);
+    }
+    if (current.select != previous.select)
+        addKey(PalKeyCode::PK_TAB, current.select);
+    if (current.start != previous.start)
+        addKey(PalKeyCode::PK_LALT, current.start);
+
+    previous = current;
+}
 
 #ifdef KBDUSB
 inline static bool isInReport(hid_keyboard_report_t const *report, const unsigned char keycode) {
@@ -696,6 +739,7 @@ void /// __scratch_x("render")
             (tick1 ? nespad_tick1 : nespad_tick2)(); // split call for joy1 and 2
             tick1 = !tick1;
 #endif
+            gamepad_to_keyboard_tick();
             last_input_tick = tick;
         }
         tick = time_us_64();

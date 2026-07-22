@@ -139,6 +139,7 @@ void palModalMessage(const char* title, const char* text)
     palMessageBox(title, text);
     while (1) {
         sleep_ms(100);
+        palInputTick();
         const PalKeyCodeAction k = getKey();
         if (k.pressed && (k.vk == PK_ESC || k.vk == PK_ENTER || k.vk == PK_KP_ENTER))
             break;
@@ -339,6 +340,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         palMessageBox("Overwrite file", message.c_str());
         while (1) {
             sleep_ms(100);
+            palInputTick();
             const PalKeyCodeAction k = getKey();
             if (!k.pressed) continue;
             if (k.vk == PK_ENTER || k.vk == PK_KP_ENTER) {
@@ -355,6 +357,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     string res;
     while (1) {
         sleep_ms(100);
+        palInputTick();
         PalKeyCodeAction pk = getKey();
 
         if (write && inputFocused && ++inputCursorTicks >= 5) {
@@ -423,11 +426,13 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         int count = fileCount;
         if (count == 0) continue;
 
-        if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
+        if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]
+            || (pk.pressed && (pk.vk == PK_UP || pk.vk == PK_KP_8))) {
             selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : count - 1;
         } else if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
             selected_file_n = std::max(0, selected_file_n - visibleRows);
-        } else if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
+        } else if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]
+                   || (pk.pressed && (pk.vk == PK_DOWN || pk.vk == PK_KP_2))) {
             selected_file_n = selected_file_n + 1 < count ? selected_file_n + 1 : 0;
         } else if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
             selected_file_n = std::min(count - 1, selected_file_n + visibleRows);

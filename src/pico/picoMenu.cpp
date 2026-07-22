@@ -470,6 +470,7 @@ void showAboutDialog()
     drawAboutDialog();
     while (true) {
         sleep_ms(100);
+        palInputTick();
         const PalKeyCodeAction key = getKey();
         if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
                          || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
