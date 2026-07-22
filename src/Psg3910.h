@@ -43,7 +43,7 @@ class Psg3910 : public AddressableDevice
         void getOutputs(uint16_t* outputs);
 
         bool getEnabled() const {return m_enabled;}
-        void setEnabled(bool enabled) {m_enabled = enabled;}
+        void setEnabled(bool enabled);
 
     private:
         struct Psg3910Counter {

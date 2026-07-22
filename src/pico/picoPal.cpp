@@ -884,6 +884,14 @@ bool palSetAudioOutputI2S(bool i2s)
     return false;
 }
 
+void palAudioSystemClockChanged()
+{
+    audioStopPacedOutput();
+    audioDeinitOutput();
+    if (audioInitOutput(sampleRate))
+        audioStartPacedOutput(sampleRate);
+}
+
 int palGetSampleRate()
 {
     return ::sampleRate;

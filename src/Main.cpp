@@ -961,9 +961,9 @@ uint32_t butter_psram_size() { return 0; }
 #endif
 
 #ifndef PICO_RP2040
-void __not_in_flash() flash_timings() {
+void __not_in_flash() flash_timings(uint32_t systemClockMHz) {
     const int max_flash_freq = 88 * MHZ;
-    const int clock_hz = CPU_MHZ * MHZ;
+    const int clock_hz = systemClockMHz * MHZ;
     int divisor = (clock_hz + max_flash_freq - 1) / max_flash_freq;
     if (divisor == 1 && clock_hz > 100000000) {
         divisor = 2;
@@ -978,6 +978,65 @@ void __not_in_flash() flash_timings() {
 }
 #endif
 
+#if !PICO_RP2040
+static uint16_t s_coreVoltageMv = CPU_MHZ > 440 ? 1600 : 1500;
+
+uint32_t palGetSystemClockMHz()
+{
+    return clock_get_hz(clk_sys) / MHZ;
+}
+
+bool palSetSystemClockMHz(uint32_t mhz)
+{
+    if (!graphics_system_clock_can_change())
+        return mhz == palGetSystemClockMHz();
+
+    uint32_t count = 0;
+    const uint32_t* clocks = graphics_get_supported_system_clocks(&count);
+    bool supported = false;
+    for (uint32_t i = 0; i < count; ++i)
+        supported = supported || clocks[i] == mhz;
+    if (!supported)
+        return false;
+
+    multicore_lockout_start_blocking();
+    flash_timings(mhz);
+    const bool changed = set_sys_clock_khz(mhz * KHZ, false);
+    graphics_system_clock_changed();
+    multicore_lockout_end_blocking();
+    if (changed)
+        palAudioSystemClockChanged();
+    return changed;
+}
+
+uint16_t palGetCoreVoltageMv()
+{
+    return s_coreVoltageMv;
+}
+
+bool palSetCoreVoltageMv(uint16_t mv)
+{
+    enum vreg_voltage voltage;
+    switch (mv) {
+        case 1300: voltage = VREG_VOLTAGE_1_30; break;
+        case 1400: voltage = VREG_VOLTAGE_1_40; break;
+        case 1500: voltage = VREG_VOLTAGE_1_50; break;
+        case 1600: voltage = VREG_VOLTAGE_1_60; break;
+        case 1650: voltage = VREG_VOLTAGE_1_65; break;
+        default: return false;
+    }
+    vreg_set_voltage(voltage);
+    sleep_ms(5);
+    s_coreVoltageMv = mv;
+    return true;
+}
+#else
+uint32_t palGetSystemClockMHz() { return clock_get_hz(clk_sys) / MHZ; }
+bool palSetSystemClockMHz(uint32_t) { return false; }
+uint16_t palGetCoreVoltageMv() { return 0; }
+bool palSetCoreVoltageMv(uint16_t) { return false; }
+#endif
+
 int main() {
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
@@ -988,7 +1047,7 @@ int main() {
 #endif
     sleep_ms(33);
     bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
-    flash_timings();
+    flash_timings(CPU_MHZ);
     set_sys_clock_khz(CPU_MHZ * KHZ, 0);
     uint BUTTER_PSRAM_GPIO = rp2350a ? BUTTER_PSRAM_GPIO_RP2350A
                                       : BUTTER_PSRAM_GPIO_RP2350B;

@@ -171,6 +171,14 @@ static void adjust_shift_y() {
         graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
 }
 
+void vga_system_clock_changed() {
+    if (_SM_VGA < 0)
+        return;
+    const double divider = clock_get_hz(clk_sys) / 40000000.0;
+    const uint32_t div32 = (uint32_t)(divider * (1u << 16));
+    PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000;
+}
+
 void graphics_set_mode() {
     if (_SM_VGA < 0) return; // если  VGA не инициализирована -
 

@@ -1334,10 +1334,19 @@ bool VectorCore::getPsgEnabled() const
 
 void VectorCore::setPsgEnabled(bool enabled)
 {
-    if (m_ay)
-        m_ay->setEnabled(enabled);
-    if (m_psgSoundSource)
-        m_psgSoundSource->setMuted(!enabled);
+    if (!m_ay || !m_psgSoundSource || m_ay->getEnabled() == enabled)
+        return;
+
+    m_ay->setEnabled(enabled);
+
+    SoundMixer* mixer = g_emulation ? g_emulation->getSoundMixer() : nullptr;
+    if (!mixer || !mixer->sourcesCollected())
+        return;
+
+    if (enabled)
+        mixer->addSoundSource(m_psgSoundSource);
+    else
+        mixer->removeSoundSource(m_psgSoundSource);
 }
 
 
@@ -1403,6 +1412,8 @@ void VectorCore::init()
     m_sndSource->init();
     m_ay->init();
     m_psgSoundSource->init();
+    if (!m_ay->getEnabled() && g_emulation && g_emulation->getSoundMixer())
+        g_emulation->getSoundMixer()->removeSoundSource(m_psgSoundSource);
     m_fdc->init();
     m_fddReg->init();
     m_ataDrive->init();

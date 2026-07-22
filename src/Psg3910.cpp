@@ -84,6 +84,24 @@ void Psg3910::reset()
 
 }
 
+void Psg3910::setEnabled(bool enabled)
+{
+    if (m_enabled == enabled)
+        return;
+
+    if (!enabled)
+        updateState();
+
+    m_enabled = enabled;
+
+    if (enabled) {
+        m_prevClock = g_emulation->getCurClock();
+        const uint64_t stepTicks = uint64_t(m_kDiv) * 8;
+        m_discreteClock = m_prevClock - m_prevClock % stepTicks;
+        for (int i = 0; i < 3; i++)
+            m_accum[i] = 0;
+    }
+}
 
 void Psg3910::writeByte(int addr, uint8_t value)
 {

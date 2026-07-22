@@ -43,6 +43,11 @@ enum graphics_mode_t {
 
 void graphics_init();
 
+// Частоты системного тактирования, допустимые для текущего видеодрайвера.
+const uint32_t* graphics_get_supported_system_clocks(uint32_t* count);
+bool graphics_system_clock_can_change();
+void graphics_system_clock_changed();
+
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 

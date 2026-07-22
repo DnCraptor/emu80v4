@@ -1,5 +1,30 @@
 #include "graphics.h"
 #include <string.h>
+
+const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
+#ifdef HDMI_DVI
+    static const uint32_t clocks[] = {400};
+#else
+    static const uint32_t clocks[] = {400, 440, 480, 520, 540};
+#endif
+    if (count)
+        *count = sizeof(clocks) / sizeof(clocks[0]);
+    return clocks;
+}
+
+bool graphics_system_clock_can_change() {
+#ifdef HDMI_DVI
+    return false;
+#else
+    return true;
+#endif
+}
+
+void graphics_system_clock_changed() {
+#ifdef VGA_DRV
+    vga_system_clock_changed();
+#endif
+}
 /**
 void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
 if (!text_buffer) return;

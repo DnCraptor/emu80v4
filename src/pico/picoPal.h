@@ -49,6 +49,12 @@ bool palProbeAudioOutput();
 bool palAudioIsI2S();
 bool palAudioOutputCanSwitch();
 bool palSetAudioOutputI2S(bool i2s);
+void palAudioSystemClockChanged();
+
+uint32_t palGetSystemClockMHz();
+bool palSetSystemClockMHz(uint32_t mhz);
+uint16_t palGetCoreVoltageMv();
+bool palSetCoreVoltageMv(uint16_t mv);
 
 // Состояние SD-карты: монтирование при старте могло не удаться
 void palSetSdMounted(bool mounted);

@@ -590,7 +590,85 @@ static const MenuPage tapePage {
 static const MenuPage snapshotPage  {"Snapshots", nullptr, nullptr, 0, nullptr, nullptr};
 static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
 
-static const MenuPage systemPage {"System", nullptr, nullptr, 0, nullptr, nullptr};
+static constexpr uint16_t coreVoltageValues[] = {1300, 1400, 1500, 1600, 1650};
+
+int systemClockGetValue()
+{
+    uint32_t count = 0;
+    const uint32_t* clocks = graphics_get_supported_system_clocks(&count);
+    const uint32_t current = palGetSystemClockMHz();
+    for (uint32_t i = 0; i < count; ++i)
+        if (clocks[i] == current)
+            return static_cast<int>(i);
+    return 0;
+}
+
+void systemClockSetValue(int value)
+{
+    uint32_t count = 0;
+    const uint32_t* clocks = graphics_get_supported_system_clocks(&count);
+    if (value >= 0 && static_cast<uint32_t>(value) < count)
+        palSetSystemClockMHz(clocks[value]);
+}
+
+bool systemClockItemEnabled()
+{
+    return graphics_system_clock_can_change();
+}
+
+int coreVoltageGetValue()
+{
+    const uint16_t current = palGetCoreVoltageMv();
+    for (int i = 0; i < static_cast<int>(sizeof(coreVoltageValues) / sizeof(coreVoltageValues[0])); ++i)
+        if (coreVoltageValues[i] == current)
+            return i;
+    return 0;
+}
+
+void coreVoltageSetValue(int value)
+{
+    if (value >= 0 && value < static_cast<int>(sizeof(coreVoltageValues) / sizeof(coreVoltageValues[0])))
+        palSetCoreVoltageMv(coreVoltageValues[value]);
+}
+
+static const MenuItem systemClockItems[] = {
+#ifdef HDMI_DVI
+    {"400 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#else
+    {"400 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"440 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"480 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"520 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"540 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+#endif
+};
+static const MenuPage systemClockPage {
+    "RP2350 frequency", nullptr, systemClockItems,
+    static_cast<int>(sizeof(systemClockItems) / sizeof(systemClockItems[0])),
+    systemClockGetValue, systemClockSetValue
+};
+
+static const MenuItem coreVoltageItems[] = {
+    {"1.30 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.40 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.50 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.60 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.65 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+};
+static const MenuPage coreVoltagePage {
+    "Core voltage", nullptr, coreVoltageItems,
+    static_cast<int>(sizeof(coreVoltageItems) / sizeof(coreVoltageItems[0])),
+    coreVoltageGetValue, coreVoltageSetValue
+};
+
+static const MenuItem systemItems[] = {
+    {"RP2350 frequency", nullptr, &systemClockPage, nullptr, nullptr, nullptr},
+    {"Core voltage", nullptr, &coreVoltagePage, nullptr, nullptr, nullptr},
+};
+static const MenuPage systemPage {
+    "System", nullptr, systemItems,
+    static_cast<int>(sizeof(systemItems) / sizeof(systemItems[0])), nullptr, nullptr
+};
 
 void drawAboutDialog()
 {

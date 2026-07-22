@@ -10,3 +10,5 @@
 #define TEXTMODE_COLS 80
 #define TEXTMODE_ROWS 30
 
+void vga_system_clock_changed();
+
