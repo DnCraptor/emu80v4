@@ -215,7 +215,7 @@ void graphics_init(void) {
     if (mem_got < DVI_N_TMDS_BUFFERS)
         hdmi_dvi_halt(3);
 
-    dvi0.timing = &dvi_timing_800x600p_72hz;
+    dvi0.timing = &dvi_timing_800x600p_60hz;
     dvi0.ser_cfg = DVI_DEFAULT_SERIAL_CONFIG;
     dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
