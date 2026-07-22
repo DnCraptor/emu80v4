@@ -1021,7 +1021,7 @@ void VectorPpi8255Circuit2::setPortC(uint8_t value)
 
 void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
 {
-    if (!m_ataDrive)
+    if (!m_enabled || !m_ataDrive)
         return;
 
     if (addr == 8) {
@@ -1040,7 +1040,7 @@ void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
 
 uint8_t __not_in_flash_func(VectorHddRegisters::readByte)(int addr)
 {
-    if (!m_ataDrive)
+    if (!m_enabled || !m_ataDrive)
         return 0xFF;
 
     if (addr == 8)
@@ -1326,6 +1326,21 @@ VectorCore::VectorCore()
 }
 
 
+bool VectorCore::getPsgEnabled() const
+{
+    return m_ay && m_ay->getEnabled();
+}
+
+
+void VectorCore::setPsgEnabled(bool enabled)
+{
+    if (m_ay)
+        m_ay->setEnabled(enabled);
+    if (m_psgSoundSource)
+        m_psgSoundSource->setMuted(!enabled);
+}
+
+
 bool VectorCore::getPsgStereo() const
 {
     return m_psgSoundSource && m_psgSoundSource->getStereo();
@@ -1349,6 +1364,19 @@ void VectorCore::setPsgAcbOrder(bool acbOrder)
 {
     if (m_psgSoundSource)
         m_psgSoundSource->setAcbOrder(acbOrder);
+}
+
+
+bool VectorCore::getHddEnabled() const
+{
+    return m_hddRegisters && m_hddRegisters->getEnabled();
+}
+
+
+void VectorCore::setHddEnabled(bool enabled)
+{
+    if (m_hddRegisters)
+        m_hddRegisters->setEnabled(enabled);
 }
 
 

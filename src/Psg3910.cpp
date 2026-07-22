@@ -87,6 +87,9 @@ void Psg3910::reset()
 
 void Psg3910::writeByte(int addr, uint8_t value)
 {
+    if (!m_enabled)
+        return;
+
     updateState();
 
     if (addr & 1) {
@@ -162,6 +165,9 @@ void Psg3910::writeByte(int addr, uint8_t value)
 
 uint8_t Psg3910::readByte(int addr)
 {
+    if (!m_enabled)
+        return 0xFF;
+
     if (addr & 1)
         // reg number
         return m_curReg;

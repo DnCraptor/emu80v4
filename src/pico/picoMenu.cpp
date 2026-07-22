@@ -292,10 +292,23 @@ bool hddHasImage()
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
     return core && core->hddImagePresent();
 }
+bool hddEnabled()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getHddEnabled();
+}
+const char* hddToggleTitle() { return hddEnabled() ? "Disable" : "Enable"; }
+void toggleHdd()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setHddEnabled(!core->getHddEnabled());
+}
 void hddInsert() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseHddImage(); }
 void hddEject() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectHddImage(); }
 
 static const MenuItem hddItems[] = {
+    {nullptr, hddToggleTitle, nullptr, toggleHdd, nullptr, nullptr, true},
     {"Insert image [Alt+F4]...", nullptr, nullptr, hddInsert, nullptr, nullptr},
     {"Eject", nullptr, nullptr, hddEject, hddHasImage, nullptr},
 };
@@ -431,30 +444,61 @@ void togglePsgStereo()
         core->setPsgStereo(!core->getPsgStereo());
 }
 
-int psgOrderGetValue()
+bool psgEnabled()
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getPsgAcbOrder() ? 1 : 0;
+    return core && core->getPsgEnabled();
 }
 
-void psgOrderSetValue(int value)
+const char* psgToggleTitle() { return psgEnabled() ? "Disable" : "Enable"; }
+
+void togglePsg()
 {
     VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core && (value == 0 || value == 1))
-        core->setPsgAcbOrder(value == 1);
+    if (core)
+        core->setPsgEnabled(!core->getPsgEnabled());
 }
 
-static const MenuItem psgOrderItems[] = {
-    {"ABC", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"ACB", nullptr, nullptr, nullptr, nullptr, nullptr},
+bool psgOrderEnabled() { return psgEnabled(); }
+
+bool psgAbcChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && !core->getPsgAcbOrder();
+}
+
+bool psgAcbChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getPsgAcbOrder();
+}
+
+void setPsgAbc()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setPsgAcbOrder(false);
+}
+
+void setPsgAcb()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setPsgAcbOrder(true);
+}
+
+static const MenuItem psgItems[] = {
+    {nullptr, psgToggleTitle, nullptr, togglePsg, nullptr, nullptr, true},
+    {"ABC", nullptr, nullptr, setPsgAbc, psgOrderEnabled, psgAbcChecked, true},
+    {"ACB", nullptr, nullptr, setPsgAcb, psgOrderEnabled, psgAcbChecked, true},
 };
-static const MenuPage psgOrderPage {"PSG channels", nullptr, psgOrderItems, static_cast<int>(sizeof(psgOrderItems) / sizeof(psgOrderItems[0])), psgOrderGetValue, psgOrderSetValue};
+static const MenuPage psgPage {"PSG", nullptr, psgItems, static_cast<int>(sizeof(psgItems) / sizeof(psgItems[0])), nullptr, nullptr};
 
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
     {"Stereo", nullptr, nullptr, togglePsgStereo, nullptr, psgStereoChecked, true},
-    {"PSG channels", nullptr, &psgOrderPage, nullptr, nullptr, nullptr},
+    {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 

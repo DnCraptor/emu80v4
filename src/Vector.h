@@ -231,10 +231,14 @@ class VectorCore
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
         WavWriter* getWavWriter() {return m_wavWriter;}
+        bool getPsgEnabled() const;
+        void setPsgEnabled(bool enabled);
         bool getPsgStereo() const;
         void setPsgStereo(bool stereo);
         bool getPsgAcbOrder() const;
         void setPsgAcbOrder(bool acbOrder);
+        bool getHddEnabled() const;
+        void setHddEnabled(bool enabled);
 
     private:
         Ram* m_ram = nullptr;
@@ -510,6 +514,8 @@ class VectorHddRegisters : public AddressableDevice
     public:
 
         void attachAtaDrive(AtaDrive* ataDrive) {m_ataDrive = ataDrive;}
+        bool getEnabled() const {return m_enabled;}
+        void setEnabled(bool enabled) {m_enabled = enabled;}
 
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int) override;
@@ -517,6 +523,7 @@ class VectorHddRegisters : public AddressableDevice
 
     private:
         AtaDrive* m_ataDrive = nullptr;
+        bool m_enabled = true;
 
         uint8_t m_highR = 0;
         uint8_t m_highW = 0;

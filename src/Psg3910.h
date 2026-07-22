@@ -42,6 +42,8 @@ class Psg3910 : public AddressableDevice
         void updateState();
         void getOutputs(uint16_t* outputs);
 
+        bool getEnabled() const {return m_enabled;}
+        void setEnabled(bool enabled) {m_enabled = enabled;}
 
     private:
         struct Psg3910Counter {
@@ -82,6 +84,7 @@ class Psg3910 : public AddressableDevice
 
         unsigned m_curReg;
         uint8_t m_regs[16];
+        bool m_enabled = true;
 
         void step();
         void envStep();
