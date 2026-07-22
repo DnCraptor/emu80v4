@@ -16,11 +16,14 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <pico.h>
 #include <string.h>
 
 #include "Memory.h"
 #include "Pal.h"
-#include "psram_spi.h"
+#if PSRAM
+    #include "psram_spi.h"
+#endif
 #include "ff.h"
 
 using namespace std;
@@ -28,9 +31,11 @@ using namespace std;
 // Ram implementation
 
 static size_t sram_used = 0;
+extern uint8_t* PSRAM_DATA;
+extern uint32_t butter_psram_size();
 
 static FIL f;
-static const char PAGEFILE[] = "/emu80/m1p2-emu80.pagefile";
+static const char PAGEFILE[] = "/tmp/.v06c.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
@@ -57,10 +62,12 @@ void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
         PSRAM_DATA[off] = value;
         return;
     }
+#if PSRAM
     if (psram_size() > off) {
         write8psram(off, value);
         return;
     }
+#endif
     UINT br;
     FSIZE_t lba = m_offset;
     f_lseek(&f, lba + addr);
@@ -72,9 +79,11 @@ uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
     if (butter_psram_size() > off) {
         return PSRAM_DATA[off];
     }
+#if PSRAM
     if (psram_size() > off) {
         return read8psram(off);
     }
+#endif
     UINT br;
     FSIZE_t lba = m_offset;
     f_lseek(&f, lba + addr);

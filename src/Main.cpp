@@ -18,7 +18,9 @@
 #endif
 #include "audio.h"
 #include "ff.h"
-#include "psram_spi.h"
+#if PSRAM
+    #include "psram_spi.h"
+#endif
 #ifdef KBDUSB
     #include "ps2kbd_mrmltr.h"
 #else
@@ -1033,8 +1035,13 @@ int main() {
     // Результат запоминается: при неудаче файловый диалог повторит попытку
     // сам и покажет понятное сообщение вместо пустого экрана.
     // Здесь же убран локальный FATFS, затенявший глобальный.
-    palSetSdMounted(f_mount(&fs, "SD", 1) == FR_OK);
-    f_mkdir("/vector06c");
+    bool res = f_mount(&fs, "SD", 1) == FR_OK;
+    palSetSdMounted(res);
+    if (res) {
+        f_mkdir("/vector06c");
+        f_mkdir("/tmp");
+        f_mkdir("/.config");
+    }
 #if LOG
     f_unlink("/emu80.log");
 #endif
