@@ -1326,6 +1326,32 @@ VectorCore::VectorCore()
 }
 
 
+bool VectorCore::getPsgStereo() const
+{
+    return m_psgSoundSource && m_psgSoundSource->getStereo();
+}
+
+
+void VectorCore::setPsgStereo(bool stereo)
+{
+    if (m_psgSoundSource)
+        m_psgSoundSource->setStereo(stereo);
+}
+
+
+bool VectorCore::getPsgAcbOrder() const
+{
+    return m_psgSoundSource && m_psgSoundSource->getAcbOrder();
+}
+
+
+void VectorCore::setPsgAcbOrder(bool acbOrder)
+{
+    if (m_psgSoundSource)
+        m_psgSoundSource->setAcbOrder(acbOrder);
+}
+
+
 void VectorCore::init()
 {
     m_wavWriter->init();

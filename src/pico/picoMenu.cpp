@@ -385,8 +385,76 @@ void toggleSoundOutput()
     palSetAudioOutputI2S(!palAudioIsI2S());
 }
 
+bool s_userMuted = false;
+
+int volumeGetValue()
+{
+    if (s_userMuted)
+        return 0;
+    SoundMixer* mixer = g_emulation ? g_emulation->getSoundMixer() : nullptr;
+    return mixer ? mixer->getVolume() : 5;
+}
+
+void volumeSetValue(int value)
+{
+    SoundMixer* mixer = g_emulation ? g_emulation->getSoundMixer() : nullptr;
+    if (!mixer || value < 0 || value > 7)
+        return;
+    s_userMuted = value == 0;
+    if (value != 0)
+        mixer->setVolume(value);
+    mixer->setMuted(s_userMuted);
+}
+
+static const MenuItem volumeItems[] = {
+    {"Mute (0%)", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"14%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"29%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"43%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"57%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"71%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"86%", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"100%", nullptr, nullptr, nullptr, nullptr, nullptr},
+};
+static const MenuPage volumePage {"Volume", nullptr, volumeItems, static_cast<int>(sizeof(volumeItems) / sizeof(volumeItems[0])), volumeGetValue, volumeSetValue};
+
+bool psgStereoChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getPsgStereo();
+}
+
+void togglePsgStereo()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core)
+        core->setPsgStereo(!core->getPsgStereo());
+}
+
+int psgOrderGetValue()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getPsgAcbOrder() ? 1 : 0;
+}
+
+void psgOrderSetValue(int value)
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core && (value == 0 || value == 1))
+        core->setPsgAcbOrder(value == 1);
+}
+
+static const MenuItem psgOrderItems[] = {
+    {"ABC", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"ACB", nullptr, nullptr, nullptr, nullptr, nullptr},
+};
+static const MenuPage psgOrderPage {"PSG channels", nullptr, psgOrderItems, static_cast<int>(sizeof(psgOrderItems) / sizeof(psgOrderItems[0])), psgOrderGetValue, psgOrderSetValue};
+
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
+    {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
+    {"Stereo", nullptr, nullptr, togglePsgStereo, nullptr, psgStereoChecked, true},
+    {"PSG channels", nullptr, &psgOrderPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 static const MenuPage tapePage      {"Tape", nullptr, nullptr, 0, nullptr, nullptr};
@@ -523,7 +591,7 @@ static const MenuPage rootPage {
 static constexpr uint64_t c_repeatDelayUs = 400000;
 static constexpr uint64_t c_repeatRateUs  = 60000;
 
-static constexpr int c_menuBackupPool = 32768;
+static constexpr int c_menuBackupPool = 65536;
 static constexpr int c_menuMaxDepth = 8;
 
 static uint8_t s_menuBackup[c_menuBackupPool];
@@ -842,6 +910,7 @@ void palOpenMainMenu()
     menu.mixer = g_emulation->getSoundMixer();
     menu.wasPaused = g_emulation->getPausedState();
     menu.wasMuted = menu.mixer && menu.mixer->getMuted();
+    s_userMuted = menu.wasMuted;
 
     g_emulation->setPaused(true);
     if (menu.mixer)
@@ -874,7 +943,7 @@ void palCloseMainMenu()
         popBackground(d);
     menu.open = false;
     if (menu.mixer)
-        menu.mixer->setMuted(menu.wasMuted);
+        menu.mixer->setMuted(s_userMuted);
     if (g_emulation)
         g_emulation->setPaused(menu.wasPaused);
     menu.mixer = nullptr;
@@ -944,7 +1013,7 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
             item.action();
             if (item.keepOpen) {
                 if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
-                    || item.action == toggleSoundOutput)
+                    || item.action == toggleSoundOutput || item.action == togglePsgStereo)
                     redrawMenuAndParentItem();
                 else
                     redrawMenu();

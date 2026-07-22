@@ -222,6 +222,10 @@ class VectorCore
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
         WavWriter* getWavWriter() {return m_wavWriter;}
+        bool getPsgStereo() const;
+        void setPsgStereo(bool stereo);
+        bool getPsgAcbOrder() const;
+        void setPsgAcbOrder(bool acbOrder);
 
     private:
         Ram* m_ram = nullptr;

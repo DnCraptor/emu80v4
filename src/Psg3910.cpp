@@ -296,11 +296,12 @@ void __not_in_flash_func(Psg3910SoundSource::getSample)(int& left, int& right)
 
     // max amp = 3
     if (m_stereo) {
-        // Stereo ABC
-        // L = 1/2*A + 1/3*B + 1/6*C
-        // R = 1/6*A + 1/3*B + 1/2*C
-        left =  m_ampFactor * (outputs[0] * 3 / 2 + outputs[1] + outputs[2] / 2);
-        right = m_ampFactor * (outputs[0] / 2 + outputs[1] + outputs[2] * 3 / 2);
+        // Stereo ABC/ACB: A is left, the selected middle channel is centered,
+        // and the remaining channel is right.
+        const int middle = m_acbOrder ? outputs[2] : outputs[1];
+        const int rightChannel = m_acbOrder ? outputs[1] : outputs[2];
+        left =  m_ampFactor * (outputs[0] * 3 / 2 + middle + rightChannel / 2);
+        right = m_ampFactor * (outputs[0] / 2 + middle + rightChannel * 3 / 2);
     } else {
         // Mono
         // L = 1/3*A + 1/3*B + 1/3*C

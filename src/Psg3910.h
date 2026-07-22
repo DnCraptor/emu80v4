@@ -97,12 +97,18 @@ class Psg3910SoundSource : public SoundSource
 
         void attachPsg(Psg3910* psg) {m_psg = psg;}
 
+        bool getStereo() const {return m_stereo;}
+        void setStereo(bool stereo) {m_stereo = stereo;}
+        bool getAcbOrder() const {return m_acbOrder;}
+        void setAcbOrder(bool acbOrder) {m_acbOrder = acbOrder;}
+
 
     protected:
         Psg3910* m_psg = nullptr;
 
     private:
         bool m_stereo = true;
+        bool m_acbOrder = false;
 };
 
 
