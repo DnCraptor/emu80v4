@@ -25,6 +25,25 @@
 #endif
 
 // Разрядка управляющего слова — как в PinSerialData_595.h.
+// Одна запись ковокса — 10 посылок, около 14 мкс. На частоте
+// дискретизации это больше половины периода: таймер не успевает, и
+// вместо сигнала получается шум. Обновляем реже — защёлка port B
+// держит уровень сама.
+// Время восстановления шины AY между соседними циклами. Одиночная
+// операция проходит надёжно, а идущие вплотную теряются выборочно:
+// какой регистр не дописался — тот и меняет звучание. В PICO-BK записи
+// приходят от плеера с естественными промежутками, поэтому там это не
+// проявляется. Пауза ставится в конце каждой законченной операции.
+#ifndef HWAY_BUS_GAP_US
+#define HWAY_BUS_GAP_US 3
+#endif
+
+#ifndef HWAY_DAC_DECIM
+#define HWAY_DAC_DECIM 4
+#endif
+
+#define AY_RES     0x0300u   // сброс
+#define AY_Z       0x4C00u   // снять выбор с обоих чипов
 #define CS_SAA1099 (1u << 15)
 #define AY_Enable  (1u << 14)
 #define SAVE       (1u << 13)
@@ -41,30 +60,44 @@ static uint8_t s_ayclk_mode = 1;
 static bool s_test_tone = false;
 static bool s_covox_test = false;
 
+// В PICO-BK записи AY и ковокс идут из одного контекста и не вытесняют
+// друг друга. У нас ковокс вызывается из прерывания таймера аудио и
+// может влезть между защёлкой адреса и записью данных, переключив выбор
+// на второй чип. Поэтому запоминаем последний адрес, выставленный на
+// AY0, и восстанавливаем его, если шину успел занять ковокс.
+static uint8_t s_ay0_reg = 0;
+static volatile bool s_bus_dirty = false;
+
 #define LO(x) (ctrl &= ~(uint16_t)(x))
 #define HI(x) (ctrl |= (uint16_t)(x))
 
-// Побитовая посылка — точная копия send_to_595 из PICO-BK, включая тройную
-// запись уровней и микросекундную выдержку защёлки. Здесь ничего не
-// сокращаем: именно эти тайминги проверены на живом железе.
+// Побитовая посылка — версия из pico-spec. Задержка калибруется от
+// системной частоты: на 400 МГц три подряд gpio_put дают импульс около
+// 7 нс, тогда как 74HC595 требует не менее 20. У PICO-BK частота ниже и
+// это проходило, у нас биты терялись выборочно.
+#define HWAY_30MHZ 30000000u
+
+static inline void __not_in_flash_func(wait_to_adjust)(uint32_t n) {
+    for (uint32_t i = 0; i < n; ++i)
+        __asm volatile("nop");
+}
+
 static void __not_in_flash_func(send595)(uint16_t data) {
-    for (int i = 0; i < 16; i++) {
-        gpio_put(HWAY_CLK_PIN, 0);
-        gpio_put(HWAY_CLK_PIN, 0);
-        gpio_put(HWAY_CLK_PIN, 0);
-        gpio_put(HWAY_DATA_PIN, (data & 0x8000) != 0);
+    static uint32_t wait_nops = 0;
+    if (wait_nops == 0)
+        wait_nops = clock_get_hz(clk_sys) / (HWAY_30MHZ * 5);
+    gpio_put(HWAY_CLK_PIN, 0);
+    wait_to_adjust(wait_nops);
+    for (int i = 0; i < 16; ++i) {
+        gpio_put(HWAY_DATA_PIN, (0x8000 & data));
         data <<= 1;
         gpio_put(HWAY_CLK_PIN, 1);
-        gpio_put(HWAY_CLK_PIN, 1);
-        gpio_put(HWAY_CLK_PIN, 1);
+        wait_to_adjust(wait_nops);
+        gpio_put(HWAY_CLK_PIN, 0);
+        wait_to_adjust(wait_nops);
     }
     gpio_put(HWAY_LATCH_PIN, 1);
-    gpio_put(HWAY_LATCH_PIN, 1);
-    gpio_put(HWAY_LATCH_PIN, 1);
-    busy_wait_us(1);
-    gpio_put(HWAY_CLK_PIN, 0);
-    gpio_put(HWAY_CLK_PIN, 0);
-    gpio_put(HWAY_LATCH_PIN, 0);
+    wait_to_adjust(wait_nops);
     gpio_put(HWAY_LATCH_PIN, 0);
 }
 
@@ -141,6 +174,8 @@ void hway_reset(void) {
     if (!s_ready)
         return;
     uint32_t irq = save_and_disable_interrupts();
+    send595(HI(AY_RES));                     // линия сброса AY
+    send595(HI(AY_Z));                       // снять выбор с обоих чипов
     send595(LO(AY_Enable));
     send595(HI(AY_Enable | CS_SAA1099 | CS_AY0 | Beeper | CS_AY1 | BDIR | BC1 | SAVE));
     restore_interrupts(irq);
@@ -155,6 +190,8 @@ void __not_in_flash_func(hway_ay_address)(uint8_t reg) {
     HI(CS_AY0); LO(CS_AY1);                  // выбор первого чипа
     send595(HI(BDIR | BC1) | n);
     send595(LO(BDIR | BC1) | n);
+    s_ay0_reg = n;
+    s_bus_dirty = false;
     restore_interrupts(irq);
 }
 
@@ -173,6 +210,7 @@ void __not_in_flash_func(hway_ay_data)(uint8_t val) {
 // R7 = 0x80 (port B на вывод), затем R15 = значение. R7 переписывается
 // каждый раз, как в оригинале. Посылка только при изменении значения.
 static void __not_in_flash_func(covox_write)(uint8_t val) {
+    return;
     uint32_t irq = save_and_disable_interrupts();
     HI(CS_AY1); LO(CS_AY0);
     send595(HI(BDIR | BC1) | 7);
@@ -185,12 +223,18 @@ static void __not_in_flash_func(covox_write)(uint8_t val) {
     send595(LO(BDIR) | val);
     send595(HI(BDIR) | val);
     send595(LO(BDIR) | val);
+    s_bus_dirty = true;                      // выбор уведён на второй чип
     restore_interrupts(irq);
 }
 
 void __not_in_flash_func(hway_dac_out)(int16_t l, int16_t r) {
     if (!s_ready || !s_dac_on)
         return;
+    static unsigned dec = 0;
+    if (++dec < HWAY_DAC_DECIM)
+        return;
+    dec = 0;
+
     static int latch_val = -1;
     uint8_t val;
     if (s_covox_test) {
@@ -217,6 +261,8 @@ void hway_test_tone(bool on) {
         return;
     s_test_tone = on;
     if (on) {
+        hway_set_dac_enabled(false);
+        hway_reset();
         hway_ay_address(0);  hway_ay_data(249);   // период A (1.75 МГц / 16 / 440)
         hway_ay_address(1);  hway_ay_data(0);
         hway_ay_address(8);  hway_ay_data(0x0F);  // громкость A
@@ -224,9 +270,37 @@ void hway_test_tone(bool on) {
     } else {
         hway_ay_address(8);  hway_ay_data(0x00);
         hway_ay_address(7);  hway_ay_data(0xFF);
+        hway_reset();
     }
 }
 
 bool hway_test_tone_on(void) { return s_test_tone; }
 void hway_covox_test(bool on) { s_covox_test = on; }
 bool hway_covox_test_on(void) { return s_covox_test; }
+
+// --- Диагностика тракта 595 по светодиодам CS ---
+// Каждое нажатие переводит управляющее слово в следующее из четырёх
+// состояний. Данные не пишутся, AY не участвует, BDIR/BC1 не трогаются —
+// меняются только линии выбора чипов, и ожидаемая картина известна заранее:
+//   0: оба CS низкие   -> оба светодиода погашены
+//   1: только CS_AY0    -> горит первый
+//   2: только CS_AY1    -> горит второй
+//   3: оба CS высокие   -> горят оба
+// Если светодиоды повторяют этот цикл при каждом проходе, слово доезжает
+// целиком и тракт детерминирован. Если картина скачет или не совпадает —
+// слово приходит со сдвигом, и дело в разводке или в самой посылке.
+static uint8_t s_cs_step = 0;
+
+void hway_cs_step(void) {
+    if (!s_ready)
+        return;
+    s_cs_step = (uint8_t)((s_cs_step + 1) & 3);
+    uint32_t irq = save_and_disable_interrupts();
+    LO(CS_AY0 | CS_AY1);
+    if (s_cs_step & 1) HI(CS_AY0);
+    if (s_cs_step & 2) HI(CS_AY1);
+    send595(ctrl);
+    restore_interrupts(irq);
+}
+
+uint8_t hway_cs_state(void) { return s_cs_step; }

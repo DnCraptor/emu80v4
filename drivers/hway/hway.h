@@ -28,6 +28,8 @@ void hway_ayclk_refresh(void);
 // Диагностика
 void hway_test_tone(bool on);
 bool hway_test_tone_on(void);
+void hway_cs_step(void);                   // шаг теста линий CS
+uint8_t hway_cs_state(void);
 void hway_covox_test(bool on);
 bool hway_covox_test_on(void);
 #ifdef __cplusplus

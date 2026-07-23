@@ -493,6 +493,17 @@ void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
 
 
 // Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
+const char* hwayCsTitle()
+{
+    switch (hway_cs_state()) {
+        case 1:  return "595 CS step: CS0 only";
+        case 2:  return "595 CS step: CS1 only";
+        case 3:  return "595 CS step: both high";
+        default: return "595 CS step: both low";
+    }
+}
+void doHwayCsStep() { hway_cs_step(); }
+
 bool hwayCovoxTestChecked() { return hway_covox_test_on(); }
 void toggleHwayCovoxTest() { hway_covox_test(!hway_covox_test_on()); }
 
@@ -546,6 +557,7 @@ static const MenuItem soundItems[] = {
     {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
     {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
     {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
+    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
     {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
     {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
     {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
