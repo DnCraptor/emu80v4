@@ -48,6 +48,11 @@ class WavWriter : public ActiveDevice
 
         bool isOpen() {return m_open;}
 
+        // Recording is an external host-side stream and is deliberately not
+        // part of the machine snapshot. Keep the file open, but move the next
+        // sampling event to the restored emulation timeline.
+        void resynchronizeAfterSnapshotLoad();
+
     private:
         static constexpr uint8_t c_wavHeader[44] = {
             0x52, 0x49, 0x46, 0x46, // RIFF

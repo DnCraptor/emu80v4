@@ -27,7 +27,7 @@
 #include "SoundMixer.h"
 
 
-class Psg3910 : public AddressableDevice
+class Psg3910 : public AddressableDevice, public SnapshotSerializable
 {
     public:
         Psg3910();
@@ -44,6 +44,11 @@ class Psg3910 : public AddressableDevice
 
         bool getEnabled() const {return m_enabled;}
         void setEnabled(bool enabled);
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
     private:
         struct Psg3910Counter {
@@ -91,7 +96,7 @@ class Psg3910 : public AddressableDevice
 };
 
 
-class Psg3910SoundSource : public SoundSource
+class Psg3910SoundSource : public SoundSource, public SnapshotSerializable
 {
     public:
 
@@ -104,6 +109,11 @@ class Psg3910SoundSource : public SoundSource
         void setStereo(bool stereo) {m_stereo = stereo;}
         bool getAcbOrder() const {return m_acbOrder;}
         void setAcbOrder(bool acbOrder) {m_acbOrder = acbOrder;}
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
 
     protected:

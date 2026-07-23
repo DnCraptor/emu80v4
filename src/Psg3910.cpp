@@ -23,16 +23,61 @@
 
 
 #include <string>
+#include <cstring>
 
 #include "Globals.h"
 #include "Emulation.h"
 #include "Psg3910.h"
+#include "Vector.h"
 
 using namespace std;
 
 
 // Формат представления уровня выхода каналов: Q16, 65536 == 1.0
 static constexpr int PSG_AMP_BITS = 16;
+
+namespace {
+
+#pragma pack(push, 1)
+struct Psg3910CounterSnapshotStateV1 {
+    uint32_t freq;
+    uint32_t amp;
+    uint32_t counter;
+    int32_t outValue;
+    uint8_t var;
+    uint8_t toneGate;
+    uint8_t noiseGate;
+    uint8_t toneValue;
+};
+
+struct Psg3910SnapshotStateV1 {
+    uint64_t prevClock;
+    uint64_t discreteClock;
+    int64_t accum[3];
+    Psg3910CounterSnapshotStateV1 counters[3];
+    uint32_t noiseFreq;
+    uint32_t envFreq;
+    uint32_t envCounter;
+    uint32_t envCounter2;
+    int32_t noise;
+    uint32_t noiseCounter;
+    uint32_t envValue;
+    uint32_t curReg;
+    uint8_t regs[16];
+    uint8_t att;
+    uint8_t alt;
+    uint8_t hold;
+    uint8_t noiseValue;
+    uint8_t enabled;
+};
+
+struct Psg3910SoundSourceSnapshotStateV1 {
+    uint8_t stereo;
+    uint8_t acbOrder;
+};
+#pragma pack(pop)
+
+}
 
 
 Psg3910::Psg3910()
@@ -332,4 +377,133 @@ void __not_in_flash_func(Psg3910SoundSource::getSample)(int& left, int& right)
         // R = 1/3*A + 1/3*B + 1/3*C
         left = right = m_ampFactor * (outputs[0] + outputs[1] + outputs[2]);
     }
+}
+
+
+uint32_t Psg3910::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('A', 'Y', ' ', ' ');
+}
+
+uint16_t Psg3910::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Psg3910::saveState(SnapshotWriter& writer) const
+{
+    Psg3910SnapshotStateV1 state{};
+    state.prevClock = m_prevClock;
+    state.discreteClock = m_discreteClock;
+    for (int i = 0; i < 3; i++) {
+        state.accum[i] = m_accum[i];
+        const Psg3910Counter& src = m_counters[i];
+        Psg3910CounterSnapshotStateV1& dst = state.counters[i];
+        dst.freq = src.freq;
+        dst.amp = src.amp;
+        dst.counter = src.counter;
+        dst.outValue = src.outValue;
+        dst.var = src.var ? 1 : 0;
+        dst.toneGate = src.toneGate ? 1 : 0;
+        dst.noiseGate = src.noiseGate ? 1 : 0;
+        dst.toneValue = src.toneValue ? 1 : 0;
+    }
+    state.noiseFreq = m_noiseFreq;
+    state.envFreq = m_envFreq;
+    state.envCounter = m_envCounter;
+    state.envCounter2 = m_envCounter2;
+    state.noise = m_noise;
+    state.noiseCounter = m_noiseCounter;
+    state.envValue = m_envValue;
+    state.curReg = m_curReg;
+    memcpy(state.regs, m_regs, sizeof(state.regs));
+    state.att = m_att ? 1 : 0;
+    state.alt = m_alt ? 1 : 0;
+    state.hold = m_hold ? 1 : 0;
+    state.noiseValue = m_noiseValue ? 1 : 0;
+    state.enabled = m_enabled ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool Psg3910::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Psg3910SnapshotStateV1))
+        return false;
+
+    Psg3910SnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.curReg > 15 ||
+        state.envValue > 15 || state.att > 1 || state.alt > 1 ||
+        state.hold > 1 || state.noiseValue > 1 || state.enabled > 1)
+        return false;
+
+    for (int i = 0; i < 3; i++) {
+        const Psg3910CounterSnapshotStateV1& src = state.counters[i];
+        if (src.freq > 0x0FFF || src.amp > 15 || src.var > 1 ||
+            src.toneGate > 1 || src.noiseGate > 1 || src.toneValue > 1)
+            return false;
+    }
+
+    m_prevClock = state.prevClock;
+    m_discreteClock = state.discreteClock;
+    for (int i = 0; i < 3; i++) {
+        m_accum[i] = state.accum[i];
+        Psg3910Counter& dst = m_counters[i];
+        const Psg3910CounterSnapshotStateV1& src = state.counters[i];
+        dst.freq = src.freq;
+        dst.amp = src.amp;
+        dst.counter = src.counter;
+        dst.outValue = src.outValue;
+        dst.var = src.var != 0;
+        dst.toneGate = src.toneGate != 0;
+        dst.noiseGate = src.noiseGate != 0;
+        dst.toneValue = src.toneValue != 0;
+    }
+    m_noiseFreq = state.noiseFreq;
+    m_envFreq = state.envFreq;
+    m_envCounter = state.envCounter;
+    m_envCounter2 = state.envCounter2;
+    m_noise = state.noise;
+    m_noiseCounter = state.noiseCounter;
+    m_envValue = state.envValue;
+    m_curReg = state.curReg;
+    memcpy(m_regs, state.regs, sizeof(m_regs));
+    m_att = state.att != 0;
+    m_alt = state.alt != 0;
+    m_hold = state.hold != 0;
+    m_noiseValue = state.noiseValue != 0;
+    m_enabled = state.enabled != 0;
+    return true;
+}
+
+uint32_t Psg3910SoundSource::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('A', 'Y', 'M', 'X');
+}
+
+uint16_t Psg3910SoundSource::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Psg3910SoundSource::saveState(SnapshotWriter& writer) const
+{
+    const Psg3910SoundSourceSnapshotStateV1 state = {
+        static_cast<uint8_t>(m_stereo ? 1 : 0),
+        static_cast<uint8_t>(m_acbOrder ? 1 : 0)
+    };
+    return writer.writeValue(state);
+}
+
+bool Psg3910SoundSource::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Psg3910SoundSourceSnapshotStateV1))
+        return false;
+    Psg3910SoundSourceSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.stereo > 1 || state.acbOrder > 1)
+        return false;
+    m_stereo = state.stereo != 0;
+    m_acbOrder = state.acbOrder != 0;
+    return true;
 }

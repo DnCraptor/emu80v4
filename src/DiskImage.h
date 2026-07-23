@@ -33,7 +33,7 @@ public:
     virtual void diskImageChanged(DiskImage* image, bool isOpen) = 0;
 };
 
-class DiskImage : public EmuObject
+class DiskImage : public EmuObject, public SnapshotSerializable
 {
 public:
     DiskImage();
@@ -61,9 +61,20 @@ public:
     uint8_t read8();
 
     void setOwner(DiskImageObserver* owner) {m_owner = owner;}
+    void setSnapshotIndex(unsigned index) {m_snapshotIndex = index;}
+
+    uint32_t snapshotSectionId() const override;
+    uint16_t snapshotSectionVersion() const override;
+    bool saveState(SnapshotWriter& writer) const override;
+    bool loadState(SnapshotReader& reader, uint16_t version) override;
+    void postLoad() override;
 
 
 protected:
+    bool saveImageState(SnapshotWriter& writer) const;
+    bool loadImageState(SnapshotReader& reader);
+    void postLoadImageState();
+
     bool m_isWriteProtected = false;
     std::string m_fileName;
     std::string m_filter;
@@ -72,6 +83,11 @@ protected:
 
 private:
     DiskImageObserver* m_owner = nullptr;
+    unsigned m_snapshotIndex = 0;
+    bool m_snapshotImagePresent = false;
+    int m_snapshotFilePos = 0;
+    std::string m_snapshotFileName;
+    bool m_snapshotWriteProtected = false;
 };
 
 
@@ -98,6 +114,11 @@ class FdImage : public DiskImage
         int getSectors() {return m_nSectors;}
         int getSectorSize() {return m_sectorSize;}
 
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
+
 
     private:
         int m_nHeads;
@@ -108,6 +129,11 @@ class FdImage : public DiskImage
         int m_curHead;
         int m_curSector;
         int m_curSectorOffset;
+
+        int m_snapshotCurTrack = 0;
+        int m_snapshotCurHead = 0;
+        int m_snapshotCurSector = 0;
+        int m_snapshotCurSectorOffset = 0;
 
         void seek(int offset);
 };

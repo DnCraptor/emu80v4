@@ -89,7 +89,7 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         void planIrq();
 };
 
-class Pit8253 : public AddressableDevice
+class Pit8253 : public AddressableDevice, public SnapshotSerializable
 {
 
     // pitLoadMode values
@@ -119,6 +119,12 @@ class Pit8253 : public AddressableDevice
 
         Pit8253Counter* getCounter(int counterNum) {return m_counters[counterNum];}
 
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
+
 
     private:
         Pit8253Counter m_counter0;
@@ -129,6 +135,7 @@ class Pit8253 : public AddressableDevice
         bool m_latched[3];
         PitReadLoadMode m_rlModes[3];
         bool m_waitingHi[3];
+        bool m_snapshotHasHelperSchedule = false;
 };
 
 
@@ -141,6 +148,9 @@ public:
     void setCounter(Pit8253Counter* cnt) {m_counter = cnt;}
 
     void updateAndScheduleNext(uint64_t time);
+    uint64_t getScheduledClock() const {return m_curClock;}
+    bool isSchedulePaused() const {return m_isPaused;}
+    void restoreSchedule(uint64_t time, bool paused) {m_curClock = time; m_isPaused = paused;}
 
 
 private:

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2024
  *
@@ -379,6 +379,146 @@ void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int er
     rebuildPageMap();
 }
 
+namespace {
+
+constexpr uint32_t c_addrSpaceSnapshotSection =
+    makeSnapshotSectionId('A', 'D', 'D', 'R');
+
+#pragma pack(push, 1)
+struct VectorAddrSpaceSnapshotStateV1 {
+    uint32_t mainRamSize;
+    uint32_t ramDisk1Size;
+    uint32_t ramDisk2Size;
+    int32_t inRamPagesMask;
+    int32_t inRamDiskPage;
+    int32_t stackDiskPage;
+    int32_t inRamPagesMask2;
+    int32_t inRamDiskPage2;
+    int32_t stackDiskPage2;
+    int32_t eramSegment;
+    uint16_t eramPageStartAddr;
+    uint16_t eramPageEndAddr;
+    uint8_t romEnabled;
+    uint8_t stackDiskEnabled;
+    uint8_t stackDiskEnabled2;
+    uint8_t eram;
+};
+#pragma pack(pop)
+
+} // namespace
+
+uint32_t VectorAddrSpace::snapshotSectionId() const
+{
+    return c_addrSpaceSnapshotSection;
+}
+
+uint16_t VectorAddrSpace::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool VectorAddrSpace::saveState(SnapshotWriter& writer) const
+{
+    if (!m_mainMemory || !m_ramDisk || !m_ramDisk2)
+        return false;
+
+    VectorAddrSpaceSnapshotStateV1 state{};
+    state.mainRamSize = static_cast<uint32_t>(m_mainMemory->getSize());
+    state.ramDisk1Size = static_cast<uint32_t>(m_ramDisk->getSize());
+    state.ramDisk2Size = static_cast<uint32_t>(m_ramDisk2->getSize());
+    state.inRamPagesMask = m_inRamPagesMask;
+    state.inRamDiskPage = m_inRamDiskPage;
+    state.stackDiskPage = m_stackDiskPage;
+    state.inRamPagesMask2 = m_inRamPagesMask2;
+    state.inRamDiskPage2 = m_inRamDiskPage2;
+    state.stackDiskPage2 = m_stackDiskPage2;
+    state.eramSegment = m_eramSegment;
+    state.eramPageStartAddr = m_eramPageStartAddr;
+    state.eramPageEndAddr = m_eramPageEndAddr;
+    state.romEnabled = m_romEnabled ? 1 : 0;
+    state.stackDiskEnabled = m_stackDiskEnabled ? 1 : 0;
+    state.stackDiskEnabled2 = m_stackDiskEnabled2 ? 1 : 0;
+    state.eram = m_eram ? 1 : 0;
+
+    if (!writer.writeValue(state) ||
+        !writer.write(m_mainMemory->getDataPtr(), state.mainRamSize))
+        return false;
+
+    for (uint32_t i = 0; i < state.ramDisk1Size; ++i) {
+        const uint8_t value = m_ramDisk->readByte(static_cast<int>(i));
+        if (!writer.writeValue(value))
+            return false;
+    }
+    for (uint32_t i = 0; i < state.ramDisk2Size; ++i) {
+        const uint8_t value = m_ramDisk2->readByte(static_cast<int>(i));
+        if (!writer.writeValue(value))
+            return false;
+    }
+    return true;
+}
+
+bool VectorAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        !m_mainMemory || !m_ramDisk || !m_ramDisk2 ||
+        reader.remaining() < sizeof(VectorAddrSpaceSnapshotStateV1))
+        return false;
+
+    VectorAddrSpaceSnapshotStateV1 state{};
+    if (!reader.readValue(state))
+        return false;
+
+    const uint32_t mainRamSize = static_cast<uint32_t>(m_mainMemory->getSize());
+    const uint32_t ramDisk1Size = static_cast<uint32_t>(m_ramDisk->getSize());
+    const uint32_t ramDisk2Size = static_cast<uint32_t>(m_ramDisk2->getSize());
+    const uint64_t expectedSize = static_cast<uint64_t>(mainRamSize) +
+                                  ramDisk1Size + ramDisk2Size;
+    if (state.mainRamSize != mainRamSize ||
+        state.ramDisk1Size != ramDisk1Size ||
+        state.ramDisk2Size != ramDisk2Size ||
+        reader.remaining() != expectedSize ||
+        state.romEnabled > 1 || state.stackDiskEnabled > 1 ||
+        state.stackDiskEnabled2 > 1 || state.eram > 1 ||
+        state.eramPageStartAddr > state.eramPageEndAddr)
+        return false;
+
+    if (!reader.read(m_mainMemory->getDataPtr(), mainRamSize))
+        return false;
+
+    for (uint32_t i = 0; i < ramDisk1Size; ++i) {
+        uint8_t value = 0;
+        if (!reader.readValue(value))
+            return false;
+        m_ramDisk->writeByte(static_cast<int>(i), value);
+    }
+    for (uint32_t i = 0; i < ramDisk2Size; ++i) {
+        uint8_t value = 0;
+        if (!reader.readValue(value))
+            return false;
+        m_ramDisk2->writeByte(static_cast<int>(i), value);
+    }
+
+    m_inRamPagesMask = state.inRamPagesMask;
+    m_inRamDiskPage = state.inRamDiskPage;
+    m_stackDiskPage = state.stackDiskPage;
+    m_inRamPagesMask2 = state.inRamPagesMask2;
+    m_inRamDiskPage2 = state.inRamDiskPage2;
+    m_stackDiskPage2 = state.stackDiskPage2;
+    m_eramSegment = state.eramSegment;
+    m_eramPageStartAddr = state.eramPageStartAddr;
+    m_eramPageEndAddr = state.eramPageEndAddr;
+    m_romEnabled = state.romEnabled != 0;
+    m_stackDiskEnabled = state.stackDiskEnabled != 0;
+    m_stackDiskEnabled2 = state.stackDiskEnabled2 != 0;
+    m_eram = state.eram != 0;
+    return true;
+}
+
+void VectorAddrSpace::postLoad()
+{
+    rebuildPageMap();
+}
+
 void VectorCore::inte(bool isActive)
 {
     m_intsEnabled = isActive;
@@ -682,6 +822,104 @@ void VectorRenderer::toggleCropping()
 void VectorRenderer::attachMemory(Ram* memory)
 {
     m_screenMemory = memory->getDataPtr();
+}
+
+namespace {
+
+#pragma pack(push, 1)
+struct VectorRendererSnapshotStateV1 {
+    uint64_t curClock;
+    uint64_t curFrameClock;
+    int32_t curFramePixel;
+    int32_t lastColor;
+    uint8_t lineOffset;
+    uint8_t latchedLineOffset;
+    uint8_t borderColor;
+    uint8_t showBorder;
+    uint8_t colorMode;
+    uint8_t lineOffsetIsLatched;
+    uint8_t mode512px;
+    uint8_t paused;
+    uint8_t colorPalette[16];
+    uint8_t bwPalette[16];
+};
+#pragma pack(pop)
+
+constexpr uint32_t c_rendererSnapshotSection =
+    makeSnapshotSectionId('V', 'I', 'D', ' ');
+
+} // namespace
+
+
+uint32_t VectorRenderer::snapshotSectionId() const
+{
+    return c_rendererSnapshotSection;
+}
+
+uint16_t VectorRenderer::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool VectorRenderer::saveState(SnapshotWriter& writer) const
+{
+    VectorRendererSnapshotStateV1 state{};
+    state.curClock = m_curClock;
+    state.curFrameClock = m_curFrameClock;
+    state.curFramePixel = m_curFramePixel;
+    state.lastColor = m_lastColor;
+    state.lineOffset = m_lineOffset;
+    state.latchedLineOffset = m_latchedLineOffset;
+    state.borderColor = m_borderColor;
+    state.showBorder = m_showBorder ? 1 : 0;
+    state.colorMode = m_colorMode ? 1 : 0;
+    state.lineOffsetIsLatched = m_lineOffsetIsLatched ? 1 : 0;
+    state.mode512px = m_mode512px ? 1 : 0;
+    state.paused = m_isPaused ? 1 : 0;
+    memcpy(state.colorPalette, m_colorPalette, sizeof(state.colorPalette));
+    memcpy(state.bwPalette, m_bwPalette, sizeof(state.bwPalette));
+    return writer.writeValue(state) &&
+           writer.write(m_frameBuf, c_frameBufSize);
+}
+
+bool VectorRenderer::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(VectorRendererSnapshotStateV1) + c_frameBufSize)
+        return false;
+
+    VectorRendererSnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.curFramePixel < 0 || state.curFramePixel >= 312 * 768 ||
+        state.lastColor < 0 || state.lastColor > 15 ||
+        state.showBorder > 1 || state.colorMode > 1 ||
+        state.lineOffsetIsLatched > 1 || state.mode512px > 1 ||
+        state.paused > 1 || !reader.read(m_frameBuf, c_frameBufSize))
+        return false;
+
+    m_curClock = state.curClock;
+    m_curFrameClock = state.curFrameClock;
+    m_curFramePixel = state.curFramePixel;
+    m_lastColor = state.lastColor;
+    m_lineOffset = state.lineOffset;
+    m_latchedLineOffset = state.latchedLineOffset;
+    m_borderColor = state.borderColor;
+    m_showBorder = state.showBorder != 0;
+    m_colorMode = state.colorMode != 0;
+    m_lineOffsetIsLatched = state.lineOffsetIsLatched != 0;
+    m_mode512px = state.mode512px != 0;
+    m_isPaused = state.paused != 0;
+    memcpy(m_colorPalette, state.colorPalette, sizeof(m_colorPalette));
+    memcpy(m_bwPalette, state.bwPalette, sizeof(m_bwPalette));
+    return true;
+}
+
+void VectorRenderer::postLoad()
+{
+    m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
+    m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
+    prepareFrame();
+    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
 }
 
 bool VectorFileLoader::chooseAndLoadFile(bool run)
@@ -1121,6 +1359,7 @@ VectorCore::VectorCore()
     m_ppi = &s_devices.ppi;
     m_ppi->setMachine(this);
     m_ppi->setNoReset(true);
+    m_ppi->setSnapshotIndex(0);
     m_ppi->attachPpi8255Circuit(m_ppiCircuit);
 
     m_ioAddrSpace->addRange(0x00, 0x03, m_ppi, 0, true);
@@ -1140,6 +1379,7 @@ VectorCore::VectorCore()
 
     m_ppi2 = &s_devices.ppi2;
     m_ppi2->setMachine(this);
+    m_ppi2->setSnapshotIndex(1);
     m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
     m_ioAddrSpace->addRange(0x04, 0x07, m_ppi2, 0, true);
@@ -1185,18 +1425,21 @@ VectorCore::VectorCore()
 
     m_diskA = &s_devices.diskA;
     m_diskA->setMachine(this);
+    m_diskA->setSnapshotIndex(0);
     m_diskA->setLabel("A");
     m_diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(0, m_diskA);
 
     m_diskB = &s_devices.diskB;
     m_diskB->setMachine(this);
+    m_diskB->setSnapshotIndex(1);
     m_diskB->setLabel("B");
     m_diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(1, m_diskB);
 
     m_hdd = &s_devices.hdd;
     m_hdd->setMachine(this);
+    m_hdd->setSnapshotIndex(2);
     m_hdd->setLabel("HDD");
     m_hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
     m_ataDrive->assignDiskImage(m_hdd);
@@ -1926,110 +2169,169 @@ void VectorCore::ejectHddImage()
 }
 
 
-namespace {
 
-static constexpr uint16_t c_snapshotFormatVersion = 1;
-static constexpr uint32_t c_snapshotSectionCpu = 0x20555043;      // "CPU "
-static constexpr uint32_t c_snapshotSectionRam = 0x204D4152;      // "RAM "
-static constexpr uint32_t c_snapshotSectionRamDisk1 = 0x31445252; // "RRD1"
-static constexpr uint32_t c_snapshotSectionRamDisk2 = 0x32445252; // "RRD2"
-static constexpr uint32_t c_snapshotSectionConfig = 0x47464356;   // "VCFG"
-
-#pragma pack(push, 1)
-struct SnapshotHeader {
-    char magic[8];
-    uint16_t formatVersion;
-    uint16_t headerSize;
-    uint32_t sectionCount;
-    char firmwareVersion[32];
-    uint8_t reserved[16];
-};
-
-struct SnapshotSectionHeader {
-    uint32_t id;
-    uint32_t size;
-};
-
-struct SnapshotCpuState {
-    uint8_t cpuType;
-    uint8_t interruptsEnabled;
-    uint16_t reserved;
-    uint32_t frequency;
-    uint16_t af;
-    uint16_t bc;
-    uint16_t de;
-    uint16_t hl;
-    uint16_t sp;
-    uint16_t pc;
-};
-
-struct SnapshotConfigState {
-    uint8_t ramDisk1Enabled;
-    uint8_t ramDisk2Enabled;
-    uint8_t psgEnabled;
-    uint8_t psgStereo;
-    uint8_t psgAcbOrder;
-    uint8_t hddEnabled;
-    uint8_t tapeHooksEnabled;
-    uint8_t tapeOut;
-};
-#pragma pack(pop)
-
-static bool snapshotWrite(FIL& file, const void* data, UINT size)
+SnapshotWriter::SnapshotWriter(FIL& file) :
+    m_file(file)
 {
-    UINT written = 0;
-    return f_write(&file, data, size, &written) == FR_OK && written == size;
 }
 
-static bool snapshotWriteSection(FIL& file, uint32_t id, const void* data, uint32_t size)
+bool SnapshotWriter::good() const
 {
-    const SnapshotSectionHeader section{id, size};
-    return snapshotWrite(file, &section, sizeof(section)) &&
-           snapshotWrite(file, data, size);
+    return m_good;
 }
 
-static bool snapshotWriteAddressableSection(FIL& file, uint32_t id,
-                                            AddressableDevice& memory, uint32_t size)
+bool SnapshotWriter::write(const void* data, uint32_t size)
 {
-    const SnapshotSectionHeader section{id, size};
-    if (!snapshotWrite(file, &section, sizeof(section)))
+    if (!m_good)
         return false;
 
-    uint8_t buffer[512];
-    for (uint32_t offset = 0; offset < size; offset += sizeof(buffer)) {
-        const uint32_t blockSize = std::min<uint32_t>(sizeof(buffer), size - offset);
-        for (uint32_t i = 0; i < blockSize; ++i)
-            buffer[i] = memory.readByte(offset + i);
-        if (!snapshotWrite(file, buffer, blockSize))
-            return false;
-    }
+    UINT written = 0;
+    if (f_write(&m_file, data, size, &written) != FR_OK || written != size)
+        m_good = false;
+    return m_good;
+}
+
+bool SnapshotWriter::beginSection(uint32_t id, uint16_t version)
+{
+    if (!m_good || m_sectionOpen)
+        return false;
+
+    m_sectionHeader = {};
+    m_sectionHeader.id = id;
+    m_sectionHeader.version = version;
+    m_sectionHeader.headerSize = sizeof(m_sectionHeader);
+    m_sectionHeaderPos = f_tell(&m_file);
+    if (!writeValue(m_sectionHeader))
+        return false;
+
+    m_sectionDataPos = f_tell(&m_file);
+    m_sectionOpen = true;
     return true;
 }
 
-static bool snapshotRead(FIL& file, void* data, UINT size)
+bool SnapshotWriter::endSection()
 {
-    UINT read = 0;
-    return f_read(&file, data, size, &read) == FR_OK && read == size;
+    if (!m_good || !m_sectionOpen)
+        return false;
+
+    const FSIZE_t endPos = f_tell(&m_file);
+    const FSIZE_t sectionSize = endPos - m_sectionDataPos;
+    if (sectionSize > UINT32_MAX) {
+        m_good = false;
+        return false;
+    }
+
+    m_sectionHeader.size = static_cast<uint32_t>(sectionSize);
+    if (f_lseek(&m_file, m_sectionHeaderPos) != FR_OK) {
+        m_good = false;
+        return false;
+    }
+
+    m_sectionOpen = false;
+    if (!writeValue(m_sectionHeader))
+        return false;
+    if (f_lseek(&m_file, endPos) != FR_OK)
+        m_good = false;
+    return m_good;
 }
 
-static bool snapshotReadAddressable(FIL& file, AddressableDevice& memory, uint32_t size)
+SnapshotReader::SnapshotReader(FIL& file) :
+    m_file(file)
 {
-    uint8_t buffer[512];
-    for (uint32_t offset = 0; offset < size; offset += sizeof(buffer)) {
-        const uint32_t blockSize = std::min<uint32_t>(sizeof(buffer), size - offset);
-        if (!snapshotRead(file, buffer, blockSize))
-            return false;
-        for (uint32_t i = 0; i < blockSize; ++i)
-            memory.writeByte(offset + i, buffer[i]);
+}
+
+bool SnapshotReader::good() const
+{
+    return m_good;
+}
+
+bool SnapshotReader::read(void* data, uint32_t size)
+{
+    if (!m_good)
+        return false;
+    if (m_sectionOpen && size > remaining()) {
+        m_good = false;
+        return false;
     }
+
+    UINT bytesRead = 0;
+    if (f_read(&m_file, data, size, &bytesRead) != FR_OK || bytesRead != size)
+        m_good = false;
+    return m_good;
+}
+
+bool SnapshotReader::beginSection(SnapshotSectionHeaderV2& section)
+{
+    if (!m_good || m_sectionOpen)
+        return false;
+    if (!readValue(section))
+        return false;
+    if (section.headerSize < sizeof(section)) {
+        m_good = false;
+        return false;
+    }
+
+    if (section.headerSize > sizeof(section) &&
+        !skip(section.headerSize - sizeof(section)))
+        return false;
+
+    const FSIZE_t dataPos = f_tell(&m_file);
+    const FSIZE_t fileSize = f_size(&m_file);
+    if (dataPos > fileSize || section.size > fileSize - dataPos) {
+        m_good = false;
+        return false;
+    }
+
+    m_sectionEnd = dataPos + section.size;
+    m_sectionOpen = true;
     return true;
 }
 
-static bool snapshotSkip(FIL& file, uint32_t size)
+bool SnapshotReader::endSection()
 {
-    const FSIZE_t pos = f_tell(&file);
-    return f_lseek(&file, pos + size) == FR_OK;
+    if (!m_good || !m_sectionOpen)
+        return false;
+
+    if (f_lseek(&m_file, m_sectionEnd) != FR_OK) {
+        m_good = false;
+        return false;
+    }
+    m_sectionOpen = false;
+    return true;
 }
+
+bool SnapshotReader::skip(uint32_t size)
+{
+    if (!m_good)
+        return false;
+    if (m_sectionOpen && size > remaining()) {
+        m_good = false;
+        return false;
+    }
+
+    const FSIZE_t pos = f_tell(&m_file);
+    const FSIZE_t fileSize = f_size(&m_file);
+    if (pos > fileSize || size > fileSize - pos ||
+        f_lseek(&m_file, pos + size) != FR_OK)
+        m_good = false;
+    return m_good;
+}
+
+uint32_t SnapshotReader::remaining() const
+{
+    if (!m_sectionOpen)
+        return 0;
+
+    const FSIZE_t pos = f_tell(&m_file);
+    if (pos >= m_sectionEnd)
+        return 0;
+    return static_cast<uint32_t>(m_sectionEnd - pos);
+}
+
+namespace {
+
+static constexpr uint16_t c_snapshotFormatVersion = SNAPSHOT_STATE_FORMAT_VERSION;
+static constexpr uint32_t c_snapshotSectionCount = 18;
 
 static void snapshotFileName(char* fileName, unsigned slot)
 {
@@ -2038,12 +2340,107 @@ static void snapshotFileName(char* fileName, unsigned slot)
     *dst = '\0';
 }
 
+static bool writeSnapshotSection(SnapshotWriter& writer,
+                                 const SnapshotSerializable& device)
+{
+    return writer.beginSection(device.snapshotSectionId(),
+                               device.snapshotSectionVersion()) &&
+           device.saveState(writer) &&
+           writer.endSection();
+}
+
 } // namespace
 
 
+namespace {
+
+#pragma pack(push, 1)
+struct VectorCoreSnapshotStateV1 {
+    uint32_t cpuFrequency;
+    uint8_t cpuType;
+    uint8_t intReq;
+    uint8_t intsEnabled;
+    uint8_t tapeOut;
+    uint8_t ramDisk1Enabled;
+    uint8_t ramDisk2Enabled;
+    uint8_t psgEnabled;
+    uint8_t psgStereo;
+    uint8_t psgAcbOrder;
+    uint8_t hddEnabled;
+    uint8_t tapeHooksEnabled;
+};
+#pragma pack(pop)
+
+} // namespace
+
+uint32_t VectorCore::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('C', 'O', 'R', 'E');
+}
+
+uint16_t VectorCore::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool VectorCore::saveState(SnapshotWriter& writer) const
+{
+    VectorCoreSnapshotStateV1 state{};
+    state.cpuFrequency = m_cpuFrequency;
+    state.cpuType = static_cast<uint8_t>(getCpuType());
+    state.intReq = m_intReq ? 1 : 0;
+    state.intsEnabled = m_intsEnabled ? 1 : 0;
+    state.tapeOut = m_tapeOut ? 1 : 0;
+    state.ramDisk1Enabled = ramDiskEnabled(0) ? 1 : 0;
+    state.ramDisk2Enabled = ramDiskEnabled(1) ? 1 : 0;
+    state.psgEnabled = getPsgEnabled() ? 1 : 0;
+    state.psgStereo = getPsgStereo() ? 1 : 0;
+    state.psgAcbOrder = getPsgAcbOrder() ? 1 : 0;
+    state.hddEnabled = getHddEnabled() ? 1 : 0;
+    state.tapeHooksEnabled = tapeHooksEnabled() ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool VectorCore::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(VectorCoreSnapshotStateV1))
+        return false;
+
+    VectorCoreSnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.cpuType > VECTOR_CPU_Z80 ||
+        state.intReq > 1 || state.intsEnabled > 1 || state.tapeOut > 1 ||
+        state.ramDisk1Enabled > 1 || state.ramDisk2Enabled > 1 ||
+        state.psgEnabled > 1 || state.psgStereo > 1 ||
+        state.psgAcbOrder > 1 || state.hddEnabled > 1 ||
+        state.tapeHooksEnabled > 1)
+        return false;
+
+    setCpuType(static_cast<VectorCpuType>(state.cpuType));
+    setCpuFrequency(state.cpuFrequency);
+    m_intReq = state.intReq != 0;
+    m_intsEnabled = state.intsEnabled != 0;
+    m_tapeOut = state.tapeOut != 0;
+    setRamDiskEnabled(0, state.ramDisk1Enabled != 0);
+    setRamDiskEnabled(1, state.ramDisk2Enabled != 0);
+    setPsgEnabled(state.psgEnabled != 0);
+    setPsgStereo(state.psgStereo != 0);
+    setPsgAcbOrder(state.psgAcbOrder != 0);
+    setHddEnabled(state.hddEnabled != 0);
+    setTapeHooksEnabled(state.tapeHooksEnabled != 0);
+    return true;
+}
+
+void VectorCore::postLoad()
+{
+    inte(m_intsEnabled);
+    tapeOut(m_tapeOut);
+}
+
 bool VectorCore::saveSnapshot(unsigned slot)
 {
-    if (slot < 1 || slot > 12)
+    if (slot < 1 || slot > 12 || !g_emulation)
         return false;
 
     f_mkdir("/vector06c");
@@ -2055,11 +2452,11 @@ bool VectorCore::saveSnapshot(unsigned slot)
     if (f_open(&file, fileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
         return false;
 
-    SnapshotHeader header{};
+    SnapshotFileHeaderV2 header{};
     std::memcpy(header.magic, "V06SNAP", 7);
     header.formatVersion = c_snapshotFormatVersion;
     header.headerSize = sizeof(header);
-    header.sectionCount = 5;
+    header.sectionCount = c_snapshotSectionCount;
 #ifdef PORT_VERSION
     {
         char* dst = appendText(header.firmwareVersion, VER_STR);
@@ -2074,41 +2471,31 @@ bool VectorCore::saveSnapshot(unsigned slot)
     }
 #endif
 
-    const SnapshotCpuState cpuState{
-        static_cast<uint8_t>(getCpuType()),
-        static_cast<uint8_t>(m_cpu->getInte()),
-        0,
-        m_cpuFrequency,
-        m_cpu->getAF(),
-        m_cpu->getBC(),
-        m_cpu->getDE(),
-        m_cpu->getHL(),
-        m_cpu->getSP(),
-        m_cpu->getPC()
-    };
+    SnapshotSerializable* cpuState = getCpuType() == VECTOR_CPU_Z80
+        ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
+        : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
 
-    const SnapshotConfigState configState{
-        static_cast<uint8_t>(ramDiskEnabled(0)),
-        static_cast<uint8_t>(ramDiskEnabled(1)),
-        static_cast<uint8_t>(getPsgEnabled()),
-        static_cast<uint8_t>(getPsgStereo()),
-        static_cast<uint8_t>(getPsgAcbOrder()),
-        static_cast<uint8_t>(getHddEnabled()),
-        static_cast<uint8_t>(tapeHooksEnabled()),
-        static_cast<uint8_t>(m_tapeOut)
-    };
-
-    bool ok = snapshotWrite(file, &header, sizeof(header));
-    ok = ok && snapshotWriteSection(file, c_snapshotSectionCpu,
-                                    &cpuState, sizeof(cpuState));
-    ok = ok && snapshotWriteSection(file, c_snapshotSectionRam,
-                                    m_ram->getDataPtr(), m_ram->getSize());
-    ok = ok && snapshotWriteAddressableSection(file, c_snapshotSectionRamDisk1,
-                                               *m_ramDiskMem, m_ramDiskMem->getSize());
-    ok = ok && snapshotWriteAddressableSection(file, c_snapshotSectionRamDisk2,
-                                               *m_ramDiskMem2, m_ramDiskMem2->getSize());
-    ok = ok && snapshotWriteSection(file, c_snapshotSectionConfig,
-                                    &configState, sizeof(configState));
+    SnapshotWriter writer(file);
+    bool ok = writer.writeValue(header);
+    ok = ok && writeSnapshotSection(writer, *this); // CORE must precede CPU.
+    ok = ok && writeSnapshotSection(writer, *cpuState);
+    ok = ok && writeSnapshotSection(writer, *m_addrSpace);
+    ok = ok && writeSnapshotSection(writer, *m_ppi);
+    ok = ok && writeSnapshotSection(writer, *m_ppi2);
+    ok = ok && writeSnapshotSection(writer, *m_pit);
+    ok = ok && writeSnapshotSection(writer, *m_renderer);
+    ok = ok && writeSnapshotSection(writer, *m_tapeSoundSource);
+    ok = ok && writeSnapshotSection(writer, *m_covox);
+    ok = ok && writeSnapshotSection(writer, *m_ay);
+    ok = ok && writeSnapshotSection(writer, *m_psgSoundSource);
+    ok = ok && writeSnapshotSection(writer, *m_fdc);
+    ok = ok && writeSnapshotSection(writer, *m_ataDrive);
+    ok = ok && writeSnapshotSection(writer, *m_diskA);
+    ok = ok && writeSnapshotSection(writer, *m_diskB);
+    ok = ok && writeSnapshotSection(writer, *m_hdd);
+    ok = ok && writeSnapshotSection(writer, *g_emulation->getSoundMixer());
+    ok = ok && writeSnapshotSection(writer, *g_emulation);
+    ok = ok && writer.good();
 
     if (f_close(&file) != FR_OK)
         ok = false;
@@ -2152,8 +2539,9 @@ bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
         return false;
 
     info.present = true;
-    SnapshotHeader header{};
-    const bool readOk = snapshotRead(file, &header, sizeof(header));
+    SnapshotReader reader(file);
+    SnapshotFileHeaderV2 header{};
+    const bool readOk = reader.readValue(header);
     const bool closeOk = f_close(&file) == FR_OK;
     if (!readOk || !closeOk)
         return false;
@@ -2162,7 +2550,7 @@ bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
     info.formatVersion = header.formatVersion;
     info.firmwareVersion = header.firmwareVersion;
     return std::memcmp(header.magic, "V06SNAP", 7) == 0 &&
-           header.headerSize >= sizeof(SnapshotHeader);
+           header.headerSize >= sizeof(SnapshotFileHeaderV2);
 }
 
 
@@ -2176,6 +2564,8 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
         *fileFormatVersion = 0;
     if (slot < 1 || slot > 12)
         return SnapshotLoadResult::InvalidSlot;
+    if (!g_emulation)
+        return SnapshotLoadResult::IoError;
 
     char fileName[32];
     snapshotFileName(fileName, slot);
@@ -2187,9 +2577,10 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
     if (openResult != FR_OK)
         return SnapshotLoadResult::IoError;
 
-    SnapshotHeader header{};
+    SnapshotReader reader(file);
+    SnapshotFileHeaderV2 header{};
     SnapshotLoadResult result = SnapshotLoadResult::Ok;
-    if (!snapshotRead(file, &header, sizeof(header))) {
+    if (!reader.readValue(header)) {
         result = SnapshotLoadResult::InvalidFile;
     } else {
         header.firmwareVersion[sizeof(header.firmwareVersion) - 1] = 0;
@@ -2199,96 +2590,81 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
             *fileFormatVersion = header.formatVersion;
 
         if (std::memcmp(header.magic, "V06SNAP", 7) != 0 ||
-            header.headerSize < sizeof(SnapshotHeader)) {
+            header.headerSize < sizeof(SnapshotFileHeaderV2)) {
             result = SnapshotLoadResult::InvalidFile;
         } else if (header.formatVersion != c_snapshotFormatVersion) {
             result = SnapshotLoadResult::IncompatibleFormat;
-        } else if (header.headerSize > sizeof(SnapshotHeader) &&
-                   !snapshotSkip(file, header.headerSize - sizeof(SnapshotHeader))) {
+        } else if (header.headerSize > sizeof(SnapshotFileHeaderV2) &&
+                   !reader.skip(header.headerSize - sizeof(SnapshotFileHeaderV2))) {
             result = SnapshotLoadResult::IoError;
         }
     }
 
-    SnapshotCpuState cpuState{};
-    SnapshotConfigState configState{};
-    bool haveCpu = false;
-    bool haveRam = false;
-    bool haveRamDisk1 = false;
-    bool haveRamDisk2 = false;
-    bool haveConfig = false;
+    bool loaded[c_snapshotSectionCount] = {};
+    SnapshotSerializable* devices[c_snapshotSectionCount] = {};
 
     if (result == SnapshotLoadResult::Ok) {
-        for (uint32_t i = 0; i < header.sectionCount; ++i) {
-            SnapshotSectionHeader section{};
-            if (!snapshotRead(file, &section, sizeof(section))) {
+        for (uint32_t sectionIndex = 0; sectionIndex < header.sectionCount; ++sectionIndex) {
+            SnapshotSectionHeaderV2 section{};
+            if (!reader.beginSection(section)) {
                 result = SnapshotLoadResult::InvalidFile;
                 break;
             }
 
-            switch (section.id) {
-                case c_snapshotSectionCpu:
-                    if (section.size != sizeof(cpuState) ||
-                        !snapshotRead(file, &cpuState, sizeof(cpuState)))
-                        result = SnapshotLoadResult::InvalidFile;
-                    else {
-                        const VectorCpuType cpuType = static_cast<VectorCpuType>(cpuState.cpuType);
-                        if (cpuType != VECTOR_CPU_8080 && cpuType != VECTOR_CPU_Z80) {
-                            result = SnapshotLoadResult::InvalidFile;
-                        } else {
-                            // CPU replacement reinitializes the machine and must happen
-                            // before RAM and peripheral sections are restored.
-                            setCpuType(cpuType);
-                            setCpuFrequency(cpuState.frequency);
-                            haveCpu = true;
-                        }
-                    }
-                    break;
+            SnapshotSerializable* cpuState = getCpuType() == VECTOR_CPU_Z80
+                ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
+                : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
+            devices[0] = this;
+            devices[1] = cpuState;
+            devices[2] = m_addrSpace;
+            devices[3] = m_ppi;
+            devices[4] = m_ppi2;
+            devices[5] = m_pit;
+            devices[6] = m_renderer;
+            devices[7] = m_tapeSoundSource;
+            devices[8] = m_covox;
+            devices[9] = m_ay;
+            devices[10] = m_psgSoundSource;
+            devices[11] = m_fdc;
+            devices[12] = m_ataDrive;
+            devices[13] = m_diskA;
+            devices[14] = m_diskB;
+            devices[15] = m_hdd;
+            devices[16] = g_emulation->getSoundMixer();
+            devices[17] = g_emulation;
 
-                case c_snapshotSectionRam:
-                    if (section.size != m_ram->getSize() ||
-                        !snapshotRead(file, m_ram->getDataPtr(), section.size))
-                        result = SnapshotLoadResult::InvalidFile;
-                    else
-                        haveRam = true;
+            int deviceIndex = -1;
+            for (uint32_t i = 0; i < c_snapshotSectionCount; ++i) {
+                if (devices[i]->snapshotSectionId() == section.id) {
+                    deviceIndex = static_cast<int>(i);
                     break;
-
-                case c_snapshotSectionRamDisk1:
-                    if (section.size != m_ramDiskMem->getSize() ||
-                        !snapshotReadAddressable(file, *m_ramDiskMem, section.size))
-                        result = SnapshotLoadResult::InvalidFile;
-                    else
-                        haveRamDisk1 = true;
-                    break;
-
-                case c_snapshotSectionRamDisk2:
-                    if (section.size != m_ramDiskMem2->getSize() ||
-                        !snapshotReadAddressable(file, *m_ramDiskMem2, section.size))
-                        result = SnapshotLoadResult::InvalidFile;
-                    else
-                        haveRamDisk2 = true;
-                    break;
-
-                case c_snapshotSectionConfig:
-                    if (section.size != sizeof(configState) ||
-                        !snapshotRead(file, &configState, sizeof(configState)))
-                        result = SnapshotLoadResult::InvalidFile;
-                    else
-                        haveConfig = true;
-                    break;
-
-                default:
-                    if (!snapshotSkip(file, section.size))
-                        result = SnapshotLoadResult::IoError;
-                    break;
+                }
             }
 
+            if (deviceIndex >= 0) {
+                // CORE changes the CPU implementation, therefore it must be
+                // the first known section and may occur only once.
+                if ((deviceIndex != 0 && !loaded[0]) || loaded[deviceIndex] ||
+                    !devices[deviceIndex]->loadState(reader, section.version))
+                    result = SnapshotLoadResult::InvalidFile;
+                else
+                    loaded[deviceIndex] = true;
+            }
+
+            if (!reader.endSection() && result == SnapshotLoadResult::Ok)
+                result = SnapshotLoadResult::IoError;
             if (result != SnapshotLoadResult::Ok)
                 break;
         }
 
-        if (result == SnapshotLoadResult::Ok &&
-            (!haveCpu || !haveRam || !haveRamDisk1 || !haveRamDisk2 || !haveConfig))
-            result = SnapshotLoadResult::InvalidFile;
+        if (result == SnapshotLoadResult::Ok) {
+            for (bool sectionLoaded : loaded) {
+                if (!sectionLoaded) {
+                    result = SnapshotLoadResult::InvalidFile;
+                    break;
+                }
+            }
+        }
     }
 
     if (f_close(&file) != FR_OK && result == SnapshotLoadResult::Ok)
@@ -2296,25 +2672,24 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
     if (result != SnapshotLoadResult::Ok)
         return result;
 
-    // This centralized restoration is intentionally temporary.  Each device
-    // must eventually own its snapshot serializer/deserializer, while
-    // VectorCore only coordinates versioned sections.
-    m_cpu->setAF(cpuState.af);
-    m_cpu->setBC(cpuState.bc);
-    m_cpu->setDE(cpuState.de);
-    m_cpu->setHL(cpuState.hl);
-    m_cpu->setSP(cpuState.sp);
-    m_cpu->setPC(cpuState.pc);
-    m_cpu->setIFF(cpuState.interruptsEnabled != 0);
+    // Rebuild derived links and caches only after every device has accepted
+    // its own state. CORE is already applied, so the current CPU pointer is final.
+    SnapshotSerializable* cpuState = getCpuType() == VECTOR_CPU_Z80
+        ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
+        : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
+    devices[1] = cpuState;
+    for (SnapshotSerializable* device : devices)
+        device->postLoad();
 
-    setRamDiskEnabled(0, configState.ramDisk1Enabled != 0);
-    setRamDiskEnabled(1, configState.ramDisk2Enabled != 0);
-    setPsgEnabled(configState.psgEnabled != 0);
-    setPsgStereo(configState.psgStereo != 0);
-    setPsgAcbOrder(configState.psgAcbOrder != 0);
-    setHddEnabled(configState.hddEnabled != 0);
-    setTapeHooksEnabled(configState.tapeHooksEnabled != 0);
-    m_tapeOut = configState.tapeOut != 0;
+    // ActiveDevice audit: host-side helpers are intentionally excluded from
+    // the guest snapshot, but their scheduler state must not remain on the
+    // pre-load timeline. Auto-typing is cancelled; an open tape recorder is
+    // kept running from the restored clock. Pit8253Helper is restored by PIT,
+    // while CPU and SoundMixer own their scheduler state directly.
+    if (m_kbdTapper)
+        m_kbdTapper->cancelAfterSnapshotLoad();
+    if (m_wavWriter)
+        m_wavWriter->resynchronizeAfterSnapshotLoad();
 
     return SnapshotLoadResult::Ok;
 }

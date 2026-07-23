@@ -30,7 +30,7 @@ class FdImage;
 
 const int MAX_DRIVES = 4;
 
-class Fdc1793 : public AddressableDevice
+class Fdc1793 : public AddressableDevice, public SnapshotSerializable
 {
     enum FdcAccessMode {
         FAM_WAITING,
@@ -63,6 +63,11 @@ public:
 
         // Подключение рбраза диска
         void attachFdImage(int driveNum, FdImage* image);
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
 
     private:

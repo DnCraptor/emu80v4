@@ -24,6 +24,7 @@
 #include "Ppi8255.h"
 #include "Ppi8255Circuit.h"
 #include "Emulation.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -167,3 +168,89 @@ void Ppi8255::attachPpi8255Circuit(Ppi8255Circuit* circuit)
 {
     m_ppiCircuit = circuit;
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct Ppi8255SnapshotStateV1 {
+    uint8_t portA;
+    uint8_t portB;
+    uint8_t portC;
+    uint8_t chAMode;
+    uint8_t chBMode;
+    uint8_t chCHiMode;
+    uint8_t chCLoMode;
+    uint8_t noReset;
+};
+#pragma pack(pop)
+
+}
+
+uint32_t Ppi8255::snapshotSectionId() const
+{
+    return m_snapshotIndex == 0
+        ? makeSnapshotSectionId('P', 'P', 'I', '0')
+        : makeSnapshotSectionId('P', 'P', 'I', '1');
+}
+
+uint16_t Ppi8255::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Ppi8255::saveState(SnapshotWriter& writer) const
+{
+    Ppi8255SnapshotStateV1 state{};
+    state.portA = m_portA;
+    state.portB = m_portB;
+    state.portC = m_portC;
+    state.chAMode = static_cast<uint8_t>(m_chAMode);
+    state.chBMode = static_cast<uint8_t>(m_chBMode);
+    state.chCHiMode = static_cast<uint8_t>(m_chCHiMode);
+    state.chCLoMode = static_cast<uint8_t>(m_chCLoMode);
+    state.noReset = m_noReset ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool Ppi8255::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Ppi8255SnapshotStateV1))
+        return false;
+
+    Ppi8255SnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.chAMode > PCM_IN || state.chBMode > PCM_IN ||
+        state.chCHiMode > PCM_IN || state.chCLoMode > PCM_IN ||
+        state.noReset > 1)
+        return false;
+
+    m_portA = state.portA;
+    m_portB = state.portB;
+    m_portC = state.portC;
+    m_chAMode = static_cast<PpiChMode>(state.chAMode);
+    m_chBMode = static_cast<PpiChMode>(state.chBMode);
+    m_chCHiMode = static_cast<PpiChMode>(state.chCHiMode);
+    m_chCLoMode = static_cast<PpiChMode>(state.chCLoMode);
+    m_noReset = state.noReset != 0;
+    return true;
+}
+
+void Ppi8255::postLoad()
+{
+    if (!m_ppiCircuit)
+        return;
+
+    m_ppiCircuit->setPortAMode(m_chAMode == PCM_IN);
+    m_ppiCircuit->setPortBMode(m_chBMode == PCM_IN);
+    m_ppiCircuit->setPortCLoMode(m_chCLoMode == PCM_IN);
+    m_ppiCircuit->setPortCHiMode(m_chCHiMode == PCM_IN);
+
+    if (m_chAMode == PCM_OUT)
+        m_ppiCircuit->setPortA(m_portA);
+    if (m_chBMode == PCM_OUT)
+        m_ppiCircuit->setPortB(m_portB);
+    if (m_chCLoMode == PCM_OUT || m_chCHiMode == PCM_OUT)
+        m_ppiCircuit->setPortC(m_portC);
+}
+

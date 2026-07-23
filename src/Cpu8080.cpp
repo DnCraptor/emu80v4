@@ -1887,5 +1887,106 @@ void Cpu8080::setIFF(bool iff)
 }
 
 
+namespace {
+
+#pragma pack(push, 1)
+struct Cpu8080SnapshotStateV1 {
+    uint64_t curClock;
+    uint16_t af;
+    uint16_t bc;
+    uint16_t de;
+    uint16_t hl;
+    uint16_t sp;
+    uint16_t pc;
+    uint16_t iff;
+    uint16_t lastPc;
+    int32_t iffPendingCnt;
+    uint8_t statusWord;
+    uint8_t paused;
+    uint8_t flags[8];
+};
+#pragma pack(pop)
+
+constexpr uint32_t c_cpuSnapshotSection =
+    makeSnapshotSectionId('C', 'P', 'U', ' ');
+
+} // namespace
+
+
+uint32_t Cpu8080::snapshotSectionId() const
+{
+    return c_cpuSnapshotSection;
+}
+
+uint16_t Cpu8080::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Cpu8080::saveState(SnapshotWriter& writer) const
+{
+    Cpu8080SnapshotStateV1 state{};
+    state.curClock = m_curClock;
+    state.af = cpu.af.w;
+    state.bc = cpu.bc.w;
+    state.de = cpu.de.w;
+    state.hl = cpu.hl.w;
+    state.sp = cpu.sp.w;
+    state.pc = cpu.pc.w;
+    state.iff = cpu.iff;
+    state.lastPc = cpu.last_pc;
+    state.iffPendingCnt = m_iffPendingCnt;
+    state.statusWord = m_statusWord;
+    state.paused = m_isPaused ? 1 : 0;
+    state.flags[0] = cpu.f.carry_flag;
+    state.flags[1] = cpu.f.unused1;
+    state.flags[2] = cpu.f.parity_flag;
+    state.flags[3] = cpu.f.unused3;
+    state.flags[4] = cpu.f.half_carry_flag;
+    state.flags[5] = cpu.f.unused5;
+    state.flags[6] = cpu.f.zero_flag;
+    state.flags[7] = cpu.f.sign_flag;
+    return writer.writeValue(state);
+}
+
+bool Cpu8080::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Cpu8080SnapshotStateV1))
+        return false;
+
+    Cpu8080SnapshotStateV1 state{};
+    if (!reader.readValue(state))
+        return false;
+
+    m_curClock = state.curClock;
+    m_isPaused = state.paused != 0;
+    cpu.af.w = state.af;
+    cpu.bc.w = state.bc;
+    cpu.de.w = state.de;
+    cpu.hl.w = state.hl;
+    cpu.sp.w = state.sp;
+    cpu.pc.w = state.pc;
+    cpu.iff = state.iff;
+    cpu.last_pc = state.lastPc;
+    m_iffPendingCnt = state.iffPendingCnt;
+    m_statusWord = state.statusWord;
+    cpu.f.carry_flag = state.flags[0];
+    cpu.f.unused1 = state.flags[1];
+    cpu.f.parity_flag = state.flags[2];
+    cpu.f.unused3 = state.flags[3];
+    cpu.f.half_carry_flag = state.flags[4];
+    cpu.f.unused5 = state.flags[5];
+    cpu.f.zero_flag = state.flags[6];
+    cpu.f.sign_flag = state.flags[7];
+    return true;
+}
+
+void Cpu8080::postLoad()
+{
+    m_core->inte(cpu.iff != 0);
+}
+
+
 /*
 */

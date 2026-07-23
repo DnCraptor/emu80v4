@@ -1690,3 +1690,130 @@
 - [x] Версия формата также возвращается в `SnapshotInfo` для последующего расширения интерфейса и диагностики совместимости.
 - [ ] Проверить обновление подписи сразу после Save/Remove и отображение файлов с пустой строкой версии прошивки.
 - [ ] Архитектурный долг сохраняется: сериализацию секций необходимо перенести из `VectorCore` в соответствующие устройства.
+
+
+### Итерация 4.45a — инфраструктура Snapshot Format v2
+
+Статус: подготовлена, ожидает использования следующими итерациями и проверки сборки.
+
+- [x] Общие `SnapshotWriter` и `SnapshotReader` добавлены в существующие `Vector.h` / `Vector.cpp`; новые исходные файлы не создаются.
+- [x] Добавлен версионированный заголовок секции с идентификатором, собственной версией, размером заголовка и размером данных.
+- [x] Writer резервирует заголовок секции и после записи дописывает фактический размер; вложенные секции запрещены.
+- [x] Reader ограничивает чтение границами текущей секции, проверяет выход за конец файла и позволяет пропускать неизвестный остаток секции.
+- [x] Добавлен интерфейс `SnapshotSerializable`, передающий владение `saveState()` / `loadState()` / `postLoad()` соответствующему устройству.
+- [x] Зафиксирован новый несовместимый номер формата `SNAPSHOT_STATE_FORMAT_VERSION = 2`; действующий v1 пока не переключён.
+- [ ] Подключить инфраструктуру к CPU в 4.45b; после полного набора секций переключить `VectorCore` на запись и двухфазное чтение v2.
+
+
+### Итерация 4.45b — полное состояние CPU в Snapshot Format v2
+
+Статус: подготовлена, ожидает подключения секции CPU к координатору v2 и проверки на железе.
+
+- [x] `SnapshotSerializable` перенесён в общий `EmuObjects.h`, чтобы интерфейс могли реализовывать CPU и остальные устройства без зависимости от `Vector.h`.
+- [x] Для Intel 8080 сохраняются все регистры, внутреннее представление флагов, `last_pc`, `IFF`, задержка `EI`, status word, часы и состояние паузы.
+- [x] Для Z80 сохраняются оба банка AF/BC/DE/HL, селекторы банков, IX/IY, I/R, SP/PC, IFF, IM, задержка `EI`, признак stack operation, часы и состояние паузы.
+- [x] Оба CPU используют секцию `CPU ` версии 1; загрузка отвергает неверную версию, неверный размер и некорректные селекторы банков.
+- [x] `postLoad()` синхронизирует внешнюю линию разрешения прерываний с восстановленным IFF.
+- [ ] Секция пока не записывается действующим форматом v1; подключить её при переключении координатора на Snapshot Format v2.
+
+### Iteration 4.45c — Snapshot v2: address space and memory
+
+- `VectorAddrSpace` now owns serialization of its complete memory-visible state.
+- The `ADDR` section stores main RAM, both RAM disks, ROM visibility, Barkar/ERAM page selectors, stack-page switches and ERAM window configuration.
+- Cached CPU read/write page maps are not serialized as pointers; `postLoad()` rebuilds them from restored control registers.
+- Section loading validates version, exact memory sizes, exact payload length and boolean/range fields before changing the address-space control state.
+- Snapshot format v1 remains active until the v2 coordinator is connected.
+
+
+### Iteration 4.45d — PPI/PIT and emulation time
+
+- [x] Give both i8255 instances independent snapshot section identifiers.
+- [x] Save and restore all i8255 output latches and port-direction state.
+- [x] Reapply i8255 modes and output levels to the attached circuit in `postLoad()`.
+- [x] Save and restore all three i8253 counters, read/write latches, phases and statistics.
+- [x] Rebuild pending i8253 helper scheduling in `postLoad()`.
+- [x] Add a TIME section for emulated clock, scheduler offset and pause state.
+- [x] Exclude host wall-clock values and restart host pacing after load.
+- [ ] Connect these sections to the v2 snapshot coordinator in a later iteration.
+
+
+### Iteration 4.45e — renderer and video state
+
+- [x] Give `VectorRenderer` its own `VID ` snapshot section.
+- [x] Save and restore renderer clock, frame origin, current beam position and pause state.
+- [x] Save and restore border, 512-pixel mode, line-offset latch and current pixel color.
+- [x] Save and restore both color palettes and the selected color/monochrome mode.
+- [x] Preserve the partially rendered frame buffer so loading in the middle of a frame does not lose already generated pixels.
+- [x] Rebuild derived palette pointers, dimensions, pixel timing and graphics output binding in `postLoad()`.
+- [ ] Connect the renderer section to the v2 snapshot coordinator in a later iteration.
+
+
+### Iteration 4.45f — sound-generator state
+
+- [x] Give AY-3-8910, AY mixer configuration, Covox and the tape/beeper level source independent snapshot sections.
+- [x] Save all AY registers, tone/noise/envelope counters, LFSR state, phases, accumulated sample integrals and timing anchors.
+- [x] Save AY enable, stereo and ABC/ACB mixer configuration.
+- [x] Save Covox and tape/beeper current levels together with their integration clocks and accumulated values.
+- [x] Reject sections with invalid versions, sizes, boolean values or incompatible Covox width.
+- [ ] Connect these sound sections to the v2 snapshot coordinator in a later iteration.
+
+
+### Iteration 4.45g — storage-device state
+
+- [x] Give FDC1793, ATA, floppy A/B and HDD image objects independent snapshot sections.
+- [x] Save FDC command mode, registers, IRQ/DRQ-related state, command timestamp and read/write-track parser state.
+- [x] Save ATA task-file/control state, geometry, transfer counters, sector buffer and data-pointer offset without serializing a raw pointer.
+- [x] Save mounted image identity, write-protection and file position; reopen the image in `postLoad()` instead of serializing host file handles.
+- [x] Save floppy track/head/sector and byte position so an in-progress FDC transfer can resume at the same location.
+- [x] Validate enum values, counters, booleans, buffer offsets and filename lengths before applying state.
+- [ ] Connect these storage sections to the v2 snapshot coordinator in a later iteration.
+
+
+### Iteration 4.45g.1 — DiskImage serialization ownership fix
+
+- [x] Move common mounted-image snapshot save/load/post-load logic into `DiskImage` helper methods.
+- [x] Keep the common snapshot staging fields private to `DiskImage`.
+- [x] Make `FdImage` serialize only its own track/head/sector transfer state.
+- [x] Remove all direct `FdImage` access to private `DiskImage` snapshot fields.
+
+### Итерация 4.45h.1 — состояние координатора VectorCore
+
+- `VectorCore` реализует `SnapshotSerializable`.
+- Секция `CORE` хранит тип/частоту CPU, линии прерывания и конфигурацию подключаемых подсистем.
+- Применение секции подготавливает состав машины до загрузки секций устройств.
+- Подключение секции к файловому координатору v2 выполняется в следующей итерации.
+
+### Итерация 4.45h.2 — файловый координатор Snapshot Format v2
+
+- `saveSnapshot()` переведён на `SnapshotWriter` и секции, принадлежащие самим устройствам.
+- Секция `CORE` записывается и загружается первой, чтобы до CPU-секции выбрать нужную реализацию процессора.
+- `loadSnapshot()` диспетчеризует секции только по `snapshotSectionId()`; неизвестные секции пропускаются.
+- Дубли обязательных секций, отсутствие секций и загрузка устройства до `CORE` считаются повреждением файла.
+- После успешной загрузки всех секций выполняется единый проход `postLoad()` по устройствам.
+- Старый централизованный формат v1 удалён; активным файловым форматом стал Snapshot Format v2.
+
+### Итерация 4.45h.2a — восстановление реализаций CORE-секции
+
+- Восстановлены определения `VectorCore::snapshotSectionId()`, `snapshotSectionVersion()`, `saveState()`, `loadState()` и `postLoad()`, случайно удалённые при переходе координатора на v2.
+- Точки использования уже переведены на `writeSnapshotSection()` и диспетчеризацию через `SnapshotSerializable`; исправление устраняет отсутствующие символы vtable.
+- Состав и версия секции `CORE` не изменены относительно итерации 4.45h.1.
+
+- [x] **4.45i.1 — Snapshot v2 completeness audit: mixer scheduler state**
+  - Audit found that `SoundMixer` is an `ActiveDevice`, but its scheduler clock and fractional sample phase were not serialized.
+  - Added device-owned `MIXR` section with `m_curClock`, `m_isPaused`, and `m_error`.
+  - Added `SoundMixer` to the v2 coordinator and increased the mandatory section count to 18.
+  - Host/configuration-derived mixer values remain reconstructed from current firmware settings.
+
+
+### Итерация 4.45i.2 — точное состояние планировщика PIT
+
+- [x] Секция `PIT ` версии 2 сохраняет для каждого внутреннего `Pit8253Helper` точный запланированный такт и состояние паузы.
+- [x] После загрузки v2 не вычислять следующий вызов заново: восстановить очередь таймера на том же такте, включая совпадения событий с другими активными устройствами.
+- [x] Сохранить загрузку секции `PIT ` версии 1; для старого снимка расписание по-прежнему реконструируется через `planIrq()`.
+- [x] Не сериализовать указатели на helper-объекты; они остаются частью статической конфигурации PIT.
+
+- [x] **4.45i.3 — аудит состояния планировщика всех `ActiveDevice`.**
+  - `Cpu8080`/`CpuZ80`, `SoundMixer` и `Pit8253Helper` уже восстанавливают точные такты планировщика через принадлежащие им секции snapshot.
+  - `KbdTapper` является вспомогательным механизмом автоввода со стороны хоста, а не устройством гостевой машины; незавершённый автоввод теперь отменяется после успешной загрузки snapshot, чтобы старое переключение клавиши не попало в восстановленную машину.
+  - `WavWriter` является внешним выходным потоком и намеренно не входит в snapshot; при активной записи следующий сэмпл теперь перепланируется относительно восстановленного времени эмуляции.
+  - `KbdLayoutHelper` в конфигурации Vector не создаётся, поэтому сохранять его состояние планировщика не требуется.

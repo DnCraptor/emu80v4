@@ -38,6 +38,11 @@ class KbdTapper : public ActiveDevice
 
         void typeText(const std::string& str);
 
+        // Auto-typing is a host-side input helper rather than guest hardware.
+        // A restored machine must not inherit a pending key transition from
+        // the session in which the snapshot was loaded.
+        void cancelAfterSnapshotLoad();
+
 
     private:
         int m_pressTime = 80;   // key down time in ms

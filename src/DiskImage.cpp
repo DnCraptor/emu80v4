@@ -260,3 +260,159 @@ void FdImage::seek(int offset = 0)
     m_file.seek(ofs);
     m_curSectorOffset = offset;
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct DiskImageSnapshotStateV1 {
+    uint8_t imagePresent;
+    uint8_t writeProtected;
+    int32_t filePos;
+    uint16_t fileNameSize;
+};
+
+struct FdImageSnapshotStateV2 {
+    int32_t curTrack;
+    int32_t curHead;
+    int32_t curSector;
+    int32_t curSectorOffset;
+};
+#pragma pack(pop)
+
+const uint16_t c_maxSnapshotFileNameSize = 1024;
+
+}
+
+uint32_t DiskImage::snapshotSectionId() const
+{
+    switch (m_snapshotIndex) {
+    case 0:
+        return makeSnapshotSectionId('F', 'D', 'A', ' ');
+    case 1:
+        return makeSnapshotSectionId('F', 'D', 'B', ' ');
+    default:
+        return makeSnapshotSectionId('H', 'D', 'D', ' ');
+    }
+}
+
+uint16_t DiskImage::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool DiskImage::saveImageState(SnapshotWriter& writer) const
+{
+    const bool imagePresent = const_cast<PalFile&>(m_file).isOpen();
+    const string fileName = imagePresent ? m_fileName : string();
+    if (fileName.size() > c_maxSnapshotFileNameSize)
+        return false;
+
+    DiskImageSnapshotStateV1 state{};
+    state.imagePresent = imagePresent ? 1 : 0;
+    state.writeProtected = m_isWriteProtected ? 1 : 0;
+    state.filePos = imagePresent ? const_cast<PalFile&>(m_file).getPos() : 0;
+    state.fileNameSize = static_cast<uint16_t>(fileName.size());
+    return writer.writeValue(state) &&
+           (fileName.empty() || writer.write(fileName.data(), state.fileNameSize));
+}
+
+bool DiskImage::loadImageState(SnapshotReader& reader)
+{
+    if (reader.remaining() < sizeof(DiskImageSnapshotStateV1))
+        return false;
+
+    DiskImageSnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.imagePresent > 1 || state.writeProtected > 1 ||
+        state.filePos < 0 ||
+        state.fileNameSize > c_maxSnapshotFileNameSize ||
+        reader.remaining() < state.fileNameSize ||
+        (state.imagePresent == 0 && state.fileNameSize != 0))
+        return false;
+
+    string fileName(state.fileNameSize, '\0');
+    if (state.fileNameSize && !reader.read(&fileName[0], state.fileNameSize))
+        return false;
+
+    m_snapshotImagePresent = state.imagePresent != 0;
+    m_snapshotWriteProtected = state.writeProtected != 0;
+    m_snapshotFilePos = state.filePos;
+    m_snapshotFileName = fileName;
+    return true;
+}
+
+void DiskImage::postLoadImageState()
+{
+    if (!m_snapshotImagePresent) {
+        assignFileName(string(), m_snapshotWriteProtected);
+        return;
+    }
+
+    if (!assignFileName(m_snapshotFileName, m_snapshotWriteProtected))
+        return;
+
+    if (m_snapshotFilePos <= m_file.getSize())
+        m_file.seek(m_snapshotFilePos);
+}
+
+bool DiskImage::saveState(SnapshotWriter& writer) const
+{
+    return saveImageState(writer);
+}
+
+bool DiskImage::loadState(SnapshotReader& reader, uint16_t version)
+{
+    return version == snapshotSectionVersion() &&
+           loadImageState(reader) && reader.remaining() == 0;
+}
+
+void DiskImage::postLoad()
+{
+    postLoadImageState();
+}
+
+uint16_t FdImage::snapshotSectionVersion() const
+{
+    return 2;
+}
+
+bool FdImage::saveState(SnapshotWriter& writer) const
+{
+    FdImageSnapshotStateV2 state{};
+    state.curTrack = m_curTrack;
+    state.curHead = m_curHead;
+    state.curSector = m_curSector;
+    state.curSectorOffset = m_curSectorOffset;
+    return saveImageState(writer) && writer.writeValue(state);
+}
+
+bool FdImage::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() || !loadImageState(reader) ||
+        reader.remaining() != sizeof(FdImageSnapshotStateV2))
+        return false;
+
+    FdImageSnapshotStateV2 state{};
+    if (!reader.readValue(state) ||
+        state.curTrack < 0 || state.curTrack >= 80 ||
+        state.curHead < 0 || state.curHead >= m_nHeads ||
+        state.curSector < 0 || state.curSector >= m_nSectors ||
+        state.curSectorOffset < 0 || state.curSectorOffset > m_sectorSize)
+        return false;
+
+    m_snapshotCurTrack = state.curTrack;
+    m_snapshotCurHead = state.curHead;
+    m_snapshotCurSector = state.curSector;
+    m_snapshotCurSectorOffset = state.curSectorOffset;
+    return true;
+}
+
+void FdImage::postLoad()
+{
+    postLoadImageState();
+    m_curTrack = m_snapshotCurTrack;
+    m_curHead = m_snapshotCurHead;
+    m_curSector = m_snapshotCurSector;
+    m_curSectorOffset = m_snapshotCurSectorOffset;
+}
+

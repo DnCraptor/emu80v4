@@ -31,6 +31,20 @@ class DiskImage;
 class RamDisk;
 class Keyboard;
 class KbdTapper;
+class SnapshotWriter;
+class SnapshotReader;
+
+class SnapshotSerializable
+{
+    public:
+        virtual ~SnapshotSerializable() = default;
+
+        virtual uint32_t snapshotSectionId() const = 0;
+        virtual uint16_t snapshotSectionVersion() const = 0;
+        virtual bool saveState(SnapshotWriter& writer) const = 0;
+        virtual bool loadState(SnapshotReader& reader, uint16_t version) = 0;
+        virtual void postLoad() {}
+};
 
 class EmuObject
 {

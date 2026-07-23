@@ -2744,3 +2744,110 @@ void CpuZ80::setIFF(bool iff)
 {
     IFF = iff ? 3 : 0;
 }
+
+
+namespace {
+
+#pragma pack(push, 1)
+struct CpuZ80SnapshotStateV1 {
+    uint64_t curClock;
+    uint16_t af[2];
+    uint16_t bc[2];
+    uint16_t de[2];
+    uint16_t hl[2];
+    uint16_t ir;
+    uint16_t ix;
+    uint16_t iy;
+    uint16_t sp;
+    uint16_t pc;
+    uint16_t iff;
+    uint16_t im;
+    int32_t iffPendingCnt;
+    uint8_t afSel;
+    uint8_t regsSel;
+    uint8_t stackOperation;
+    uint8_t paused;
+};
+#pragma pack(pop)
+
+constexpr uint32_t c_cpuSnapshotSection =
+    makeSnapshotSectionId('C', 'P', 'U', ' ');
+
+} // namespace
+
+
+uint32_t CpuZ80::snapshotSectionId() const
+{
+    return c_cpuSnapshotSection;
+}
+
+uint16_t CpuZ80::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool CpuZ80::saveState(SnapshotWriter& writer) const
+{
+    CpuZ80SnapshotStateV1 state{};
+    state.curClock = m_curClock;
+    state.af[0] = af[0];
+    state.af[1] = af[1];
+    state.bc[0] = regs[0].bc;
+    state.bc[1] = regs[1].bc;
+    state.de[0] = regs[0].de;
+    state.de[1] = regs[1].de;
+    state.hl[0] = regs[0].hl;
+    state.hl[1] = regs[1].hl;
+    state.ir = ir;
+    state.ix = ix;
+    state.iy = iy;
+    state.sp = sp;
+    state.pc = pc;
+    state.iff = IFF;
+    state.im = IM;
+    state.iffPendingCnt = m_iffPendingCnt;
+    state.afSel = static_cast<uint8_t>(af_sel);
+    state.regsSel = static_cast<uint8_t>(regs_sel);
+    state.stackOperation = m_stackOperation ? 1 : 0;
+    state.paused = m_isPaused ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool CpuZ80::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(CpuZ80SnapshotStateV1))
+        return false;
+
+    CpuZ80SnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.afSel > 1 || state.regsSel > 1)
+        return false;
+
+    m_curClock = state.curClock;
+    m_isPaused = state.paused != 0;
+    af[0] = state.af[0];
+    af[1] = state.af[1];
+    regs[0].bc = state.bc[0];
+    regs[1].bc = state.bc[1];
+    regs[0].de = state.de[0];
+    regs[1].de = state.de[1];
+    regs[0].hl = state.hl[0];
+    regs[1].hl = state.hl[1];
+    ir = state.ir;
+    ix = state.ix;
+    iy = state.iy;
+    sp = state.sp;
+    pc = state.pc;
+    IFF = state.iff;
+    IM = state.im;
+    m_iffPendingCnt = state.iffPendingCnt;
+    af_sel = state.afSel;
+    regs_sel = state.regsSel;
+    m_stackOperation = state.stackOperation != 0;
+    return true;
+}
+
+void CpuZ80::postLoad()
+{
+    m_core->inte(IFF != 0);
+}

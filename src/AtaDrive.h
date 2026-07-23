@@ -28,7 +28,7 @@
 #include "EmuObjects.h"
 #include "DiskImage.h"
 
-class AtaDrive : public EmuObject, public DiskImageObserver
+class AtaDrive : public EmuObject, public DiskImageObserver, public SnapshotSerializable
 {
     public:
         //AtaDrive();
@@ -49,6 +49,12 @@ class AtaDrive : public EmuObject, public DiskImageObserver
 
         void assignDiskImage(DiskImage* image);
         void setVectorGeometry();
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
 
     private:

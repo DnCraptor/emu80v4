@@ -47,6 +47,12 @@ void KbdTapper::reset()
 }
 
 
+void KbdTapper::cancelAfterSnapshotLoad()
+{
+    stop();
+}
+
+
 void KbdTapper::typeText(const std::string& str)
 {
     if (m_typing) {

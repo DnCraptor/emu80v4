@@ -24,6 +24,7 @@
 #include "Fdc1793.h"
 #include "DiskImage.h"
 #include "Emulation.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -38,8 +39,19 @@ Fdc1793::Fdc1793()
     m_status = 0; // регистр статусаs
     m_directionIn = true; // направление движения true=in, false=out
 
+    m_cmdTime = 0;
+    m_irq = false;
+    m_lastCommand = 0;
     m_addressIdCnt = 0;
+    for (unsigned i = 0; i < sizeof(m_addressId); ++i)
+        m_addressId[i] = 0;
     m_writeTrackCnt = 0;
+    m_wrTrackState = WTS_NO_WR;
+    m_indexDataValid = false;
+    for (unsigned i = 0; i < sizeof(m_indexData); ++i)
+        m_indexData[i] = 0;
+    m_indexDataCnt = 0;
+    m_sectorDataCnt = 0;
 
     for (int i = 0; i < MAX_DRIVES; i++)
         m_images[i] = nullptr;
@@ -67,6 +79,15 @@ void Fdc1793::reset()
     m_sector = 1; // регистр сектора
     m_data = 0; // регистр данных
     m_directionIn = true; // направление движения true=in, false=out
+    m_cmdTime = 0;
+    m_irq = false;
+    m_lastCommand = 0;
+    m_addressIdCnt = 0;
+    m_writeTrackCnt = 0;
+    m_wrTrackState = WTS_NO_WR;
+    m_indexDataValid = false;
+    m_indexDataCnt = 0;
+    m_sectorDataCnt = 0;
 }
 
 
@@ -409,3 +430,114 @@ bool Fdc1793::getDrq()
 {
     return m_accessMode != FAM_WAITING;
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct Fdc1793SnapshotStateV1 {
+    uint8_t accessMode;
+    int32_t disk;
+    int32_t head;
+    uint8_t track;
+    uint8_t sector;
+    uint8_t data;
+    uint8_t status;
+    uint8_t directionIn;
+    uint64_t cmdTime;
+    uint8_t irq;
+    int32_t lastCommand;
+    int32_t addressIdCnt;
+    uint8_t addressId[6];
+    int32_t writeTrackCnt;
+    uint8_t writeTrackState;
+    uint8_t indexDataValid;
+    uint8_t indexData[4];
+    int32_t indexDataCnt;
+    int32_t sectorDataCnt;
+};
+#pragma pack(pop)
+
+}
+
+uint32_t Fdc1793::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('F', 'D', 'C', ' ');
+}
+
+uint16_t Fdc1793::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Fdc1793::saveState(SnapshotWriter& writer) const
+{
+    Fdc1793SnapshotStateV1 state{};
+    state.accessMode = static_cast<uint8_t>(m_accessMode);
+    state.disk = m_disk;
+    state.head = m_head;
+    state.track = m_track;
+    state.sector = m_sector;
+    state.data = m_data;
+    state.status = m_status;
+    state.directionIn = m_directionIn ? 1 : 0;
+    state.cmdTime = m_cmdTime;
+    state.irq = m_irq ? 1 : 0;
+    state.lastCommand = m_lastCommand;
+    state.addressIdCnt = m_addressIdCnt;
+    for (unsigned i = 0; i < sizeof(state.addressId); ++i)
+        state.addressId[i] = m_addressId[i];
+    state.writeTrackCnt = m_writeTrackCnt;
+    state.writeTrackState = static_cast<uint8_t>(m_wrTrackState);
+    state.indexDataValid = m_indexDataValid ? 1 : 0;
+    for (unsigned i = 0; i < sizeof(state.indexData); ++i)
+        state.indexData[i] = m_indexData[i];
+    state.indexDataCnt = m_indexDataCnt;
+    state.sectorDataCnt = m_sectorDataCnt;
+    return writer.writeValue(state);
+}
+
+bool Fdc1793::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Fdc1793SnapshotStateV1))
+        return false;
+
+    Fdc1793SnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.accessMode > FAM_WRITING ||
+        state.disk < 0 || state.disk >= MAX_DRIVES ||
+        state.head < 0 || state.head > 1 ||
+        state.directionIn > 1 || state.irq > 1 ||
+        state.lastCommand < 0 || state.lastCommand > 0x0F ||
+        state.addressIdCnt < 0 || state.addressIdCnt > 6 ||
+        state.writeTrackState > WTS_WR_DATA ||
+        state.indexDataValid > 1 ||
+        state.indexDataCnt < 0 || state.indexDataCnt > 4 ||
+        state.writeTrackCnt < 0 || state.writeTrackCnt > 6125 ||
+        state.sectorDataCnt < 0)
+        return false;
+
+    m_accessMode = static_cast<FdcAccessMode>(state.accessMode);
+    m_disk = state.disk;
+    m_head = state.head;
+    m_track = state.track;
+    m_sector = state.sector;
+    m_data = state.data;
+    m_status = state.status;
+    m_directionIn = state.directionIn != 0;
+    m_cmdTime = state.cmdTime;
+    m_irq = state.irq != 0;
+    m_lastCommand = state.lastCommand;
+    m_addressIdCnt = state.addressIdCnt;
+    for (unsigned i = 0; i < sizeof(m_addressId); ++i)
+        m_addressId[i] = state.addressId[i];
+    m_writeTrackCnt = state.writeTrackCnt;
+    m_wrTrackState = static_cast<WriteTrackState>(state.writeTrackState);
+    m_indexDataValid = state.indexDataValid != 0;
+    for (unsigned i = 0; i < sizeof(m_indexData); ++i)
+        m_indexData[i] = state.indexData[i];
+    m_indexDataCnt = state.indexDataCnt;
+    m_sectorDataCnt = state.sectorDataCnt;
+    return true;
+}
+

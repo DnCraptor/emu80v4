@@ -22,8 +22,21 @@
 
 #include "Globals.h"
 #include "Covox.h"
+#include "Vector.h"
 
 using namespace std;
+
+namespace {
+#pragma pack(push, 1)
+struct CovoxSnapshotStateV1 {
+    int32_t bits;
+    int32_t curValue;
+    uint64_t initClock;
+    uint64_t prevClock;
+    int32_t sumVal;
+};
+#pragma pack(pop)
+}
 
 
 Covox::Covox(int bits)
@@ -75,4 +88,35 @@ int __not_in_flash_func(Covox::calcValue)()
     m_initClock = curClock;
 
     return res * m_ampFactor;
+}
+
+
+uint32_t Covox::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('C', 'O', 'V', 'X');
+}
+
+uint16_t Covox::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Covox::saveState(SnapshotWriter& writer) const
+{
+    const CovoxSnapshotStateV1 state = {m_bits, m_curValue, m_initClock, m_prevClock, m_sumVal};
+    return writer.writeValue(state);
+}
+
+bool Covox::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() || reader.remaining() != sizeof(CovoxSnapshotStateV1))
+        return false;
+    CovoxSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.bits != m_bits)
+        return false;
+    m_curValue = state.curValue;
+    m_initClock = state.initClock;
+    m_prevClock = state.prevClock;
+    m_sumVal = state.sumVal;
+    return true;
 }

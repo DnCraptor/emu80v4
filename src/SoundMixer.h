@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2020
  *
@@ -61,7 +61,7 @@ class SoundSource : public EmuObject
 
 
 // Простой источник звука
-class GeneralSoundSource : public SoundSource
+class GeneralSoundSource : public SoundSource, public SnapshotSerializable
 {
     public:
         // derived from SoundSOurce
@@ -69,6 +69,11 @@ class GeneralSoundSource : public SoundSource
 
         // Установка текущего значения источника звука
         void setValue(int value);
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
 
     private:
@@ -81,7 +86,7 @@ class GeneralSoundSource : public SoundSource
 };
 
 // Звуковой микшер
-class SoundMixer : public ActiveDevice
+class SoundMixer : public ActiveDevice, public SnapshotSerializable
 {
     public:
         // Добавление источника звука
@@ -111,6 +116,12 @@ class SoundMixer : public ActiveDevice
 
         // возвращает текущий уровень громкости
         int getVolume();
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
     private:
         static constexpr int MAX_SOUND_SOURCES = 8;

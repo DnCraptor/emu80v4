@@ -22,11 +22,13 @@
 // Only first device and only LBA
 
 #include <string.h>
+#include <cstddef>
 
 #include "Globals.h"
 #include "AtaDrive.h"
 #include "DiskImage.h"
 #include "Emulation.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -61,12 +63,18 @@ void AtaDrive::reset()
 
     m_dev = 0;
     m_useLba = false;
+    m_lba = true;
+    m_cylinders = 0;
+    m_heads = 0;
+    m_sectors = 0;
     m_cylinder = 0;
     m_head = 0;
     m_sector = 1;
     m_lbaAddress = 0;
     m_sectorCount = 0;
     m_lastCommand = 0;
+    m_dataCounter = 0;
+    m_dataPtr = m_sectorBuf;
     m_prefilledData = false;
 }
 
@@ -352,3 +360,137 @@ void AtaDrive::diskImageChanged(DiskImage* image, bool isOpen)
     } else
         m_rdData = 0;
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct AtaDriveSnapshotStateV1 {
+    int32_t cs;
+    int32_t addr;
+    int32_t rdData;
+    int32_t wrData;
+    int32_t dataReg;
+    uint8_t ior;
+    uint8_t iow;
+    uint8_t reset;
+    int32_t dev;
+    uint8_t useLba;
+    uint8_t lba;
+    int32_t cylinders;
+    int32_t heads;
+    int32_t sectors;
+    int32_t cylinder;
+    int32_t head;
+    int32_t sector;
+    uint32_t lbaAddress;
+    int32_t sectorCount;
+    uint8_t lastCommand;
+    int32_t dataCounter;
+    uint16_t dataPtrOffset;
+    uint8_t prefilledData;
+    uint8_t sectorBuf[512];
+};
+#pragma pack(pop)
+
+}
+
+uint32_t AtaDrive::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('A', 'T', 'A', ' ');
+}
+
+uint16_t AtaDrive::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool AtaDrive::saveState(SnapshotWriter& writer) const
+{
+    const ptrdiff_t dataPtrOffset = m_dataPtr ? m_dataPtr - m_sectorBuf : 0;
+    if (dataPtrOffset < 0 || dataPtrOffset > static_cast<ptrdiff_t>(sizeof(m_sectorBuf)))
+        return false;
+
+    AtaDriveSnapshotStateV1 state{};
+    state.cs = m_cs;
+    state.addr = m_addr;
+    state.rdData = m_rdData;
+    state.wrData = m_wrData;
+    state.dataReg = m_dataReg;
+    state.ior = m_ior ? 1 : 0;
+    state.iow = m_iow ? 1 : 0;
+    state.reset = m_reset ? 1 : 0;
+    state.dev = m_dev;
+    state.useLba = m_useLba ? 1 : 0;
+    state.lba = m_lba ? 1 : 0;
+    state.cylinders = m_cylinders;
+    state.heads = m_heads;
+    state.sectors = m_sectors;
+    state.cylinder = m_cylinder;
+    state.head = m_head;
+    state.sector = m_sector;
+    state.lbaAddress = m_lbaAddress;
+    state.sectorCount = m_sectorCount;
+    state.lastCommand = m_lastCommand;
+    state.dataCounter = m_dataCounter;
+    state.dataPtrOffset = static_cast<uint16_t>(dataPtrOffset);
+    state.prefilledData = m_prefilledData ? 1 : 0;
+    memcpy(state.sectorBuf, m_sectorBuf, sizeof(state.sectorBuf));
+    return writer.writeValue(state);
+}
+
+bool AtaDrive::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(AtaDriveSnapshotStateV1))
+        return false;
+
+    AtaDriveSnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.cs < 0 || state.cs > 3 ||
+        state.addr < 0 || state.addr > 7 ||
+        state.ior > 1 || state.iow > 1 || state.reset > 1 ||
+        state.dev < 0 || state.dev > 1 ||
+        state.useLba > 1 || state.lba > 1 ||
+        state.head < 0 || state.head > 15 ||
+        state.sectorCount < 0 || state.sectorCount > 255 ||
+        state.dataCounter < 0 ||
+        state.dataPtrOffset > sizeof(m_sectorBuf) ||
+        state.prefilledData > 1)
+        return false;
+
+    m_cs = state.cs;
+    m_addr = state.addr;
+    m_rdData = state.rdData;
+    m_wrData = state.wrData;
+    m_dataReg = state.dataReg;
+    m_ior = state.ior != 0;
+    m_iow = state.iow != 0;
+    m_reset = state.reset != 0;
+    m_dev = state.dev;
+    m_useLba = state.useLba != 0;
+    m_lba = state.lba != 0;
+    m_cylinders = state.cylinders;
+    m_heads = state.heads;
+    m_sectors = state.sectors;
+    m_cylinder = state.cylinder;
+    m_head = state.head;
+    m_sector = state.sector;
+    m_lbaAddress = state.lbaAddress;
+    m_sectorCount = state.sectorCount;
+    m_lastCommand = state.lastCommand;
+    m_dataCounter = state.dataCounter;
+    memcpy(m_sectorBuf, state.sectorBuf, sizeof(m_sectorBuf));
+    m_dataPtr = m_sectorBuf + state.dataPtrOffset;
+    m_prefilledData = state.prefilledData != 0;
+    return true;
+}
+
+void AtaDrive::postLoad()
+{
+    if (!m_image || !m_image->getImagePresent()) {
+        m_dataCounter = 0;
+        m_dataPtr = m_sectorBuf;
+        m_rdData = 0;
+    }
+}
+

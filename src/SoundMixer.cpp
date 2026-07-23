@@ -24,8 +24,27 @@
 
 #include "Pal.h"
 #include "SoundMixer.h"
+#include "Vector.h"
 
 using namespace std;
+
+namespace {
+#pragma pack(push, 1)
+struct GeneralSoundSourceSnapshotStateV1 {
+    int32_t curValue;
+    uint64_t initClock;
+    uint64_t prevClock;
+    int32_t sumVal;
+};
+
+struct SoundMixerSnapshotStateV1 {
+    uint64_t curClock;
+    int32_t error;
+    uint8_t paused;
+    uint8_t reserved[3];
+};
+#pragma pack(pop)
+}
 
 // Вызывается 48000 (SAMPLE_RATE) раз в секунду для получения текущего сэмпла и его проигрывания
 void __not_in_flash_func(SoundMixer::operate)()
@@ -50,6 +69,51 @@ void __not_in_flash_func(SoundMixer::operate)()
     int delta = m_error / m_sampleRate;
     m_error -= delta * m_sampleRate;
     m_curClock += delta;
+}
+
+
+uint32_t SoundMixer::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('M', 'I', 'X', 'R');
+}
+
+uint16_t SoundMixer::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool SoundMixer::saveState(SnapshotWriter& writer) const
+{
+    SoundMixerSnapshotStateV1 state{};
+    state.curClock = m_curClock;
+    state.error = m_error;
+    state.paused = m_isPaused ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool SoundMixer::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(SoundMixerSnapshotStateV1))
+        return false;
+
+    SoundMixerSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.paused > 1 ||
+        state.error < 0 || state.error >= m_sampleRate)
+        return false;
+
+    m_curClock = state.curClock;
+    m_error = state.error;
+    m_isPaused = state.paused != 0;
+    return true;
+}
+
+void SoundMixer::postLoad()
+{
+    // Frequency-dependent values remain owned by the current firmware/config.
+    // Only the scheduler position and fractional phase are snapshot state.
+    if (m_error < 0 || m_error >= m_sampleRate)
+        m_error = 0;
 }
 
 
@@ -233,4 +297,36 @@ int __not_in_flash_func(GeneralSoundSource::calcValue)()
     initClock = curClock;
 
     return res * m_ampFactor;
+}
+
+
+uint32_t GeneralSoundSource::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('B', 'E', 'E', 'P');
+}
+
+uint16_t GeneralSoundSource::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool GeneralSoundSource::saveState(SnapshotWriter& writer) const
+{
+    const GeneralSoundSourceSnapshotStateV1 state = {m_curValue, initClock, prevClock, sumVal};
+    return writer.writeValue(state);
+}
+
+bool GeneralSoundSource::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(GeneralSoundSourceSnapshotStateV1))
+        return false;
+    GeneralSoundSourceSnapshotStateV1 state{};
+    if (!reader.readValue(state))
+        return false;
+    m_curValue = state.curValue;
+    initClock = state.initClock;
+    prevClock = state.prevClock;
+    sumVal = state.sumVal;
+    return true;
 }

@@ -25,7 +25,7 @@
 
 
 // Простой источник звука
-class Covox : public SoundSource
+class Covox : public SoundSource, public SnapshotSerializable
 {
     public:
         Covox(int bits);
@@ -35,6 +35,11 @@ class Covox : public SoundSource
 
         // Установка текущего значения источника звука
         void setValue(int value);
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
 
     private:

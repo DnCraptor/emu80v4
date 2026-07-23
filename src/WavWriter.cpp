@@ -100,6 +100,19 @@ void WavWriter::close()
 }
 
 
+void WavWriter::resynchronizeAfterSnapshotLoad()
+{
+    if (!m_open) {
+        pause();
+        return;
+    }
+
+    syncronize();
+    m_curClock += m_ticksPerSample;
+    resume();
+}
+
+
 void WavWriter::writeCswSequence()
 {
     if (m_cswRleCounter <= 255)

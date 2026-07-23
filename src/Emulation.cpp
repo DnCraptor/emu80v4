@@ -454,3 +454,62 @@ void Emulation::setTemporarySpeedUpFactor(unsigned speed)
 
     updateFrequency();
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct EmulationSnapshotStateV1 {
+    uint64_t curClock;
+    uint64_t clockOffset;
+    uint8_t paused;
+    uint8_t reserved[7];
+};
+#pragma pack(pop)
+
+}
+
+uint32_t Emulation::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('T', 'I', 'M', 'E');
+}
+
+uint16_t Emulation::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Emulation::saveState(SnapshotWriter& writer) const
+{
+    EmulationSnapshotStateV1 state{};
+    state.curClock = m_curClock;
+    state.clockOffset = m_clockOffset;
+    state.paused = m_isPaused ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool Emulation::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(EmulationSnapshotStateV1))
+        return false;
+
+    EmulationSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.paused > 1)
+        return false;
+
+    m_curClock = state.curClock;
+    m_clockOffset = state.clockOffset;
+    m_isPaused = state.paused != 0;
+    return true;
+}
+
+void Emulation::postLoad()
+{
+    // Host wall-clock values are deliberately not serialized.  Restart the
+    // pacing window on the next mainLoopCycle() while preserving emulated time.
+    m_prevSysClock = 0;
+    m_sysClock = 0;
+    m_debugReqCpu = nullptr;
+    m_cpuDev = m_vector ? m_vector->getCpu() : nullptr;
+}
+

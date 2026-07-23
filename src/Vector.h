@@ -26,7 +26,10 @@
 #include "KbdLayout.h"
 
 #include <string>
+#include <cstddef>
+#include <cstdint>
 
+#include "ff.h"
 #include "PalKeys.h"
 #include "EmuTypes.h"
 
@@ -69,7 +72,7 @@ class VectorRamDiskSelector;
 class WavWriter;
 
 
-class VectorRenderer : public CrtRenderer, public IActive
+class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerializable
 {
     public:
         VectorRenderer();
@@ -95,6 +98,12 @@ class VectorRenderer : public CrtRenderer, public IActive
         void setLineOffset(uint8_t lineOffset);
         void setPaletteColor(uint8_t color);
         void vidMemWriteNotify();
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
 
     private:
@@ -162,6 +171,86 @@ class VectorRenderer : public CrtRenderer, public IActive
 };
 
 
+
+
+constexpr uint16_t SNAPSHOT_STATE_FORMAT_VERSION = 2;
+
+constexpr uint32_t makeSnapshotSectionId(char a, char b, char c, char d)
+{
+    return static_cast<uint32_t>(static_cast<uint8_t>(a)) |
+           (static_cast<uint32_t>(static_cast<uint8_t>(b)) << 8) |
+           (static_cast<uint32_t>(static_cast<uint8_t>(c)) << 16) |
+           (static_cast<uint32_t>(static_cast<uint8_t>(d)) << 24);
+}
+
+#pragma pack(push, 1)
+struct SnapshotFileHeaderV2 {
+    char magic[8];
+    uint16_t formatVersion;
+    uint16_t headerSize;
+    uint32_t sectionCount;
+    char firmwareVersion[32];
+    uint8_t reserved[16];
+};
+
+struct SnapshotSectionHeaderV2 {
+    uint32_t id;
+    uint16_t version;
+    uint16_t headerSize;
+    uint32_t size;
+};
+#pragma pack(pop)
+
+class SnapshotWriter {
+public:
+    explicit SnapshotWriter(FIL& file);
+
+    bool good() const;
+    bool write(const void* data, uint32_t size);
+
+    template<typename T>
+    bool writeValue(const T& value)
+    {
+        return write(&value, sizeof(value));
+    }
+
+    bool beginSection(uint32_t id, uint16_t version);
+    bool endSection();
+
+private:
+    FIL& m_file;
+    bool m_good = true;
+    bool m_sectionOpen = false;
+    FSIZE_t m_sectionHeaderPos = 0;
+    FSIZE_t m_sectionDataPos = 0;
+    SnapshotSectionHeaderV2 m_sectionHeader{};
+};
+
+class SnapshotReader {
+public:
+    explicit SnapshotReader(FIL& file);
+
+    bool good() const;
+    bool read(void* data, uint32_t size);
+
+    template<typename T>
+    bool readValue(T& value)
+    {
+        return read(&value, sizeof(value));
+    }
+
+    bool beginSection(SnapshotSectionHeaderV2& section);
+    bool endSection();
+    bool skip(uint32_t size);
+    uint32_t remaining() const;
+
+private:
+    FIL& m_file;
+    bool m_good = true;
+    bool m_sectionOpen = false;
+    FSIZE_t m_sectionEnd = 0;
+};
+
 enum VectorCpuType {
     VECTOR_CPU_8080 = 0,
     VECTOR_CPU_Z80  = 1
@@ -173,7 +262,7 @@ enum class VectorFloppyDrive : uint8_t {
 };
 
 
-class VectorCore
+class VectorCore : public SnapshotSerializable
 {
     public:
         VectorCore();
@@ -209,6 +298,12 @@ class VectorCore
                                         std::string* firmwareVersion = nullptr,
                                         uint16_t* fileFormatVersion = nullptr);
         static uint16_t snapshotFormatVersion();
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
         Cpu8080Compatible* getCpu();
 
@@ -319,7 +414,7 @@ class VectorCore
         bool m_tapeOut = false;
 };
 
-class VectorAddrSpace : public AddressableDevice
+class VectorAddrSpace : public AddressableDevice, public SnapshotSerializable
 {
     public:
 
@@ -341,6 +436,12 @@ class VectorAddrSpace : public AddressableDevice
         void rebuildPageMap();
         void ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage);
         void eramControl(int eramSegment, int eramPageStartAddr, int eramPageEndAddr);
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
 
     private:

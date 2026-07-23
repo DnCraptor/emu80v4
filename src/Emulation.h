@@ -42,7 +42,7 @@ class VectorCore;
     DevListItem* next;
 };*/
 
-class Emulation
+class Emulation : public SnapshotSerializable
 {
     public:
         Emulation(); //: EmuObject();
@@ -100,6 +100,12 @@ class Emulation
         bool getPausedState() const {return m_isPaused;}
         void setPaused(bool paused) {m_isPaused = paused;}
         bool getFullThrottleState() {return m_fullThrottle;}
+
+        uint32_t snapshotSectionId() const override;
+        uint16_t snapshotSectionVersion() const override;
+        bool saveState(SnapshotWriter& writer) const override;
+        bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
 
     private:

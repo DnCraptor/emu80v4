@@ -23,6 +23,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "Pit8253.h"
+#include "Vector.h"
 
 using namespace std;
 
@@ -553,3 +554,168 @@ void __not_in_flash_func(Pit8253Helper::operate)()
     m_counter->updateState();
     m_counter->planIrq();
 }
+
+namespace {
+
+#pragma pack(push, 1)
+struct Pit8253CounterSnapshotStateV1 {
+    uint64_t prevClock;
+    uint64_t sampleClock;
+    int32_t avgOut;
+    int32_t sumOutTicks;
+    int32_t tempSumOut;
+    int32_t tempAddOutClocks;
+    uint32_t clockPhase;
+    int32_t mode;
+    int32_t counter;
+    int32_t counterInitValue;
+    int32_t countDelay;
+    uint8_t extClockMode;
+    uint8_t gate;
+    uint8_t out;
+    uint8_t isCounting;
+};
+
+struct Pit8253SnapshotStateV1 {
+    Pit8253CounterSnapshotStateV1 counters[3];
+    uint16_t latches[3];
+    uint8_t latched[3];
+    uint8_t rlModes[3];
+    uint8_t waitingHi[3];
+};
+
+struct Pit8253SnapshotStateV2 {
+    Pit8253SnapshotStateV1 pit;
+    uint64_t helperClock[3];
+    uint8_t helperPaused[3];
+};
+#pragma pack(pop)
+
+}
+
+uint32_t Pit8253::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('P', 'I', 'T', ' ');
+}
+
+uint16_t Pit8253::snapshotSectionVersion() const
+{
+    return 2;
+}
+
+bool Pit8253::saveState(SnapshotWriter& writer) const
+{
+    Pit8253SnapshotStateV2 state{};
+    for (int i = 0; i < 3; i++) {
+        const Pit8253Counter& counter = *m_counters[i];
+        Pit8253CounterSnapshotStateV1& dst = state.pit.counters[i];
+        dst.prevClock = counter.m_prevClock;
+        dst.sampleClock = counter.m_sampleClock;
+        dst.avgOut = counter.m_avgOut;
+        dst.sumOutTicks = counter.m_sumOutTicks;
+        dst.tempSumOut = counter.m_tempSumOut;
+        dst.tempAddOutClocks = counter.m_tempAddOutClocks;
+        dst.clockPhase = counter.m_clockPhase;
+        dst.mode = counter.m_mode;
+        dst.counter = counter.m_counter;
+        dst.counterInitValue = counter.m_counterInitValue;
+        dst.countDelay = counter.m_countDelay;
+        dst.extClockMode = counter.m_extClockMode ? 1 : 0;
+        dst.gate = counter.m_gate ? 1 : 0;
+        dst.out = counter.m_out ? 1 : 0;
+        dst.isCounting = counter.m_isCounting ? 1 : 0;
+        state.pit.latches[i] = m_latches[i];
+        state.pit.latched[i] = m_latched[i] ? 1 : 0;
+        state.pit.rlModes[i] = static_cast<uint8_t>(m_rlModes[i]);
+        state.pit.waitingHi[i] = m_waitingHi[i] ? 1 : 0;
+        if (counter.m_helper) {
+            state.helperClock[i] = counter.m_helper->getScheduledClock();
+            state.helperPaused[i] = counter.m_helper->isSchedulePaused() ? 1 : 0;
+        } else {
+            state.helperClock[i] = uint64_t(-1);
+            state.helperPaused[i] = 1;
+        }
+    }
+    return writer.writeValue(state);
+}
+
+bool Pit8253::loadState(SnapshotReader& reader, uint16_t version)
+{
+    Pit8253SnapshotStateV1 state{};
+    uint64_t helperClock[3] = {};
+    uint8_t helperPaused[3] = {};
+    bool hasHelperSchedule = false;
+
+    if (version == 1) {
+        if (reader.remaining() != sizeof(Pit8253SnapshotStateV1) ||
+            !reader.readValue(state))
+            return false;
+    } else if (version == snapshotSectionVersion()) {
+        if (reader.remaining() != sizeof(Pit8253SnapshotStateV2))
+            return false;
+        Pit8253SnapshotStateV2 stateV2{};
+        if (!reader.readValue(stateV2))
+            return false;
+        state = stateV2.pit;
+        for (int i = 0; i < 3; i++) {
+            helperClock[i] = stateV2.helperClock[i];
+            helperPaused[i] = stateV2.helperPaused[i];
+            if (helperPaused[i] > 1)
+                return false;
+        }
+        hasHelperSchedule = true;
+    } else
+        return false;
+
+    for (int i = 0; i < 3; i++) {
+        const Pit8253CounterSnapshotStateV1& src = state.counters[i];
+        if (src.mode < 0 || src.mode > 5 || src.counter < 0 ||
+            src.counter > 0x10000 || src.counterInitValue < 1 ||
+            src.counterInitValue > 0x10000 || src.countDelay < 0 ||
+            src.extClockMode > 1 || src.gate > 1 || src.out > 1 ||
+            src.isCounting > 1 || state.latched[i] > 1 ||
+            state.rlModes[i] > PRLM_WORD || state.waitingHi[i] > 1)
+            return false;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        Pit8253Counter& counter = *m_counters[i];
+        const Pit8253CounterSnapshotStateV1& src = state.counters[i];
+        counter.m_prevClock = src.prevClock;
+        counter.m_sampleClock = src.sampleClock;
+        counter.m_avgOut = src.avgOut;
+        counter.m_sumOutTicks = src.sumOutTicks;
+        counter.m_tempSumOut = src.tempSumOut;
+        counter.m_tempAddOutClocks = src.tempAddOutClocks;
+        counter.m_clockPhase = src.clockPhase;
+        counter.m_mode = src.mode;
+        counter.m_counter = src.counter;
+        counter.m_counterInitValue = src.counterInitValue;
+        counter.m_countDelay = src.countDelay;
+        counter.m_extClockMode = src.extClockMode != 0;
+        counter.m_gate = src.gate != 0;
+        counter.m_out = src.out != 0;
+        counter.m_isCounting = src.isCounting != 0;
+        m_latches[i] = state.latches[i];
+        m_latched[i] = state.latched[i] != 0;
+        m_rlModes[i] = static_cast<PitReadLoadMode>(state.rlModes[i]);
+        m_waitingHi[i] = state.waitingHi[i] != 0;
+        if (hasHelperSchedule && counter.m_helper)
+            counter.m_helper->restoreSchedule(helperClock[i], helperPaused[i] != 0);
+    }
+    m_snapshotHasHelperSchedule = hasHelperSchedule;
+    return true;
+}
+
+void Pit8253::postLoad()
+{
+    for (int i = 0; i < 3; i++) {
+        Pit8253Counter& counter = *m_counters[i];
+        if (counter.m_clockPhase >= static_cast<uint32_t>(counter.m_kDiv))
+            counter.syncClockPhase();
+        if (!m_snapshotHasHelperSchedule)
+            counter.planIrq();
+    }
+    m_snapshotHasHelperSchedule = false;
+}
+
