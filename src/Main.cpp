@@ -579,9 +579,10 @@ static PalKeyCode map_key(uint8_t kc) {
         case HID_KEY_ARROW_DOWN: return PalKeyCode::PK_DOWN;
         case HID_KEY_ARROW_LEFT: return PalKeyCode::PK_LEFT;
         case HID_KEY_ARROW_RIGHT: return PalKeyCode::PK_RIGHT;
- // TODO:
-        case HID_KEY_GUI_LEFT: return PalKeyCode::PK_F1;
-        case HID_KEY_GUI_RIGHT: return PalKeyCode::PK_F1;
+        // Win-клавиши — модификатор снимков (Left Win+F1..F12 — сохранить,
+        // Right Win+F1..F12 — загрузить), поэтому доводятся как есть.
+        case HID_KEY_GUI_LEFT: return PalKeyCode::PK_LWIN;
+        case HID_KEY_GUI_RIGHT: return PalKeyCode::PK_RWIN;
         default: break;
     }
     return PalKeyCode::PK_NONE;
@@ -596,11 +597,11 @@ static constexpr HidModifierMapping hidModifierMappings[] = {
     { KEYBOARD_MODIFIER_LEFTCTRL,   PalKeyCode::PK_LCTRL  },
     { KEYBOARD_MODIFIER_LEFTSHIFT,  PalKeyCode::PK_LSHIFT },
     { KEYBOARD_MODIFIER_LEFTALT,    PalKeyCode::PK_LALT   },
-    { KEYBOARD_MODIFIER_LEFTGUI,    PalKeyCode::PK_F1     },
+    { KEYBOARD_MODIFIER_LEFTGUI,    PalKeyCode::PK_LWIN   },
     { KEYBOARD_MODIFIER_RIGHTCTRL,  PalKeyCode::PK_RCTRL  },
     { KEYBOARD_MODIFIER_RIGHTSHIFT, PalKeyCode::PK_RSHIFT },
     { KEYBOARD_MODIFIER_RIGHTALT,   PalKeyCode::PK_RALT   },
-    { KEYBOARD_MODIFIER_RIGHTGUI,   PalKeyCode::PK_F1     },
+    { KEYBOARD_MODIFIER_RIGHTGUI,   PalKeyCode::PK_RWIN   },
 };
 
 static inline bool isHidModifierKey(uint8_t keycode) {
@@ -816,7 +817,15 @@ inline static void inInit(uint gpio) {
 
 #include "hardware/pwm.h"
 
+#ifdef HWAY
+#include "hway.h"
+#endif
+
 void init_sound() {
+#ifdef HWAY
+    // Ноги I2S заняты сдвиговым регистром 595, обычный тракт не поднимаем.
+    hway_init();
+#else
     // Тип выхода определяется электрически: одна прошивка работает и с
     // ШИМ-платой, и с I2S-платой. Сама инициализация выбранного тракта
     // отложена до palSetSampleRate(), когда известна частота дискретизации.
@@ -832,6 +841,7 @@ void init_sound() {
     inInit(LOAD_WAV_PIO);
 ///	add_repeating_timer_us(-1000000ll / hz, timer_callback, NULL, &m_timer);
 #endif
+#endif // HWAY
 }
 
 static const char* argv[1] = {

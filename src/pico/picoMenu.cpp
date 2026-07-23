@@ -1419,6 +1419,33 @@ void relayoutMenu()
 
 } // namespace
 
+void palSnapshotHotkey(unsigned slot, bool save)
+{
+    if (!g_emulation || slot < 1 || slot > 12)
+        return;
+
+    // Тот же порядок, что при открытии меню: пауза и тишина на время
+    // блокирующей операции, затем возврат прежнего состояния. Снимок тоже
+    // содержит признак паузы, но приоритет остаётся за состоянием машины
+    // до нажатия — так же ведёт себя загрузка из меню.
+    SoundMixer* mixer = g_emulation->getSoundMixer();
+    const bool wasPaused = g_emulation->getPausedState();
+    const bool wasMuted = mixer && mixer->getMuted();
+
+    g_emulation->setPaused(true);
+    if (mixer)
+        mixer->setMuted(true);
+
+    if (save)
+        saveSnapshotSlot(slot);
+    else
+        loadSnapshotSlot(slot);
+
+    if (mixer)
+        mixer->setMuted(wasMuted);
+    g_emulation->setPaused(wasPaused);
+}
+
 void palOpenMainMenu()
 {
     if (menu.open || !g_emulation)

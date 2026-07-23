@@ -222,6 +222,14 @@ ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE KBDPS2)
 ENDIF()
 
+# --- AY_TYPE: HWAY = реальный PSG через 74595 на ногах I2S ---
+set(AY_TYPE "PWM" CACHE STRING "AY-3-8910 output: PWM / I2S / HWAY")
+if(AY_TYPE STREQUAL "HWAY")
+    add_subdirectory(drivers/hway)
+    target_link_libraries(${PROJECT_NAME} PRIVATE hway)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HWAY)
+endif()
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PORT_VERSION="${PORT_VERSION}"
     CPU_MHZ=${CPU_MHZ}

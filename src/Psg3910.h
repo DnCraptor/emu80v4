@@ -49,6 +49,7 @@ class Psg3910 : public AddressableDevice, public SnapshotSerializable
         uint16_t snapshotSectionVersion() const override;
         bool saveState(SnapshotWriter& writer) const override;
         bool loadState(SnapshotReader& reader, uint16_t version) override;
+        void postLoad() override;
 
     private:
         struct Psg3910Counter {

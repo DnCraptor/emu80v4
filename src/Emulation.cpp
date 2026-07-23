@@ -239,6 +239,8 @@ void Emulation::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 static bool isAltPressed = false;
 static bool isShiftPressed = false;
 static bool isCtrlPressed = false;
+static bool isLWinPressed = false;
+static bool isRWinPressed = false;
 void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
@@ -247,12 +249,17 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         return;
 
     const bool altKey = keyCode == PK_LALT || keyCode == PK_RALT;
+    const bool winKey = keyCode == PK_LWIN || keyCode == PK_RWIN;
     if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT)
         isShiftPressed = isPressed;
     else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL)
         isCtrlPressed = isPressed;
     else if (altKey)
         isAltPressed = isPressed;
+    else if (keyCode == PK_LWIN)
+        isLWinPressed = isPressed;
+    else if (keyCode == PK_RWIN)
+        isRWinPressed = isPressed;
 
     if (altKey && isPressed) {
         if (palMainMenuIsOpen())
@@ -261,6 +268,11 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
             palOpenMainMenu();
         return;
     }
+
+    // Win — только модификатор снимков: машине он не нужен и в матрицу
+    // клавиатуры Вектора не входит.
+    if (winKey)
+        return;
 
     if (palMainMenuIsOpen()) {
         // Отпускание Alt при открытом меню не делает ничего: меню закрывается
@@ -318,6 +330,18 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         return;
     }
 
+    // ТЗ: Left Win+F1..F12 — сохранить снимок, Right Win+F1..F12 — загрузить.
+    // Разбирается до TranslateKeyToSysReq, иначе F-клавиши уйдут в sysReq.
+    if (isPressed && (isLWinPressed || isRWinPressed) &&
+        keyCode >= PK_F1 && keyCode <= PK_F12) {
+        const unsigned slot = unsigned(keyCode - PK_F1) + 1;
+        palSnapshotHotkey(slot, isLWinPressed);
+        // Модальное сообщение читает клавиши само, поэтому отпускания Win и
+        // F-клавиши до machineKey не доходят: снимаем модификаторы явно.
+        resetKeys();
+        return;
+    }
+
     if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
         watchdog_enable(100, true);
         while(true) sleep_ms(20);
@@ -336,6 +360,8 @@ void Emulation::resetKeys()
     isAltPressed = false;
     isShiftPressed = false;
     isCtrlPressed = false;
+    isLWinPressed = false;
+    isRWinPressed = false;
     if (m_vector)
         m_vector->resetKeys();
 }

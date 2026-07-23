@@ -8,6 +8,9 @@
 
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
+#ifdef HWAY
+extern "C" { void hway_dac_out(int16_t, int16_t); }
+#endif
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
@@ -757,6 +760,11 @@ static void audioStopPacedOutput()
 
 static bool audioInitOutput(int sampleRate)
 {
+#ifdef HWAY
+    (void)sampleRate;              // вывод — реальный чип, не I2S/PWM
+    s_audioOutputInitialized = true;
+    return true;
+#endif
     if (s_audioI2S) {
         i2s_config.sample_freq = sampleRate;
         i2s_config.dma_trans_count = 0;
@@ -818,6 +826,10 @@ static bool audioStartPacedOutput(int sampleRate)
 }
 
 void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
+#ifdef HWAY
+    hway_dac_out(left, right);     // весь не-AY звук -> ЦАП port B чипа AY1
+    return;
+#endif
     const uint32_t sample = uint16_t(left) | (uint32_t(uint16_t(right)) << 16);
 
     if (!s_audioPaced) {

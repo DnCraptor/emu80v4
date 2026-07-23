@@ -31,4 +31,9 @@ int palMainMenuOriginY();
 // Ожидание клавиши остаётся на вызывающем.
 void palMessageBox(const char* title, const char* text);
 
+// Горячие клавиши снимков: Left Win+F1..F12 — сохранить, Right Win+F1..F12 —
+// загрузить. По ТЗ операция идёт с паузой и заглушенным звуком, видеовыход
+// при этом продолжает работать. save=true — сохранение, иначе загрузка.
+void palSnapshotHotkey(unsigned slot, bool save);
+
 #endif // PICOMENU_H
