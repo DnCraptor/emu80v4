@@ -49,6 +49,9 @@ bool palProbeAudioOutput();
 bool palAudioIsI2S();
 bool palAudioOutputCanSwitch();
 bool palSetAudioOutputI2S(bool i2s);
+// Реальный PSG через 74595 — третий режим вывода, исключающий PWM и I2S.
+bool palAudioIsHwAy();
+bool palSetAudioOutputHwAy(bool hwAy);
 void palAudioSystemClockChanged();
 
 uint32_t palGetSystemClockMHz();

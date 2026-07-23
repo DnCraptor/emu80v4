@@ -122,9 +122,9 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define I2S_FREQUENCY 48000
 
 // HWAY: сдвиговый регистр 74595 (на ногах I2S) + такт AY. Под свою разводку.
-#define HWAY_DATA_PIN   AUDIO_DATA_PIN         // 595 SER
-#define HWAY_CLK_PIN    AUDIO_CLOCK_PIN        // 595 SRCLK
-#define HWAY_LATCH_PIN  (AUDIO_CLOCK_PIN + 1)  // 595 RCLK (была I2S LRCLK)
+#define HWAY_LATCH_PIN  AUDIO_DATA_PIN         // 595 RCLK  (защёлка)
+#define HWAY_CLK_PIN    AUDIO_CLOCK_PIN        // 595 SRCLK (сдвиг)
+#define HWAY_DATA_PIN   (AUDIO_CLOCK_PIN + 1)  // 595 SER   (данные)
 #define HWAY_AYCLK_PIN  (AUDIO_CLOCK_PIN + 2)  // тактовый вход AY (~1.75 МГц)
 #define BUTTER_PSRAM_GPIO_RP2350A 8
 #define BUTTER_PSRAM_GPIO_RP2350B 47

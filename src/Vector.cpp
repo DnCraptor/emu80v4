@@ -37,6 +37,8 @@
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "Covox.h"
+#include "hway.h"
+#include "pico/picoPal.h"
 #include "PrnWriter.h"
 #include "AtaDrive.h"
 #include "KbdTapper.h"
@@ -1403,11 +1405,6 @@ VectorCore::VectorCore()
     m_psgSoundSource = &s_devices.psgSoundSource;
     m_psgSoundSource->setMachine(this);
     m_psgSoundSource->attachPsg(m_ay);
-#ifdef HWAY
-    // AY звучит на реальном чипе через 595 — программный источник глушим,
-    // иначе он продублируется в ЦАП port B второго чипа.
-    m_psgSoundSource->setMuted(true);
-#endif
 
     m_fdc = &s_devices.fdc;
     m_fdc->setMachine(this);

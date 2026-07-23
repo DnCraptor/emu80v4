@@ -8,9 +8,7 @@
 
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
-#ifdef HWAY
-extern "C" { void hway_dac_out(int16_t, int16_t); }
-#endif
+#include "hway.h"
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
@@ -543,8 +541,16 @@ extern i2s_config_t i2s_config;
 // ===========================================================================
 
 static bool s_audioI2S = false;
+// Реальный PSG через 74595. Занимает те же ноги, что I2S, поэтому это
+// третий взаимоисключающий режим вывода, а не надстройка над ними.
+#ifdef AY_DEFAULT_HWAY
+static bool s_audioHwAy = true;
+#else
+static bool s_audioHwAy = false;
+#endif
 static bool s_audioOutputInitialized = false;
 bool palAudioIsI2S() {return s_audioI2S;}
+bool palAudioIsHwAy() {return s_audioHwAy;}
 
 bool palAudioOutputCanSwitch()
 {
@@ -673,6 +679,8 @@ static int audioTestPins(unsigned pin0, unsigned pin1)
 // Возвращает true, если полный тест связи DIN/BCK обнаружил I2S-модуль.
 bool palProbeAudioOutput()
 {
+    if (s_audioHwAy)
+        return false;
 #if defined(AUDIO_FORCE_PWM)
     s_audioI2S = false;
 #elif defined(AUDIO_FORCE_I2S)
@@ -741,7 +749,9 @@ static bool __not_in_flash_func(audioTimerCb)(repeating_timer_t*)
         s_audioLast = s_audioRing[s_audioRead];
         s_audioRead = (s_audioRead + 1) & c_audioRingMask;
     }
-    if (s_audioI2S) {
+    if (s_audioHwAy) {
+        hway_dac_out(int16_t(s_audioLast & 0xFFFF), int16_t(s_audioLast >> 16));
+    } else if (s_audioI2S) {
         if (!pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
             pio_sm_put(i2s_config.pio, i2s_config.sm, s_audioLast);
     } else {
@@ -760,11 +770,12 @@ static void audioStopPacedOutput()
 
 static bool audioInitOutput(int sampleRate)
 {
-#ifdef HWAY
-    (void)sampleRate;              // вывод — реальный чип, не I2S/PWM
-    s_audioOutputInitialized = true;
-    return true;
-#endif
+    if (s_audioHwAy) {
+        (void)sampleRate;          // вывод — реальный чип, не I2S/PWM
+        hway_init();
+        s_audioOutputInitialized = true;
+        return true;
+    }
     if (s_audioI2S) {
         i2s_config.sample_freq = sampleRate;
         i2s_config.dma_trans_count = 0;
@@ -787,6 +798,11 @@ static void audioDeinitOutput()
 {
     if (!s_audioOutputInitialized)
         return;
+    if (s_audioHwAy) {
+        hway_deinit();
+        s_audioOutputInitialized = false;
+        return;
+    }
     if (s_audioI2S) {
         i2s_deinit(&i2s_config);
     } else {
@@ -826,10 +842,6 @@ static bool audioStartPacedOutput(int sampleRate)
 }
 
 void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
-#ifdef HWAY
-    hway_dac_out(left, right);     // весь не-AY звук -> ЦАП port B чипа AY1
-    return;
-#endif
     const uint32_t sample = uint16_t(left) | (uint32_t(uint16_t(right)) << 16);
 
     if (!s_audioPaced) {
@@ -837,6 +849,9 @@ void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
             if (s_audioOutputInitialized
                 && !pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
                 pio_sm_put(i2s_config.pio, i2s_config.sm, sample);
+        } else if (s_audioHwAy) {
+            // весь не-AY звук -> ЦАП port B второго чипа
+            hway_dac_out(left, right);
         } else if (s_audioOutputInitialized) {
             audioWritePwm(sample);
         }
@@ -896,8 +911,35 @@ bool palSetAudioOutputI2S(bool i2s)
     return false;
 }
 
+bool palSetAudioOutputHwAy(bool hwAy)
+{
+    if (!palAudioOutputCanSwitch())
+        return hwAy == s_audioHwAy;
+    if (hwAy == s_audioHwAy)
+        return true;
+
+    const bool previous = s_audioHwAy;
+    audioStopPacedOutput();
+    audioDeinitOutput();
+
+    s_audioHwAy = hwAy;
+    if (audioInitOutput(sampleRate) && audioStartPacedOutput(sampleRate))
+        return true;
+
+    audioStopPacedOutput();
+    audioDeinitOutput();
+    s_audioHwAy = previous;
+    if (audioInitOutput(sampleRate))
+        audioStartPacedOutput(sampleRate);
+    return false;
+}
+
 void palAudioSystemClockChanged()
 {
+    // Такт AY задаётся делителем от clk_sys: при смене системной частоты
+    // его надо пересчитать, иначе уедет высота звука.
+    if (s_audioHwAy)
+        hway_ayclk_refresh();
     audioStopPacedOutput();
     audioDeinitOutput();
     if (audioInitOutput(sampleRate))

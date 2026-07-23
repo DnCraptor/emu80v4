@@ -16,8 +16,8 @@ cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
 #set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
 set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
-#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
@@ -222,13 +222,9 @@ ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE KBDPS2)
 ENDIF()
 
-# --- AY_TYPE: HWAY = реальный PSG через 74595 на ногах I2S ---
-set(AY_TYPE "PWM" CACHE STRING "AY-3-8910 output: PWM / I2S / HWAY")
-if(AY_TYPE STREQUAL "HWAY")
-    add_subdirectory(drivers/hway)
-    target_link_libraries(${PROJECT_NAME} PRIVATE hway)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HWAY)
-endif()
+add_subdirectory(drivers/hway)
+target_link_libraries(${PROJECT_NAME} PRIVATE hway)
+target_compile_definitions(${PROJECT_NAME} PRIVATE HWAY)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PORT_VERSION="${PORT_VERSION}"

@@ -29,9 +29,8 @@
 #include "Emulation.h"
 #include "Psg3910.h"
 #include "Vector.h"
-#ifdef HWAY
 #include "hway.h"
-#endif
+#include "pico/picoPal.h"
 
 using namespace std;
 
@@ -103,9 +102,8 @@ void Psg3910::reset()
     m_curReg = 0;
     for (int i = 0; i < 16; i++)
         m_regs[i] = 0;
-#ifdef HWAY
-    hway_reset();
-#endif
+    if (palAudioIsHwAy())
+        hway_reset();
 
     m_noiseFreq = 0;
     m_envFreq = 0;
@@ -144,15 +142,13 @@ void Psg3910::setEnabled(bool enabled)
         updateState();
 
     m_enabled = enabled;
-#ifdef HWAY
     // Выключенный PSG больше не пишет в чип, поэтому гасим его амплитуды
     // явно: иначе реальный AY продолжит тянуть последнюю ноту.
-    if (!enabled)
+    if (!enabled && palAudioIsHwAy())
         for (int i = 8; i <= 10; i++) {
             hway_ay_address(uint8_t(i));
             hway_ay_data(0);
         }
-#endif
 
     if (enabled) {
         m_prevClock = g_emulation->getCurClock();
@@ -166,7 +162,8 @@ void Psg3910::setEnabled(bool enabled)
 
 void Psg3910::postLoad()
 {
-#ifdef HWAY
+    if (!palAudioIsHwAy())
+        return;
     // Snapshot восстановил регистры только в эмуляторе. Реальный чип нужно
     // перезалить целиком, иначе он продолжит играть доснимочное состояние.
     hway_reset();
@@ -174,8 +171,7 @@ void Psg3910::postLoad()
         hway_ay_address(uint8_t(i));
         hway_ay_data(m_regs[i]);
     }
-    hway_ay_address(uint8_t(m_curReg));   // восстановить выбранный регистр
-#endif
+    hway_ay_address(uint8_t(m_curReg));
 }
 
 void Psg3910::writeByte(int addr, uint8_t value)
@@ -188,15 +184,13 @@ void Psg3910::writeByte(int addr, uint8_t value)
     if (addr & 1) {
         // reg number
         m_curReg = value & 0xF;
-#ifdef HWAY
-        hway_ay_address(value & 0xF);
-#endif
+        if (palAudioIsHwAy())
+            hway_ay_address(value & 0xF);
     } else {
         // register
         m_regs[m_curReg] = value;
-#ifdef HWAY
-        hway_ay_data(value);
-#endif
+        if (palAudioIsHwAy())
+            hway_ay_data(value);
         switch (m_curReg) {
         case 0:
             m_counters[0].freq = (m_counters[0].freq & 0xF00) | value;
@@ -389,7 +383,6 @@ int Psg3910SoundSource::calcValue()
 
 void __not_in_flash_func(Psg3910SoundSource::getSample)(int& left, int& right)
 {
-
     if (!m_psg) {
         left = right = 0;
         return;
@@ -397,7 +390,18 @@ void __not_in_flash_func(Psg3910SoundSource::getSample)(int& left, int& right)
 
     uint16_t outputs[3];
 
+    // getOutputs() внутри вызывает updateState(), поэтому его нельзя
+    // пропускать даже когда звук не нужен: иначе m_prevClock застынет, и
+    // первый же updateState() (например, из setEnabled) будет догонять
+    // накопившийся интервал секундами.
     m_psg->getOutputs(outputs);
+
+    // При HWAY музыку играет реальная микросхема: программный источник
+    // отдаёт тишину, иначе он продублируется в ЦАП port B второго чипа.
+    if (palAudioIsHwAy()) {
+        left = right = 0;
+        return;
+    }
 
     // max amp = 3
     if (m_stereo) {

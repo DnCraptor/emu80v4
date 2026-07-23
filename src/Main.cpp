@@ -817,31 +817,30 @@ inline static void inInit(uint gpio) {
 
 #include "hardware/pwm.h"
 
-#ifdef HWAY
-#include "hway.h"
-#endif
+
+#include "pico/picoPal.h"
 
 void init_sound() {
-#ifdef HWAY
-    // Ноги I2S заняты сдвиговым регистром 595, обычный тракт не поднимаем.
-    hway_init();
-#else
     // Тип выхода определяется электрически: одна прошивка работает и с
     // ШИМ-платой, и с I2S-платой. Сама инициализация выбранного тракта
     // отложена до palSetSampleRate(), когда известна частота дискретизации.
     palProbeAudioOutput();
 #if BEEPER_PIN
+    // В HWAY этого делать нельзя: на murmulator BEEPER_PIN (28) — это линия
+    // данных 595, а его PWM-слайс тот же, что у тактового выхода AY (29).
+    // Инициализация бипера отбирает ногу и переписывает делитель такта.
+    if (!palAudioIsHwAy()) {
     pwm_config config = pwm_get_default_config();
     gpio_set_function(BEEPER_PIN, GPIO_FUNC_PWM);
     pwm_config_set_clkdiv(&config, 127);
     pwm_init(pwm_gpio_to_slice_num(BEEPER_PIN), &config, true);
+    }
 #endif
 #ifdef LOAD_WAV_PIO
     //пин ввода звука
     inInit(LOAD_WAV_PIO);
 ///	add_repeating_timer_us(-1000000ll / hz, timer_callback, NULL, &m_timer);
 #endif
-#endif // HWAY
 }
 
 static const char* argv[1] = {

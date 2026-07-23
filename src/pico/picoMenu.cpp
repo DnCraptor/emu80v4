@@ -14,6 +14,7 @@
 #include "../Emulation.h"
 #include "../Vector.h"
 #include "../SoundMixer.h"
+#include "hway.h"
 #include "pico/picoPal.h"
 
 extern PalKeyCodeAction getKey();
@@ -380,12 +381,19 @@ static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast
 
 const char* soundTitle()
 {
+    if (palAudioIsHwAy())
+        return "Sound (HWAY)";
     return palAudioIsI2S() ? "Sound (I2S)" : "Sound (PWM)";
 }
 
 const char* soundOutputTitle()
 {
-    return palAudioIsI2S() ? "Switch to PWM" : "Switch to I2S";
+    // Порядок перебора: PWM -> I2S -> HWAY -> PWM
+    if (palAudioIsHwAy())
+        return "Output: HWAY (to PWM)";
+    if (palAudioIsI2S())
+        return "Output: I2S (to HWAY)";
+    return "Output: PWM (to I2S)";
 }
 
 bool soundOutputEnabled()
@@ -395,7 +403,15 @@ bool soundOutputEnabled()
 
 void toggleSoundOutput()
 {
-    palSetAudioOutputI2S(!palAudioIsI2S());
+    if (palAudioIsHwAy()) {            // HWAY -> PWM
+        palSetAudioOutputHwAy(false);
+        palSetAudioOutputI2S(false);
+    } else if (palAudioIsI2S()) {      // I2S -> HWAY
+        palSetAudioOutputI2S(false);
+        palSetAudioOutputHwAy(true);
+    } else {                           // PWM -> I2S
+        palSetAudioOutputI2S(true);
+    }
 }
 
 bool s_userMuted = false;
@@ -459,7 +475,37 @@ void togglePsg()
         core->setPsgEnabled(!core->getPsgEnabled());
 }
 
-bool psgOrderEnabled() { return psgEnabled(); }
+// Панорамирование каналов PSG выполняет программный микшер. При HWAY звук
+// формирует сама микросхема, разводка её каналов задана платой, поэтому
+// Stereo и порядок ABC/ACB на результат не влияют.
+bool psgOrderEnabled() { return psgEnabled() && !palAudioIsHwAy(); }
+bool psgStereoEnabled() { return !palAudioIsHwAy(); }
+
+// Вывод спикера/ковокса в port B второго чипа. Каждая запись занимает шину
+// 595, поэтому при подозрении на помехи звучанию PSG его можно отключить.
+bool hwayDacEnabled() { return palAudioIsHwAy(); }
+bool hwayDacChecked() { return hway_dac_enabled(); }
+void toggleHwayDac() { hway_set_dac_enabled(!hway_dac_enabled()); }
+
+// Диагностика: тон 440 Гц пишется в AY0 напрямую, минуя эмулятор.
+bool hwayToneChecked() { return hway_test_tone_on(); }
+void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
+
+
+// Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
+bool hwayCovoxTestChecked() { return hway_covox_test_on(); }
+void toggleHwayCovoxTest() { hway_covox_test(!hway_covox_test_on()); }
+
+// Нога тактового выхода AY: в PICO-BK их две на выбор (GP21 / GP29).
+const char* hwayAyClkTitle()
+{
+    switch (hway_ayclk_mode()) {
+        case 0:  return "AY clock: off (board xtal)";
+        case 2:  return "AY clock: alt pin";
+        default: return "AY clock: main pin";
+    }
+}
+void toggleHwayAyClk() { hway_set_ayclk_mode((hway_ayclk_mode() + 1) % 3); }
 
 bool psgAbcChecked()
 {
@@ -497,7 +543,11 @@ static const MenuPage psgPage {"PSG", nullptr, psgItems, static_cast<int>(sizeof
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
-    {"Stereo", nullptr, nullptr, togglePsgStereo, nullptr, psgStereoChecked, true},
+    {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
+    {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
+    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
+    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
+    {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
     {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
