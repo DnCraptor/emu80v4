@@ -544,15 +544,7 @@ extern i2s_config_t i2s_config;
 // независимых флага давали четыре состояния при трёх допустимых, и
 // ничто не мешало попасть в невозможную комбинацию.
 enum AudioOut : uint8_t { AUDIO_OUT_PWM = 0, AUDIO_OUT_I2S, AUDIO_OUT_HWAY };
-// Стартовый режим. Когда драйвер реального PSG собран (HWAY задаётся в
-// CMake безусловно), он и есть исходная конфигурация: электрическая
-// прозвонка не выполняется, поэтому I2S не поднимается даже на мгновение
-// и не занимает ноги сдвигового регистра своим PIO и DMA.
-#ifdef HWAY
-static AudioOut s_audioOut = AUDIO_OUT_HWAY;
-#else
 static AudioOut s_audioOut = AUDIO_OUT_PWM;
-#endif
 #define s_audioI2S  (s_audioOut == AUDIO_OUT_I2S)
 #define s_audioHwAy (s_audioOut == AUDIO_OUT_HWAY)
 static bool s_audioOutputInitialized = false;
@@ -695,8 +687,8 @@ bool palProbeAudioOutput()
 #elif defined(AUDIO_FORCE_I2S)
     s_audioOut = AUDIO_OUT_I2S;
 #else
-  //  s_audioOut = audioTestPins(AUDIO_DATA_PIN, AUDIO_CLOCK_PIN) != 0
-  //             ? AUDIO_OUT_I2S : AUDIO_OUT_PWM;
+    s_audioOut = audioTestPins(AUDIO_DATA_PIN, AUDIO_CLOCK_PIN) != 0
+               ? AUDIO_OUT_I2S : AUDIO_OUT_PWM;
 #endif
     return s_audioI2S;
 }

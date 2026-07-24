@@ -62,7 +62,7 @@
 
 static uint16_t ctrl = 0;
 static bool s_ready = false;
-static bool s_dac_on = true;
+static bool s_dac_on = false;
 static uint8_t s_ayclk_mode = 1;
 static bool s_test_tone = false;
 static bool s_covox_test = false;

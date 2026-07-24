@@ -604,15 +604,15 @@ static const MenuItem soundItems[] = {
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
     {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
     {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
-    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
-    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
-    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
-    {"Scale period", psgScaleMulTitle, nullptr, doPsgScaleMul, nullptr, nullptr, true},
-    {"Stair step", psgStairSpeedTitle, nullptr, doPsgStairSpeed, nullptr, nullptr, true},
-    {"Test: R9 staircase", nullptr, nullptr, togglePsgTestStair, nullptr, psgTestStairChecked, true},
-    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
-    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
-    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
+//    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
+//    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
+//    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
+//    {"Scale period", psgScaleMulTitle, nullptr, doPsgScaleMul, nullptr, nullptr, true},
+//    {"Stair step", psgStairSpeedTitle, nullptr, doPsgStairSpeed, nullptr, nullptr, true},
+//    {"Test: R9 staircase", nullptr, nullptr, togglePsgTestStair, nullptr, psgTestStairChecked, true},
+//    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
+//    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
+//    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
     {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
     {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
 };
@@ -1014,7 +1014,53 @@ static const MenuPage snapshotPage {
     "Snapshots", nullptr, snapshotItems,
     static_cast<int>(sizeof(snapshotItems) / sizeof(snapshotItems[0])), nullptr, nullptr
 };
-static const MenuPage videoPage     {"Video", nullptr, nullptr, 0, nullptr, nullptr};
+// --- Video ----------------------------------------------------------------
+
+char videoShiftStatusBuffer[40];
+
+const char* videoShiftStatus()
+{
+    char* dst = appendText(videoShiftStatusBuffer, "Offset: X=");
+    const int x = graphics_get_picture_shift_x();
+    if (x < 0) {
+        *dst++ = '-';
+        dst = appendUnsigned(dst, static_cast<unsigned>(-x));
+    } else {
+        *dst++ = '+';
+        dst = appendUnsigned(dst, static_cast<unsigned>(x));
+    }
+
+    dst = appendText(dst, " Y=");
+    const int y = graphics_get_picture_shift_y();
+    if (y < 0) {
+        *dst++ = '-';
+        dst = appendUnsigned(dst, static_cast<unsigned>(-y));
+    } else {
+        *dst++ = '+';
+        dst = appendUnsigned(dst, static_cast<unsigned>(y));
+    }
+    *dst = '\0';
+    return videoShiftStatusBuffer;
+}
+
+void videoMoveLeft()  { graphics_dec_x(); }
+void videoMoveRight() { graphics_inc_x(); }
+void videoMoveUp()    { graphics_dec_y(); }
+void videoMoveDown()  { graphics_inc_y(); }
+void videoCenter()    { graphics_set_offset(0, 0); }
+
+static const MenuItem videoItems[] = {
+    {"Move left",  nullptr, nullptr, videoMoveLeft,  nullptr, nullptr, true},
+    {"Move right", nullptr, nullptr, videoMoveRight, nullptr, nullptr, true},
+    {"Move up",    nullptr, nullptr, videoMoveUp,    nullptr, nullptr, true},
+    {"Move down",  nullptr, nullptr, videoMoveDown,  nullptr, nullptr, true},
+    {"Center",     nullptr, nullptr, videoCenter,    nullptr, nullptr, true},
+};
+static const MenuPage videoPage {
+    "Video", nullptr, videoItems,
+    static_cast<int>(sizeof(videoItems) / sizeof(videoItems[0])),
+    nullptr, nullptr, videoShiftStatus
+};
 
 static constexpr uint16_t coreVoltageValues[] = {1300, 1400, 1500, 1600, 1650};
 
