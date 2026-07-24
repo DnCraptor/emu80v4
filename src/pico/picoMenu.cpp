@@ -493,6 +493,43 @@ void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
 
 
 // Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
+extern "C" { void psgTestSet(int); int psgTestGet(void); }
+
+bool psgTestSquareChecked() { return psgTestGet() == 1; }
+void togglePsgTestSquare()  { psgTestSet(psgTestGet() == 1 ? 0 : 1); }
+extern "C" { void psgStairSpeedNext(void); unsigned psgStairSpeed(void); }
+
+// Темп лестницы перебирается, чтобы найти порог, на котором поток
+// записей в регистр громкости перестаёт воспроизводиться верно.
+const char* psgStairSpeedTitle()
+{
+    switch (psgStairSpeed()) {
+        case 480: return "Stair step: 10 ms";
+        case 48:  return "Stair step: 1 ms";
+        case 5:   return "Stair step: 100 us";
+        default:  return "Stair step: 100 ms";
+    }
+}
+void doPsgStairSpeed() { psgStairSpeedNext(); }
+
+bool psgTestStairChecked()  { return psgTestGet() == 2; }
+extern "C" { void psgScaleMulNext(void); unsigned psgScaleMul(void); }
+
+const char* psgScaleMulTitle()
+{
+    switch (psgScaleMul()) {
+        case 2:  return "Scale period: x2";
+        case 4:  return "Scale period: x4";
+        case 8:  return "Scale period: x8";
+        default: return "Scale period: x1";
+    }
+}
+void doPsgScaleMul() { psgScaleMulNext(); }
+
+bool psgTestScaleChecked()  { return psgTestGet() == 3; }
+void togglePsgTestScale()   { psgTestSet(psgTestGet() == 3 ? 0 : 3); }
+void togglePsgTestStair()   { psgTestSet(psgTestGet() == 2 ? 0 : 2); }
+
 const char* hwayR7Title()
 {
     switch (hway_r7_state()) {
@@ -568,6 +605,11 @@ static const MenuItem soundItems[] = {
     {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
     {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
     {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
+    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
+    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
+    {"Scale period", psgScaleMulTitle, nullptr, doPsgScaleMul, nullptr, nullptr, true},
+    {"Stair step", psgStairSpeedTitle, nullptr, doPsgStairSpeed, nullptr, nullptr, true},
+    {"Test: R9 staircase", nullptr, nullptr, togglePsgTestStair, nullptr, psgTestStairChecked, true},
     {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
     {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
     {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},

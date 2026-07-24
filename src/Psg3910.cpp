@@ -143,8 +143,104 @@ struct Psg3910SoundSourceSnapshotStateV1 {
 }
 
 
+// --- Эталонные сигналы для проверки тракта ---
+// Пишутся обычным writeByte, поэтому одна и та же последовательность идёт
+// и в программный AY (PWM/I2S), и в реальную микросхему (HWAY): можно
+// услышать, как должно быть, и сравнить три режима между собой.
+//
+// Режим 1, меандр: в R9 поочерёдно 0 и 15 с шагом ~8.8 кГц при R7 = FF.
+//   На выходе чистый тон ~4.4 кГц. Потеря или дублирование отсчёта даёт
+//   два одинаковых значения подряд, фаза сбивается, и это слышно как
+//   щелчок поверх ровного тона. Шум и треугольник такие ошибки
+//   маскируют огибающей, меандр — нет.
+//
+// Режим 2, лестница: 16 уровней громкости по 100 мс по возрастанию.
+//   Проверяет не темп, а значения: громкость обязана расти ровно
+//   шестнадцатью ступенями, выпадение или скачок слышны однозначно.
+static Psg3910* s_testPsg = nullptr;
+static int      s_testMode = 0;
+static unsigned s_testDiv = 0;
+static unsigned s_testPhase = 0;
+
+// Скорость лестницы в вызовах operate() на ступень. Лестница со 100 мс
+// проходит верно в обоих режимах, игра пишет с медианой 76 мкс. Порог
+// между этими точками, и перебор его находит. При 48 кГц:
+// 4800 -> 100 мс, 480 -> 10 мс, 48 -> 1 мс, 5 -> ~100 мкс.
+static const unsigned c_stairDiv[4] = { 4800, 480, 48, 5 };
+static unsigned s_stairIdx = 0;
+
+extern "C" void psgStairSpeedNext(void) { s_stairIdx = (s_stairIdx + 1u) & 3u; }
+extern "C" unsigned psgStairSpeed(void) { return c_stairDiv[s_stairIdx]; }
+
+// Гамма до-мажор, канал A. Период = 1.75 МГц / (16 * частота) = 109375 / f.
+// Ля первой октавы даёт 249 — то же значение, что у тестового тона, так что
+// настройка чипа проверяется заодно.
+//                                  C4   D4   E4   F4   G4   A4   B4   C5
+static const uint16_t c_scale[8] = { 418, 372, 332, 313, 279, 249, 221, 209 };
+
+// Множитель периода для гаммы. Периоды посчитаны для 1.75 МГц; если кварц
+// на плате идёт быстрее, реальный чип играет выше, и множитель это
+// компенсирует. Подбирается на слух по принципу «так же или нет»:
+// нужно найти положение, в котором гамма в HWAY звучит как в PWM.
+static const uint8_t c_scaleMul[4] = { 1, 2, 4, 8 };
+static unsigned s_scaleMulIdx = 0;
+
+extern "C" void psgScaleMulNext(void) { s_scaleMulIdx = (s_scaleMulIdx + 1u) & 3u; }
+extern "C" unsigned psgScaleMul(void) { return c_scaleMul[s_scaleMulIdx]; }
+
+extern "C" void psgTestSet(int mode)
+{
+    s_testMode = mode;
+    s_testDiv = 0;
+    s_testPhase = 0;
+    if (!s_testPsg)
+        return;
+    s_testPsg->writeByte(1, 7);
+    s_testPsg->writeByte(0, 0xFF);       // тон и шум запрещены на всех каналах
+    if (!mode) {
+        s_testPsg->writeByte(1, 9);
+        s_testPsg->writeByte(0, 0);      // погасить канал B
+    }
+}
+
+extern "C" int psgTestGet(void) { return s_testMode; }
+
+extern "C" void psgTestTick(void)        // из таймера, частота дискретизации
+{
+    if (!s_testMode || !s_testPsg)
+        return;
+    if (s_testMode == 3) {               // гамма: нота каждые ~300 мс
+        if (s_testDiv++ % 14400u)
+            return;
+        const uint16_t tp = uint16_t(c_scale[s_testPhase & 7u]
+                                   * c_scaleMul[s_scaleMulIdx]);
+        s_testPhase++;
+        s_testPsg->writeByte(1, 0);  s_testPsg->writeByte(0, uint8_t(tp & 0xFF));
+        s_testPsg->writeByte(1, 1);  s_testPsg->writeByte(0, uint8_t(tp >> 8));
+        s_testPsg->writeByte(1, 8);  s_testPsg->writeByte(0, 0x0F);
+        s_testPsg->writeByte(1, 7);  s_testPsg->writeByte(0, 0xFE);
+        return;
+    }
+    if (s_testMode == 1) {
+        if (++s_testDiv < 5)             // 44.1 кГц / 5 ~= 8.8 кГц
+            return;
+        s_testDiv = 0;
+        s_testPhase ^= 1u;
+        s_testPsg->writeByte(1, 9);
+        s_testPsg->writeByte(0, s_testPhase ? 15 : 0);
+    } else {
+        if (++s_testDiv < c_stairDiv[s_stairIdx])
+            return;
+        s_testDiv = 0;
+        s_testPhase = (s_testPhase + 1u) & 0x0Fu;
+        s_testPsg->writeByte(1, 9);
+        s_testPsg->writeByte(0, uint8_t(s_testPhase));
+    }
+}
+
 Psg3910::Psg3910()
 {
+    s_testPsg = this;
     m_prevClock = g_emulation->getCurClock();
     m_discreteClock = m_prevClock - m_prevClock % (m_kDiv * 8);
     Psg3910::reset();
