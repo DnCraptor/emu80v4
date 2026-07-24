@@ -540,14 +540,21 @@ extern i2s_config_t i2s_config;
 //  при старте. Приём и обе поправки к нему взяты из pico-spec (pwm_audio.cpp).
 // ===========================================================================
 
-static bool s_audioI2S = false;
-// Реальный PSG через 74595. Занимает те же ноги, что I2S, поэтому это
-// третий взаимоисключающий режим вывода, а не надстройка над ними.
-#ifdef AY_DEFAULT_HWAY
-static bool s_audioHwAy = true;
+// Единственный признак текущей аппаратной конфигурации вывода. Два
+// независимых флага давали четыре состояния при трёх допустимых, и
+// ничто не мешало попасть в невозможную комбинацию.
+enum AudioOut : uint8_t { AUDIO_OUT_PWM = 0, AUDIO_OUT_I2S, AUDIO_OUT_HWAY };
+// Стартовый режим. Когда драйвер реального PSG собран (HWAY задаётся в
+// CMake безусловно), он и есть исходная конфигурация: электрическая
+// прозвонка не выполняется, поэтому I2S не поднимается даже на мгновение
+// и не занимает ноги сдвигового регистра своим PIO и DMA.
+#ifdef HWAY
+static AudioOut s_audioOut = AUDIO_OUT_HWAY;
 #else
-static bool s_audioHwAy = false;
+static AudioOut s_audioOut = AUDIO_OUT_PWM;
 #endif
+#define s_audioI2S  (s_audioOut == AUDIO_OUT_I2S)
+#define s_audioHwAy (s_audioOut == AUDIO_OUT_HWAY)
 static bool s_audioOutputInitialized = false;
 bool palAudioIsI2S() {return s_audioI2S;}
 bool palAudioIsHwAy() {return s_audioHwAy;}
@@ -679,14 +686,17 @@ static int audioTestPins(unsigned pin0, unsigned pin1)
 // Возвращает true, если полный тест связи DIN/BCK обнаружил I2S-модуль.
 bool palProbeAudioOutput()
 {
+    // В режиме реального PSG прозвонка не нужна и вредна: она дёргает те
+    // же ноги, что заняты сдвиговым регистром.
     if (s_audioHwAy)
         return false;
 #if defined(AUDIO_FORCE_PWM)
-    s_audioI2S = false;
+    s_audioOut = AUDIO_OUT_PWM;
 #elif defined(AUDIO_FORCE_I2S)
-    s_audioI2S = true;
+    s_audioOut = AUDIO_OUT_I2S;
 #else
-    s_audioI2S = audioTestPins(AUDIO_DATA_PIN, AUDIO_CLOCK_PIN) != 0;
+  //  s_audioOut = audioTestPins(AUDIO_DATA_PIN, AUDIO_CLOCK_PIN) != 0
+  //             ? AUDIO_OUT_I2S : AUDIO_OUT_PWM;
 #endif
     return s_audioI2S;
 }
@@ -729,6 +739,8 @@ extern i2s_config_t i2s_config;
 
 static void audioWritePwm(uint32_t sample)
 {
+    if (s_audioOut != AUDIO_OUT_PWM)   // чужой режим — ноги не наши
+        return;
     int xL = int(int16_t(sample & 0xFFFF)) + 32768 + s_audioErrL;
     if (xL < 0) xL = 0; else if (xL > 0xFFFF) xL = 0xFFFF;
     const uint16_t outL = uint16_t(unsigned(xL) >> 4);
@@ -750,6 +762,7 @@ static bool __not_in_flash_func(audioTimerCb)(repeating_timer_t*)
         s_audioRead = (s_audioRead + 1) & c_audioRingMask;
     }
     if (s_audioHwAy) {
+        hway_queue_drain();   // выдать записи AY, чьё время наступило
         hway_dac_out(int16_t(s_audioLast & 0xFFFF), int16_t(s_audioLast >> 16));
     } else if (s_audioI2S) {
         if (!pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
@@ -819,6 +832,7 @@ static void audioDeinitOutput()
 
 static bool audioStartPacedOutput(int sampleRate)
 {
+    // В HWAY таймер тоже нужен: он разбирает очередь записей в AY.
     if (sampleRate <= 0)
         return false;
 
@@ -895,17 +909,17 @@ bool palSetAudioOutputI2S(bool i2s)
     if (i2s == s_audioI2S)
         return true;
 
-    const bool previous = s_audioI2S;
+    const AudioOut previous = s_audioOut;
     audioStopPacedOutput();
     audioDeinitOutput();
 
-    s_audioI2S = i2s;
+    s_audioOut = i2s ? AUDIO_OUT_I2S : AUDIO_OUT_PWM;
     if (audioInitOutput(sampleRate) && audioStartPacedOutput(sampleRate))
         return true;
 
     audioStopPacedOutput();
     audioDeinitOutput();
-    s_audioI2S = previous;
+    s_audioOut = previous;
     if (audioInitOutput(sampleRate))
         audioStartPacedOutput(sampleRate);
     return false;
@@ -918,17 +932,17 @@ bool palSetAudioOutputHwAy(bool hwAy)
     if (hwAy == s_audioHwAy)
         return true;
 
-    const bool previous = s_audioHwAy;
+    const AudioOut previous = s_audioOut;
     audioStopPacedOutput();
     audioDeinitOutput();
 
-    s_audioHwAy = hwAy;
+    s_audioOut = hwAy ? AUDIO_OUT_HWAY : AUDIO_OUT_PWM;
     if (audioInitOutput(sampleRate) && audioStartPacedOutput(sampleRate))
         return true;
 
     audioStopPacedOutput();
     audioDeinitOutput();
-    s_audioHwAy = previous;
+    s_audioOut = previous;
     if (audioInitOutput(sampleRate))
         audioStartPacedOutput(sampleRate);
     return false;

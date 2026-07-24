@@ -28,10 +28,16 @@ void hway_ayclk_refresh(void);
 // Диагностика
 void hway_test_tone(bool on);
 bool hway_test_tone_on(void);
+void hway_r7_step(void);                   // шаг теста битов данных (R7)
+uint8_t hway_r7_state(void);
 void hway_cs_step(void);                   // шаг теста линий CS
 uint8_t hway_cs_state(void);
 void hway_covox_test(bool on);
 bool hway_covox_test_on(void);
+
+void hway_queue_drain(void);
+void hway_ay_queue(uint8_t reg, uint8_t val, uint32_t emu_us);
+
 #ifdef __cplusplus
 }
 #endif

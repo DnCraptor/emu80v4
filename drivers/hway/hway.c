@@ -4,8 +4,12 @@
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
-#include "hardware/sync.h"
 #include "pico/time.h"
+
+// no blocking for now, it may brek input from keyboard
+//#include "hardware/sync.h"
+#define save_and_disable_interrupts() 0
+#define restore_interrupts(x)
 
 // --- Ноги. В PICO-BK: LATCH=26, CLK=27, DATA=28, такт AY = 21 или 29. ---
 #ifndef HWAY_LATCH_PIN
@@ -34,8 +38,11 @@
 // какой регистр не дописался — тот и меняет звучание. В PICO-BK записи
 // приходят от плеера с естественными промежутками, поэтому там это не
 // проявляется. Пауза ставится в конце каждой законченной операции.
+// Пауза между соседними циклами шины AY. В pico-spec её нет, поэтому по
+// умолчанию выключена. Если плотный поток записей из игры окажется
+// ненадёжным, задайте 2-5 мкс и сравните.
 #ifndef HWAY_BUS_GAP_US
-#define HWAY_BUS_GAP_US 3
+#define HWAY_BUS_GAP_US 0
 #endif
 
 #ifndef HWAY_DAC_DECIM
@@ -77,6 +84,10 @@ static volatile bool s_bus_dirty = false;
 // это проходило, у нас биты терялись выборочно.
 #define HWAY_30MHZ 30000000u
 
+#ifndef HWAY_MIN_NOPS
+#define HWAY_MIN_NOPS 8u      // ~20 нс при 400 МГц
+#endif
+
 static inline void __not_in_flash_func(wait_to_adjust)(uint32_t n) {
     for (uint32_t i = 0; i < n; ++i)
         __asm volatile("nop");
@@ -86,6 +97,10 @@ static void __not_in_flash_func(send595)(uint16_t data) {
     static uint32_t wait_nops = 0;
     if (wait_nops == 0)
         wait_nops = clock_get_hz(clk_sys) / (HWAY_30MHZ * 5);
+        // На 400 МГц формула даёт 2 nop: импульс CLK около 7 нс, тогда как
+        // 74HC595 требует не менее 20. Держим нижнюю границу.
+        if (wait_nops < HWAY_MIN_NOPS)
+            wait_nops = HWAY_MIN_NOPS;
     gpio_put(HWAY_CLK_PIN, 0);
     wait_to_adjust(wait_nops);
     for (int i = 0; i < 16; ++i) {
@@ -200,9 +215,15 @@ void __not_in_flash_func(hway_ay_data)(uint8_t val) {
     if (!s_ready)
         return;
     uint32_t irq = save_and_disable_interrupts();
+    // pico-spec выставляет выбор чипа заново перед каждой записью данных,
+    // не полагаясь на сохранённое состояние. Повторяем.
+    HI(CS_AY0); LO(CS_AY1);
     send595(LO(BDIR) | val);
     send595(HI(BDIR) | val);
     send595(LO(BDIR) | val);
+#if HWAY_BUS_GAP_US
+    busy_wait_us(HWAY_BUS_GAP_US);
+#endif
     restore_interrupts(irq);
 }
 
@@ -210,7 +231,6 @@ void __not_in_flash_func(hway_ay_data)(uint8_t val) {
 // R7 = 0x80 (port B на вывод), затем R15 = значение. R7 переписывается
 // каждый раз, как в оригинале. Посылка только при изменении значения.
 static void __not_in_flash_func(covox_write)(uint8_t val) {
-    return;
     uint32_t irq = save_and_disable_interrupts();
     HI(CS_AY1); LO(CS_AY0);
     send595(HI(BDIR | BC1) | 7);
@@ -250,6 +270,60 @@ void __not_in_flash_func(hway_dac_out)(int16_t l, int16_t r) {
         return;
     latch_val = val;
     covox_write(val);
+}
+
+// --- Очередь записей в AY с временными метками ---
+// Эмуляция исполняет кадр рывком: около 65 записей выдаётся за ~8.6 мс,
+// затем пауза ~12 мс. Программному микшеру это безразлично, он считает
+// звук по эмулированному времени, а буфер вывода растягивает результат.
+// Реальная микросхема буфера не имеет и играет то, что пришло, тогда,
+// когда пришло: оцифровка проигрывается втрое быстрее и обрывается
+// паузой. Поэтому записи складываются сюда с эмулированным временем и
+// отдаются в чип по реальному, восстанавливая исходный темп.
+#define HWAY_Q_SIZE 2048u
+#define HWAY_Q_RESYNC_US 60000  // отставание, после которого сверяемся заново
+
+typedef struct { uint32_t t; uint8_t reg; uint8_t val; } hway_ev_t;
+
+static hway_ev_t s_q[HWAY_Q_SIZE];
+static volatile uint32_t s_qw = 0;
+static volatile uint32_t s_qr = 0;
+static bool s_q_sync = false;
+static uint32_t s_q_emu0 = 0;
+static uint32_t s_q_real0 = 0;
+
+void __not_in_flash_func(hway_ay_queue)(uint8_t reg, uint8_t val, uint32_t emu_us) {
+    if (!s_ready)
+        return;
+    const uint32_t nw = (s_qw + 1u) % HWAY_Q_SIZE;
+    if (nw == s_qr)
+        return;                     // переполнение: теряем самые новые
+    s_q[s_qw].t = emu_us;
+    s_q[s_qw].reg = reg;
+    s_q[s_qw].val = val;
+    s_qw = nw;
+}
+
+void __not_in_flash_func(hway_queue_drain)(void) {
+    if (!s_ready)
+        return;
+    while (s_qr != s_qw) {
+        const uint32_t now = time_us_32();
+        if (!s_q_sync) {
+            s_q_sync = true;
+            s_q_emu0 = s_q[s_qr].t;
+            s_q_real0 = now;
+        }
+        const int32_t due = (int32_t)(s_q[s_qr].t - s_q_emu0)
+                          - (int32_t)(now - s_q_real0);
+        if (due > 0)
+            break;                  // время этой записи ещё не пришло
+        if (due < -HWAY_Q_RESYNC_US)
+            s_q_sync = false;       // отстали слишком сильно, сверимся заново
+        hway_ay_address(s_q[s_qr].reg);
+        hway_ay_data(s_q[s_qr].val);
+        s_qr = (s_qr + 1u) % HWAY_Q_SIZE;
+    }
 }
 
 void hway_set_dac_enabled(bool on) { s_dac_on = on; }
@@ -304,3 +378,39 @@ void hway_cs_step(void) {
 }
 
 uint8_t hway_cs_state(void) { return s_cs_step; }
+
+// --- Диагностика битов данных: чип сам показывает, что доехало ---
+// Три канала настроены на заметно разные ноты и одинаковую громкость.
+// Каждое нажатие пишет в R7 одно известное значение, разрешающее ровно
+// один тон. Если звучит ожидаемый канал — младшие биты данных доезжают
+// верно. Если другой или шум — биты переставлены либо искажены, и тогда
+// дело в разводке второго 595, а не в логике записи.
+//   шаг 0: R7 = 0xFE -> только тон A (низкая нота)
+//   шаг 1: R7 = 0xFD -> только тон B (средняя)
+//   шаг 2: R7 = 0xFB -> только тон C (высокая)
+//   шаг 3: R7 = 0xC7 -> только шум на всех каналах (заведомое шипение)
+static uint8_t s_r7_step = 0;
+
+static const uint8_t s_r7_seq[4] = { 0xFE, 0xFD, 0xFB, 0xC7 };
+
+void hway_r7_step(void) {
+    if (!s_ready)
+        return;
+    if (s_r7_step == 0) {           // разовая настройка каналов
+        hway_ay_address(0);  hway_ay_data(249);   // A ~440 Гц
+        hway_ay_address(1);  hway_ay_data(0);
+        hway_ay_address(2);  hway_ay_data(125);   // B ~880 Гц
+        hway_ay_address(3);  hway_ay_data(0);
+        hway_ay_address(4);  hway_ay_data(62);    // C ~1760 Гц
+        hway_ay_address(5);  hway_ay_data(0);
+        hway_ay_address(6);  hway_ay_data(16);    // период шума
+        hway_ay_address(8);  hway_ay_data(0x0F);
+        hway_ay_address(9);  hway_ay_data(0x0F);
+        hway_ay_address(10); hway_ay_data(0x0F);
+    }
+    hway_ay_address(7);
+    hway_ay_data(s_r7_seq[s_r7_step]);
+    s_r7_step = (uint8_t)((s_r7_step + 1) & 3);
+}
+
+uint8_t hway_r7_state(void) { return s_r7_step; }

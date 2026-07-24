@@ -30,6 +30,67 @@
 #include "Psg3910.h"
 #include "Vector.h"
 #include "hway.h"
+#include "ff.h"
+#include <pico/time.h>
+
+// --- Лог записей в регистры AY ---
+// Пишется сразу на карту, строкой фиксированной длины на каждую команду.
+// snprintf не используется: форматирование ручное. Логируются только
+// команды AY (регистр и значение), значения звукового потока — нет,
+// поэтому объём одинаков в HWAY и в PWM.
+//
+// Формат строки: TTTTTTTT R VV F
+//   T — время в микросекундах, шестнадцатерично
+//   R — номер регистра, V — значение
+//   F — H, если запись ушла в реальный чип, иначе "-"
+//
+// Файл открывается сам при первой записи и синхронизируется каждые 64
+// строки, поэтому останавливать лог вручную не требуется: достаточно
+// выключить питание после нужного фрагмента.
+namespace {
+
+#if AY_DEBUG
+FIL      s_ayLog;
+int      s_ayLogState = 0;      // 0 — не открыт, 1 — пишем, -1 — ошибка
+unsigned s_ayLogCount = 0;
+
+inline char ayHex(unsigned v) { return "0123456789ABCDEF"[v & 0xF]; }
+
+void ayLogWrite(uint8_t reg, uint8_t val, bool toHw)
+{
+    if (s_ayLogState < 0)
+        return;
+    if (s_ayLogState == 0) {
+        if (f_open(&s_ayLog, "/v06c_ay.log", FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
+            s_ayLogState = -1;
+            return;
+        }
+        s_ayLogState = 1;
+    }
+
+    char b[16];
+    uint32_t t = time_us_32();
+    for (int i = 7; i >= 0; --i) { b[i] = ayHex(t); t >>= 4; }
+    b[8]  = ' ';
+    b[9]  = ayHex(reg);
+    b[10] = ' ';
+    b[11] = ayHex(val >> 4);
+    b[12] = ayHex(val);
+    b[13] = ' ';
+    b[14] = toHw ? 'H' : '-';
+    b[15] = '\n';
+
+    UINT bw;
+    f_write(&s_ayLog, b, sizeof(b), &bw);
+    if (++s_ayLogCount >= 64) {
+        s_ayLogCount = 0;
+        f_sync(&s_ayLog);
+    }
+}
+#else
+#define ayLogWrite(...)
+#endif
+} // namespace
 #include "pico/picoPal.h"
 
 using namespace std;
@@ -184,13 +245,24 @@ void Psg3910::writeByte(int addr, uint8_t value)
     if (addr & 1) {
         // reg number
         m_curReg = value & 0xF;
-        if (palAudioIsHwAy())
-            hway_ay_address(value & 0xF);
+        // Адрес отдельно в железо не идёт: он уйдёт вместе с данными,
+        // когда очередь дойдёт до своего момента реального времени.
     } else {
         // register
+        // Пропуск повторных значений убран: он расходился с состоянием
+        // чипа. После сброса m_regs обнулены, а регистры микросхемы хранят
+        // прежнее содержимое, и совпадение с m_regs означало пропуск нужной
+        // записи, после чего расхождение уже не исправлялось.
+        const bool toHw = palAudioIsHwAy();
+        if (toHw) {
+            // Метка — эмулированное время в микросекундах: по нему очередь
+            // восстановит исходный темп при выдаче в микросхему.
+            const uint32_t emuUs = uint32_t(
+                (g_emulation->getCurClock() * 1000000ull) / g_emulation->getFrequency());
+            hway_ay_queue(uint8_t(m_curReg), value, emuUs);
+        }
+        ayLogWrite(uint8_t(m_curReg), value, toHw);
         m_regs[m_curReg] = value;
-        if (palAudioIsHwAy())
-            hway_ay_data(value);
         switch (m_curReg) {
         case 0:
             m_counters[0].freq = (m_counters[0].freq & 0xF00) | value;

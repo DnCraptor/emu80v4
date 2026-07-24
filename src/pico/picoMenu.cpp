@@ -493,6 +493,17 @@ void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
 
 
 // Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
+const char* hwayR7Title()
+{
+    switch (hway_r7_state()) {
+        case 1:  return "R7 step: next tone B";
+        case 2:  return "R7 step: next tone C";
+        case 3:  return "R7 step: next noise";
+        default: return "R7 step: next tone A";
+    }
+}
+void doHwayR7Step() { hway_r7_step(); }
+
 const char* hwayCsTitle()
 {
     switch (hway_cs_state()) {
@@ -557,6 +568,7 @@ static const MenuItem soundItems[] = {
     {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
     {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
     {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
+    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
     {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
     {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
     {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
