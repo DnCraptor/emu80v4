@@ -48,6 +48,10 @@ typedef struct tv_out_mode_t {
 extern tv_out_mode_t tv_out_mode;
 void graphics_set_modeTV(tv_out_mode_t mode);
 
+// Пересчитывает делитель PIO под текущую системную частоту. Вызывается из
+// graphics_system_clock_changed() после смены частоты RP2350.
+void tv_software_system_clock_changed(void);
+
 // TODO: Сделать настраиваемо
 static const uint8_t textmode_palette[16] = {
     200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215

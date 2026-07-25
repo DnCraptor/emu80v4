@@ -25,6 +25,12 @@ void __not_in_flash_func(graphics_system_clock_changed)() {
 #ifdef VGA_DRV
     vga_system_clock_changed();
 #endif
+#ifdef SOFTTV
+    // Композитный вывод так же привязан к системной частоте, как и VGA: делитель
+    // PIO задаёт частоту выборок относительно цветовой поднесущей. Без пересчёта
+    // после смены частоты RP2350 (в т.ч. TV_NTSC) ломается синхронизация.
+    tv_software_system_clock_changed();
+#endif
 }
 /**
 void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {

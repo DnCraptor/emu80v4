@@ -1444,10 +1444,17 @@ void loadMenuStateImpl()
     for (uint16_t voltage : coreVoltageValues)
         if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
 
-    uint32_t clockCount = 0;
-    const uint32_t* clocks = graphics_get_supported_system_clocks(&clockCount);
-    for (uint32_t i = 0; i < clockCount; ++i)
-        if (clocks[i] == systemClock) palSetSystemClockMHz(systemClock);
+    // В сборках, где видеодрайвер жёстко привязан к одной системной частоте
+    // (HDMI/DVI: libdvi поддерживает строго одну частоту на разрешение —
+    // 800x600@60 требует ровно 400 МГц), значение rp2350_mhz из конфига
+    // игнорируется. Менять частоту нельзя, поэтому даже не пытаемся: иначе
+    // сорвётся битовый поток TMDS. Для VGA/SOFTTV частота применяется как обычно.
+    if (graphics_system_clock_can_change()) {
+        uint32_t clockCount = 0;
+        const uint32_t* clocks = graphics_get_supported_system_clocks(&clockCount);
+        for (uint32_t i = 0; i < clockCount; ++i)
+            if (clocks[i] == systemClock) palSetSystemClockMHz(systemClock);
+    }
 
     setPictureShiftX(videoX);
     setPictureShiftY(videoY);

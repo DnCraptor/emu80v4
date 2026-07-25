@@ -190,6 +190,42 @@ static uint8_t __scratch_x("buff4") paletteRGB[3][256]; //768 байт
 static repeating_timer_t video_timer;
 
 
+// Частота цветовой поднесущей (Гц) для текущего режима: NTSC 3.579545 МГц,
+// PAL 4.43361875 МГц. Вынесено в отдельную функцию, чтобы одна и та же таблица
+// использовалась и при установке режима, и при пересчёте делителя PIO.
+static double __not_in_flash_func(tv_color_freq)(const tv_out_mode_t* mode) {
+    switch (mode->c_freq) {
+        case _3579545: return 3.579545e6;
+        case _4433619: return 4.43361875e6;
+    }
+    return 4.43361875e6;
+}
+
+// Делитель PIO задаёт частоту выборок ЦАП композита: ровно 4 отсчёта на период
+// цветовой поднесущей. Он привязан к системной частоте, поэтому пересчитывается
+// как при смене видеорежима, так и при смене частоты RP2350. Функция в ОЗУ:
+// вызывается из graphics_system_clock_changed() в критической секции сразу
+// после set_sys_clock_khz(), когда обращаться во flash ещё нельзя.
+static void __not_in_flash_func(tv_apply_clkdiv)(void) {
+    if (SM_video == -1) return;
+    const double color_freq = tv_color_freq(&tv_out_mode);
+    // Здесь настраивается уже работающий автомат состояний, а не заготовка
+    // конфигурации: sm_config_set_clkdiv() принимает pio_sm_config*, тогда как
+    // PIO_VIDEO->sm — массив регистров pio_sm_hw_t. Для живого SM нужен
+    // pio_sm_set_clkdiv().
+    pio_sm_set_clkdiv(PIO_VIDEO, SM_video,
+                      (float)(clock_get_hz(clk_sys) / (color_freq * 4)));
+}
+
+// Вызывается из graphics_system_clock_changed() после смены системной частоты.
+// В отличие от VGA (там пересчитывается делитель пиксельклока), здесь заново
+// вычисляется делитель под частоту цветовой поднесущей — иначе после смены
+// частоты RP2350 ломается строчная/кадровая синхронизация композита.
+void __not_in_flash_func(tv_software_system_clock_changed)(void) {
+    tv_apply_clkdiv();
+}
+
+
 void graphics_set_modeTV(tv_out_mode_t mode) {
     if (SM_video == -1) return;
     //можно добавить проверку на валидность данных, но пока так
@@ -214,13 +250,7 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     }
 
 
-    double color_freq;
-    switch (tv_out_mode.c_freq) {
-        case _3579545: color_freq = 3.579545 * 1e6;
-            break;
-        case _4433619: color_freq = 4.43361875 * 1e6;
-            break;
-    }
+    const double color_freq = tv_color_freq(&tv_out_mode);
 
     video_mode.H_len = ((color_freq * 4) / 1e6) * 63.9;
     video_mode.H_len &= 0xfffffff8;
@@ -245,12 +275,9 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     };
     video_mode.LVL_BLACK_TMPL = CONV_DAC(video_mode.LVL_BLACK) | (1 << SYNC_PIN);
 
-    // Здесь настраивается уже работающий автомат состояний, а не заготовка
-    // конфигурации: sm_config_set_clkdiv() принимает pio_sm_config*, тогда как
-    // PIO_VIDEO->sm — массив регистров pio_sm_hw_t. Для живого SM нужен
-    // pio_sm_set_clkdiv().
-    pio_sm_set_clkdiv(PIO_VIDEO, SM_video,
-                      (float)(clock_get_hz(clk_sys) / (color_freq * 4)));
+    // Делитель PIO зависит от системной частоты и пересчитывается общей
+    // функцией — той же, что вызывается при смене частоты RP2350.
+    tv_apply_clkdiv();
 
 };
 
