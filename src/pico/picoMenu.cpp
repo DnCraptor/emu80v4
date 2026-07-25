@@ -76,6 +76,32 @@ constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
 constexpr size_t c_stateFileMax = 4096;
 static char s_stateText[c_stateFileMax + 1];
 
+// Смещение картинки — это подстройка конкретного устройства вывода, а не
+// свойство эмуляции: у PAL/NTSC-композита, VGA и HDMI/DVI разная геометрия
+// растра и своя центровка на «железе». Поэтому в общем файле состояния офсеты
+// (а вместе с ними и положение меню, которое считается от них) хранятся под
+// собственным для каждого режима ключом. Одна SD-карта, переставляемая между
+// прошивками, больше не смешивает подстройки разных экранов.
+#if defined(SOFTTV) && defined(TV_NTSC)
+    #define VIDEO_OFFSET_PREFIX "ntsc_"
+#elif defined(SOFTTV)
+    #define VIDEO_OFFSET_PREFIX "pal_"
+#elif defined(HDMI_DVI)
+    #define VIDEO_OFFSET_PREFIX "dvi_"
+#elif defined(VGA_DRV)
+    #define VIDEO_OFFSET_PREFIX "vga_"
+#elif defined(HDMI)
+    #define VIDEO_OFFSET_PREFIX "hdmi_"
+#elif defined(TV)
+    #define VIDEO_OFFSET_PREFIX "tv_"
+#else
+    // TFT/ST7789 и прочие: сохраняем прежние ключи video_offset_*.
+    #define VIDEO_OFFSET_PREFIX ""
+#endif
+
+#define VIDEO_OFFSET_X_KEY VIDEO_OFFSET_PREFIX "video_offset_x"
+#define VIDEO_OFFSET_Y_KEY VIDEO_OFFSET_PREFIX "video_offset_y"
+
 char* trimText(char* text)
 {
     while (*text == ' ' || *text == '\t' || *text == '\r' || *text == '\n')
@@ -1328,9 +1354,9 @@ void saveMenuStateImpl()
     dst = appendText(dst, "                  # off | main | alt\n\ntape_redirect = ");
     appendBool(core->tapeHooksEnabled());
 
-    dst = appendText(dst, "\n\nvideo_offset_x = ");
+    dst = appendText(dst, "\n\n" VIDEO_OFFSET_X_KEY " = ");
     appendSigned(graphics_get_picture_shift_x());
-    dst = appendText(dst, "\nvideo_offset_y = ");
+    dst = appendText(dst, "\n" VIDEO_OFFSET_Y_KEY " = ");
     appendSigned(graphics_get_picture_shift_y());
 
     dst = appendText(dst, "\n\nrp2350_mhz = ");
@@ -1428,9 +1454,9 @@ void loadMenuStateImpl()
                 else if (textEquals(value, "alt")) hway_set_ayclk_mode(2);
             } else if (textEquals(key, "tape_redirect") && parseBoolValue(value, boolean)) {
                 core->setTapeHooksEnabled(boolean);
-            } else if (textEquals(key, "video_offset_x") && parseSignedValue(value, signedNumber)) {
+            } else if (textEquals(key, VIDEO_OFFSET_X_KEY) && parseSignedValue(value, signedNumber)) {
                 videoX = signedNumber;
-            } else if (textEquals(key, "video_offset_y") && parseSignedValue(value, signedNumber)) {
+            } else if (textEquals(key, VIDEO_OFFSET_Y_KEY) && parseSignedValue(value, signedNumber)) {
                 videoY = signedNumber;
             } else if (textEquals(key, "rp2350_mhz") && parseUnsignedValue(value, number)) {
                 systemClock = number;

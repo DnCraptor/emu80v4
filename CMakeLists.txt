@@ -24,10 +24,10 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
-#set(SOFTTV ON)
-#set(TV_NTSC ON)
+set(SOFTTV ON)
+set(TV_NTSC ON)
 #set(VGA_DRV ON)
-set(HDMI_DVI ON)
+#set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)

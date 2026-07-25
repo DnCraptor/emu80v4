@@ -18,7 +18,6 @@
 
 #include <sstream>
 
-#include <hardware/watchdog.h>
 #include <pico/stdlib.h>
 
 #include "Pal.h"
@@ -342,10 +341,9 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         return;
     }
 
-    if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
-        watchdog_enable(100, true);
-        while(true) sleep_ms(20);
-    }
+    // Ctrl+Alt+Del (аппаратный сброс через watchdog) обрабатывается на уровне
+    // ввода в Main.cpp (addKey), до очереди клавиш и меню, поэтому здесь его
+    // ловить не нужно: до machineKey это сочетание уже не доходит.
 
     const SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
     if (sr)

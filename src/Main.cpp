@@ -9,6 +9,7 @@
 #include <hardware/vreg.h>
 #include <hardware/sync.h>
 #include <hardware/flash.h>
+#include <hardware/watchdog.h>
 #ifdef PICO_RP2350
 #include <hardware/regs/qmi.h>
 #include <hardware/exception.h>
@@ -406,6 +407,34 @@ PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 Emulation* g_emulation = nullptr;
 
+// Аппаратный сброс по Ctrl+Alt+Del. Модификаторы приходят отдельными событиями
+// (USB — по маске report->modifier, гейпад Start → PK_LALT), поэтому их
+// состояние отслеживается здесь, а не берётся из machineKey: комбинация должна
+// работать даже при открытом меню/модальном диалоге, когда machineKey не
+// вызывается вовсе. Сброс делаем немедленным watchdog'ом.
+static void checkHardResetCombo(PalKeyCode vk, bool pressed) {
+    static bool ctrlDown = false;
+    static bool altDown = false;
+    switch (vk) {
+        case PalKeyCode::PK_LCTRL:
+        case PalKeyCode::PK_RCTRL:
+            ctrlDown = pressed;
+            break;
+        case PalKeyCode::PK_LALT:
+        case PalKeyCode::PK_RALT:
+            altDown = pressed;
+            break;
+        case PalKeyCode::PK_DEL:
+            if (pressed && ctrlDown && altDown) {
+                watchdog_enable(1, true); // перезагрузка через ~1 мс
+                while (true) tight_loop_contents();
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 #if 1
 static constexpr unsigned KEY_ACTION_QUEUE_SIZE = 64;
 static PalKeyCodeAction keyActions[KEY_ACTION_QUEUE_SIZE];
@@ -414,6 +443,12 @@ static unsigned keyActionTail = 0;
 static unsigned keyActionCount = 0;
 
 inline static void addKey(PalKeyCode vk, bool pressed) {
+    // Ctrl+Alt+Del — аппаратный сброс через watchdog. Ловится на самом нижнем
+    // уровне ввода: до очереди клавиш, до меню и модальных диалогов (которые
+    // читают клавиши сами, минуя machineKey). Поэтому срабатывает всегда,
+    // независимо от того, что сейчас на экране, и Alt/меню не рвут цепочку.
+    checkHardResetCombo(vk, pressed);
+
     if (keyActionCount >= KEY_ACTION_QUEUE_SIZE)
         return;
     keyActions[keyActionTail] = PalKeyCodeAction(vk, pressed);
