@@ -997,6 +997,9 @@ uint32_t palGetSystemClockMHz()
 
 bool palSetSystemClockMHz(uint32_t mhz)
 {
+    if (mhz == palGetSystemClockMHz())
+        return true;
+
     if (!graphics_system_clock_can_change())
         return mhz == palGetSystemClockMHz();
 
@@ -1025,6 +1028,9 @@ uint16_t palGetCoreVoltageMv()
 
 bool palSetCoreVoltageMv(uint16_t mv)
 {
+    if (mv == s_coreVoltageMv)
+        return true;
+
     enum vreg_voltage voltage;
     switch (mv) {
         case 1300: voltage = VREG_VOLTAGE_1_30; break;
