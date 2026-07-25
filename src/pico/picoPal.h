@@ -16,6 +16,7 @@ using namespace std;
 
 void palRequestForQuit();
 void palExecute();
+void palReboot();
 int palReadFromFile(const std::string& fileName, int first, int size, uint8_t* buffer, bool useBasePath = true);
 string palMakeFullFileName(string fileName);
 #define palGetCounter time_us_64

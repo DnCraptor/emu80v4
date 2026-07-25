@@ -1772,6 +1772,52 @@ VectorCpuType VectorCore::getCpuType() const
 }
 
 
+bool VectorCore::getColorMode() const
+{
+    return m_renderer ? m_renderer->getColorMode() : true;
+}
+
+
+bool VectorCore::getCroppedToVisible() const
+{
+    return m_renderer && m_renderer->getCroppedToVisible();
+}
+
+
+int VectorCore::getKbdLayoutModeIndex() const
+{
+    if (!m_kbdLayout)
+        return 0;
+    switch (m_kbdLayout->getMode()) {
+        case KbdLayout::KLM_JCUKEN: return 1;
+        case KbdLayout::KLM_SMART:  return 2;
+        default:                    return 0;
+    }
+}
+
+
+// Повторяют поведение VectorKbdLayout::processSpecialKeys для F11/F12, чтобы
+// эти сбросы были доступны из меню. Обёртка disable/enableKeysReset нужна,
+// чтобы сам сброс не был воспринят как удержание клавиши.
+void VectorCore::resetTurnOnRom()
+{
+    Keyboard* keyboard = getKeyboard();
+    if (keyboard)
+        keyboard->disableKeysReset();
+    reset();
+    if (keyboard)
+        keyboard->enableKeysReset();
+}
+
+
+void VectorCore::resetTurnOffRom()
+{
+    resetTurnOnRom();
+    if (m_addrSpace)
+        m_addrSpace->disableRom();
+}
+
+
 void VectorCore::setCpuFrequency(unsigned frequency)
 {
     if (frequency == m_cpuFrequency)

@@ -8,7 +8,17 @@
 
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
+#include <hardware/watchdog.h>
 #include "hway.h"
+
+// Аппаратная перезагрузка устройства (та же, что по Ctrl+Alt+Del): взводим
+// watchdog на минимальный таймаут и зависаем — сброс происходит почти мгновенно.
+void palReboot()
+{
+    watchdog_enable(1, true);
+    while (true)
+        tight_loop_contents();
+}
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {

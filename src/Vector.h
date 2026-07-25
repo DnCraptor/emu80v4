@@ -93,6 +93,10 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         void attachMemory(Ram* memory);
         void setVisibleArea(bool visible) {m_showBorder = visible;}
 
+        // Текущее состояние для отметок в меню.
+        bool getColorMode() const {return m_colorMode;}
+        bool getCroppedToVisible() const {return !m_showBorder;}
+
         void setBorderColor(uint8_t color);
         void set512pxMode(bool mode512);
         void setLineOffset(uint8_t lineOffset);
@@ -313,6 +317,19 @@ class VectorCore : public SnapshotSerializable
         // выполнить полный сброс машины.
         VectorCpuType getCpuType() const;
         void setCpuType(VectorCpuType type);
+
+        // Состояние для пунктов меню (отметки/радиогруппы), зеркалящих горячие
+        // клавиши. Раскладка: 0=QWERTY, 1=ЙЦУКЕН, 2=Smart.
+        bool getColorMode() const;
+        bool getCroppedToVisible() const;
+        int getKbdLayoutModeIndex() const;
+
+        // Аппаратные сбросы Вектор-06Ц, дублирующие клавиши F11/F12, чтобы их
+        // можно было вызвать из меню:
+        //   resetTurnOnRom  — F11 (БЛК+ВВОД): сброс, ПЗУ включено (в монитор);
+        //   resetTurnOffRom — F12 (БЛК+СБР):  сброс, ПЗУ выключено (из ОЗУ).
+        void resetTurnOnRom();
+        void resetTurnOffRom();
         unsigned getCpuFrequency() const {return m_cpuFrequency;}
         void setCpuFrequency(unsigned frequency);
         Keyboard* getKeyboard();

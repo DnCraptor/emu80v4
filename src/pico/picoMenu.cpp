@@ -507,9 +507,11 @@ static const MenuItem edd2Items[] = {
 };
 static const MenuPage eddPage {"EDD", nullptr, eddItems, static_cast<int>(sizeof(eddItems) / sizeof(eddItems[0])), nullptr, nullptr};
 static const MenuPage edd2Page {"EDD2", nullptr, edd2Items, static_cast<int>(sizeof(edd2Items) / sizeof(edd2Items[0])), nullptr, nullptr};
+void romLoad() { invokeSysReq(SR_LOAD); }
 void romLoadAndRun() { invokeSysReq(SR_LOADRUN); }
 static const MenuItem romItems[] = {
-    {"Load and run...", nullptr, nullptr, romLoadAndRun, nullptr, nullptr},
+    {"Load [Alt+L]...", nullptr, nullptr, romLoad, nullptr, nullptr},
+    {"Load and run [Alt+F3]...", nullptr, nullptr, romLoadAndRun, nullptr, nullptr},
 };
 static const MenuPage romPage {"ROM", nullptr, romItems, static_cast<int>(sizeof(romItems) / sizeof(romItems[0])), nullptr, nullptr};
 
@@ -837,7 +839,7 @@ void tapeEject()
 }
 
 static const MenuItem tapeItems[] = {
-    {"Redirect tape I/O", nullptr, nullptr, toggleTapeHooks, nullptr, tapeHooksChecked, true},
+    {"Redirect tape I/O [Alt+T]", nullptr, nullptr, toggleTapeHooks, nullptr, tapeHooksChecked, true},
     {"Load tape image...", nullptr, nullptr, tapeLoad, nullptr, nullptr},
     {"Create new tape...", nullptr, nullptr, tapeCreate, nullptr, nullptr},
     {"Eject", nullptr, nullptr, tapeEject, tapeEjectEnabled, nullptr, true},
@@ -1193,7 +1195,24 @@ void videoMoveUp()    { graphics_dec_y(); }
 void videoMoveDown()  { graphics_inc_y(); }
 void videoCenter()    { graphics_set_offset(0, 0); }
 
+void videoToggleColor() { invokeSysReq(SR_COLOR); }
+void videoToggleCrop()  { invokeSysReq(SR_CROPTOVISIBLE); }
+
+bool videoColorChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getColorMode();
+}
+
+bool videoCropChecked()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core && core->getCroppedToVisible();
+}
+
 static const MenuItem videoItems[] = {
+    {"Color [Alt+C]",            nullptr, nullptr, videoToggleColor, nullptr, videoColorChecked, true},
+    {"Crop to visible [Alt+V]",  nullptr, nullptr, videoToggleCrop,  nullptr, videoCropChecked,  true},
     {"Move left",  nullptr, nullptr, videoMoveLeft,  nullptr, nullptr, true},
     {"Move right", nullptr, nullptr, videoMoveRight, nullptr, nullptr, true},
     {"Move up",    nullptr, nullptr, videoMoveUp,    nullptr, nullptr, true},
@@ -1277,9 +1296,29 @@ static const MenuPage coreVoltagePage {
     coreVoltageGetValue, coreVoltageSetValue
 };
 
+void machineReset() { invokeSysReq(SR_RESET); }
+
+void machineResetTurnOnRom()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core) core->resetTurnOnRom();
+}
+
+void machineResetTurnOffRom()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    if (core) core->resetTurnOffRom();
+}
+
+void rebootDevice() { palReboot(); }
+
 static const MenuItem systemItems[] = {
     {"RP2350 frequency", nullptr, &systemClockPage, nullptr, nullptr, nullptr},
     {"Core voltage", nullptr, &coreVoltagePage, nullptr, nullptr, nullptr},
+    {"Reset [Alt+F11]", nullptr, nullptr, machineReset, nullptr, nullptr},
+    {"Turn on ROM and Reset [F11]", nullptr, nullptr, machineResetTurnOnRom, nullptr, nullptr},
+    {"Turn off ROM and Reset [F12]", nullptr, nullptr, machineResetTurnOffRom, nullptr, nullptr},
+    {"Reboot device [Ctrl+Alt+Del]", nullptr, nullptr, rebootDevice, nullptr, nullptr},
 };
 static const MenuPage systemPage {
     "System", nullptr, systemItems,
@@ -1616,9 +1655,36 @@ void showHelpDialog()
     showTextDialog("Help", lines, static_cast<int>(sizeof(lines) / sizeof(lines[0])));
 }
 
+int kbdLayoutGetValue()
+{
+    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    return core ? core->getKbdLayoutModeIndex() : 0;
+}
+
+void kbdLayoutSetValue(int value)
+{
+    switch (value) {
+        case 1:  invokeSysReq(SR_JCUKEN); break;
+        case 2:  invokeSysReq(SR_SMART);  break;
+        default: invokeSysReq(SR_QUERTY); break;
+    }
+}
+
+static const MenuItem keyboardItems[] = {
+    {"QWERTY [Alt+Q]", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"JCUKEN [Alt+J]", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"Smart [Alt+K]",  nullptr, nullptr, nullptr, nullptr, nullptr},
+};
+static const MenuPage keyboardPage {
+    "Keyboard layout", nullptr, keyboardItems,
+    static_cast<int>(sizeof(keyboardItems) / sizeof(keyboardItems[0])),
+    kbdLayoutGetValue, kbdLayoutSetValue
+};
+
 static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
+    {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
