@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include <string.h>
+#include <pico.h>
 
 const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
 #ifdef HDMI_DVI
@@ -20,7 +21,7 @@ bool graphics_system_clock_can_change() {
 #endif
 }
 
-void graphics_system_clock_changed() {
+void __not_in_flash_func(graphics_system_clock_changed)() {
 #ifdef VGA_DRV
     vga_system_clock_changed();
 #endif

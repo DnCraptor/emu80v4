@@ -995,7 +995,7 @@ uint32_t palGetSystemClockMHz()
     return clock_get_hz(clk_sys) / MHZ;
 }
 
-bool palSetSystemClockMHz(uint32_t mhz)
+bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
 {
     if (mhz == palGetSystemClockMHz())
         return true;
@@ -1011,11 +1011,14 @@ bool palSetSystemClockMHz(uint32_t mhz)
     if (!supported)
         return false;
 
+        const uint32_t irqState = save_and_disable_interrupts();
     multicore_lockout_start_blocking();
     flash_timings(mhz);
     const bool changed = set_sys_clock_khz(mhz * KHZ, false);
     graphics_system_clock_changed();
     multicore_lockout_end_blocking();
+    restore_interrupts(irqState);
+
     if (changed)
         palAudioSystemClockChanged();
     return changed;
