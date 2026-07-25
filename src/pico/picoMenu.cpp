@@ -1499,7 +1499,64 @@ void loadMenuStateImpl()
     }
 }
 
-void drawAboutDialog()
+// Общий модальный текстовый диалог (About, Help): рамка, заголовок и список
+// строк по центру. Раньше вся геометрия жила в drawAboutDialog(); вынесена,
+// чтобы Help переиспользовал ту же отрисовку.
+static void drawTextDialog(const char* title, const char* const* lines, int lineCount)
+{
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    const int visibleH = static_cast<int>(graphics_get_visible_height());
+    const int fontW = graphics_get_font_width();
+    const int fontH = graphics_get_font_height();
+    const int rowH = fontH + 2;
+
+    size_t longest = std::strlen(title);
+    for (int i = 0; i < lineCount; ++i)
+        longest = std::max(longest, std::strlen(lines[i]));
+
+    int w = static_cast<int>(longest + 4) * fontW;
+    int h = fontH + 7 + lineCount * rowH + 4;
+    w = std::min(w, screenW - 8);
+    h = std::min(h, visibleH - 8);
+
+    // TV-out может сдвигать видимую область относительно framebuffer.
+    int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
+    int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
+    x = std::max(0, std::min(x, screenW - w));
+    y = std::max(0, std::min(y, screenH - h));
+
+    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
+    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
+    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
+
+    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title,
+                  static_cast<int>(std::strlen(title)));
+
+    int lineY = y + fontH + 7;
+    for (int i = 0; i < lineCount; ++i) {
+        const int len = static_cast<int>(std::strlen(lines[i]));
+        const int lineX = x + std::max(5, (w - len * fontW) / 2);
+        graphics_type(lineX, lineY, RGB888(0, 0, 0), lines[i], len);
+        lineY += rowH;
+    }
+}
+
+static void showTextDialog(const char* title, const char* const* lines, int lineCount)
+{
+    drawTextDialog(title, lines, lineCount);
+    while (true) {
+        sleep_ms(100);
+        palInputTick();
+        const PalKeyCodeAction key = getKey();
+        if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
+                         || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
+            return;
+    }
+}
+
+void showAboutDialog()
 {
     static const char* const lines[] = {
         "Vector-06C emulator for",
@@ -1528,58 +1585,35 @@ void drawAboutDialog()
         "",
         "Enter / Esc - close"
     };
-
-    const int screenW = graphics_get_width();
-    const int screenH = graphics_get_height();
-    const int visibleH = static_cast<int>(graphics_get_visible_height());
-    const int fontW = graphics_get_font_width();
-    const int fontH = graphics_get_font_height();
-    const int rowH = fontH + 2;
-    const int lineCount = static_cast<int>(sizeof(lines) / sizeof(lines[0]));
-
-    size_t longest = std::strlen("About");
-    for (const char* line : lines)
-        longest = std::max(longest, std::strlen(line));
-
-    int w = static_cast<int>(longest + 4) * fontW;
-    int h = fontH + 7 + lineCount * rowH + 4;
-    w = std::min(w, screenW - 8);
-    h = std::min(h, visibleH - 8);
-
-    // TV-out может сдвигать видимую область относительно framebuffer.
-    int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
-    int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
-    x = std::max(0, std::min(x, screenW - w));
-    y = std::max(0, std::min(y, screenH - h));
-
-    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
-    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
-    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
-
-    const char title[] = "About";
-    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, sizeof(title) - 1);
-
-    int lineY = y + fontH + 7;
-    for (const char* line : lines) {
-        const int len = static_cast<int>(std::strlen(line));
-        const int lineX = x + std::max(5, (w - len * fontW) / 2);
-        graphics_type(lineX, lineY, RGB888(0, 0, 0), line, len);
-        lineY += rowH;
-    }
+    showTextDialog("About", lines, static_cast<int>(sizeof(lines) / sizeof(lines[0])));
 }
 
-void showAboutDialog()
+void showHelpDialog()
 {
-    drawAboutDialog();
-    while (true) {
-        sleep_ms(100);
-        palInputTick();
-        const PalKeyCodeAction key = getKey();
-        if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
-                         || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
-            return;
-    }
+    static const char* const lines[] = {
+        "Alt - open / close menu",
+        "Ctrl+Alt+Del - hard reset (reboot)",
+        "Alt+F11 - reset the machine",
+        "Alt+L / Alt+F3 - load / load and run",
+        "Alt+A / Alt+B - mount disk A / B",
+        "Alt+F4 - mount HDD image",
+        "Alt+E / Alt+O - RAM-disk open / save",
+        "Alt+T - tape redirect on / off",
+        "Alt+C / Alt+V - color / crop toggle",
+        "Alt+Q / Alt+J / Alt+K - kbd layouts",
+        "LWin+Fn / RWin+Fn - save / load snap",
+        "",
+        "Numpad * / move image horizontally",
+        "Numpad + - move image vertically",
+        "With menu open: same keys move menu",
+        "",
+        "Gamepad:",
+        "Start = menu, Select = Tab",
+        "A = Space, B = Enter, D-pad = arrows",
+        "",
+        "Enter / Esc - close"
+    };
+    showTextDialog("Help", lines, static_cast<int>(sizeof(lines) / sizeof(lines[0])));
 }
 
 static const MenuItem rootItems[] = {
@@ -1591,6 +1625,7 @@ static const MenuItem rootItems[] = {
     {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
+    {"Help", nullptr, nullptr, showHelpDialog, nullptr, nullptr},
     {"About", nullptr, nullptr, showAboutDialog, nullptr, nullptr},
 };
 
