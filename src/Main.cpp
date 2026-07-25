@@ -1116,6 +1116,7 @@ int main() {
     int argc = 1;
     palInit(argc, (char**)argv);
     (new Emulation)->init(); // g_emulation присваивается в конструкторе
+    palLoadMenuState();
     palExecute();
  //while(1);
     __unreachable();

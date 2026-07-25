@@ -2,12 +2,15 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
+#include <cstdio>
 #include <memory>
 #include <iterator>
 #include <string>
 
 #include <pico/time.h>
+#include "ff.h"
 
 #include "graphics.h"
 #include "../Globals.h"
@@ -65,6 +68,121 @@ struct MenuPage {
     const char* (*getStatusLine1)() = nullptr;
     const char* (*getStatusLine2)() = nullptr;
 };
+
+
+// --- Persistent editable settings ------------------------------------------
+
+constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
+constexpr size_t c_stateFileMax = 4096;
+static char s_stateText[c_stateFileMax + 1];
+
+char* trimText(char* text)
+{
+    while (*text == ' ' || *text == '\t' || *text == '\r' || *text == '\n')
+        ++text;
+    char* end = text + std::strlen(text);
+    while (end != text && (end[-1] == ' ' || end[-1] == '\t'
+                           || end[-1] == '\r' || end[-1] == '\n'))
+        --end;
+    *end = '\0';
+    return text;
+}
+
+bool parseUnsignedValue(const char* text, unsigned& value)
+{
+    if (!text || !*text || *text == '-')
+        return false;
+    char* end = nullptr;
+    const unsigned long parsed = std::strtoul(text, &end, 0);
+    if (end == text || *trimText(end) != '\0')
+        return false;
+    value = static_cast<unsigned>(parsed);
+    return true;
+}
+
+bool parseSignedValue(const char* text, int& value)
+{
+    if (!text || !*text)
+        return false;
+    char* end = nullptr;
+    const long parsed = std::strtol(text, &end, 0);
+    if (end == text || *trimText(end) != '\0')
+        return false;
+    value = static_cast<int>(parsed);
+    return true;
+}
+
+bool textEquals(const char* a, const char* b)
+{
+    while (*a && *b) {
+        char ca = *a++;
+        char cb = *b++;
+        if (ca >= 'A' && ca <= 'Z') ca = static_cast<char>(ca - 'A' + 'a');
+        if (cb >= 'A' && cb <= 'Z') cb = static_cast<char>(cb - 'A' + 'a');
+        if (ca != cb)
+            return false;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+bool parseBoolValue(const char* text, bool& value)
+{
+    if (textEquals(text, "1") || textEquals(text, "yes")
+        || textEquals(text, "true") || textEquals(text, "on")) {
+        value = true;
+        return true;
+    }
+    if (textEquals(text, "0") || textEquals(text, "no")
+        || textEquals(text, "false") || textEquals(text, "off")) {
+        value = false;
+        return true;
+    }
+    return false;
+}
+
+void setPictureShiftX(int target)
+{
+    target = std::max(-128, std::min(target, 128));
+    for (int guard = 0; guard < 256; ++guard) {
+        const int current = graphics_get_picture_shift_x();
+        if (current == target)
+            return;
+        graphics_inc_x();
+        const int increased = graphics_get_picture_shift_x();
+        if (std::abs(increased - target) < std::abs(current - target))
+            continue;
+        graphics_dec_x();
+        graphics_dec_x();
+    }
+}
+
+void setPictureShiftY(int target)
+{
+    target = std::max(-128, std::min(target, 128));
+    for (int guard = 0; guard < 256; ++guard) {
+        const int current = graphics_get_picture_shift_y();
+        if (current == target)
+            return;
+        graphics_inc_y();
+        const int increased = graphics_get_picture_shift_y();
+        if (std::abs(increased - target) < std::abs(current - target))
+            continue;
+        graphics_dec_y();
+        graphics_dec_y();
+    }
+}
+
+bool writeStateText(const char* text, size_t length)
+{
+    FIL file;
+    if (f_open(&file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+        return false;
+    UINT written = 0;
+    const FRESULT result = f_write(&file, text, static_cast<UINT>(length), &written);
+    f_sync(&file);
+    f_close(&file);
+    return result == FR_OK && written == length;
+}
 
 // --- Processor -------------------------------------------------------------
 
@@ -1142,6 +1260,212 @@ static const MenuPage systemPage {
     static_cast<int>(sizeof(systemItems) / sizeof(systemItems[0])), nullptr, nullptr
 };
 
+
+void saveMenuStateImpl()
+{
+    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+        return;
+    f_mkdir("/.config");
+
+    VectorCore* core = g_emulation->getVector();
+    SoundMixer* mixer = g_emulation->getSoundMixer();
+    const char* output = palAudioIsHwAy() ? "hway" : (palAudioIsI2S() ? "i2s" : "pwm");
+    const char* cpu = core->getCpuType() == VECTOR_CPU_Z80 ? "z80" : "i8080";
+    const char* order = core->getPsgAcbOrder() ? "acb" : "abc";
+    const char* ayClock = hway_ayclk_mode() == 0 ? "off"
+                        : (hway_ayclk_mode() == 2 ? "alt" : "main");
+    const int volume = s_userMuted ? 0 : (mixer ? mixer->getVolume() : 5);
+
+    char* const text = s_stateText;
+    char* dst = text;
+    const auto appendBool = [&dst](bool value) {
+        dst = appendText(dst, value ? "yes" : "no");
+    };
+    const auto appendSigned = [&dst](int value) {
+        if (value < 0) {
+            *dst++ = '-';
+            dst = appendUnsigned(dst, static_cast<unsigned>(-value));
+        } else {
+            dst = appendUnsigned(dst, static_cast<unsigned>(value));
+        }
+    };
+
+    dst = appendText(dst,
+        "# Vector-06C emulator settings. This is a plain text test file.\n"
+        "# Edit it on a PC while the emulator is not running.\n"
+        "# Unknown keys are ignored; invalid values keep the current setting.\n"
+        "version = 1\n\n"
+        "processor = ");
+    dst = appendText(dst, cpu);
+    dst = appendText(dst, "                 # i8080 | z80\ncpu_clock_hz = ");
+    dst = appendUnsigned(dst, core->getCpuFrequency());
+
+    dst = appendText(dst, "\n\ndrive_a_read_only = ");
+    appendBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
+    dst = appendText(dst, "\ndrive_b_read_only = ");
+    appendBool(core->floppyReadOnlyMode(VectorFloppyDrive::B));
+    dst = appendText(dst, "\nhdd_enabled = ");
+    appendBool(core->getHddEnabled());
+    dst = appendText(dst, "\nedd_enabled = ");
+    appendBool(core->ramDiskEnabled(0));
+    dst = appendText(dst, "\nedd2_enabled = ");
+    appendBool(core->ramDiskEnabled(1));
+
+    dst = appendText(dst, "\n\nsound_output = ");
+    dst = appendText(dst, output);
+    dst = appendText(dst, "              # pwm | i2s | hway\nvolume = ");
+    appendSigned(volume);
+    dst = appendText(dst, "                    # 0..7; 0 is mute\npsg_enabled = ");
+    appendBool(core->getPsgEnabled());
+    dst = appendText(dst, "\npsg_stereo = ");
+    appendBool(core->getPsgStereo());
+    dst = appendText(dst, "\npsg_order = ");
+    dst = appendText(dst, order);
+    dst = appendText(dst, "                 # abc | acb\nhway_covox = ");
+    appendBool(hway_dac_enabled());
+    dst = appendText(dst, "\nay_clock = ");
+    dst = appendText(dst, ayClock);
+    dst = appendText(dst, "                  # off | main | alt\n\ntape_redirect = ");
+    appendBool(core->tapeHooksEnabled());
+
+    dst = appendText(dst, "\n\nvideo_offset_x = ");
+    appendSigned(graphics_get_picture_shift_x());
+    dst = appendText(dst, "\nvideo_offset_y = ");
+    appendSigned(graphics_get_picture_shift_y());
+
+    dst = appendText(dst, "\n\nrp2350_mhz = ");
+    dst = appendUnsigned(dst, static_cast<unsigned>(palGetSystemClockMHz()));
+    dst = appendText(dst, "\ncore_voltage_mv = ");
+    dst = appendUnsigned(dst, static_cast<unsigned>(palGetCoreVoltageMv()));
+    *dst++ = '\n';
+
+    writeStateText(text, static_cast<size_t>(dst - text));
+
+}
+
+void loadMenuStateImpl()
+{
+    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+        return;
+    f_mkdir("/.config");
+
+    FIL file;
+    if (f_open(&file, c_stateFileName, FA_READ) != FR_OK) {
+        saveMenuStateImpl();
+        return;
+    }
+
+    char* const text = s_stateText;
+    UINT read = 0;
+    const FRESULT result = f_read(&file, text, c_stateFileMax, &read);
+    f_close(&file);
+    if (result != FR_OK)
+        return;
+    text[read] = '\0';
+
+    VectorCore* core = g_emulation->getVector();
+    SoundMixer* mixer = g_emulation->getSoundMixer();
+    int videoX = graphics_get_picture_shift_x();
+    int videoY = graphics_get_picture_shift_y();
+    unsigned systemClock = palGetSystemClockMHz();
+    unsigned coreVoltage = palGetCoreVoltageMv();
+    const char* soundOutput = nullptr;
+
+    for (char* line = text; line && *line; ) {
+        char* next = std::strchr(line, '\n');
+        if (next)
+            *next++ = '\0';
+        char* comment = std::strchr(line, '#');
+        if (comment)
+            *comment = '\0';
+        char* key = trimText(line);
+        char* equals = std::strchr(key, '=');
+        if (equals) {
+            *equals++ = '\0';
+            key = trimText(key);
+            char* value = trimText(equals);
+            bool boolean = false;
+            unsigned number = 0;
+            int signedNumber = 0;
+
+            if (textEquals(key, "processor")) {
+                if (textEquals(value, "z80")) core->setCpuType(VECTOR_CPU_Z80);
+                else if (textEquals(value, "i8080")) core->setCpuType(VECTOR_CPU_8080);
+            } else if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
+                for (unsigned frequency : cpuClockValues)
+                    if (frequency == number) core->setCpuFrequency(number);
+            } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
+                core->setFloppyReadOnly(VectorFloppyDrive::A, boolean);
+            } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {
+                core->setFloppyReadOnly(VectorFloppyDrive::B, boolean);
+            } else if (textEquals(key, "hdd_enabled") && parseBoolValue(value, boolean)) {
+                core->setHddEnabled(boolean);
+            } else if (textEquals(key, "edd_enabled") && parseBoolValue(value, boolean)) {
+                core->setRamDiskEnabled(0, boolean);
+            } else if (textEquals(key, "edd2_enabled") && parseBoolValue(value, boolean)) {
+                core->setRamDiskEnabled(1, boolean);
+            } else if (textEquals(key, "sound_output")) {
+                if (textEquals(value, "pwm") || textEquals(value, "i2s") || textEquals(value, "hway"))
+                    soundOutput = value;
+            } else if (textEquals(key, "volume") && parseUnsignedValue(value, number) && number <= 7) {
+                s_userMuted = number == 0;
+                if (mixer) {
+                    if (number != 0) mixer->setVolume(static_cast<int>(number));
+                    mixer->setMuted(s_userMuted);
+                }
+            } else if (textEquals(key, "psg_enabled") && parseBoolValue(value, boolean)) {
+                core->setPsgEnabled(boolean);
+            } else if (textEquals(key, "psg_stereo") && parseBoolValue(value, boolean)) {
+                core->setPsgStereo(boolean);
+            } else if (textEquals(key, "psg_order")) {
+                if (textEquals(value, "abc")) core->setPsgAcbOrder(false);
+                else if (textEquals(value, "acb")) core->setPsgAcbOrder(true);
+            } else if (textEquals(key, "hway_covox") && parseBoolValue(value, boolean)) {
+                hway_set_dac_enabled(boolean);
+            } else if (textEquals(key, "ay_clock")) {
+                if (textEquals(value, "off")) hway_set_ayclk_mode(0);
+                else if (textEquals(value, "main")) hway_set_ayclk_mode(1);
+                else if (textEquals(value, "alt")) hway_set_ayclk_mode(2);
+            } else if (textEquals(key, "tape_redirect") && parseBoolValue(value, boolean)) {
+                core->setTapeHooksEnabled(boolean);
+            } else if (textEquals(key, "video_offset_x") && parseSignedValue(value, signedNumber)) {
+                videoX = signedNumber;
+            } else if (textEquals(key, "video_offset_y") && parseSignedValue(value, signedNumber)) {
+                videoY = signedNumber;
+            } else if (textEquals(key, "rp2350_mhz") && parseUnsignedValue(value, number)) {
+                systemClock = number;
+            } else if (textEquals(key, "core_voltage_mv") && parseUnsignedValue(value, number)) {
+                coreVoltage = number;
+            }
+        }
+        line = next;
+    }
+
+    for (uint16_t voltage : coreVoltageValues)
+        if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
+
+    uint32_t clockCount = 0;
+    const uint32_t* clocks = graphics_get_supported_system_clocks(&clockCount);
+    for (uint32_t i = 0; i < clockCount; ++i)
+        if (clocks[i] == systemClock) palSetSystemClockMHz(systemClock);
+
+    setPictureShiftX(videoX);
+    setPictureShiftY(videoY);
+
+    if (soundOutput) {
+        if (textEquals(soundOutput, "hway")) {
+            palSetAudioOutputI2S(false);
+            palSetAudioOutputHwAy(true);
+        } else if (textEquals(soundOutput, "i2s")) {
+            palSetAudioOutputHwAy(false);
+            palSetAudioOutputI2S(true);
+        } else {
+            palSetAudioOutputHwAy(false);
+            palSetAudioOutputI2S(false);
+        }
+    }
+}
+
 void drawAboutDialog()
 {
     static const char* const lines[] = {
@@ -1581,6 +1905,16 @@ void relayoutMenu()
 
 } // namespace
 
+void palLoadMenuState()
+{
+    loadMenuStateImpl();
+}
+
+void palSaveMenuState()
+{
+    saveMenuStateImpl();
+}
+
 void palSnapshotHotkey(unsigned slot, bool save)
 {
     if (!g_emulation || slot < 1 || slot > 12)
@@ -1648,6 +1982,7 @@ void palCloseMainMenu()
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
     menu.open = false;
+    saveMenuStateImpl();
     if (menu.mixer)
         menu.mixer->setMuted(s_userMuted);
     if (g_emulation)

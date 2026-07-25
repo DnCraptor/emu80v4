@@ -36,4 +36,9 @@ void palMessageBox(const char* title, const char* text);
 // при этом продолжает работать. save=true — сохранение, иначе загрузка.
 void palSnapshotHotkey(unsigned slot, bool save);
 
+// Текстовые настройки /.config/vector06c.cfg. Файл создаётся автоматически,
+// но остаётся обычным редактируемым пользователем key=value-файлом.
+void palLoadMenuState();
+void palSaveMenuState();
+
 #endif // PICOMENU_H
