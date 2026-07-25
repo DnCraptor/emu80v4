@@ -112,6 +112,7 @@ typedef struct TV_MODE {
 typedef struct G_BUFFER {
     uint width;
     uint height;
+    uint stride;   // физический шаг строки; по умолчанию равен width
     int shift_x;
     int shift_y;
 } G_BUFFER;
@@ -133,7 +134,8 @@ static G_BUFFER graphics_buffer = {
     .shift_x = 0,
     .shift_y = 0,
     .height = 288,   // PAL: столько строк рисует эмулятор
-    .width = 626
+    .width = 626,
+    .stride = 626
 };
 
 // Указатель на кадровый буфер. Прежний набросок его не сохранял вовсе и брал
@@ -500,12 +502,12 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 }
 
 
-// Строка кадрового буфера. Шаг строки равен ширине: эмулятор пишет
-// в буфер 626 x 288 именно так.
+// Строка кадрового буфера. Шаг строки берётся из stride (в обычном режиме он
+// равен width; в режиме обрезки буфер физически шире полезной строки).
 static inline uint8_t* getLineBuffer(int line) {
     if (!graphics_framebuffer || line < 0 || line >= (int)graphics_buffer.height)
         return NULL;
-    return graphics_framebuffer + (uint)line * graphics_buffer.width;
+    return graphics_framebuffer + (uint)line * graphics_buffer.stride;
 }
 
 //основная функция заполнения буферов видеоданных
@@ -1050,6 +1052,15 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
     graphics_framebuffer = buffer;
     graphics_buffer.width = width;
     graphics_buffer.height = height;
+    graphics_buffer.stride = width;   // по умолчанию шаг строки равен ширине
+}
+
+void graphics_set_line_stride(uint16_t stride) {
+    graphics_buffer.stride = stride;
+}
+
+uint16_t graphics_get_line_stride(void) {
+    return (uint16_t)graphics_buffer.stride;
 }
 
 //выделение и настройка общих ресурсов - 4 DMA канала, PIO программ и 2 SM
@@ -1314,7 +1325,7 @@ static inline void _plot(int32_t x, int32_t y, uint8_t color) {
     if (!graphics_framebuffer) return;
     if (x < 0 || x >= (int32_t)graphics_buffer.width) return;
     if (y < 0 || y >= (int32_t)graphics_buffer.height) return;
-    graphics_framebuffer[graphics_buffer.width * y + x] = color;
+    graphics_framebuffer[graphics_buffer.stride * y + x] = color;
 }
 
 static void tv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t color) {

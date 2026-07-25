@@ -43,6 +43,7 @@ static int dma_chan;
 
 volatile static uint8_t* graphics_buffer = 0;
 static int client_buffer_width = 320;
+static int client_buffer_stride = 320;   // физ. шаг строки; по умолчанию = width
 static int client_buffer_height = 240;
 static int graphics_buffer_width = 640;
 static int graphics_buffer_height = 480;
@@ -121,7 +122,7 @@ void __time_critical_func(dma_handler_VGA)() {
     }
     //зона прорисовки изображения
     //начальные точки буферов
-    uint8_t* input_buffer_8bit = input_buffer + y * client_buffer_width;
+    uint8_t* input_buffer_8bit = input_buffer + y * client_buffer_stride;
 
     uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
     output_buffer_16bit += shift_picture >> 1; //смещение началы вывода на размер синхросигнала
@@ -263,6 +264,7 @@ void graphics_set_mode() {
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
+    client_buffer_stride = width;   // по умолчанию шаг строки равен ширине
     if (client_buffer_width != width) {
         client_buffer_width = width;
         adjust_shift_x();
@@ -271,6 +273,14 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
         client_buffer_height = height;
         adjust_shift_y();
     }
+}
+
+void graphics_set_line_stride(uint16_t stride) {
+    client_buffer_stride = stride;
+}
+
+uint16_t graphics_get_line_stride(void) {
+    return (uint16_t)client_buffer_stride;
 }
 
 void graphics_inc_x(void) {
@@ -446,7 +456,7 @@ inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t c
     if (!graphics_buffer) return;
     if (x < 0 || x >= w) return;
     if (y < 0 || y >= h) return;
-    graphics_buffer[w * y + x] = color;
+    graphics_buffer[client_buffer_stride * y + x] = color;
 }
 
 void plot(int x, int y, uint8_t color) {

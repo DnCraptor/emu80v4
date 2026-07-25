@@ -1684,6 +1684,10 @@ void pushBackground(int depth, int x, int y, int w, int h)
 
     const int screenW = graphics_get_width();
     const int screenH = graphics_get_height();
+    // Шаг строки В КАДРОВОМ БУФЕРЕ может быть больше видимой ширины (режим
+    // обрезки: буфер физически 626, показывается окно 512). Адресуем кадр по
+    // stride, а в пул складываем плотно по ширине прямоугольника w.
+    const int frameStride = graphics_get_line_stride();
     if (x < 0) x = 0;
     if (y < 0) y = 0;
     if (x + w > screenW) w = screenW - x;
@@ -1694,7 +1698,7 @@ void pushBackground(int depth, int x, int y, int w, int h)
     r = {x, y, w, h, s_backupUsed, true};
     for (int row = 0; row < h; ++row)
         std::memcpy(s_menuBackup + r.offset + row * w,
-                    frame + (y + row) * screenW + x, w);
+                    frame + (y + row) * frameStride + x, w);
     s_backupUsed += w * h;
 }
 
@@ -1705,9 +1709,9 @@ void popBackground(int depth)
     BackupRec& r = s_backup[depth];
     uint8_t* frame = graphics_get_frame();
     if (r.valid && frame) {
-        const int screenW = graphics_get_width();
+        const int frameStride = graphics_get_line_stride();
         for (int row = 0; row < r.h; ++row)
-            std::memcpy(frame + (r.y + row) * screenW + r.x,
+            std::memcpy(frame + (r.y + row) * frameStride + r.x,
                         s_menuBackup + r.offset + row * r.w, r.w);
         s_backupUsed = r.offset;
     }

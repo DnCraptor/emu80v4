@@ -166,6 +166,7 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
 
         void setColorMode(bool colorMode);
         void prepareFrame();
+        void applyFrameBuffer();
         void renderLine(int nLine, int firstPx, int LastPx);
         void advanceTo(uint64_t clocks);
 };

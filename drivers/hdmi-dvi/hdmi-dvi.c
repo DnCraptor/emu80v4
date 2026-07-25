@@ -47,6 +47,7 @@ static struct dvi_inst dvi0;
 static uint8_t *fb_data = NULL;
 static uint16_t fb_w = PICTURE_W;
 static uint16_t fb_h = PICTURE_H;
+static uint16_t fb_stride = PICTURE_W;   // физ. шаг строки; по умолчанию = fb_w
 
 // Сдвиг картинки. Знак нормализован так же, как у остальных драйверов:
 // положительное значение означает смещение вправо и вниз по экрану.
@@ -108,8 +109,11 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
     while (true) {
         for (int y = 0; y < DVI_FRAME_HEIGHT; ++y) {
             // Строка кадрового буфера, попадающая в эту строку кадра.
+            // Картинка центрируется по высоте: при обрезке fb_h меньше, поэтому
+            // верхняя граница считается от fb_h, а не от константы PICTURE_H.
             // Вертикальный сдвиг смещает картинку вниз при росте pic_shift_y.
-            const int src = y - BORDER_Y - pic_shift_y;
+            const int border_y = (DVI_FRAME_HEIGHT - (int)fb_h) / 2;
+            const int src = y - border_y - pic_shift_y;
 
             queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
 
@@ -121,9 +125,12 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 // чем просто записать 800 байт.
                 memset(line_buf, border_color, sizeof(line_buf));
 
-                int at = BORDER_X + pic_shift_x;
                 int len = fb_w < PICTURE_W ? fb_w : PICTURE_W;
-                const uint8_t *from = fb_data + (size_t)src * fb_w;
+                // Центрируем по ширине от полезной ширины (fb_w), а не от
+                // константы: при обрезке fb_w меньше и картинка иначе не
+                // окажется по центру. Шаг строки в буфере — fb_stride.
+                int at = (DVI_FRAME_WIDTH - len) / 2 + pic_shift_x;
+                const uint8_t *from = fb_data + (size_t)src * fb_stride;
 
                 // Обрезка по краям строки, чтобы сдвиг не вышел за буфер
                 if (at < 0) {
@@ -237,6 +244,15 @@ void graphics_set_buffer(uint8_t *buffer, const uint16_t width, const uint16_t h
     fb_data = buffer;
     fb_w = width;
     fb_h = height;
+    fb_stride = width;   // по умолчанию шаг строки равен ширине
+}
+
+void graphics_set_line_stride(uint16_t stride) {
+    fb_stride = stride;
+}
+
+uint16_t graphics_get_line_stride(void) {
+    return fb_stride;
 }
 
 uint32_t graphics_get_width(void) {
@@ -305,7 +321,7 @@ static inline void _plot(int32_t x, int32_t y, uint8_t color) {
     if (!fb_data) return;
     if (x < 0 || x >= (int32_t)fb_w) return;
     if (y < 0 || y >= (int32_t)fb_h) return;
-    fb_data[(size_t)fb_w * y + x] = color;
+    fb_data[(size_t)fb_stride * y + x] = color;
 }
 
 static void hdmi_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t color) {

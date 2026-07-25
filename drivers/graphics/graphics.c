@@ -71,3 +71,17 @@ void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, ui
     snprintf(line, width - 1, " %s ", title);
     draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
 }
+
+
+// Слабая заглушка на случай видеодрайверов, ещё не поддерживающих отдельный
+// шаг строки (st7789/hdmi/tv). Адаптированные драйверы (tv-software, vga,
+// hdmi-dvi) предоставляют свою «сильную» реализацию, которая перекрывает эту.
+__attribute__((weak)) void graphics_set_line_stride(uint16_t stride) {
+    (void)stride;
+}
+
+// Слабый вариант для неадаптированных драйверов: у них шаг строки всегда равен
+// ширине. Адаптированные драйверы возвращают свой фактический stride.
+__attribute__((weak)) uint16_t graphics_get_line_stride(void) {
+    return (uint16_t)graphics_get_width();
+}

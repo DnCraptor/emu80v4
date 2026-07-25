@@ -786,7 +786,7 @@ void VectorRenderer::renderFrame()
 */
     swapBuffers();
     prepareFrame();
-    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
+    applyFrameBuffer();
 }
 
 
@@ -798,6 +798,26 @@ void VectorRenderer::prepareFrame()
     } else {
         m_sizeX = 626;
         m_sizeY = 288;
+    }
+}
+
+
+void VectorRenderer::applyFrameBuffer()
+{
+    // Кадровый буфер физически всегда 626 x 288 (стр. шаг 626). В режиме
+    // обрезки показываем только активную область m_sizeX x m_sizeY: буфер не
+    // пересоздаём и не копируем, а передаём драйверу указатель на её
+    // левый-верхний угол и физический шаг строки. Драйвер читает окно нужной
+    // ширины с шагом 626, поэтому строки не разъезжаются.
+    if (m_showBorder) {
+        graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
+    } else {
+        const int stride = 626;
+        const int originX = (stride - m_sizeX) / 2;   // (626-512)/2 = 57
+        const int originY = (288 - m_sizeY) / 2;      // (288-256)/2 = 16
+        graphics_set_buffer(m_frameBuf + stride * originY + originX,
+                            m_sizeX, m_sizeY);
+        graphics_set_line_stride(stride);
     }
 }
 
@@ -921,7 +941,7 @@ void VectorRenderer::postLoad()
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
     m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
     prepareFrame();
-    graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
+    applyFrameBuffer();
 }
 
 bool VectorFileLoader::chooseAndLoadFile(bool run)

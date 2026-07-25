@@ -51,6 +51,20 @@ void graphics_system_clock_changed();
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
+// Физический шаг строки кадрового буфера (в байтах), если он больше полезной
+// ширины. По умолчанию (после graphics_set_buffer) равен width. Используется
+// режимом «обрезки до видимой области»: буфер физически 626 в строке, а
+// показывается окно 512 — драйвер адресует строки с шагом stride, а width
+// остаётся полезной шириной для масштабирования/содержимого. Слабый пустой
+// вариант есть в graphics.c, чтобы неадаптированные драйверы линковались.
+void graphics_set_line_stride(uint16_t stride);
+
+// Текущий физический шаг строки кадрового буфера (в байтах). В обычном режиме
+// равен графической ширине, в режиме обрезки — физической (626). Нужен коду,
+// который адресует буфер напрямую (например, сохранение/восстановление области
+// под подменю), чтобы строки не разъезжались при stride != width.
+uint16_t graphics_get_line_stride(void);
+
 void graphics_inc_x(void);
 void graphics_dec_x(void);
 void graphics_inc_y(void);
