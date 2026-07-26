@@ -577,7 +577,8 @@ void VectorRenderer::init()
 
     prepareFrame(); // prepare 1st frame dimensions
 
-#if defined(PICO_RP2040) && (defined(VGA_DRV) || defined(HDMI_DVI))
+#if defined(PICO_RP2040) && \
+    (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
     /*
      * The RP2040 VGA renderer consumes Vector RAM directly on core1.
      * Publish the RAM pointer and initial video registers immediately:
@@ -857,7 +858,8 @@ void VectorRenderer::applyFrameBuffer()
     // пересоздаём и не копируем, а передаём драйверу указатель на её
     // левый-верхний угол и физический шаг строки. Драйвер читает окно нужной
     // ширины с шагом 626, поэтому строки не разъезжаются.
-#if defined(PICO_RP2040) && (defined(VGA_DRV) || defined(HDMI_DVI))
+#if defined(PICO_RP2040) && \
+    (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
     // RP2040 has no room for the 626x288 frame buffer. The VGA driver reads
     // Vector video RAM directly on core1 and builds each scan line using a
     // snapshot of the palette and current video registers. Mid-frame palette

@@ -22,7 +22,7 @@
 
 extern PalKeyCodeAction getKey();
 
-#if (defined(PICO_RP2040) && defined(VGA_DRV)) || defined(HDMI_DVI)
+#if defined(PICO_RP2040)
 #define SCANLINE_TEXT_MENU 1
 #endif
 

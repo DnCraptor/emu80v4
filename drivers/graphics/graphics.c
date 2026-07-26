@@ -2,6 +2,8 @@
 #include <string.h>
 #include <pico.h>
 
+volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+
 const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
 #ifdef HDMI_DVI
     static const uint32_t clocks[] = {400};

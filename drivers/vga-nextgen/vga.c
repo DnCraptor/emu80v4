@@ -75,13 +75,6 @@ static uint16_t palette16_mask = 0;
  */
 static uint16_t menu_text_cells[MENU_TEXT_COLS * MENU_TEXT_ROWS];
 static uint16_t menu_text_palette_fast[256 * 4];
-static volatile graphics_video_content_mode_t menu_video_mode =
-    GRAPHICS_VIDEO_VECTOR;
-
-static inline bool menu_text_active(void)
-{
-    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
-}
 
 static inline uint8_t menu_color_index(uint8_t color)
 {
@@ -162,7 +155,7 @@ static void menu_text_clear(uint8_t attr)
         menu_text_cells[i] = cell;
 }
 
-static void menu_text_clear_for_mode(void)
+void menu_text_clear_for_mode(void)
 {
     menu_text_clear(menu_video_mode == GRAPHICS_VIDEO_COMBINED
                   ? MENU_TEXT_TRANSPARENT_ATTR
@@ -1057,36 +1050,11 @@ void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 #endif
 }
 
-graphics_video_content_mode_t graphics_get_video_content_mode(void)
-{
-#ifdef PICO_RP2040
-    return menu_video_mode;
-#else
-    return GRAPHICS_VIDEO_VECTOR;
-#endif
-}
-
-void graphics_clear_menu_text(void)
-{
-#ifdef PICO_RP2040
-    menu_text_clear_for_mode();
-#endif
-}
-
 void graphics_set_menu_text_mode(bool enabled)
 {
     graphics_set_video_content_mode(enabled
                                   ? GRAPHICS_VIDEO_TEXT
                                   : GRAPHICS_VIDEO_VECTOR);
-}
-
-bool graphics_get_menu_text_mode(void)
-{
-#ifdef PICO_RP2040
-    return menu_text_active();
-#else
-    return false;
-#endif
 }
 
 uint32_t graphics_get_width() {

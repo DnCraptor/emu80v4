@@ -43,6 +43,137 @@
 #define c_ntscShiftY 23
 #pragma GCC optimize("Ofast")
 
+
+//пины
+//пин синхросигнала(для совместимости с RGB по ч.б.) 0-7
+#define SYNC_PIN (6)
+//максимальное значение DAC
+#define MAX_DAC (63)
+//перераспределение порядка пинов(для совместимости с RGB по ч.б.)
+#define CONV_DAC(x) ((((x)<<2)&0x30)|(((x)>>2)&0x0c)|((x)&0x03))
+
+//буферы строк
+//количество буферов задавать кратно степени двойки
+//например 2^2=4 буфера
+#define N_LINE_BUF_log2 (2)
+
+
+#define N_LINE_BUF_DMA (1<<N_LINE_BUF_log2)
+#define N_LINE_BUF (N_LINE_BUF_DMA)
+
+//максимальный размер строки(кратно 4)
+#define LINE_SIZE_MAX (1152)
+//указатели на буферы строк
+//выравнивание нужно для кольцевого буфера
+static uint32_t rd_addr_DMA_CTRL[N_LINE_BUF * 2]__attribute__ ((aligned (4*N_LINE_BUF_DMA)));
+static uint32_t transfer_count_DMA_CTRL[N_LINE_BUF * 2]__attribute__ ((aligned (4*N_LINE_BUF_DMA)));
+//непосредственно буферы строк
+
+static uint32_t lines_buf[N_LINE_BUF][LINE_SIZE_MAX / 4];
+
+
+static int SM_video = -1;
+
+
+//DMA каналы
+//каналы работы с первичным графическим буфером
+static int dma_chan_ctrl = -1;
+static int dma_chan_ctrl2 = -1;
+static int dma_chan = -1;
+
+
+//ДМА палитра для конвертации(256 знач)
+static uint32_t conv_colorNORM[2][256]; //2к
+static uint32_t conv_colorINV[2][256]; //2к
+static uint32_t* conv_color[2];
+
+//палитра сохранённая
+static uint8_t __scratch_x("buff4") paletteRGB[3][256]; //768 байт
+
+static repeating_timer_t video_timer;
+
+void menu_text_clear_for_mode(void) {
+    // TODO:
+}
+
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
+{
+    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_VECTOR;
+
+    __asm volatile ("" ::: "memory");
+    menu_video_mode = mode;
+    menu_text_clear_for_mode();
+    __asm volatile ("" ::: "memory");
+}
+
+/*
+ * Горячий тракт композитного видео не должен вызывать libc из XIP flash.
+ * Все используемые адреса строковых буферов выровнены как минимум на 4 байта,
+ * но helper сохраняет корректность и для коротких невыровненных участков
+ * синхронизации/цветовой вспышки.
+ */
+static inline __attribute__((always_inline))
+void tv_fill_u8(void* dst_void, int value, size_t count)
+{
+    uint8_t* dst = (uint8_t*)dst_void;
+    const uint8_t byte = (uint8_t)value;
+
+    while (count && ((uintptr_t)dst & 3u)) {
+        *dst++ = byte;
+        --count;
+    }
+
+    const uint32_t word = (uint32_t)byte * 0x01010101u;
+    uint32_t* dst32 = (uint32_t*)dst;
+    while (count >= 16) {
+        dst32[0] = word;
+        dst32[1] = word;
+        dst32[2] = word;
+        dst32[3] = word;
+        dst32 += 4;
+        count -= 16;
+    }
+    while (count >= 4) {
+        *dst32++ = word;
+        count -= 4;
+    }
+
+    dst = (uint8_t*)dst32;
+    while (count--)
+        *dst++ = byte;
+}
+
+static inline __attribute__((always_inline))
+void tv_copy_u8(void* dst_void, const void* src_void, size_t count)
+{
+    uint8_t* dst = (uint8_t*)dst_void;
+    const uint8_t* src = (const uint8_t*)src_void;
+
+    if ((((uintptr_t)dst | (uintptr_t)src) & 3u) == 0u) {
+        uint32_t* dst32 = (uint32_t*)dst;
+        const uint32_t* src32 = (const uint32_t*)src;
+        while (count >= 16) {
+            dst32[0] = src32[0];
+            dst32[1] = src32[1];
+            dst32[2] = src32[2];
+            dst32[3] = src32[3];
+            dst32 += 4;
+            src32 += 4;
+            count -= 16;
+        }
+        while (count >= 4) {
+            *dst32++ = *src32++;
+            count -= 4;
+        }
+        dst = (uint8_t*)dst32;
+        src = (const uint8_t*)src32;
+    }
+
+    while (count--)
+        *dst++ = *src++;
+}
+
 static uint8_t map64colors[64] = { 0 };
 
 //параметры по умолчанию
@@ -142,55 +273,442 @@ static G_BUFFER graphics_buffer = {
 // строки через внешний getLineBuffer() из порта ZX Spectrum.
 static uint8_t* graphics_framebuffer = NULL;
 
+#ifdef PICO_RP2040
+#define VECTOR_TV_LUT_COUNT 3
+#define VECTOR_TV_MAX_WIDTH 626
 
-//пины
-//пин синхросигнала(для совместимости с RGB по ч.б.) 0-7
-#define SYNC_PIN (6)
-//максимальное значение DAC
-#define MAX_DAC (63)
-//перераспределение порядка пинов(для совместимости с RGB по ч.б.)
-#define CONV_DAC(x) ((((x)<<2)&0x30)|(((x)>>2)&0x0c)|((x)&0x03))
+typedef struct {
+    const uint8_t* memory;
+    uint8_t palette[16];
+    uint8_t border_color;
+    uint8_t line_offset;
+    uint8_t lut_index;
+    bool mode512;
+    bool show_border;
+    bool enabled;
+    uint32_t border_pattern;
+} vector_tv_state_t;
 
-//буферы строк
-//количество буферов задавать кратно степени двойки
-//например 2^2=4 буфера
-#define N_LINE_BUF_log2 (2)
+static vector_tv_state_t vector_tv_state;
+static volatile uint32_t vector_tv_seq = 0;
+static vector_tv_state_t vector_tv_frame_state;
+static bool vector_tv_frame_state_valid = false;
+static uint32_t vector_tv_pair_lut[VECTOR_TV_LUT_COUNT][256];
+static volatile uint8_t vector_tv_lut_in_use = 0xff;
 
+/*
+ * Final composite samples for four Vector pixels. Variants:
+ * 0/1 = normal PAL/NTSC phase tables, 2/3 = inverted phase tables.
+ * Built on core0 together with the palette LUT, read from SRAM by DMA IRQ.
+ */
+static uint32_t vector_tv_composite_lut[4][256][4];
 
-#define N_LINE_BUF_DMA (1<<N_LINE_BUF_log2)
-#define N_LINE_BUF (N_LINE_BUF_DMA)
+/*
+ * Horizontal scaler plan. Each entry tells how many composite samples to emit
+ * for one source pixel. It replaces the per-output fixed-point accumulator in
+ * the hot scanline loop.
+ */
+static uint8_t vector_tv_runs[VECTOR_TV_MAX_WIDTH];
+static int vector_tv_runs_source_width = -1;
+static int vector_tv_runs_output_width = -1;
 
-//максимальный размер строки(кратно 4)
-#define LINE_SIZE_MAX (1152)
-//указатели на буферы строк
-//выравнивание нужно для кольцевого буфера
-static uint32_t rd_addr_DMA_CTRL[N_LINE_BUF * 2]__attribute__ ((aligned (4*N_LINE_BUF_DMA)));
-static uint32_t transfer_count_DMA_CTRL[N_LINE_BUF * 2]__attribute__ ((aligned (4*N_LINE_BUF_DMA)));
-//непосредственно буферы строк
+static inline __attribute__((always_inline))
+void vector_tv_barrier(void)
+{
+    __asm volatile ("" ::: "memory");
+}
 
-static uint32_t lines_buf[N_LINE_BUF][LINE_SIZE_MAX / 4];
+static bool __not_in_flash_func(vector_tv_snapshot)(
+        vector_tv_state_t* state)
+{
+    for (;;) {
+        const uint32_t seq0 = vector_tv_seq;
+        if (seq0 & 1u)
+            continue;
+        vector_tv_barrier();
+        *state = vector_tv_state;
+        vector_tv_barrier();
+        const uint32_t seq1 = vector_tv_seq;
+        if (seq0 == seq1 && !(seq1 & 1u))
+            return state->enabled && state->memory;
+    }
+}
 
+static inline __attribute__((always_inline))
+uint8_t vector_tv_color(
+        const vector_tv_state_t* state, uint8_t color)
+{
+    return state->palette[color];
+}
 
-static int SM_video = -1;
+static void vector_tv_build_lut(
+        vector_tv_state_t* state, uint32_t* lut)
+{
+    for (unsigned i = 0; i < 256; ++i) {
+        const unsigned y = i >> 6;
+        const unsigned r = (i >> 4) & 3u;
+        const unsigned g = (i >> 2) & 3u;
+        const unsigned b = i & 3u;
+        const uint8_t c0 = (uint8_t)(((y & 2u) << 2) |
+                                     ((r & 2u) << 1) |
+                                     (g & 2u) | (b >> 1));
+        const uint8_t c1 = (uint8_t)(((y & 1u) << 3) |
+                                     ((r & 1u) << 2) |
+                                     ((g & 1u) << 1) | (b & 1u));
+        uint8_t p0, p1, p2, p3;
 
+        if (state->mode512) {
+            p0 = vector_tv_color(state, c0 & 0x03u);
+            p1 = vector_tv_color(state, c0 & 0x0cu);
+            p2 = vector_tv_color(state, c1 & 0x03u);
+            p3 = vector_tv_color(state, c1 & 0x0cu);
+        } else {
+            p0 = p1 = vector_tv_color(state, c0);
+            p2 = p3 = vector_tv_color(state, c1);
+        }
 
-//DMA каналы
-//каналы работы с первичным графическим буфером
-static int dma_chan_ctrl = -1;
-static int dma_chan_ctrl2 = -1;
-static int dma_chan = -1;
+        lut[i] = (uint32_t)p0 | ((uint32_t)p1 << 8) |
+                 ((uint32_t)p2 << 16) | ((uint32_t)p3 << 24);
+    }
 
+    const uint8_t border = state->border_color;
+    if (state->mode512) {
+        const uint8_t p0 =
+            vector_tv_color(state, border & 0x03u);
+        const uint8_t p1 =
+            vector_tv_color(state, border & 0x0cu);
+        state->border_pattern =
+            (uint32_t)p0 | ((uint32_t)p1 << 8) |
+            ((uint32_t)p0 << 16) | ((uint32_t)p1 << 24);
+    } else {
+        const uint8_t p = vector_tv_color(state, border);
+        state->border_pattern = (uint32_t)p * 0x01010101u;
+    }
+}
 
-//ДМА палитра для конвертации(256 знач)
-static uint32_t conv_colorNORM[2][256]; //2к
-static uint32_t conv_colorINV[2][256]; //2к
-static uint32_t* conv_color[2];
+static void vector_tv_build_composite_lut(
+        const uint32_t* pixel_lut)
+{
+    const uint32_t* tables[4] = {
+        conv_colorNORM[0], conv_colorNORM[1],
+        conv_colorINV[0],  conv_colorINV[1]
+    };
 
-//палитра сохранённая
-static uint8_t __scratch_x("buff4") paletteRGB[3][256]; //768 байт
+    for (unsigned index = 0; index < 256; ++index) {
+        const uint32_t pixels = pixel_lut[index];
+        for (unsigned variant = 0; variant < 4; ++variant) {
+            const uint32_t* table = tables[variant];
+            vector_tv_composite_lut[variant][index][0] =
+                table[map64colors[(uint8_t)pixels & 0x3fu]];
+            vector_tv_composite_lut[variant][index][1] =
+                table[map64colors[(uint8_t)(pixels >> 8) & 0x3fu]];
+            vector_tv_composite_lut[variant][index][2] =
+                table[map64colors[(uint8_t)(pixels >> 16) & 0x3fu]];
+            vector_tv_composite_lut[variant][index][3] =
+                table[map64colors[(uint8_t)(pixels >> 24) & 0x3fu]];
+        }
+    }
+}
 
-static repeating_timer_t video_timer;
+static inline __attribute__((always_inline))
+uint32_t vector_tv_rotate_pattern(uint32_t pattern, unsigned bytes)
+{
+    bytes &= 3u;
+    return bytes ? (pattern >> (bytes * 8u)) |
+                   (pattern << ((4u - bytes) * 8u)) : pattern;
+}
 
+static inline __attribute__((always_inline))
+void vector_tv_fill_pattern(
+        uint8_t* dst, int count, uint32_t pattern)
+{
+    while (count && ((uintptr_t)dst & 3u)) {
+        *dst++ = (uint8_t)pattern;
+        pattern = vector_tv_rotate_pattern(pattern, 1);
+        --count;
+    }
+
+    uint32_t* dst32 = (uint32_t*)dst;
+    while (count >= 16) {
+        dst32[0] = pattern;
+        dst32[1] = pattern;
+        dst32[2] = pattern;
+        dst32[3] = pattern;
+        dst32 += 4;
+        count -= 16;
+    }
+    while (count >= 4) {
+        *dst32++ = pattern;
+        count -= 4;
+    }
+
+    dst = (uint8_t*)dst32;
+    while (count--) {
+        *dst++ = (uint8_t)pattern;
+        pattern = vector_tv_rotate_pattern(pattern, 1);
+    }
+}
+
+static inline __attribute__((always_inline))
+uint32_t vector_tv_plane_indices4(
+        const vector_tv_state_t* state,
+        int active_x, int n_line)
+{
+    /*
+     * One byte from every Vector plane contains all 16 pixels of the source
+     * block. Decode its four 4-pixel groups at once. The previous code called
+     * vector_tv_plane_index() four times and re-read the same four SRAM bytes
+     * on every call.
+     */
+    const uint8_t roll_off =
+        (uint8_t)(state->line_offset - n_line + 40);
+    const int offset = ((active_x & 0x1f0) << 4) | roll_off;
+    const uint8_t* memory = state->memory;
+    const unsigned by = memory[0x8000 + offset];
+    const unsigned br = memory[0xa000 + offset];
+    const unsigned bg = memory[0xc000 + offset];
+    const unsigned bb = memory[0xe000 + offset];
+
+#define VECTOR_TV_INDEX_AT(shift) \
+    (((((by >> (shift)) & 3u) << 6) | \
+      (((br >> (shift)) & 3u) << 4) | \
+      (((bg >> (shift)) & 3u) << 2) | \
+       ((bb >> (shift)) & 3u)))
+
+    const uint32_t result =
+        (uint32_t)VECTOR_TV_INDEX_AT(6) |
+        ((uint32_t)VECTOR_TV_INDEX_AT(4) << 8) |
+        ((uint32_t)VECTOR_TV_INDEX_AT(2) << 16) |
+        ((uint32_t)VECTOR_TV_INDEX_AT(0) << 24);
+
+#undef VECTOR_TV_INDEX_AT
+    return result;
+}
+
+static inline __attribute__((always_inline))
+void vector_tv_emit_run(
+        uint8_t** dst_ptr, uint32_t waveform,
+        unsigned* phase_ptr, unsigned run)
+{
+    uint8_t* dst = *dst_ptr;
+    unsigned phase = *phase_ptr;
+
+    if (run >= 1) {
+        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+    if (run >= 2) {
+        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+    if (run >= 3) {
+        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+
+    *dst_ptr = dst;
+    *phase_ptr = phase;
+}
+
+static void vector_tv_build_runs(int source_width, int output_width)
+{
+    tv_fill_u8(vector_tv_runs, 0, sizeof(vector_tv_runs));
+
+    if (source_width <= 0 || output_width <= 0)
+        return;
+
+    uint16_t di =
+        (uint16_t)((0x100u * (uint)source_width) /
+                   (uint)output_width);
+    if (di == 0)
+        di = 1;
+
+    int next_source = 0x100;
+    int source_x = 0;
+
+    for (int out_x = 0;
+         out_x < output_width && source_x < source_width;
+         ++out_x) {
+        ++vector_tv_runs[source_x];
+        next_source -= di;
+        if (next_source <= 0) {
+            ++source_x;
+            next_source += 0x100;
+        }
+    }
+
+    vector_tv_runs_source_width = source_width;
+    vector_tv_runs_output_width = output_width;
+}
+
+typedef struct {
+    int block_x;
+    uint32_t pixels[4];
+} vector_tv_pixel_cache_t;
+
+static inline __attribute__((always_inline))
+void vector_tv_load_active_block(
+        vector_tv_pixel_cache_t* cache,
+        const vector_tv_state_t* state,
+        int active_x, int n_line)
+{
+    const int block_x = active_x & ~15;
+    const uint8_t roll_off =
+        (uint8_t)(state->line_offset - n_line + 40);
+    const int offset = ((block_x & 0x1f0) << 4) | roll_off;
+    const uint8_t* memory = state->memory;
+    const uint8_t by = memory[0x8000 + offset];
+    const uint8_t br = memory[0xa000 + offset];
+    const uint8_t bg = memory[0xc000 + offset];
+    const uint8_t bb = memory[0xe000 + offset];
+    const uint32_t* lut =
+        vector_tv_pair_lut[state->lut_index];
+
+#define VECTOR_TV_CACHE_INDEX(shift) \
+    (((((unsigned)by >> (shift)) & 3u) << 6) | \
+     ((((unsigned)br >> (shift)) & 3u) << 4) | \
+     ((((unsigned)bg >> (shift)) & 3u) << 2) | \
+      (((unsigned)bb >> (shift)) & 3u))
+
+    cache->pixels[0] = lut[VECTOR_TV_CACHE_INDEX(6)];
+    cache->pixels[1] = lut[VECTOR_TV_CACHE_INDEX(4)];
+    cache->pixels[2] = lut[VECTOR_TV_CACHE_INDEX(2)];
+    cache->pixels[3] = lut[VECTOR_TV_CACHE_INDEX(0)];
+    cache->block_x = block_x;
+
+#undef VECTOR_TV_CACHE_INDEX
+}
+
+static inline __attribute__((always_inline))
+uint8_t vector_tv_cached_source_pixel(
+        vector_tv_pixel_cache_t* cache,
+        const vector_tv_state_t* state,
+        int source_x, int source_y)
+{
+    const int n_line =
+        source_y + (state->show_border ? 24 : 40);
+
+    if (state->show_border) {
+        if (n_line < 40 || n_line >= 296 ||
+            source_x < 57 || source_x >= 569) {
+            return (uint8_t)(
+                state->border_pattern >>
+                ((source_x & 3) * 8));
+        }
+        source_x -= 57;
+    }
+
+    const int block_x = source_x & ~15;
+    if (cache->block_x != block_x)
+        vector_tv_load_active_block(
+            cache, state, source_x, n_line);
+
+    const uint32_t word =
+        cache->pixels[(source_x & 15) >> 2];
+    return (uint8_t)(word >> ((source_x & 3) * 8));
+}
+
+static inline __attribute__((always_inline))
+uint8_t vector_tv_pixel_slow(
+        const vector_tv_state_t* state, int x, uint8_t roll_off)
+{
+    const int offset = ((x & 0x1f0) << 4) | roll_off;
+    const uint8_t mask =
+        (uint8_t)(0x80u >> ((x & 0x0eu) >> 1));
+    const uint8_t* memory = state->memory;
+    uint8_t color = 0;
+
+    if (memory[0x8000 + offset] & mask) color |= 0x08;
+    if (memory[0xa000 + offset] & mask) color |= 0x04;
+    if (memory[0xc000 + offset] & mask) color |= 0x02;
+    if (memory[0xe000 + offset] & mask) color |= 0x01;
+
+    if (state->mode512)
+        color = (x & 1) ? (color & 0x0cu) : (color & 0x03u);
+
+    return vector_tv_color(state, color);
+}
+
+static void __not_in_flash_func(vector_tv_render_active)(
+        uint8_t* output, int source_x, int count, int n_line,
+        const vector_tv_state_t* state)
+{
+    const uint8_t roll_off =
+        (uint8_t)(state->line_offset - n_line + 40);
+    int x = source_x;
+    int remaining = count;
+
+    while (remaining &&
+           ((x & 15) || ((uintptr_t)output & 3u))) {
+        *output++ =
+            vector_tv_pixel_slow(state, x++, roll_off);
+        --remaining;
+    }
+
+    const uint8_t* memory = state->memory;
+    const uint32_t* lut =
+        vector_tv_pair_lut[state->lut_index];
+    uint32_t* out32 = (uint32_t*)output;
+
+    while (remaining >= 16) {
+        const int offset = ((x & 0x1f0) << 4) | roll_off;
+        const uint8_t by = memory[0x8000 + offset];
+        const uint8_t br = memory[0xa000 + offset];
+        const uint8_t bg = memory[0xc000 + offset];
+        const uint8_t bb = memory[0xe000 + offset];
+
+#define VECTOR_TV_PAIR_INDEX(shift) \
+        (((((unsigned)by >> (shift)) & 3u) << 6) | \
+         ((((unsigned)br >> (shift)) & 3u) << 4) | \
+         ((((unsigned)bg >> (shift)) & 3u) << 2) | \
+          (((unsigned)bb >> (shift)) & 3u))
+
+        out32[0] = lut[VECTOR_TV_PAIR_INDEX(6)];
+        out32[1] = lut[VECTOR_TV_PAIR_INDEX(4)];
+        out32[2] = lut[VECTOR_TV_PAIR_INDEX(2)];
+        out32[3] = lut[VECTOR_TV_PAIR_INDEX(0)];
+
+#undef VECTOR_TV_PAIR_INDEX
+        out32 += 4;
+        x += 16;
+        remaining -= 16;
+    }
+
+    output = (uint8_t*)out32;
+    while (remaining--)
+        *output++ =
+            vector_tv_pixel_slow(state, x++, roll_off);
+}
+
+static void __not_in_flash_func(vector_tv_render_line)(
+        uint8_t* output, int source_y,
+        const vector_tv_state_t* state)
+{
+    const int source_width = state->show_border ? 626 : 512;
+    const int n_line =
+        source_y + (state->show_border ? 24 : 40);
+
+    if (!state->show_border) {
+        vector_tv_render_active(
+            output, 0, source_width, n_line, state);
+        return;
+    }
+
+    if (n_line < 40 || n_line >= 296) {
+        vector_tv_fill_pattern(
+            output, source_width, state->border_pattern);
+        return;
+    }
+
+    vector_tv_fill_pattern(
+        output, 57, state->border_pattern);
+    vector_tv_render_active(
+        output + 57, 0, 512, n_line, state);
+    vector_tv_fill_pattern(
+        output + 569, 57,
+        vector_tv_rotate_pattern(state->border_pattern, 569));
+}
+#endif
 
 // Частота цветовой поднесущей (Гц) для текущего режима: NTSC 3.579545 МГц,
 // PAL 4.43361875 МГц. Вынесено в отдельную функцию, чтобы одна и та же таблица
@@ -513,17 +1031,26 @@ static inline uint8_t* getLineBuffer(int line) {
 //основная функция заполнения буферов видеоданных
 static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) {
     static uint dma_inx_out = 0;
-    static uint lines_buf_inx = 0;
+    static uint lines_buf_inx = N_LINE_BUF - 1;
 
     if (dma_chan_ctrl == -1) return 1; //не определен дма канал
 
-    //получаем индекс выводимой строки
-    uint dma_inx = (N_LINE_BUF_DMA - 2 + ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
-                                          4)) % (N_LINE_BUF_DMA);
+#ifdef PICO_RP2040
+    /*
+     * RP2040 path is driven once per completed main-DMA scanline.
+     * Render exactly one future line; do not inspect or chase DMA pointers.
+     */
+    uint dma_inx = (dma_inx_out + 1u) % N_LINE_BUF_DMA;
+#else
+    // Старый RP2350 путь: догоняем DMA по положению кольца дескрипторов.
+    uint dma_inx =
+        (N_LINE_BUF_DMA - 2 +
+         ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr -
+           (uint32_t)rd_addr_DMA_CTRL) / 4)) %
+        N_LINE_BUF_DMA;
+#endif
 
-    //uint n_loop=(N_LINE_BUF_DMA+dma_inx-dma_inx_out)%N_LINE_BUF_DMA;
-
-    static uint32_t line_active = 0;
+    static uint32_t line_active = UINT32_MAX;
     static uint32_t frame_i = 0;
     static uint32_t g_str_index = 1;
     //while(n_loop--)
@@ -538,6 +1065,19 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
         if (line_active >= video_mode.N_lines) {
             line_active = 0;
             frame_i++;
+#ifdef PICO_RP2040
+            vector_tv_frame_state_valid =
+                vector_tv_snapshot(&vector_tv_frame_state);
+            if (vector_tv_frame_state_valid) {
+                vector_tv_lut_in_use =
+                    vector_tv_frame_state.lut_index;
+                graphics_buffer.width =
+                    vector_tv_frame_state.show_border ? 626u : 512u;
+                graphics_buffer.height =
+                    vector_tv_frame_state.show_border ? 288u : 256u;
+                graphics_buffer.stride = graphics_buffer.width;
+            }
+#endif
         }
 
         lines_buf_inx = (lines_buf_inx + 1) % N_LINE_BUF;
@@ -553,38 +1093,38 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     case 0:
                     case 1:
                         //|___|--|___|--| type=1
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
 
                     case 2:
                         // ____|--|_|----type=2
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 3:
                     case 4: //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
@@ -595,73 +1135,73 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     case 310:
                     case 311:
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 312:
                         //|_|---|____|--| type=3
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
                     case 313:
                     case 314:
                         //|___|--|___|--| type=1
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
                     case 315:
                     case 316:
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 317:
                         //|_|---------type=4
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 622:
                         //|__|---|_|----type=5
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
@@ -675,14 +1215,14 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     case 1:
                     case 2:
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
@@ -690,13 +1230,13 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     case 4:
                     case 5:
                         //|___|--|___|--| type=1
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
                     case 6:
@@ -704,56 +1244,56 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     case 8:
 
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
 
                     case 262:
                         //|__|---|_|----type=5
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 263:
                     case 264:
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 265:
                         //
                         //|_|---|____|--| type=3
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
                     case 266:
@@ -761,48 +1301,48 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
                         // PIO_VIDEO->txf[SM_video]=v_mode.NO_SYNC_TMPL|(v_mode.NO_SYNC_TMPL<<8);
                         //|___|--|___|--| type=1
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         is_line_visible = false;
                         break;
                     case 268:
 
                         // ____|--|_|----type=2
-                        memset(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, (video_mode.H_len / 2) - video_mode.sync_size);
                         output_buffer8 += (video_mode.H_len / 2) - video_mode.sync_size;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL, video_mode.sync_size);
                         output_buffer8 += video_mode.sync_size;
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 269:
                     case 270:
                         //|_|----|_|---- type=0
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         output_buffer8 += (video_mode.H_len / 2) - (video_mode.sync_size / 2);
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len / 2) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
                     case 271:
 
                         //|_|---------type=4
-                        memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
+                        tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size / 2);
                         output_buffer8 += video_mode.sync_size / 2;
-                        memset(output_buffer8, video_mode.NO_SYNC_TMPL,
+                        tv_fill_u8(output_buffer8, video_mode.NO_SYNC_TMPL,
                                (video_mode.H_len) - (video_mode.sync_size / 2));
                         is_line_visible = false;
                         break;
@@ -916,18 +1456,18 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
         //ТВ строка с изображением
         if (is_line_visible) {
-            memset(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
-            memset(output_buffer8 + video_mode.sync_size, video_mode.NO_SYNC_TMPL,
+            tv_fill_u8(output_buffer8, video_mode.SYNC_TMPL, video_mode.sync_size);
+            tv_fill_u8(output_buffer8 + video_mode.sync_size, video_mode.NO_SYNC_TMPL,
                    video_mode.begin_img_shx - video_mode.sync_size);
             int post_img_clear = 60;
-            memset(output_buffer8 + (video_mode.H_len - post_img_clear), video_mode.NO_SYNC_TMPL, post_img_clear);
+            tv_fill_u8(output_buffer8 + (video_mode.H_len - post_img_clear), video_mode.NO_SYNC_TMPL, post_img_clear);
 
 
             // // //цветовая вспышка
             int mul_sh = 19;
             if (tv_out_mode.c_freq == _4433619) mul_sh = 23; //сдвиг вспышки для более высокой частоты
-            if (li) memcpy(output_buffer8 + 0 + mul_sh * 4, cb[1], 40);
-            else memcpy(output_buffer8 + 0 + mul_sh * 4, cb[0], 40);
+            if (li) tv_copy_u8(output_buffer8 + 0 + mul_sh * 4, cb[1], 40);
+            else tv_copy_u8(output_buffer8 + 0 + mul_sh * 4, cb[0], 40);
 
             //цветовая вспышка V2
 
@@ -939,8 +1479,6 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
 
             output_buffer8 += video_mode.begin_img_shx;
-            //di коэффициент сжатия с учётом количества строк и частоты поднесущей
-            uint16_t di = 0x100;
             int d_end = 0;
             int buffer_shift = 0;
             int y = -1;
@@ -969,71 +1507,189 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
             // Высота берётся из кадрового буфера: у Вектора это 288 строк PAL,
             // а не 240, как было жёстко записано в наброске
             const int img_H = (int)graphics_buffer.height;
-            // Коэффициент сжатия считается по фактической ширине кадрового
-            // буфера, а не берётся готовой константой под 320 пикселей:
-            // источник у нас 626 точек в строке.
-            {
-                const int outW = video_mode.img_W - d_end;
-                if (outW > 0 && graphics_buffer.width > 0)
-                    di = (uint16_t)((0x100u * graphics_buffer.width) / (uint)outW);
-                if (di == 0) di = 1;
-            }
-
             uint8_t* input_buffer = NULL;
-            if (y < img_H && y >= 0) {
+#ifndef PICO_RP2040
+            if (y < img_H && y >= 0)
                 input_buffer = getLineBuffer(y);
-            }
-            if ((y >= img_H) || (y < 0) || (input_buffer == NULL)) {
-                //вне изображения
-                memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W);
+            const bool source_valid = input_buffer != NULL;
+#else
+            const bool source_valid =
+                vector_tv_frame_state_valid &&
+                y >= 0 && y < img_H;
+#endif
+
+            if (!source_valid) {
+                // вне изображения
+                tv_fill_u8(output_buffer8, video_mode.LVL_BLACK_TMPL,
+                           video_mode.img_W);
             }
             else {
-                //зона изображения
-                uint ibuf = 0;
                 int next_ibuf = 0x100;
 
-                uint32_t* out_buf32 = (uint32_t *)lines_buf[lines_buf_inx];
-                out_buf32 += video_mode.begin_img_shx / 4;
+                {
+                    int shx = buffer_shift + graphics_buffer.shift_x;
+                    const int room =
+                        (int)(LINE_SIZE_MAX - video_mode.begin_img_shx) -
+                        (video_mode.img_W - d_end);
+                    if (shx < 0) shx = 0;
+                    if (shx > room) shx = room > 0 ? room : 0;
+                    output_buffer8 += shx;
+                }
 
-                if (input_buffer != NULL)
-                    switch (tv_out_mode.mode_bpp) {
-                        case GRAPHICSMODE_DEFAULT: {
-                            // для 8-битного буфера
-                            register size_t x = 0;
-                            register uint8_t c = input_buffer[x++];
-                            // todo bgcolor
-                            uint8_t color = map64colors[c & 0b00111111];
-                            uint32_t cout32 = conv_color[li][color];
-                            uint8_t* c_4 = (uint8_t*)&cout32;
+                switch (tv_out_mode.mode_bpp) {
+                    case GRAPHICSMODE_DEFAULT: {
+#ifdef PICO_RP2040
+                        const int source_width =
+                            (int)graphics_buffer.width;
+                        const int output_width =
+                            video_mode.img_W - d_end;
 
-                            // Горизонтальный сдвиг картинки внутри строки.
-                            // Прежний код сравнивал shift_x с номером ИСХОДНОГО
-                            // пикселя и просто гасил всё за окном, а при любом
-                            // ненулевом сдвиге ещё и красил первый пиксель в
-                            // чёрный. Сдвигать надо точку, с которой начинается
-                            // вывод активной зоны в строку развёртки.
-                            {
-                                int shx = buffer_shift + graphics_buffer.shift_x;
-                                const int room = (int)(LINE_SIZE_MAX - video_mode.begin_img_shx)
-                                               - (video_mode.img_W - d_end);
-                                if (shx < 0) shx = 0;
-                                if (shx > room) shx = room > 0 ? room : 0;
-                                output_buffer8 += shx;
-                            }
+                        if (vector_tv_runs_source_width != source_width ||
+                            vector_tv_runs_output_width != output_width) {
+                            vector_tv_build_runs(
+                                source_width, output_width);
+                        }
+
+                        const unsigned variant =
+                            (conv_color[li] == conv_colorINV[li])
+                                ? (unsigned)(2 + li)
+                                : (unsigned)li;
+                        unsigned phase = 0;
+                        int x = 0;
+                        const int n_line =
+                            y + (vector_tv_frame_state.show_border
+                                 ? 24 : 40);
+
+                        if (vector_tv_frame_state.show_border) {
+                            const uint8_t border_rgb =
+                                (uint8_t)vector_tv_frame_state.border_pattern;
+                            const uint32_t border_wave =
+                                conv_color[li][
+                                    map64colors[border_rgb & 0x3fu]];
+                            for (; x < 57; ++x)
+                                vector_tv_emit_run(
+                                    &output_buffer8, border_wave, &phase,
+                                    vector_tv_runs[x]);
+                        }
+
+                        const int active_end =
+                            vector_tv_frame_state.show_border ? 569 : 512;
+                        int active_x =
+                            vector_tv_frame_state.show_border ? 0 : x;
+
+                        for (; x + 15 < active_end;
+                             x += 16, active_x += 16) {
+                            const uint32_t indices =
+                                vector_tv_plane_indices4(
+                                    &vector_tv_frame_state,
+                                    active_x, n_line);
+
+#define VECTOR_TV_EMIT_GROUP(group, shift) do {                         \
+    const uint32_t* waves =                                             \
+        vector_tv_composite_lut[variant]                                \
+                               [(uint8_t)(indices >> (shift))];          \
+    vector_tv_emit_run(                                                 \
+        &output_buffer8, waves[0], &phase,                              \
+        vector_tv_runs[x + (group) * 4 + 0]);                           \
+    vector_tv_emit_run(                                                 \
+        &output_buffer8, waves[1], &phase,                              \
+        vector_tv_runs[x + (group) * 4 + 1]);                           \
+    vector_tv_emit_run(                                                 \
+        &output_buffer8, waves[2], &phase,                              \
+        vector_tv_runs[x + (group) * 4 + 2]);                           \
+    vector_tv_emit_run(                                                 \
+        &output_buffer8, waves[3], &phase,                              \
+        vector_tv_runs[x + (group) * 4 + 3]);                           \
+} while (0)
+
+                            VECTOR_TV_EMIT_GROUP(0, 0);
+                            VECTOR_TV_EMIT_GROUP(1, 8);
+                            VECTOR_TV_EMIT_GROUP(2, 16);
+                            VECTOR_TV_EMIT_GROUP(3, 24);
+
+#undef VECTOR_TV_EMIT_GROUP
+                        }
+
+                        /*
+                         * Only the 512-pixel active area is normally handled
+                         * above. Keep a small generic tail for unusual clipping
+                         * or future geometry changes.
+                         */
+                        for (; x + 3 < active_end;
+                             x += 4, active_x += 4) {
+                            const uint32_t indices =
+                                vector_tv_plane_indices4(
+                                    &vector_tv_frame_state,
+                                    active_x, n_line);
+                            const uint32_t* waves =
+                                vector_tv_composite_lut[variant]
+                                                       [(uint8_t)indices];
+
+                            vector_tv_emit_run(
+                                &output_buffer8, waves[0], &phase,
+                                vector_tv_runs[x + 0]);
+                            vector_tv_emit_run(
+                                &output_buffer8, waves[1], &phase,
+                                vector_tv_runs[x + 1]);
+                            vector_tv_emit_run(
+                                &output_buffer8, waves[2], &phase,
+                                vector_tv_runs[x + 2]);
+                            vector_tv_emit_run(
+                                &output_buffer8, waves[3], &phase,
+                                vector_tv_runs[x + 3]);
+                        }
+
+                        for (; x < active_end; ++x, ++active_x) {
+                            vector_tv_pixel_cache_t cache;
+                            cache.block_x = -1;
+                            const uint8_t rgb =
+                                vector_tv_cached_source_pixel(
+                                    &cache, &vector_tv_frame_state,
+                                    x, y);
+                            const uint32_t wave =
+                                conv_color[li][
+                                    map64colors[rgb & 0x3fu]];
+                            vector_tv_emit_run(
+                                &output_buffer8, wave, &phase,
+                                vector_tv_runs[x]);
+                        }
+
+                        if (vector_tv_frame_state.show_border) {
+                            const uint8_t border_rgb =
+                                (uint8_t)vector_tv_frame_state.border_pattern;
+                            const uint32_t border_wave =
+                                conv_color[li][
+                                    map64colors[border_rgb & 0x3fu]];
+                            for (; x < source_width; ++x)
+                                vector_tv_emit_run(
+                                    &output_buffer8, border_wave, &phase,
+                                    vector_tv_runs[x]);
+                        }
+#else
+                        register int x = 0;
+                        register uint8_t c = input_buffer[x++];
+                        uint8_t color =
+                            map64colors[c & 0x3fu];
+                        uint32_t cout32 = conv_color[li][color];
+                        uint8_t* c_4 = (uint8_t*)&cout32;
+
 #pragma unroll(640)
-                            for (int i = 0; i < video_mode.img_W - d_end; i++) {
-                                *output_buffer8++ = c_4[i % 4];
-                                next_ibuf -= di;
-                                if (next_ibuf <= 0) {
-                                    c = input_buffer[x++];
-                                    color = map64colors[c & 0b00111111];
-                                    cout32 = conv_color[li][color];
-                                    next_ibuf += 0x100;
-                                }
+                        for (int i = 0;
+                             i < video_mode.img_W - d_end;
+                             ++i) {
+                            *output_buffer8++ = c_4[i & 3];
+                            next_ibuf -= di;
+                            if (next_ibuf <= 0) {
+                                c = input_buffer[x++];
+                                color = map64colors[c & 0x3fu];
+                                cout32 = conv_color[li][color];
+                                next_ibuf += 0x100;
                             }
                         }
-                        break;
+#endif
                     }
+                    break;
+                }
             }
         }
 
@@ -1042,10 +1698,77 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
         rd_addr_DMA_CTRL[dma_inx_out] = (uint32_t)&lines_buf[lines_buf_inx];
         // включаем заполненный буфер в данные для вывода
         dma_inx_out = (dma_inx_out + 1) % (N_LINE_BUF_DMA);
-        dma_inx = (N_LINE_BUF_DMA - 2 + ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
-                                         4)) % (N_LINE_BUF_DMA);
+#ifdef PICO_RP2040
+        dma_inx = dma_inx_out;
+#else
+        dma_inx =
+            (N_LINE_BUF_DMA - 2 +
+             ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr -
+               (uint32_t)rd_addr_DMA_CTRL) / 4)) %
+            N_LINE_BUF_DMA;
+#endif
     }
     return true;
+}
+
+#ifdef PICO_RP2040
+/*
+ * The main DMA IRQ fires after one complete composite scanline has left the
+ * buffer. That buffer is now safe to refill. The chained control DMAs have
+ * already started the following line, so rendering proceeds in parallel with
+ * output exactly as in the VGA driver.
+ */
+static void __time_critical_func(tv_soft_dma_handler)(void)
+{
+    dma_hw->ints1 = 1u << dma_chan;
+    (void)video_timer_callbackTV(NULL);
+}
+#endif
+
+void graphics_set_vector_source(
+        const uint8_t* memory, const uint8_t* palette,
+        uint8_t border_color, uint8_t line_offset,
+        bool mode512, bool show_border)
+{
+#ifdef PICO_RP2040
+    vector_tv_state_t next = vector_tv_state;
+    next.memory = memory;
+    next.border_color = border_color;
+    next.line_offset = line_offset;
+    next.mode512 = mode512;
+    next.show_border = show_border;
+    next.enabled = memory != NULL;
+
+    if (palette)
+        tv_copy_u8(next.palette, palette, sizeof(next.palette));
+
+    uint8_t lut_index = (uint8_t)(next.lut_index + 1u);
+    if (lut_index >= VECTOR_TV_LUT_COUNT)
+        lut_index = 0;
+    if (lut_index == vector_tv_lut_in_use) {
+        ++lut_index;
+        if (lut_index >= VECTOR_TV_LUT_COUNT)
+            lut_index = 0;
+    }
+    next.lut_index = lut_index;
+    vector_tv_build_lut(
+        &next, vector_tv_pair_lut[lut_index]);
+    vector_tv_build_composite_lut(
+        vector_tv_pair_lut[lut_index]);
+
+    vector_tv_seq++;
+    vector_tv_barrier();
+    vector_tv_state = next;
+    vector_tv_barrier();
+    vector_tv_seq++;
+#else
+    (void)memory;
+    (void)palette;
+    (void)border_color;
+    (void)line_offset;
+    (void)mode512;
+    (void)show_border;
+#endif
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
@@ -1167,8 +1890,10 @@ void graphics_init() {
     channel_config_set_write_increment(&cfg_dma, false);
     channel_config_set_ring(&cfg_dma,false, 2 + N_LINE_BUF_log2);
 
-    for (int i = 0; i < N_LINE_BUF * 2; i++) {
-        transfer_count_DMA_CTRL[i] = video_mode.H_len / 1;
+    for (int i = 0; i < N_LINE_BUF_DMA; i++) {
+        transfer_count_DMA_CTRL[i] = video_mode.H_len;
+        rd_addr_DMA_CTRL[i] =
+            (uint32_t)&lines_buf[i & (N_LINE_BUF - 1)];
     }
 
     dma_channel_configure(
@@ -1182,13 +1907,31 @@ void graphics_init() {
     );
 
 
+#ifdef PICO_RP2040
+    /*
+     * Prepare the first four lines before DMA starts. Afterwards every main
+     * DMA completion frees exactly one of these four buffers and IRQ refills
+     * it with the line four positions ahead.
+     */
+    for (int i = 0; i < N_LINE_BUF; ++i)
+        (void)video_timer_callbackTV(NULL);
+
+    dma_hw->ints1 = 1u << dma_chan;
+    irq_set_exclusive_handler(DMA_IRQ_1, tv_soft_dma_handler);
+    dma_channel_set_irq1_enabled(dma_chan, true);
+    irq_set_enabled(DMA_IRQ_1, true);
+#endif
+
     dma_start_channel_mask((1u << dma_chan_ctrl2));
 
+#ifndef PICO_RP2040
     int hz = 30000;
-    if (!alarm_pool_add_repeating_timer_us(alarm_pool_create(2, 16), 1000000 / hz, video_timer_callbackTV, NULL,
-                                           &video_timer)) {
+    if (!alarm_pool_add_repeating_timer_us(
+            alarm_pool_create(2, 16), 1000000 / hz,
+            video_timer_callbackTV, NULL, &video_timer)) {
         return;
     }
+#endif
     // graphics_get_default_modeTV();
     graphics_set_modeTV(tv_out_mode);
 

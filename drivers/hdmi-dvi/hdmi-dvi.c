@@ -106,14 +106,6 @@ static uint16_t menu_text_pair_lut[256][4];
 static uint8_t menu_font_8x8_sram[256 * 8];
 #endif
 
-static volatile graphics_video_content_mode_t menu_video_mode =
-    GRAPHICS_VIDEO_VECTOR;
-
-static inline bool menu_text_active(void)
-{
-    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
-}
-
 static inline uint8_t menu_color_index(uint8_t color)
 {
     static const uint8_t rgb16[16][3] = {
@@ -183,7 +175,7 @@ static void menu_text_clear(uint8_t attr)
         menu_text_cells[i] = cell;
 }
 
-static void menu_text_clear_for_mode(void)
+void menu_text_clear_for_mode(void)
 {
     menu_text_clear(menu_video_mode == GRAPHICS_VIDEO_COMBINED
                   ? MENU_TEXT_TRANSPARENT_ATTR
@@ -971,26 +963,11 @@ void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
     __asm volatile ("" ::: "memory");
 }
 
-graphics_video_content_mode_t graphics_get_video_content_mode(void)
-{
-    return menu_video_mode;
-}
-
-void graphics_clear_menu_text(void)
-{
-    menu_text_clear_for_mode();
-}
-
 void graphics_set_menu_text_mode(bool enabled)
 {
     graphics_set_video_content_mode(enabled
                                   ? GRAPHICS_VIDEO_TEXT
                                   : GRAPHICS_VIDEO_VECTOR);
-}
-
-bool graphics_get_menu_text_mode(void)
-{
-    return menu_text_active();
 }
 
 uint32_t graphics_get_width(void) {

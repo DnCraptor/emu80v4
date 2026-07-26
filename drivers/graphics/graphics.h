@@ -57,17 +57,43 @@ typedef enum {
     GRAPHICS_VIDEO_TEXT = 1,
     GRAPHICS_VIDEO_COMBINED = 2
 } graphics_video_content_mode_t;
+extern volatile graphics_video_content_mode_t menu_video_mode;
+
+static inline bool menu_text_active(void)
+{
+    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
+}
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
-graphics_video_content_mode_t graphics_get_video_content_mode(void);
+inline static graphics_video_content_mode_t graphics_get_video_content_mode(void)
+{
+#ifdef PICO_RP2040
+    return menu_video_mode;
+#else
+    return GRAPHICS_VIDEO_VECTOR;
+#endif
+}
 
-// Clear the 100x37 menu surface. In COMBINED mode it is filled with the
+// Clear the text menu surface. In COMBINED mode it is filled with the
 // transparent yellow-on-yellow marker; in TEXT mode with the blue background.
-void graphics_clear_menu_text(void);
+void menu_text_clear_for_mode(void);
+inline static void graphics_clear_menu_text(void)
+{
+#ifdef PICO_RP2040
+    menu_text_clear_for_mode();
+#endif
+}
 
 // Compatibility wrapper used by older callers.
 void graphics_set_menu_text_mode(bool enabled);
-bool graphics_get_menu_text_mode(void);
+inline static bool graphics_get_menu_text_mode(void)
+{
+#ifdef PICO_RP2040
+    return menu_text_active();
+#else
+    return false;
+#endif
+}
 
 // Физический шаг строки кадрового буфера (в байтах), если он больше полезной
 // ширины. По умолчанию (после graphics_set_buffer) равен width. Используется
