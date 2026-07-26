@@ -176,19 +176,34 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     uint32_t h = (uint32_t)hs;
     uint32_t fntw = graphics_get_font_width();
     uint32_t fnth = graphics_get_font_height();
-    uint32_t msi = fnth + 1;
-    uint32_t xb = x + 2;
-    const uint32_t contentTop = y + fnth + 5;
-    const uint32_t inputBoxH = write ? fnth + 4 : 0;
-    const uint32_t hintLineH = write ? fnth + 2 : 0;
-    const uint32_t bottomAreaH = inputBoxH + hintLineH + (write ? 2 : 0);
+    const bool textMode =
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+        graphics_get_menu_text_mode();
+#else
+        false;
+#endif
+    if (textMode) {
+        x = 0;
+        y = 0;
+        w = sw;
+        h = sh;
+    }
+    uint32_t msi = textMode ? fnth : fnth + 1;
+    uint32_t xb = x + (textMode ? fntw : 2);
+    const uint32_t contentTop = y + (textMode ? fnth : fnth + 5);
+    const uint32_t inputBoxH = write ? (textMode ? fnth : fnth + 4) : 0;
+    const uint32_t hintLineH = write ? (textMode ? fnth : fnth + 2) : 0;
+    const uint32_t bottomAreaH =
+        inputBoxH + hintLineH + (write && !textMode ? 2 : 0);
     const uint32_t listBottom = y + h - 1 - bottomAreaH;
     uint32_t yb = contentTop;
     const uint32_t inputY = listBottom + 2;
     const uint32_t hintY = inputY + inputBoxH;
-    const uint32_t scrollW = 4;
+    const uint32_t scrollW = textMode ? fntw : 4;
     const uint32_t listW = w - 2 - scrollW;
-    const uint32_t scrollX = x + w - 1 - scrollW;
+    const uint32_t scrollX = textMode
+                           ? x + w - scrollW
+                           : x + w - 1 - scrollW;
     const char back[] = "..";
 
     // Карта могла быть не смонтирована при старте или вынута позже.
@@ -217,9 +232,14 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     }
     f_closedir(&f_dir);
 
-    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-    graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
-    graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+    if (textMode) {
+        graphics_fill(x, y, w, h, RGB888(255, 255, 255));
+        graphics_fill(x, y, w, fnth, RGB888(0, 48, 128));
+    } else {
+        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+        graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
+        graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+    }
 
     string t2;
 
@@ -245,21 +265,28 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             fileCount++;
         }
         fileCount += palGetDirContent(fdir, fileList + fileCount, MAX_FILE_DIALOG_ITEMS - fileCount);
-        sort(fileList, fileList + fileCount, [](const PalFileInfo& a, const PalFileInfo& b) {
+        const int first = (fileCount > 0 && fileList[0].fileName == "..") ? 1 : 0;
+        sort(fileList + first, fileList + fileCount, [](const PalFileInfo& a, const PalFileInfo& b) {
             if (a.isDir == b.isDir) return a.fileName < b.fileName;
             return a.isDir > b.isDir;
         });
     };
 
     auto drawTitle = [&]() {
-        graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
+        if (textMode) {
+            graphics_fill(x, y, w, fnth, RGB888(0, 48, 128));
+        } else {
+            graphics_fill(x + 1, y + 1, w - 2, fnth + 2, 0b000101);
+        }
         string t = title + ": " + fdir;
         if (readOnly)
             t += openReadOnly ? " [RO]" : " [RW]";
-        uint32_t xt = x + 1;
-        if (t.length() * fntw < w - 2)
-            xt = x + 1 + (w - 2 - t.length() * fntw) / 2;
-        graphics_type(xt, y + 3, 0b101010, t.c_str(), t.length());
+        uint32_t xt = x + (textMode ? fntw : 1);
+        const uint32_t titleW = textMode ? w - fntw : w - 2;
+        if (t.length() * fntw < titleW)
+            xt += (titleW - t.length() * fntw) / 2;
+        graphics_type(xt, y + (textMode ? 0 : 3),
+                      RGB888(255, 255, 255), t.c_str(), t.length());
     };
 
     bool inputFocused = write;
@@ -294,14 +321,22 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         uint32_t rowY = yb + row * msi;
         bool selected = itemIndex == selected_file_n;
         bool activeSelection = selected && (!write || !inputFocused);
-        uint32_t bg = activeSelection ? RGB888(114, 114, 224)
-                                      : selected ? RGB888(208, 208, 208) : RGB888(255, 255, 255);
-        uint32_t fg = activeSelection ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
-        graphics_fill(x + 1, rowY, listW, fnth, bg);
+        uint32_t bg = activeSelection ? RGB888(64, 192, 255)
+                                      : selected ? RGB888(208, 208, 208)
+                                                 : RGB888(255, 255, 255);
+        uint32_t fg = RGB888(0, 0, 0);
+        const uint32_t rowX = textMode ? x + fntw : x + 1;
+        const uint32_t rowW = textMode
+                            ? w - fntw - scrollW
+                            : listW;
+        graphics_fill(rowX, rowY, rowW, fnth, bg);
         if (itemIndex >= 0 && itemIndex < fileCount) {
             const PalFileInfo& fi = fileList[itemIndex];
             string name = fi.isDir ? "<" + fi.fileName + ">" : fi.fileName;
-            size_t maxChars = listW > 2 ? (listW - 2) / fntw : 0;
+            const uint32_t textWidth = textMode
+                                     ? w - 2 * fntw - scrollW
+                                     : (listW > 2 ? listW - 2 : 0);
+            size_t maxChars = textWidth / fntw;
             if (name.length() > maxChars) name.resize(maxChars);
             graphics_type(xb, rowY, fg, name.c_str(), name.length());
         }
@@ -310,15 +345,19 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     auto drawScrollbar = [&]() {
         uint32_t trackY = yb;
         uint32_t trackH = visibleRows * msi;
-        graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
+        graphics_fill(scrollX, trackY, scrollW, trackH,
+                      textMode ? RGB888(128, 128, 128)
+                               : RGB888(224, 224, 224));
         int total = fileCount;
         if (total <= visibleRows || trackH == 0) return;
         uint32_t thumbH = (uint32_t)((uint64_t)trackH * visibleRows / total);
-        if (thumbH < 4) thumbH = 4;
+        if (thumbH < scrollW) thumbH = scrollW;
         if (thumbH > trackH) thumbH = trackH;
         int maxShift = total - visibleRows;
         uint32_t thumbY = trackY + (uint32_t)((uint64_t)(trackH - thumbH) * shift_j / maxShift);
-        graphics_fill(scrollX, thumbY, scrollW, thumbH, RGB888(96, 96, 96));
+        graphics_fill(scrollX, thumbY, scrollW, thumbH,
+                      textMode ? RGB888(192, 192, 192)
+                               : RGB888(96, 96, 96));
     };
 
     auto drawWindow = [&]() {
@@ -337,8 +376,13 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     };
 
     auto redrawDialog = [&]() {
-        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-        graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+        if (textMode) {
+            graphics_fill(x, y, w, h, RGB888(255, 255, 255));
+            graphics_fill(x, y, w, fnth, RGB888(0, 48, 128));
+        } else {
+            graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+            graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
+        }
         drawTitle();
         drawInput();
         drawWindow();

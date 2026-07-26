@@ -1186,10 +1186,15 @@ void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
 void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
 #ifdef PICO_RP2040
     if (menu_text_mode) {
-        int cx0 = x0 / MENU_TEXT_CELL_W;
-        int cy0 = y0 / MENU_TEXT_CELL_H;
-        int cx1 = (x0 + (int32_t)width) / MENU_TEXT_CELL_W;
-        int cy1 = (y0 + (int32_t)height) / MENU_TEXT_CELL_H;
+        if (width == 0 || height == 0)
+            return;
+
+        const int cx0 = x0 / MENU_TEXT_CELL_W;
+        const int cy0 = y0 / MENU_TEXT_CELL_H;
+        const int cx1 =
+            (x0 + (int32_t)width - 1) / MENU_TEXT_CELL_W;
+        const int cy1 =
+            (y0 + (int32_t)height - 1) / MENU_TEXT_CELL_H;
         const uint8_t bg = menu_color_index(bgcolor);
         for (int cy = cy0; cy <= cy1; ++cy)
             for (int cx = cx0; cx <= cx1; ++cx) {

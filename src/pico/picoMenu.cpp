@@ -839,6 +839,7 @@ void tapeEject()
 }
 
 bool textMenuMode();
+static void drawTextDialog(const char* title, const char* const* lines, int lineCount);
 static const MenuItem tapeItems[] = {
     {"Redirect tape I/O [Alt+T]", nullptr, nullptr, toggleTapeHooks, nullptr, tapeHooksChecked, true},
     {"Load tape image...", nullptr, nullptr, tapeLoad, nullptr, nullptr},
@@ -852,44 +853,8 @@ static const MenuPage tapePage {
 };
 void showSnapshotMessage(const char* title, const char* line1, const char* line2 = nullptr)
 {
-    const int screenW = graphics_get_width();
-    const int screenH = graphics_get_height();
-    const int visibleH = static_cast<int>(graphics_get_visible_height());
-    const int fontW = graphics_get_font_width();
-    const int fontH = graphics_get_font_height();
-    const int rowH = fontH + 2;
-
-    size_t longest = std::max(std::strlen(title), std::strlen(line1));
-    if (line2)
-        longest = std::max(longest, std::strlen(line2));
-    longest = std::max(longest, std::strlen("Enter / Esc - close"));
-
-    int w = static_cast<int>(longest + 4) * fontW;
-    int h = fontH + 7 + (line2 ? 3 : 2) * rowH + 4;
-    w = std::min(w, screenW - 8);
-    h = std::min(h, visibleH - 8);
-    int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
-    int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
-    x = std::max(0, std::min(x, screenW - w));
-    y = std::max(0, std::min(y, screenH - h));
-
-    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
-    graphics_fill(x, y, w, h, RGB888(232, 232, 232));
-    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
-    graphics_type(x + (textMenuMode() ? fontW : 5),
-                  y + (textMenuMode() ? 0 : 3),
-                  RGB888(255, 255, 255), title, std::strlen(title));
-
-    int lineY = y + fontH + 7;
-    graphics_type(x + 5, lineY, RGB888(0, 0, 0), line1, std::strlen(line1));
-    lineY += rowH;
-    if (line2) {
-        graphics_type(x + 5, lineY, RGB888(0, 0, 0), line2, std::strlen(line2));
-        lineY += rowH;
-    }
-    static const char closeText[] = "Enter / Esc - close";
-    graphics_type(x + 5, lineY, RGB888(0, 0, 0), closeText, sizeof(closeText) - 1);
+    const char* lines[3] = { line1, line2, "Enter / Esc - close" };
+    drawTextDialog(title, lines, line2 ? 3 : 2);
 
     while (true) {
         sleep_ms(100);
@@ -1551,22 +1516,56 @@ static void drawTextDialog(const char* title, const char* const* lines, int line
     const int visibleH = static_cast<int>(graphics_get_visible_height());
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
-    const int rowH = fontH + 2;
+    const bool textMode =
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+        graphics_get_menu_text_mode();
+#else
+        false;
+#endif
+    const int rowH = textMode ? fontH : fontH + 2;
 
     size_t longest = std::strlen(title);
     for (int i = 0; i < lineCount; ++i)
         longest = std::max(longest, std::strlen(lines[i]));
 
-    int w = static_cast<int>(longest + 4) * fontW;
-    int h = fontH + 7 + lineCount * rowH + 4;
-    w = std::min(w, screenW - 8);
-    h = std::min(h, visibleH - 8);
+    int w;
+    int h;
+    if (textMode) {
+        w = static_cast<int>(longest + 4) * fontW;
+        h = (lineCount + 1) * fontH;
+    } else {
+        w = static_cast<int>(longest + 4) * fontW;
+        h = fontH + 7 + lineCount * rowH + 4;
+    }
+    w = std::min(w, screenW - (textMode ? 2 * fontW : 8));
+    h = std::min(h, visibleH - (textMode ? 2 * fontH : 8));
 
-    // TV-out может сдвигать видимую область относительно framebuffer.
     int x = (screenW - w) / 2 - graphics_get_picture_shift_x();
     int y = (visibleH - h) / 2 - graphics_get_picture_shift_y();
     x = std::max(0, std::min(x, screenW - w));
     y = std::max(0, std::min(y, screenH - h));
+
+    if (textMode) {
+        graphics_fill(x + fontW, y, w, h + fontH, RGB888(32, 32, 32));
+        graphics_fill(x, y, w, h, RGB888(232, 232, 232));
+        graphics_fill(x, y, w, fontH, RGB888(0, 48, 128));
+        graphics_fill(x, y + fontH, w,
+                      h - fontH, RGB888(232, 232, 232));
+
+        graphics_type(x, y, RGB888(255, 255, 255),
+                      title, std::strlen(title));
+
+        int lineY = y + fontH;
+        for (int i = 0; i < lineCount; ++i) {
+            const int len = static_cast<int>(std::strlen(lines[i]));
+            const int usableW = w - 3 * fontW;
+            const int lineX = x + fontW
+                            + std::max(0, (usableW - len * fontW) / 2);
+            graphics_type(lineX, lineY, RGB888(0, 0, 0), lines[i], len);
+            lineY += fontH;
+        }
+        return;
+    }
 
     graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
@@ -1836,7 +1835,7 @@ int pageHeight(const MenuPage& page)
     const int statusRows = (page.getStatusLine1 ? 1 : 0)
                          + (page.getStatusLine2 ? 1 : 0);
     if (textMenuMode())
-        return (rows + statusRows + 2) * rowH;
+        return (rows + statusRows + 1) * rowH;
 
     const int fontH = graphics_get_font_height();
     return fontH + 6 + (rows + statusRows) * rowH + 2;
@@ -1874,9 +1873,12 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
     const uint8_t fg = !enabled ? RGB888(128, 128, 128)
                                 : RGB888(0, 0, 0);
     const int insetX = textMenuMode() ? fontW : 2;
+    const int fillW = textMenuMode()
+                    ? w - insetX - fontW
+                    : w - 2 * insetX;
 
-    graphics_fill(x + insetX, rowY, w - 2 * insetX, rowH - 1,
-                  current ? RGB888(64, 128, 255)
+    graphics_fill(x + insetX, rowY, fillW, rowH - 1,
+                  current ? RGB888(64, 192, 255)
                           : RGB888(232, 232, 232));
 
     const char* itemTitle = page.items[index].getTitle
@@ -1903,17 +1905,22 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 {
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
-    const int shadowX = textMenuMode() ? fontW : 4;
+    const int shadowX = textMenuMode() ? 0 : 4;
     const int shadowY = textMenuMode() ? fontH : 4;
 
     graphics_fill(x + shadowX, y + shadowY, w, h, RGB888(32, 32, 32));
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
-    graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-    graphics_fill(x + (textMenuMode() ? fontW : 1),
-                  y + (textMenuMode() ? 0 : 1),
-                  w - (textMenuMode() ? 2 * fontW : 2),
-                  textMenuMode() ? fontH - 1 : fontH + 4,
-                  RGB888(0, 48, 128));
+    if (!textMenuMode())
+        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
+
+    if (textMenuMode()) {
+        graphics_fill(x + w - fontW, y, fontW, h, RGB888(0, 0, 0));
+        graphics_fill(x, y, w - fontW, fontH, RGB888(0, 48, 128));
+        graphics_fill(x, y + h, fontW, fontH, RGB888(0, 48, 128));
+    } else {
+        graphics_fill(x + 1, y + 1, w - 2, fontH + 4,
+                      RGB888(0, 48, 128));
+    }
 
     const char* title = page.getTitle ? page.getTitle() : page.title;
     graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, std::strlen(title));
