@@ -22,6 +22,12 @@
 
 extern PalKeyCodeAction getKey();
 
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifndef RP2040_MENU_VIDEO_MODE
+#define RP2040_MENU_VIDEO_MODE GRAPHICS_VIDEO_COMBINED
+#endif
+#endif
+
 char* appendText(char* dst, const char* text)
 {
     while (*text)
@@ -1874,7 +1880,7 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
                                 : RGB888(0, 0, 0);
     const int insetX = textMenuMode() ? fontW : 2;
     const int fillW = textMenuMode()
-                    ? w - insetX - fontW
+                    ? w - insetX
                     : w - 2 * insetX;
 
     graphics_fill(x + insetX, rowY, fillW, rowH - 1,
@@ -1905,18 +1911,17 @@ void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 {
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
-    const int shadowX = textMenuMode() ? 0 : 4;
-    const int shadowY = textMenuMode() ? fontH : 4;
+    if (textMenuMode())
+        graphics_fill(x + fontW, y, w, h + fontH, RGB888(32, 32, 32));
+    else
+        graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
 
-    graphics_fill(x + shadowX, y + shadowY, w, h, RGB888(32, 32, 32));
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
     if (!textMenuMode())
         graphics_rect(x, y, w, h, RGB888(0, 0, 0));
 
     if (textMenuMode()) {
-        graphics_fill(x + w - fontW, y, fontW, h, RGB888(0, 0, 0));
-        graphics_fill(x, y, w - fontW, fontH, RGB888(0, 48, 128));
-        graphics_fill(x, y + h, fontW, fontH, RGB888(0, 48, 128));
+        graphics_fill(x, y, w, fontH, RGB888(0, 48, 128));
     } else {
         graphics_fill(x + 1, y + 1, w - 2, fontH + 4,
                       RGB888(0, 48, 128));
@@ -2113,8 +2118,10 @@ void relayoutMenu()
 {
 #if defined(PICO_RP2040) && defined(VGA_DRV)
     if (graphics_get_menu_text_mode()) {
-        graphics_fill(0, 0, graphics_get_width() - 1,
-                      graphics_get_height() - 1, RGB888(0, 0, 128));
+        graphics_clear_menu_text();
+        if (graphics_get_video_content_mode() == GRAPHICS_VIDEO_TEXT)
+            graphics_fill(0, 0, graphics_get_width() - 1,
+                          graphics_get_height() - 1, RGB888(0, 0, 128));
         for (int d = 0; d <= menu.depth; ++d) {
             layoutLevel(d);
             drawPage(*menu.stack[d], menu.selected[d],
@@ -2195,7 +2202,7 @@ void palOpenMainMenu()
         menu.mixer->setMuted(true);
 
 #if defined(PICO_RP2040) && defined(VGA_DRV)
-    graphics_set_menu_text_mode(true);
+    graphics_set_video_content_mode(RP2040_MENU_VIDEO_MODE);
 #endif
 
     const int screenW = graphics_get_width();
@@ -2227,7 +2234,7 @@ void palCloseMainMenu()
         popBackground(d);
     menu.open = false;
 #if defined(PICO_RP2040) && defined(VGA_DRV)
-    graphics_set_menu_text_mode(false);
+    graphics_set_video_content_mode(GRAPHICS_VIDEO_VECTOR);
 #endif
     saveMenuStateImpl();
     if (menu.mixer)

@@ -51,8 +51,21 @@ void graphics_system_clock_changed();
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
-// RP2040/VGA: while the menu is open, switch the scan-line source from the
-// Vector framebuffer renderer to a compact 100x37 text screen.
+// RP2040/VGA scan-line source.
+typedef enum {
+    GRAPHICS_VIDEO_VECTOR = 0,
+    GRAPHICS_VIDEO_TEXT = 1,
+    GRAPHICS_VIDEO_COMBINED = 2
+} graphics_video_content_mode_t;
+
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
+graphics_video_content_mode_t graphics_get_video_content_mode(void);
+
+// Clear the 100x37 menu surface. In COMBINED mode it is filled with the
+// transparent yellow-on-yellow marker; in TEXT mode with the blue background.
+void graphics_clear_menu_text(void);
+
+// Compatibility wrapper used by older callers.
 void graphics_set_menu_text_mode(bool enabled);
 bool graphics_get_menu_text_mode(void);
 
