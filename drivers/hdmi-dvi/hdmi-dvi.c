@@ -61,6 +61,19 @@ static uint8_t __attribute__((aligned(4))) line_buf[DVI_FRAME_WIDTH];
 // Полностью пустая строка в уже закодированном виде — для полей сверху и снизу
 static uint32_t __attribute__((aligned(4))) blank_tmds[TMDS_WORDS];
 
+#ifdef PICO_RP2040
+/*
+ * tmds_palette_encode_loop_x/y is unrolled for 80 input pixels per
+ * iteration. n_pix must be a multiple of 80.
+ */
+#define TMDS_PALETTE_SPAN_GRANULARITY 80
+
+static uint32_t* vector_blank_tmds_buffers[DVI_N_TMDS_BUFFERS];
+static uint8_t vector_blank_tmds_count = 0;
+static int vector_span_x = -1;
+static int vector_span_width = -1;
+#endif
+
 // Символы TMDS для 64 цветов: шесть слов на цвет (две полярности x три канала)
 static uint32_t __attribute__((aligned(4))) tmds_palette[64 * 6];
 
@@ -543,6 +556,26 @@ void copy_words(uint32_t *dst, const uint32_t *src, size_t n)
     video_copy_u32(dst, src, n);
 }
 
+#ifdef PICO_RP2040
+static inline __attribute__((always_inline))
+void vector_reset_blank_buffer_cache(void)
+{
+    vector_blank_tmds_count = 0;
+}
+
+static inline __attribute__((always_inline))
+void vector_ensure_blank_tmds_buffer(uint32_t* tmdsbuf)
+{
+    for (unsigned i = 0; i < vector_blank_tmds_count; ++i)
+        if (vector_blank_tmds_buffers[i] == tmdsbuf)
+            return;
+
+    copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
+    if (vector_blank_tmds_count < DVI_N_TMDS_BUFFERS)
+        vector_blank_tmds_buffers[vector_blank_tmds_count++] = tmdsbuf;
+}
+#endif
+
 void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
     // DMA_IRQ_0 берётся именно здесь, на ядре 1: обработчики прерываний
     // в RP2xxx свои у каждого ядра. Драйвер VGA в этой сборке не линкуется,
@@ -555,13 +588,9 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
         for (int y = 0; y < DVI_FRAME_HEIGHT; ++y) {
 #ifdef PICO_RP2040
             if (y == 0) {
-                /*
-                 * Clear the persistent RGB222 line once per frame.  Pixels
-                 * outside the current Vector source rectangle then remain
-                 * black, while the source rectangle is overwritten for every
-                 * generated line.
-                 */
+#if HDMI_RP2040_DIAG_MODE != 1
                 video_fill_u8(line_buf, 0, sizeof(line_buf));
+#endif
                 vector_frame_state_valid =
                     vector_video_snapshot(&vector_frame_state);
                 if (vector_frame_state_valid)
@@ -607,11 +636,54 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 src < 0 || src >= vector_height) {
                 copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
             } else {
+                const int source_width =
+                    vector_frame_state.show_border ? 626 : 512;
+                int source_left =
+                    (DVI_FRAME_WIDTH - source_width) / 2 + pic_shift_x;
+                int visible_left = source_left;
+                int visible_right = source_left + source_width;
+
+                if (visible_left < 0)
+                    visible_left = 0;
+                if (visible_right > DVI_FRAME_WIDTH)
+                    visible_right = DVI_FRAME_WIDTH;
+
+                /*
+                 * The assembler palette loop processes 80 pixels per
+                 * unrolled iteration. Start from the real beginning of the
+                 * scanline so DC balance is initialized correctly, and round
+                 * the encoded right edge up to a complete 80-pixel block.
+                 */
+                const int encode_x = 0;
+                int encode_right =
+                    ((visible_right + TMDS_PALETTE_SPAN_GRANULARITY - 1) /
+                     TMDS_PALETTE_SPAN_GRANULARITY) *
+                    TMDS_PALETTE_SPAN_GRANULARITY;
+                if (encode_right > DVI_FRAME_WIDTH)
+                    encode_right = DVI_FRAME_WIDTH;
+                const int encode_width = encode_right;
+
+                if (encode_x != vector_span_x ||
+                    encode_width != vector_span_width) {
+                    vector_span_x = encode_x;
+                    vector_span_width = encode_width;
+                    vector_reset_blank_buffer_cache();
+                }
+
                 render_vector_dvi_line(
                     line_buf, src, &vector_frame_state);
-                tmds_encode_palette_data(
-                    (const uint32_t*)line_buf, tmds_palette,
-                    tmdsbuf, DVI_FRAME_WIDTH, 6);
+
+                if (encode_width > 0) {
+                    vector_ensure_blank_tmds_buffer(tmdsbuf);
+                    tmds_encode_palette_data_span(
+                        (const uint32_t*)(line_buf + encode_x),
+                        tmds_palette, tmdsbuf,
+                        DVI_FRAME_WIDTH,
+                        (size_t)encode_x,
+                        (size_t)encode_width, 6);
+                } else {
+                    copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
+                }
             }
 #endif
 #else

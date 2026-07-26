@@ -366,3 +366,76 @@ void __not_in_flash_func(tmds_encode_palette_data)(const uint32_t *pixbuf, const
 	interp_restore(interp1_hw, &interp1_save);
 #endif
 }
+
+void __not_in_flash_func(tmds_encode_palette_data_span)(
+        const uint32_t *pixbuf,
+        const uint32_t *tmds_palette,
+        uint32_t *symbuf,
+        size_t full_width,
+        size_t x,
+        size_t n_pix,
+        uint32_t palette_bits)
+{
+    /*
+     * The assembly loop packs two TMDS symbols into each uint32_t output
+     * word.  A span therefore starts at x / 2 words in every colour plane.
+     */
+    const size_t full_plane_words = full_width >> 1;
+    const size_t span_word_offset = x >> 1;
+    uint core = get_core_num();
+
+#if !TMDS_FULLRES_NO_INTERP_SAVE
+    interp_hw_save_t interp0_save, interp1_save;
+    interp_save(interp0_hw, &interp0_save);
+    interp_save(interp1_hw, &interp1_save);
+#endif
+
+    interp0_hw->base[2] = (uint32_t)tmds_palette;
+    interp1_hw->base[2] = (uint32_t)tmds_palette;
+
+    interp0_hw->ctrl[0] =
+        (2 << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
+        ((palette_bits + 1) << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB);
+    interp1_hw->ctrl[0] =
+        (8 << SIO_INTERP0_CTRL_LANE0_SHIFT_LSB) |
+        (2 << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
+        ((palette_bits + 1) << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB);
+
+    const uint32_t ctrl_lane_1 =
+        ((31 - (palette_bits + 2)) << SIO_INTERP0_CTRL_LANE0_SHIFT_LSB) |
+        (palette_bits + 2) *
+            ((1 << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
+             (1 << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB));
+    interp0_hw->ctrl[1] = ctrl_lane_1;
+    interp1_hw->ctrl[1] = ctrl_lane_1;
+
+#define ENCODE_SPAN_PLANE(dst_)                                           \
+    do {                                                                  \
+        if (core)                                                         \
+            tmds_palette_encode_loop_x(pixbuf, (dst_), n_pix);            \
+        else                                                              \
+            tmds_palette_encode_loop_y(pixbuf, (dst_), n_pix);            \
+    } while (0)
+
+    ENCODE_SPAN_PLANE(symbuf + span_word_offset);
+
+    interp0_hw->base[2] =
+        (uint32_t)(tmds_palette + (2 << palette_bits));
+    interp1_hw->base[2] =
+        (uint32_t)(tmds_palette + (2 << palette_bits));
+    ENCODE_SPAN_PLANE(symbuf + full_plane_words + span_word_offset);
+
+    interp0_hw->base[2] =
+        (uint32_t)(tmds_palette + (4 << palette_bits));
+    interp1_hw->base[2] =
+        (uint32_t)(tmds_palette + (4 << palette_bits));
+    ENCODE_SPAN_PLANE(symbuf + 2 * full_plane_words + span_word_offset);
+
+#undef ENCODE_SPAN_PLANE
+
+#if !TMDS_FULLRES_NO_INTERP_SAVE
+    interp_restore(interp0_hw, &interp0_save);
+    interp_restore(interp1_hw, &interp1_save);
+#endif
+}
+

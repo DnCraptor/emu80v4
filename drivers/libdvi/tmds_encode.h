@@ -12,6 +12,17 @@ void tmds_setup_palette_symbols(const uint16_t *palette, uint32_t *symbuf, size_
 void tmds_setup_palette24_symbols(const uint32_t *palette, uint32_t *symbuf, size_t n_palette);
 void tmds_encode_palette_data(const uint32_t *pixbuf, const uint32_t *tmds_palette, uint32_t *symbuf, size_t n_pix, uint32_t palette_bits);
 
+// Encode a horizontal span directly into an already initialized full-width
+// TMDS buffer. x and n_pix must be even; full_width is the complete scanline
+// width. Pixels outside the span are left untouched.
+void tmds_encode_palette_data_span(const uint32_t *pixbuf,
+                                   const uint32_t *tmds_palette,
+                                   uint32_t *symbuf,
+                                   size_t full_width,
+                                   size_t x,
+                                   size_t n_pix,
+                                   uint32_t palette_bits);
+
 // Functions from tmds_encode.S
 
 void tmds_encode_1bpp_bk_720(const uint32_t *pixbuf, uint32_t *symbuf, uint32_t n_pix);
