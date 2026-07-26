@@ -829,11 +829,19 @@ uint16_t graphics_get_line_stride(void) {
 }
 
 void graphics_inc_x(void) {
+#ifdef PICO_RP2040
+    graphics_buffer_shift_x += menu_text_mode ? MENU_TEXT_CELL_W : 16;
+#else
     graphics_buffer_shift_x++;
+#endif
 }
 
 void graphics_dec_x(void) {
+#ifdef PICO_RP2040
+    graphics_buffer_shift_x -= menu_text_mode ? MENU_TEXT_CELL_W : 16;
+#else
     graphics_buffer_shift_x--;
+#endif
 }
 
 void graphics_inc_y(void) {
@@ -1185,10 +1193,9 @@ void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
         const uint8_t bg = menu_color_index(bgcolor);
         for (int cy = cy0; cy <= cy1; ++cy)
             for (int cx = cx0; cx <= cx1; ++cx) {
-                uint8_t fg = 7;
-                if ((unsigned)cx < MENU_TEXT_COLS &&
-                    (unsigned)cy < MENU_TEXT_ROWS)
-                    fg = (uint8_t)(menu_text_cells[cy * MENU_TEXT_COLS + cx] >> 8) & 0x0f;
+                const uint8_t fg =
+                    (bg == 0 || bg == 1 || bg == 4 || bg == 5 || bg == 8)
+                    ? 7u : 0u;
                 menu_text_put_cell(cx, cy, ' ', (uint8_t)((bg << 4) | fg));
             }
         return;

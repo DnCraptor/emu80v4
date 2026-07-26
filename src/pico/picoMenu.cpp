@@ -838,6 +838,7 @@ void tapeEject()
         core->ejectTapeFiles();
 }
 
+bool textMenuMode();
 static const MenuItem tapeItems[] = {
     {"Redirect tape I/O [Alt+T]", nullptr, nullptr, toggleTapeHooks, nullptr, tapeHooksChecked, true},
     {"Load tape image...", nullptr, nullptr, tapeLoad, nullptr, nullptr},
@@ -876,7 +877,9 @@ void showSnapshotMessage(const char* title, const char* line1, const char* line2
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
     graphics_rect(x, y, w, h, RGB888(0, 0, 0));
     graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
-    graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, std::strlen(title));
+    graphics_type(x + (textMenuMode() ? fontW : 5),
+                  y + (textMenuMode() ? 0 : 3),
+                  RGB888(255, 255, 255), title, std::strlen(title));
 
     int lineY = y + fontH + 7;
     graphics_type(x + 5, lineY, RGB888(0, 0, 0), line1, std::strlen(line1));
@@ -1788,8 +1791,8 @@ void popBackground(int depth)
     r.valid = false;
 }
 #else
-// В текстовом режиме RP2040 пиксели фона не сохраняются, но геометрия каждого
-// уровня нужна, чтобы при закрытии подменю затереть его общим фоном.
+// В текстовом режиме RP2040 пиксели не сохраняются. При закрытии и
+// перемещении перерисовывается весь оставшийся каскад на чистом фоне.
 struct BackupRec {
     int x, y, w, h, offset;
     bool valid;
@@ -1800,35 +1803,42 @@ void pushBackground(int depth, int x, int y, int w, int h)
 {
     if (depth < 0 || depth >= c_menuMaxDepth)
         return;
-
-    const int screenW = graphics_get_width();
-    const int screenH = graphics_get_height();
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x + w > screenW) w = screenW - x;
-    if (y + h > screenH) h = screenH - y;
-
-    s_backup[depth] = {x, y, w, h, 0, w > 0 && h > 0};
+    s_backup[depth] = {x, y, w, h, 0, true};
 }
 
 void popBackground(int depth)
 {
     if (depth < 0 || depth >= c_menuMaxDepth)
         return;
-
-    BackupRec& r = s_backup[depth];
-    if (r.valid)
-        graphics_fill(r.x, r.y, r.w, r.h, RGB888(0, 0, 128));
-    r.valid = false;
+    s_backup[depth].valid = false;
 }
 #endif
 
-int pageHeight(const MenuPage& page)
+bool textMenuMode()
+{
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    return graphics_get_menu_text_mode();
+#else
+    return false;
+#endif
+}
+
+int menuRowHeight()
 {
     const int fontH = graphics_get_font_height();
-    const int rowH = fontH + 3;
+    return textMenuMode() ? fontH : fontH + 3;
+}
+
+int pageHeight(const MenuPage& page)
+{
+    const int rowH = menuRowHeight();
     const int rows = page.itemCount > 0 ? page.itemCount : 1;
-    const int statusRows = (page.getStatusLine1 ? 1 : 0) + (page.getStatusLine2 ? 1 : 0);
+    const int statusRows = (page.getStatusLine1 ? 1 : 0)
+                         + (page.getStatusLine2 ? 1 : 0);
+    if (textMenuMode())
+        return (rows + statusRows + 2) * rowH;
+
+    const int fontH = graphics_get_font_height();
     return fontH + 6 + (rows + statusRows) * rowH + 2;
 }
 
@@ -1839,6 +1849,9 @@ bool backupValid = false;
 // Геометрия строки списка внутри страницы
 int rowTop(int y, int index)
 {
+    if (textMenuMode())
+        return y + menuRowHeight() + index * menuRowHeight();
+
     const int fontH = graphics_get_font_height();
     return y + fontH + 5 + index * (fontH + 3);
 }
@@ -1853,40 +1866,54 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
         return;
 
     const int fontW = graphics_get_font_width();
-    const int fontH = graphics_get_font_height();
-    const int rowH = fontH + 3;
+    const int rowH = menuRowHeight();
     const int rowY = rowTop(y, index);
     const bool current = index == selected;
-    const bool enabled = !page.items[index].isEnabled || page.items[index].isEnabled();
+    const bool enabled = !page.items[index].isEnabled
+                      || page.items[index].isEnabled();
     const uint8_t fg = !enabled ? RGB888(128, 128, 128)
-                     : RGB888(0, 0, 0);
+                                : RGB888(0, 0, 0);
+    const int insetX = textMenuMode() ? fontW : 2;
 
-    graphics_fill(x + 2, rowY, w - 4, rowH,
-                  current ? RGB888(64, 128, 255) : RGB888(232, 232, 232));
+    graphics_fill(x + insetX, rowY, w - 2 * insetX, rowH - 1,
+                  current ? RGB888(64, 128, 255)
+                          : RGB888(232, 232, 232));
+
     const char* itemTitle = page.items[index].getTitle
                           ? page.items[index].getTitle()
                           : page.items[index].title;
-    graphics_type(x + 6, rowY + 1, fg, itemTitle, std::strlen(itemTitle));
+    graphics_type(x + (textMenuMode() ? fontW : 6),
+                  rowY + (textMenuMode() ? 0 : 1),
+                  fg, itemTitle, std::strlen(itemTitle));
 
     if ((page.getValue && page.getValue() == index)
         || (page.items[index].isChecked && page.items[index].isChecked())) {
         const char mark[] = "*";
-        graphics_type(x + w - fontW - 6, rowY + 1, fg, mark, 1);
+        graphics_type(x + w - fontW - 6,
+                      rowY + (textMenuMode() ? 0 : 1), fg, mark, 1);
     }
     if (page.items[index].submenu) {
         const char arrow[] = ">";
-        graphics_type(x + w - fontW - 6, rowY + 1, fg, arrow, 1);
+        graphics_type(x + w - fontW - 6,
+                      rowY + (textMenuMode() ? 0 : 1), fg, arrow, 1);
     }
 }
 
 void drawPage(const MenuPage& page, int selected, int x, int y, int w, int h)
 {
+    const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
+    const int shadowX = textMenuMode() ? fontW : 4;
+    const int shadowY = textMenuMode() ? fontH : 4;
 
-    graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));
+    graphics_fill(x + shadowX, y + shadowY, w, h, RGB888(32, 32, 32));
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
     graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-    graphics_fill(x + 1, y + 1, w - 2, fontH + 4, RGB888(0, 48, 128));
+    graphics_fill(x + (textMenuMode() ? fontW : 1),
+                  y + (textMenuMode() ? 0 : 1),
+                  w - (textMenuMode() ? 2 * fontW : 2),
+                  textMenuMode() ? fontH - 1 : fontH + 4,
+                  RGB888(0, 48, 128));
 
     const char* title = page.getTitle ? page.getTitle() : page.title;
     graphics_type(x + 5, y + 3, RGB888(255, 255, 255), title, std::strlen(title));
@@ -2037,17 +2064,27 @@ void layoutLevel(int d)
     int nx, ny;
 
     if (d == 0) {
-        // из экранных координат в координаты буфера
-        nx = s_menuScreenX - graphics_get_picture_shift_x();
-        ny = s_menuScreenY - graphics_get_picture_shift_y();
+        const int marginX = textMenuMode() ? graphics_get_font_width() : 0;
+        const int marginY = textMenuMode() ? graphics_get_font_height() : 0;
+        nx = marginX + s_menuScreenX - graphics_get_picture_shift_x();
+        ny = marginY + s_menuScreenY - graphics_get_picture_shift_y();
     } else {
+        const int fontW = graphics_get_font_width();
         const int fontH = graphics_get_font_height();
-        nx = menu.pageX[d - 1] + menu.pageW[d - 1] + 2;
-        ny = menu.pageY[d - 1] + fontH + 5 + menu.selected[d - 1] * (fontH + 3) - 2;
+        nx = menu.pageX[d - 1] + menu.pageW[d - 1]
+           + (textMenuMode() ? fontW : 2);
+        ny = textMenuMode()
+           ? rowTop(menu.pageY[d - 1], menu.selected[d - 1])
+           : menu.pageY[d - 1] + fontH + 5
+             + menu.selected[d - 1] * (fontH + 3) - 2;
     }
 
-    if (nx + nw + 4 > screenW) nx = std::max(0, screenW - nw - 4);
-    if (ny + nh + 4 > menu.screenH) ny = std::max(0, menu.screenH - nh - 4);
+    const int shadowX = textMenuMode() ? graphics_get_font_width() : 4;
+    const int shadowY = textMenuMode() ? graphics_get_font_height() : 4;
+    if (nx + nw + shadowX > screenW)
+        nx = std::max(0, screenW - nw - shadowX);
+    if (ny + nh + shadowY > menu.screenH)
+        ny = std::max(0, menu.screenH - nh - shadowY);
     if (nx < 0) nx = 0;
     if (ny < 0) ny = 0;
 
@@ -2067,6 +2104,20 @@ void layoutLevel(int d)
 // след: стереть его нечем, эмуляция стоит на паузе.
 void relayoutMenu()
 {
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    if (graphics_get_menu_text_mode()) {
+        graphics_fill(0, 0, graphics_get_width() - 1,
+                      graphics_get_height() - 1, RGB888(0, 0, 128));
+        for (int d = 0; d <= menu.depth; ++d) {
+            layoutLevel(d);
+            drawPage(*menu.stack[d], menu.selected[d],
+                     menu.pageX[d], menu.pageY[d],
+                     menu.pageW[d], menu.pageH[d]);
+        }
+        return;
+    }
+#endif
+
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
 #ifndef PICO_RP2040
@@ -2078,7 +2129,8 @@ void relayoutMenu()
         pushBackground(d, menu.pageX[d], menu.pageY[d],
                        menu.pageW[d] + 5, menu.pageH[d] + 5);
         drawPage(*menu.stack[d], menu.selected[d],
-                 menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
+                 menu.pageX[d], menu.pageY[d],
+                 menu.pageW[d], menu.pageH[d]);
     }
 }
 
@@ -2212,7 +2264,11 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         // Фон под закрываемым подменю возвращается на место
         popBackground(menu.depth);
         --menu.depth;
-        return true;   // родительская страница уже на экране, перерисовка не нужна
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+        if (graphics_get_menu_text_mode())
+            relayoutMenu();
+#endif
+        return true;
     } else if (page->itemCount > 0 && (keyCode == PK_UP || keyCode == PK_DOWN)) {
         moveSelection(keyCode == PK_UP ? -1 : 1);
         menu.repeatKey = keyCode;
@@ -2326,6 +2382,12 @@ void palMainMenuShift(int dx, int dy)
     const int screenW = graphics_get_width();
     const int visibleH = (int)graphics_get_visible_height();
 
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    if (graphics_get_menu_text_mode()) {
+        dx *= graphics_get_font_width();
+        dy *= graphics_get_font_height();
+    }
+#endif
     s_menuScreenX += dx;
     s_menuScreenY += dy;
 
