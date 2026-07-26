@@ -742,6 +742,7 @@ void __not_in_flash_func(VectorRenderer::vidMemWriteNotify)()
 }
 
 
+#ifndef PICO_RP2040
 void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int lastPx, uint8_t* linePtr)
 {
     // Render scan line #nLine
@@ -826,22 +827,11 @@ void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int
             m_lastColor = m_borderColor;
     }
 }
-
+#endif
 
 void VectorRenderer::renderFrame()
 {
     g_emulation->notifyFrameRendered();
-    /**
-    if (m_showBorder)
-        memcpy(m_pixelData, m_frameBuf, m_sizeX * m_sizeY);
-    else {
-        uint8_t* ptr = m_frameBuf + 626 * 16 + 57;
-        for (int i = 0; i < 256 * 512; i += 512) {
-            memcpy(m_pixelData + i, ptr, 512);
-            ptr += 626;
-        }
-    }
-*/
     swapBuffers();
     prepareFrame();
     applyFrameBuffer();

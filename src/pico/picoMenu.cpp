@@ -1788,10 +1788,39 @@ void popBackground(int depth)
     r.valid = false;
 }
 #else
-// На RP2040 кадр Вектора собирается напрямую в VGA IRQ на core1. Меню должно
-// накладываться как OSD, поэтому сохранять и восстанавливать фон не требуется.
-void pushBackground(int, int, int, int, int) {}
-void popBackground(int) {}
+// В текстовом режиме RP2040 пиксели фона не сохраняются, но геометрия каждого
+// уровня нужна, чтобы при закрытии подменю затереть его общим фоном.
+struct BackupRec {
+    int x, y, w, h, offset;
+    bool valid;
+};
+static BackupRec s_backup[c_menuMaxDepth];
+
+void pushBackground(int depth, int x, int y, int w, int h)
+{
+    if (depth < 0 || depth >= c_menuMaxDepth)
+        return;
+
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > screenW) w = screenW - x;
+    if (y + h > screenH) h = screenH - y;
+
+    s_backup[depth] = {x, y, w, h, 0, w > 0 && h > 0};
+}
+
+void popBackground(int depth)
+{
+    if (depth < 0 || depth >= c_menuMaxDepth)
+        return;
+
+    BackupRec& r = s_backup[depth];
+    if (r.valid)
+        graphics_fill(r.x, r.y, r.w, r.h, RGB888(0, 0, 128));
+    r.valid = false;
+}
 #endif
 
 int pageHeight(const MenuPage& page)
@@ -1830,10 +1859,10 @@ void drawItem(const MenuPage& page, int index, int selected, int x, int y, int w
     const bool current = index == selected;
     const bool enabled = !page.items[index].isEnabled || page.items[index].isEnabled();
     const uint8_t fg = !enabled ? RGB888(128, 128, 128)
-                     : current ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
+                     : RGB888(0, 0, 0);
 
     graphics_fill(x + 2, rowY, w - 4, rowH,
-                  current ? RGB888(64, 96, 192) : RGB888(232, 232, 232));
+                  current ? RGB888(64, 128, 255) : RGB888(232, 232, 232));
     const char* itemTitle = page.items[index].getTitle
                           ? page.items[index].getTitle()
                           : page.items[index].title;
@@ -2106,6 +2135,10 @@ void palOpenMainMenu()
     if (menu.mixer)
         menu.mixer->setMuted(true);
 
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    graphics_set_menu_text_mode(true);
+#endif
+
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
 
@@ -2134,6 +2167,9 @@ void palCloseMainMenu()
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
     menu.open = false;
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    graphics_set_menu_text_mode(false);
+#endif
     saveMenuStateImpl();
     if (menu.mixer)
         menu.mixer->setMuted(s_userMuted);

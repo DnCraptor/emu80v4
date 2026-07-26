@@ -173,7 +173,9 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         void setColorMode(bool colorMode);
         void prepareFrame();
         void applyFrameBuffer();
+#ifndef PICO_RP2040
         void renderLine(int nLine, int firstPx, int LastPx, uint8_t* linePtr);
+#endif
         void advanceTo(uint64_t clocks);
 };
 

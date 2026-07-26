@@ -51,6 +51,11 @@ void graphics_system_clock_changed();
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
+// RP2040/VGA: while the menu is open, switch the scan-line source from the
+// Vector framebuffer renderer to a compact 100x37 text screen.
+void graphics_set_menu_text_mode(bool enabled);
+bool graphics_get_menu_text_mode(void);
+
 // Физический шаг строки кадрового буфера (в байтах), если он больше полезной
 // ширины. По умолчанию (после graphics_set_buffer) равен width. Используется
 // режимом «обрезки до видимой области»: буфер физически 626 в строке, а
