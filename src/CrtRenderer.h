@@ -36,7 +36,9 @@ class CrtRenderer : public EmuObject
         virtual void toggleColorMode() {}
         virtual void toggleCropping() {}
 
+#ifndef PICO_RP2040
         uint8_t* m_pixelData = nullptr;
+#endif
         int m_sizeX = 0;
         int m_sizeY = 0;
     protected:

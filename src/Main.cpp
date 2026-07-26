@@ -1111,13 +1111,6 @@ int main() {
     sleep_ms(10);
     set_sys_clock_khz(CPU_MHZ * KHZ, true);
 #endif
-
-#ifdef KBDUSB
-    tuh_init(BOARD_TUH_RHPORT);
-    ps2kbd.init_gpio();
-#else
-    keyboard_init();
-#endif
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     for (int i = 0; i < 6; i++) {
@@ -1126,6 +1119,13 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
+
+#ifdef KBDUSB
+    tuh_init(BOARD_TUH_RHPORT);
+    ps2kbd.init_gpio();
+#else
+    keyboard_init();
+#endif
 
 #if USE_NESPAD
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);

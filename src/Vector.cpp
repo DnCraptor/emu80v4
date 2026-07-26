@@ -55,6 +55,7 @@
 #include "Version.h"
 #include "ff.h"
 #include "pico/picoMenu.h"
+#include "graphics.h"
 
 using namespace std;
 
@@ -73,9 +74,11 @@ using namespace std;
 // ---------------------------------------------------------------------------
 
 static const int c_frameBufSize = 626 * 288;   // 626 = 704 / 13.5 * pixelFreq
-static const int c_mainRamSize = 0x10000;
-
+#ifndef PICO_RP2040
 static uint8_t s_frameBuffer[c_frameBufSize];
+#endif
+
+static const int c_mainRamSize = 0x10000;
 static uint8_t s_mainRam[c_mainRamSize];
 
 
@@ -554,9 +557,10 @@ VectorRenderer::VectorRenderer()
 {
     m_sizeX = 512;
     m_sizeY = 256;
+#ifndef PICO_RP2040
     m_pixelData = s_frameBuffer;
     m_frameBuf = m_pixelData;
-
+#endif
     memset(m_colorPalette, 0, 16);
     memset(m_bwPalette, 0, 16);
     m_palette = m_colorPalette;
@@ -572,6 +576,16 @@ void VectorRenderer::init()
     m_curFrameClock = m_curClock;
 
     prepareFrame(); // prepare 1st frame dimensions
+
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    /*
+     * The RP2040 VGA renderer consumes Vector RAM directly on core1.
+     * Publish the RAM pointer and initial video registers immediately:
+     * waiting for the first emulated frame leaves the VGA side without a
+     * valid source if the renderer has not yet received its scheduler event.
+     */
+    applyFrameBuffer();
+#endif
 }
 
 
@@ -605,6 +619,7 @@ static inline int divBy768(int px)
 void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
 {
     const int bias = 189;
+#ifndef PICO_RP2040
 
     if (clock <= m_curFrameClock)
         return;
@@ -636,11 +651,55 @@ void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
     const int lastLine = divBy768(toPixel);
     const int lastPixel = toPixel - lastLine * 768;
     m_curFramePixel = toPixel;
-    renderLine(firstLine, firstPixel, firstLine == lastLine ? lastPixel : 768);
-    for (int line = firstLine + 1; line < lastLine; line++)
-        renderLine(line, 0, 768);
-    if (firstLine != lastLine)
-        renderLine(lastLine, 0, lastPixel);
+    uint8_t* linePtr = m_frameBuf + (firstLine - 24) * 626;
+    renderLine(firstLine, firstPixel, firstLine == lastLine ? lastPixel : 768, linePtr);
+    for (int line = firstLine + 1; line < lastLine; line++) {
+        linePtr = m_frameBuf + (line - 24) * 626;
+        renderLine(line, 0, 768, linePtr);
+    }
+    if (firstLine != lastLine) {
+        linePtr = m_frameBuf + (lastLine - 24) * 626;
+        renderLine(lastLine, 0, lastPixel, linePtr);
+    }
+#else
+    // The RP2040 VGA path renders scan lines independently on core1, so this
+    // side only follows the beam far enough to preserve Vector's unusual
+    // palette programming semantics: a write changes the palette entry of the
+    // color currently under the beam.
+    if (clock <= m_curFrameClock)
+        return;
+
+    const uint64_t delta = clock - m_curFrameClock;
+    int toPixel = (delta < 0x100000000ull ? int(uint32_t(delta) / m_ticksPerPixel)
+                                          : int(delta / m_ticksPerPixel)) + bias;
+    if (toPixel < 0)
+        toPixel = 0;
+    if (toPixel >= 312 * 768)
+        toPixel = 312 * 768 - 1;
+    m_curFramePixel = toPixel;
+
+    if (!m_lineOffsetIsLatched && toPixel > 768 * 40 + 180) {
+        m_lineOffsetIsLatched = true;
+        m_latchedLineOffset = m_lineOffset;
+    }
+
+    const int line = divBy768(toPixel);
+    const int px = toPixel - line * 768;
+    if (line < 40 || line >= 296 || px < 181 || px >= 693) {
+        m_lastColor = m_borderColor;
+        return;
+    }
+
+    const int activePx = px - 181;
+    const uint8_t rollOff = uint8_t(m_latchedLineOffset - line + 40);
+    const int offset = ((activePx & 0x1F0) << 4) | rollOff;
+    const uint8_t mask = uint8_t(0x80u >> ((activePx & 0x0E) >> 1));
+    m_lastColor = 0;
+    if (m_screenMemory[0x8000 + offset] & mask) m_lastColor |= 0x08;
+    if (m_screenMemory[0xA000 + offset] & mask) m_lastColor |= 0x04;
+    if (m_screenMemory[0xC000 + offset] & mask) m_lastColor |= 0x02;
+    if (m_screenMemory[0xE000 + offset] & mask) m_lastColor |= 0x01;
+#endif
 }
 
 
@@ -683,7 +742,7 @@ void __not_in_flash_func(VectorRenderer::vidMemWriteNotify)()
 }
 
 
-void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int lastPx)
+void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int lastPx, uint8_t* linePtr)
 {
     // Render scan line #nLine
     // Vertical: 0-22 - invisible, 23-39 - border, 40-295 - visible, 296-311 - border) from firstPx to lastPx
@@ -695,7 +754,6 @@ void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int
         return;
     }
 
-    uint8_t* linePtr = m_frameBuf + (nLine - 24) * 626;
     uint8_t* ptr;
 
     if (nLine < 40 || nLine >= 296) {
@@ -809,16 +867,29 @@ void VectorRenderer::applyFrameBuffer()
     // пересоздаём и не копируем, а передаём драйверу указатель на её
     // левый-верхний угол и физический шаг строки. Драйвер читает окно нужной
     // ширины с шагом 626, поэтому строки не разъезжаются.
+#if defined(PICO_RP2040) && defined(VGA_DRV)
+    // RP2040 has no room for the 626x288 frame buffer. The VGA driver reads
+    // Vector video RAM directly on core1 and builds each scan line using a
+    // snapshot of the palette and current video registers. Mid-frame palette
+    // and mode changes are intentionally not cycle-accurate in this mode.
+    graphics_set_vector_source(m_screenMemory, m_palette, m_borderColor,
+                               m_lineOffset, m_mode512px, m_showBorder);
+#else
     if (m_showBorder) {
+#ifndef PICO_RP2040
         graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
+#endif
     } else {
         const int stride = 626;
+#ifndef PICO_RP2040
         const int originX = (stride - m_sizeX) / 2;   // (626-512)/2 = 57
         const int originY = (288 - m_sizeY) / 2;      // (288-256)/2 = 16
         graphics_set_buffer(m_frameBuf + stride * originY + originX,
                             m_sizeX, m_sizeY);
         graphics_set_line_stride(stride);
+#endif
     }
+#endif
 }
 
 
@@ -901,7 +972,11 @@ bool VectorRenderer::saveState(SnapshotWriter& writer) const
     memcpy(state.colorPalette, m_colorPalette, sizeof(state.colorPalette));
     memcpy(state.bwPalette, m_bwPalette, sizeof(state.bwPalette));
     return writer.writeValue(state) &&
+#ifndef PICO_RP2040
            writer.write(m_frameBuf, c_frameBufSize);
+#else
+           writer.skip(c_frameBufSize);
+#endif
 }
 
 bool VectorRenderer::loadState(SnapshotReader& reader, uint16_t version)
@@ -916,9 +991,13 @@ bool VectorRenderer::loadState(SnapshotReader& reader, uint16_t version)
         state.lastColor < 0 || state.lastColor > 15 ||
         state.showBorder > 1 || state.colorMode > 1 ||
         state.lineOffsetIsLatched > 1 || state.mode512px > 1 ||
-        state.paused > 1 || !reader.read(m_frameBuf, c_frameBufSize))
+        state.paused > 1
+#ifndef PICO_RP2040
+         || !reader.read(m_frameBuf, c_frameBufSize)
+#endif
+    ) {
         return false;
-
+    }
     m_curClock = state.curClock;
     m_curFrameClock = state.curFrameClock;
     m_curFramePixel = state.curFramePixel;
@@ -2245,6 +2324,15 @@ SnapshotWriter::SnapshotWriter(FIL& file) :
 
 bool SnapshotWriter::good() const
 {
+    return m_good;
+}
+
+bool SnapshotWriter::skip(uint32_t size) {
+    if (!m_good)
+        return false;
+    if (f_lseek(&m_file, f_tell(&m_file) + size) != FR_OK) {
+        m_good = false;
+    }
     return m_good;
 }
 

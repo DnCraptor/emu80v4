@@ -147,7 +147,9 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
             158, 175, 180, 198, 195, 212, 217, 234, 179, 196, 201, 218, 215, 233, 238, 255*/
         };
 
+#ifndef PICO_RP2040
         uint8_t* m_frameBuf = nullptr;
+#endif
         const uint8_t* m_screenMemory;
 
         bool m_showBorder = false;
@@ -171,7 +173,7 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         void setColorMode(bool colorMode);
         void prepareFrame();
         void applyFrameBuffer();
-        void renderLine(int nLine, int firstPx, int LastPx);
+        void renderLine(int nLine, int firstPx, int LastPx, uint8_t* linePtr);
         void advanceTo(uint64_t clocks);
 };
 
@@ -212,6 +214,7 @@ public:
 
     bool good() const;
     bool write(const void* data, uint32_t size);
+    bool skip(uint32_t size);
 
     template<typename T>
     bool writeValue(const T& value)

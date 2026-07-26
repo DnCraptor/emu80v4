@@ -38,12 +38,49 @@
 
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
-// Each HID instance can has multiple reports
-static struct
+// TinyUSB numbers HID instances per device. Keep a fixed-size table keyed by
+// both device address and interface instance; CFG_TUH_HID is the maximum
+// number of simultaneously mounted HID interfaces.
+struct hid_info_t
 {
+  uint8_t dev_addr;
+  uint8_t instance;
   uint8_t report_count;
   tuh_hid_report_info_t report_info[MAX_REPORT];
-}hid_info[CFG_TUH_HID];
+  hid_keyboard_report_t prev_keyboard_report;
+};
+
+static hid_info_t hid_info[CFG_TUH_HID] = {};
+
+static hid_info_t* find_hid_info(uint8_t dev_addr, uint8_t instance)
+{
+  for (hid_info_t& info : hid_info)
+  {
+    if (info.dev_addr == dev_addr && info.instance == instance)
+      return &info;
+  }
+
+  return nullptr;
+}
+
+static hid_info_t* allocate_hid_info(uint8_t dev_addr, uint8_t instance)
+{
+  if (hid_info_t* info = find_hid_info(dev_addr, instance))
+    return info;
+
+  for (hid_info_t& info : hid_info)
+  {
+    if (info.dev_addr == 0)
+    {
+      info = {};
+      info.dev_addr = dev_addr;
+      info.instance = instance;
+      return &info;
+    }
+  }
+
+  return nullptr;
+}
 
 struct input_bits_t {
   bool a: true;
@@ -77,16 +114,20 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
 // therefore report_desc = NULL, desc_len = 0
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
 {
+  hid_info_t* info = allocate_hid_info(dev_addr, instance);
+  if (!info)
+    return;
+
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
   // Boot-protocol keyboards and mice have a fixed report format. Generic HID
   // interfaces must be described here so process_generic_report() can match
   // their report ID and usage.
-  hid_info[instance].report_count = 0;
+  info->report_count = 0;
   if (itf_protocol == HID_ITF_PROTOCOL_NONE && desc_report && desc_len)
   {
-    hid_info[instance].report_count = tuh_hid_parse_report_descriptor(
-        hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
+    info->report_count = tuh_hid_parse_report_descriptor(
+        info->report_info, MAX_REPORT, desc_report, desc_len);
   }
 
   // Arm the first interrupt-IN transfer. Further reports are re-armed in
@@ -97,28 +138,38 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 // Invoked when device with hid interface is un-mounted
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
-  (void)dev_addr;
-  (void)instance;
+  if (hid_info_t* info = find_hid_info(dev_addr, instance))
+    *info = {};
 }
-
-static hid_keyboard_report_t prev_report = { 0 , 0 , {0}};
 
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
+  hid_info_t* info = find_hid_info(dev_addr, instance);
+  if (!info || !report)
+    return;
+
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
   switch (itf_protocol)
   {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      TU_LOG2("HID receive boot keyboard report\r\n");
-      process_kbd_report( (hid_keyboard_report_t const*) report, &prev_report );
-      prev_report = *(hid_keyboard_report_t const*)report;
+      if (len >= sizeof(hid_keyboard_report_t))
+      {
+        TU_LOG2("HID receive boot keyboard report\r\n");
+        auto const* keyboard_report =
+            reinterpret_cast<hid_keyboard_report_t const*>(report);
+        process_kbd_report(keyboard_report, &info->prev_keyboard_report);
+        info->prev_keyboard_report = *keyboard_report;
+      }
     break;
 
     case HID_ITF_PROTOCOL_MOUSE:
-      TU_LOG2("HID receive boot mouse report\r\n");
-      process_mouse_report( (hid_mouse_report_t const*) report );
+      if (len >= sizeof(hid_mouse_report_t))
+      {
+        TU_LOG2("HID receive boot mouse report\r\n");
+        process_mouse_report(reinterpret_cast<hid_mouse_report_t const*>(report));
+      }
     break;
 
     default:
@@ -160,10 +211,12 @@ static void process_mouse_report(hid_mouse_report_t const * report)
 //--------------------------------------------------------------------+
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
-  (void) dev_addr;
+  hid_info_t* info = find_hid_info(dev_addr, instance);
+  if (!info || !report || len == 0)
+    return;
 
-  uint8_t const rpt_count = hid_info[instance].report_count;
-  tuh_hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
+  uint8_t const rpt_count = info->report_count;
+  tuh_hid_report_info_t* rpt_info_arr = info->report_info;
   tuh_hid_report_info_t* rpt_info = NULL;
 
   if ( rpt_count == 1 && rpt_info_arr[0].report_id == 0)
@@ -203,16 +256,24 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
     switch (rpt_info->usage)
     {
       case HID_USAGE_DESKTOP_KEYBOARD:
-        TU_LOG1("HID receive keyboard report\r\n");
-        // Assume keyboard follow boot report layout
-        process_kbd_report( (hid_keyboard_report_t const*) report, &prev_report );
-        prev_report = *(hid_keyboard_report_t const*)report;
+        if (len >= sizeof(hid_keyboard_report_t))
+        {
+          TU_LOG1("HID receive keyboard report\r\n");
+          // Assume keyboard follows the boot report layout.
+          auto const* keyboard_report =
+              reinterpret_cast<hid_keyboard_report_t const*>(report);
+          process_kbd_report(keyboard_report, &info->prev_keyboard_report);
+          info->prev_keyboard_report = *keyboard_report;
+        }
       break;
 
       case HID_USAGE_DESKTOP_MOUSE:
-        TU_LOG1("HID receive mouse report\r\n");
-        // Assume mouse follow boot report layout
-        process_mouse_report( (hid_mouse_report_t const*) report );
+        if (len >= sizeof(hid_mouse_report_t))
+        {
+          TU_LOG1("HID receive mouse report\r\n");
+          // Assume mouse follows the boot report layout.
+          process_mouse_report(reinterpret_cast<hid_mouse_report_t const*>(report));
+        }
       break;
 
       default: break;

@@ -1728,9 +1728,10 @@ static const MenuPage rootPage {
 static constexpr uint64_t c_repeatDelayUs = 400000;
 static constexpr uint64_t c_repeatRateUs  = 60000;
 
-static constexpr int c_menuBackupPool = 65536;
 static constexpr int c_menuMaxDepth = 8;
 
+#ifndef PICO_RP2040
+static constexpr int c_menuBackupPool = 65536;
 static uint8_t s_menuBackup[c_menuBackupPool];
 static int s_backupUsed = 0;
 
@@ -1742,10 +1743,13 @@ static BackupRec s_backup[c_menuMaxDepth];
 
 void pushBackground(int depth, int x, int y, int w, int h)
 {
+    if (depth < 0 || depth >= c_menuMaxDepth)
+        return;
+
     BackupRec& r = s_backup[depth];
     r.valid = false;
     uint8_t* frame = graphics_get_frame();
-    if (!frame || depth < 0 || depth >= c_menuMaxDepth)
+    if (!frame)
         return;
 
     const int screenW = graphics_get_width();
@@ -1783,6 +1787,12 @@ void popBackground(int depth)
     }
     r.valid = false;
 }
+#else
+// На RP2040 кадр Вектора собирается напрямую в VGA IRQ на core1. Меню должно
+// накладываться как OSD, поэтому сохранять и восстанавливать фон не требуется.
+void pushBackground(int, int, int, int, int) {}
+void popBackground(int) {}
+#endif
 
 int pageHeight(const MenuPage& page)
 {
@@ -2030,7 +2040,9 @@ void relayoutMenu()
 {
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
+#ifndef PICO_RP2040
     s_backupUsed = 0;
+#endif
 
     for (int d = 0; d <= menu.depth; ++d) {
         layoutLevel(d);
@@ -2097,9 +2109,11 @@ void palOpenMainMenu()
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
 
+#ifndef PICO_RP2040
     s_backupUsed = 0;
     for (int i = 0; i < c_menuMaxDepth; ++i)
         s_backup[i].valid = false;
+#endif
 
     menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
     menu.stack[0] = &rootPage;
