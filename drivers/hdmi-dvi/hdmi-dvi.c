@@ -66,6 +66,450 @@ static uint32_t __attribute__((aligned(4))) tmds_palette[64 * 6];
 
 static uint8_t border_color = 0;
 
+#define MENU_TEXT_COLS 100
+#define MENU_TEXT_ROWS 37
+#define MENU_TEXT_CELL_W 8
+#define MENU_TEXT_CELL_H 16
+#define MENU_TEXT_TRANSPARENT_ATTR 0xeeu
+
+/*
+ * Stage 1: the HDMI/DVI text surface and drawing backend are implemented,
+ * but hdmi_dvi_core_loop() does not render it yet. This deliberately
+ * separates menu/framebuffer isolation from DVI scan-line composition.
+ */
+static uint16_t menu_text_cells[MENU_TEXT_COLS * MENU_TEXT_ROWS];
+static volatile graphics_video_content_mode_t menu_video_mode =
+    GRAPHICS_VIDEO_VECTOR;
+
+static inline bool menu_text_active(void)
+{
+    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
+}
+
+static inline uint8_t menu_color_index(uint8_t color)
+{
+    static const uint8_t rgb16[16][3] = {
+        {0, 0, 0}, {0, 0, 2}, {0, 2, 0}, {0, 2, 2},
+        {2, 0, 0}, {2, 0, 2}, {2, 1, 0}, {2, 2, 2},
+        {1, 1, 1}, {1, 1, 3}, {1, 3, 1}, {1, 3, 3},
+        {3, 1, 1}, {3, 1, 3}, {3, 3, 1}, {3, 3, 3}
+    };
+
+    const int r = (color >> 4) & 3u;
+    const int g = (color >> 2) & 3u;
+    const int b = color & 3u;
+    unsigned best = 0;
+    unsigned best_distance = ~0u;
+
+    for (unsigned i = 0; i < 16; ++i) {
+        const int dr = r - rgb16[i][0];
+        const int dg = g - rgb16[i][1];
+        const int db = b - rgb16[i][2];
+        const unsigned distance =
+            (unsigned)(dr * dr + dg * dg + db * db);
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = i;
+        }
+    }
+    return (uint8_t)best;
+}
+
+static inline void menu_text_put_cell(
+        int x, int y, uint8_t ch, uint8_t attr)
+{
+    if ((unsigned)x >= MENU_TEXT_COLS ||
+        (unsigned)y >= MENU_TEXT_ROWS)
+        return;
+
+    menu_text_cells[y * MENU_TEXT_COLS + x] =
+        (uint16_t)ch | ((uint16_t)attr << 8);
+}
+
+static void menu_text_clear(uint8_t attr)
+{
+    const uint16_t cell = (uint16_t)' ' | ((uint16_t)attr << 8);
+    for (unsigned i = 0; i < MENU_TEXT_COLS * MENU_TEXT_ROWS; ++i)
+        menu_text_cells[i] = cell;
+}
+
+static void menu_text_clear_for_mode(void)
+{
+    menu_text_clear(menu_video_mode == GRAPHICS_VIDEO_COMBINED
+                  ? MENU_TEXT_TRANSPARENT_ATTR
+                  : 0x17u);
+}
+
+#ifdef PICO_RP2040
+/*
+ * RP2040 HDMI/DVI timing diagnostics:
+ *
+ * 0 - normal path: Vector rendering + TMDS encoding;
+ * 1 - TMDS encoding only, from a prebuilt RGB222 test line;
+ * 2 - Vector rendering only; output uses the already encoded blank line.
+ *
+ * A red fallback line from libdvi means this core failed to enqueue the
+ * requested TMDS line before the transmitter needed it.
+ */
+#ifndef HDMI_RP2040_DIAG_MODE
+#define HDMI_RP2040_DIAG_MODE 0
+#endif
+
+#if HDMI_RP2040_DIAG_MODE < 0 || HDMI_RP2040_DIAG_MODE > 2
+#error HDMI_RP2040_DIAG_MODE must be 0, 1 or 2
+#endif
+
+#define VECTOR_LUT_COUNT 3
+
+typedef struct {
+    const uint8_t* memory;
+    uint8_t palette[16];
+    uint8_t border_color;
+    uint8_t line_offset;
+    uint8_t lut_index;
+    bool mode512;
+    bool show_border;
+    bool enabled;
+    uint32_t border_pattern;
+} vector_video_state_t;
+
+static vector_video_state_t vector_video_state;
+static volatile uint32_t vector_video_seq = 0;
+static uint32_t vector_pair_lut[VECTOR_LUT_COUNT][256];
+static volatile uint8_t vector_lut_in_use = 0xff;
+static vector_video_state_t vector_frame_state;
+static bool vector_frame_state_valid = false;
+
+static inline void vector_video_barrier(void)
+{
+    __asm volatile ("" ::: "memory");
+}
+
+static bool __not_in_flash_func(vector_video_snapshot)(
+        vector_video_state_t* state)
+{
+    for (;;) {
+        const uint32_t seq0 = vector_video_seq;
+        if (seq0 & 1u)
+            continue;
+        vector_video_barrier();
+        *state = vector_video_state;
+        vector_video_barrier();
+        const uint32_t seq1 = vector_video_seq;
+        if (seq0 == seq1 && !(seq1 & 1u))
+            return state->enabled && state->memory;
+    }
+}
+
+static inline uint8_t vector_color_byte(
+        const vector_video_state_t* state, uint8_t color)
+{
+    return state->palette[color];
+}
+
+#if HDMI_RP2040_DIAG_MODE == 1
+static void build_rp2040_tmds_test_line(void)
+{
+    /*
+     * Eight 100-pixel bars.  The buffer is prepared once on core0; core1 only
+     * executes the existing full-width palette TMDS encoder.
+     */
+    static const uint8_t bars[8] = {
+        0x00, 0x03, 0x0c, 0x0f,
+        0x30, 0x33, 0x3c, 0x3f
+    };
+
+    for (unsigned x = 0; x < DVI_FRAME_WIDTH; ++x)
+        line_buf[x] = bars[x / 100u];
+}
+#endif
+
+/* Runs on core0 when the frame state is published. */
+static void vector_build_lut(vector_video_state_t* state, uint32_t* lut)
+{
+    for (unsigned i = 0; i < 256; ++i) {
+        const unsigned y = i >> 6;
+        const unsigned r = (i >> 4) & 3u;
+        const unsigned g = (i >> 2) & 3u;
+        const unsigned b = i & 3u;
+        const uint8_t c0 = (uint8_t)(((y & 2u) << 2) |
+                                     ((r & 2u) << 1) |
+                                     (g & 2u) | (b >> 1));
+        const uint8_t c1 = (uint8_t)(((y & 1u) << 3) |
+                                     ((r & 1u) << 2) |
+                                     ((g & 1u) << 1) | (b & 1u));
+        uint8_t p0, p1, p2, p3;
+        if (state->mode512) {
+            p0 = vector_color_byte(state, c0 & 0x03u);
+            p1 = vector_color_byte(state, c0 & 0x0cu);
+            p2 = vector_color_byte(state, c1 & 0x03u);
+            p3 = vector_color_byte(state, c1 & 0x0cu);
+        } else {
+            p0 = p1 = vector_color_byte(state, c0);
+            p2 = p3 = vector_color_byte(state, c1);
+        }
+        lut[i] = (uint32_t)p0 | ((uint32_t)p1 << 8) |
+                 ((uint32_t)p2 << 16) | ((uint32_t)p3 << 24);
+    }
+
+    const uint8_t border = state->border_color;
+    if (state->mode512) {
+        const uint8_t p0 = vector_color_byte(state, border & 0x03u);
+        const uint8_t p1 = vector_color_byte(state, border & 0x0cu);
+        state->border_pattern = (uint32_t)p0 | ((uint32_t)p1 << 8) |
+                                ((uint32_t)p0 << 16) | ((uint32_t)p1 << 24);
+    } else {
+        const uint8_t p = vector_color_byte(state, border);
+        state->border_pattern = (uint32_t)p * 0x01010101u;
+    }
+}
+
+static inline uint32_t vector_rotate_pattern(uint32_t pattern, unsigned bytes)
+{
+    bytes &= 3u;
+    return bytes ? (pattern >> (bytes * 8u)) |
+                   (pattern << ((4u - bytes) * 8u)) : pattern;
+}
+
+static inline void vector_fill32(uint8_t* dst, int count, uint32_t pattern)
+{
+    while (count && ((uintptr_t)dst & 3u)) {
+        *dst++ = (uint8_t)pattern;
+        pattern = vector_rotate_pattern(pattern, 1);
+        --count;
+    }
+    uint32_t* dst32 = (uint32_t*)dst;
+    while (count >= 16) {
+        dst32[0] = pattern;
+        dst32[1] = pattern;
+        dst32[2] = pattern;
+        dst32[3] = pattern;
+        dst32 += 4;
+        count -= 16;
+    }
+    while (count >= 4) {
+        *dst32++ = pattern;
+        count -= 4;
+    }
+    dst = (uint8_t*)dst32;
+    while (count--) {
+        *dst++ = (uint8_t)pattern;
+        pattern = vector_rotate_pattern(pattern, 1);
+    }
+}
+
+static inline uint8_t vector_pixel_slow(
+        const vector_video_state_t* state, int x, uint8_t roll_off)
+{
+    const int offset = ((x & 0x1f0) << 4) | roll_off;
+    const uint8_t mask = (uint8_t)(0x80u >> ((x & 0x0e) >> 1));
+    const uint8_t* memory = state->memory;
+    uint8_t color = 0;
+    if (memory[0x8000 + offset] & mask) color |= 0x08;
+    if (memory[0xa000 + offset] & mask) color |= 0x04;
+    if (memory[0xc000 + offset] & mask) color |= 0x02;
+    if (memory[0xe000 + offset] & mask) color |= 0x01;
+    if (state->mode512)
+        color = (x & 1) ? (color & 0x0c) : (color & 0x03);
+    return vector_color_byte(state, color);
+}
+
+static void __not_in_flash_func(render_vector_active_pixels)(
+        uint8_t* output, int source_x, int count, int n_line,
+        const vector_video_state_t* state)
+{
+    const uint8_t roll_off =
+        (uint8_t)(state->line_offset - n_line + 40);
+    int x = source_x;
+    int remaining = count;
+
+    while (remaining && ((x & 15) || ((uintptr_t)output & 3u))) {
+        *output++ = vector_pixel_slow(state, x++, roll_off);
+        --remaining;
+    }
+
+    const uint8_t* memory = state->memory;
+    const uint32_t* lut = vector_pair_lut[state->lut_index];
+    uint32_t* out32 = (uint32_t*)output;
+    while (remaining >= 16) {
+        const int offset = ((x & 0x1f0) << 4) | roll_off;
+        const uint8_t by = memory[0x8000 + offset];
+        const uint8_t br = memory[0xa000 + offset];
+        const uint8_t bg = memory[0xc000 + offset];
+        const uint8_t bb = memory[0xe000 + offset];
+
+#define VECTOR_PAIR_INDEX(shift) \
+        (((((unsigned)by >> (shift)) & 3u) << 6) | \
+         ((((unsigned)br >> (shift)) & 3u) << 4) | \
+         ((((unsigned)bg >> (shift)) & 3u) << 2) | \
+          (((unsigned)bb >> (shift)) & 3u))
+        out32[0] = lut[VECTOR_PAIR_INDEX(6)];
+        out32[1] = lut[VECTOR_PAIR_INDEX(4)];
+        out32[2] = lut[VECTOR_PAIR_INDEX(2)];
+        out32[3] = lut[VECTOR_PAIR_INDEX(0)];
+#undef VECTOR_PAIR_INDEX
+        out32 += 4;
+        x += 16;
+        remaining -= 16;
+    }
+
+    output = (uint8_t*)out32;
+    while (remaining--)
+        *output++ = vector_pixel_slow(state, x++, roll_off);
+}
+
+static void __not_in_flash_func(render_vector_dvi_line)(
+        uint8_t* output, int source_y,
+        const vector_video_state_t* state)
+{
+    const int source_width = state->show_border ? 626 : 512;
+    int left = (DVI_FRAME_WIDTH - source_width) / 2 + pic_shift_x;
+    int source_x = 0;
+
+    if (left < 0) {
+        source_x = -left;
+        left = 0;
+    }
+    if (left > DVI_FRAME_WIDTH)
+        left = DVI_FRAME_WIDTH;
+
+    int drawable = source_width - source_x;
+    if (drawable < 0)
+        drawable = 0;
+    if (drawable > DVI_FRAME_WIDTH - left)
+        drawable = DVI_FRAME_WIDTH - left;
+
+    /*
+     * line_buf is cleared once at the beginning of the DVI frame.  Every
+     * source line overwrites the same drawable horizontal interval, so
+     * clearing all 800 bytes again here is redundant and was enough to push
+     * Vector rendering + TMDS encoding beyond the RP2040 line budget.
+     */
+    output += left;
+
+    const int n_line = source_y + (state->show_border ? 24 : 40);
+    if (!state->show_border) {
+        render_vector_active_pixels(
+            output, source_x, drawable, n_line, state);
+        return;
+    }
+
+    if (n_line < 40 || n_line >= 296) {
+        vector_fill32(
+            output, drawable,
+            vector_rotate_pattern(state->border_pattern, source_x));
+        return;
+    }
+
+    int x = source_x;
+    int remaining = drawable;
+    if (x < 57) {
+        int n = 57 - x;
+        if (n > remaining) n = remaining;
+        vector_fill32(
+            output, n,
+            vector_rotate_pattern(state->border_pattern, x));
+        output += n;
+        x += n;
+        remaining -= n;
+    }
+    if (remaining && x < 569) {
+        int n = 569 - x;
+        if (n > remaining) n = remaining;
+        render_vector_active_pixels(
+            output, x - 57, n, n_line, state);
+        output += n;
+        x += n;
+        remaining -= n;
+    }
+    if (remaining)
+        vector_fill32(
+            output, remaining,
+            vector_rotate_pattern(state->border_pattern, x));
+}
+#endif
+
+// ---------------------------------------------------------------------------
+//  Локальные операции с памятью для видеотракта.
+//
+//  Не вызывают libc из flash. Для выровненных буферов работают 32-битными
+//  словами; хвост обрабатывается побайтно.
+// ---------------------------------------------------------------------------
+
+static inline __attribute__((always_inline))
+void video_fill_u8(uint8_t* dst, uint8_t value, size_t count)
+{
+    while (count && ((uintptr_t)dst & 3u)) {
+        *dst++ = value;
+        --count;
+    }
+
+    const uint32_t word = (uint32_t)value * 0x01010101u;
+    uint32_t* dst32 = (uint32_t*)dst;
+
+    while (count >= 16) {
+        dst32[0] = word;
+        dst32[1] = word;
+        dst32[2] = word;
+        dst32[3] = word;
+        dst32 += 4;
+        count -= 16;
+    }
+    while (count >= 4) {
+        *dst32++ = word;
+        count -= 4;
+    }
+
+    dst = (uint8_t*)dst32;
+    while (count--)
+        *dst++ = value;
+}
+
+static inline __attribute__((always_inline))
+void video_copy_u8(uint8_t* dst, const uint8_t* src, size_t count)
+{
+    if ((((uintptr_t)dst | (uintptr_t)src) & 3u) == 0u) {
+        uint32_t* dst32 = (uint32_t*)dst;
+        const uint32_t* src32 = (const uint32_t*)src;
+
+        while (count >= 16) {
+            dst32[0] = src32[0];
+            dst32[1] = src32[1];
+            dst32[2] = src32[2];
+            dst32[3] = src32[3];
+            dst32 += 4;
+            src32 += 4;
+            count -= 16;
+        }
+        while (count >= 4) {
+            *dst32++ = *src32++;
+            count -= 4;
+        }
+
+        dst = (uint8_t*)dst32;
+        src = (const uint8_t*)src32;
+    }
+
+    while (count--)
+        *dst++ = *src++;
+}
+
+static inline __attribute__((always_inline))
+void video_copy_u32(uint32_t* dst, const uint32_t* src, size_t count)
+{
+    while (count >= 4) {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = src[3];
+        dst += 4;
+        src += 4;
+        count -= 4;
+    }
+    while (count--)
+        *dst++ = *src++;
+}
+
 // ---------------------------------------------------------------------------
 //  Палитра
 // ---------------------------------------------------------------------------
@@ -84,7 +528,7 @@ static void build_palette(void) {
 }
 
 static void build_blank_line(void) {
-    memset(line_buf, border_color, sizeof(line_buf));
+    video_fill_u8(line_buf, border_color, sizeof(line_buf));
     tmds_encode_palette_data((const uint32_t *)line_buf, tmds_palette,
                              blank_tmds, DVI_FRAME_WIDTH, 6);
 }
@@ -93,9 +537,10 @@ static void build_blank_line(void) {
 //  Цикл кодирования. Занимает ядро целиком.
 // ---------------------------------------------------------------------------
 
-static inline void copy_words(uint32_t *dst, const uint32_t *src, size_t n) {
-    for (size_t i = 0; i < n; ++i)
-        *dst++ = *src++;
+static inline __attribute__((always_inline))
+void copy_words(uint32_t *dst, const uint32_t *src, size_t n)
+{
+    video_copy_u32(dst, src, n);
 }
 
 void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
@@ -108,22 +553,75 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
     uint32_t *tmdsbuf = NULL;
     while (true) {
         for (int y = 0; y < DVI_FRAME_HEIGHT; ++y) {
-            // Строка кадрового буфера, попадающая в эту строку кадра.
-            // Картинка центрируется по высоте: при обрезке fb_h меньше, поэтому
-            // верхняя граница считается от fb_h, а не от константы PICTURE_H.
-            // Вертикальный сдвиг смещает картинку вниз при росте pic_shift_y.
-            const int border_y = (DVI_FRAME_HEIGHT - (int)fb_h) / 2;
+#ifdef PICO_RP2040
+            if (y == 0) {
+                /*
+                 * Clear the persistent RGB222 line once per frame.  Pixels
+                 * outside the current Vector source rectangle then remain
+                 * black, while the source rectangle is overwritten for every
+                 * generated line.
+                 */
+                video_fill_u8(line_buf, 0, sizeof(line_buf));
+                vector_frame_state_valid =
+                    vector_video_snapshot(&vector_frame_state);
+                if (vector_frame_state_valid)
+                    vector_lut_in_use =
+                        vector_frame_state.lut_index;
+            }
+
+            const int vector_height =
+                vector_frame_state.show_border ? 288 : 256;
+            const int border_y =
+                (DVI_FRAME_HEIGHT - vector_height) / 2;
             const int src = y - border_y - pic_shift_y;
+#else
+            // Строка кадрового буфера, попадающая в эту строку кадра.
+            const int border_y =
+                (DVI_FRAME_HEIGHT - (int)fb_h) / 2;
+            const int src = y - border_y - pic_shift_y;
+#endif
 
             queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
 
+#ifdef PICO_RP2040
+#if HDMI_RP2040_DIAG_MODE == 1
+            /*
+             * Encoder-only test.  No Vector state, RAM or LUT is touched.
+             * Every logical line encodes the same prebuilt 800-pixel pattern.
+             */
+            tmds_encode_palette_data(
+                (const uint32_t*)line_buf, tmds_palette,
+                tmdsbuf, DVI_FRAME_WIDTH, 6);
+#elif HDMI_RP2040_DIAG_MODE == 2
+            /*
+             * Renderer-only test.  Build the same Vector line as normal, but
+             * do not encode it; enqueue the pre-encoded blank TMDS line.
+             */
+            if (vector_frame_state_valid &&
+                src >= 0 && src < vector_height)
+                render_vector_dvi_line(
+                    line_buf, src, &vector_frame_state);
+            copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
+#else
+            if (!vector_frame_state_valid ||
+                src < 0 || src >= vector_height) {
+                copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
+            } else {
+                render_vector_dvi_line(
+                    line_buf, src, &vector_frame_state);
+                tmds_encode_palette_data(
+                    (const uint32_t*)line_buf, tmds_palette,
+                    tmdsbuf, DVI_FRAME_WIDTH, 6);
+            }
+#endif
+#else
             if (!fb_data || src < 0 || src >= (int)fb_h) {
                 copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
             } else {
                 // Поля заполняются каждый раз: горизонтальный сдвиг может
                 // измениться между строками, а отдельно отслеживать это дороже,
                 // чем просто записать 800 байт.
-                memset(line_buf, border_color, sizeof(line_buf));
+                video_fill_u8(line_buf, border_color, sizeof(line_buf));
 
                 int len = fb_w < PICTURE_W ? fb_w : PICTURE_W;
                 // Центрируем по ширине от полезной ширины (fb_w), а не от
@@ -141,11 +639,12 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 if (at + len > DVI_FRAME_WIDTH)
                     len = DVI_FRAME_WIDTH - at;
                 if (len > 0)
-                    memcpy(line_buf + at, from, (size_t)len);
+                    video_copy_u8(line_buf + at, from, (size_t)len);
 
                 tmds_encode_palette_data((const uint32_t *)line_buf, tmds_palette,
                                          tmdsbuf, DVI_FRAME_WIDTH, 6);
             }
+#endif
 
             queue_add_blocking_u32(&dvi0.q_tmds_valid, &tmdsbuf);
         }
@@ -191,9 +690,13 @@ static void __attribute__((noreturn)) hdmi_dvi_halt(int blinks) {
 
 void graphics_init(void) {
     DVI_VERTICAL_REPEAT = 2;
+    menu_text_clear_for_mode();
 
     build_palette();
     build_blank_line();
+#if defined(PICO_RP2040) && HDMI_RP2040_DIAG_MODE == 1
+    build_rp2040_tmds_test_line();
+#endif
 
     // Шесть каналов DMA: по два на каждую из трёх линий TMDS
     int probe[6];
@@ -240,6 +743,49 @@ void graphics_init(void) {
     dvi_get_blank_settings(&dvi0)->bottom = 0;
 }
 
+void graphics_set_vector_source(
+        const uint8_t* memory, const uint8_t* palette,
+        uint8_t vector_border_color, uint8_t line_offset,
+        bool mode512, bool show_border)
+{
+#ifdef PICO_RP2040
+    vector_video_state_t next = vector_video_state;
+    next.memory = memory;
+    next.border_color = vector_border_color;
+    next.line_offset = line_offset;
+    next.mode512 = mode512;
+    next.show_border = show_border;
+    next.enabled = memory != NULL;
+
+    if (palette)
+        memcpy(next.palette, palette, sizeof(next.palette));
+
+    uint8_t lut_index = (uint8_t)(next.lut_index + 1u);
+    if (lut_index >= VECTOR_LUT_COUNT)
+        lut_index = 0;
+    if (lut_index == vector_lut_in_use) {
+        ++lut_index;
+        if (lut_index >= VECTOR_LUT_COUNT)
+            lut_index = 0;
+    }
+    next.lut_index = lut_index;
+    vector_build_lut(&next, vector_pair_lut[lut_index]);
+
+    vector_video_seq++;
+    vector_video_barrier();
+    vector_video_state = next;
+    vector_video_barrier();
+    vector_video_seq++;
+#else
+    (void)memory;
+    (void)palette;
+    (void)vector_border_color;
+    (void)line_offset;
+    (void)mode512;
+    (void)show_border;
+#endif
+}
+
 void graphics_set_buffer(uint8_t *buffer, const uint16_t width, const uint16_t height) {
     fb_data = buffer;
     fb_w = width;
@@ -255,43 +801,90 @@ uint16_t graphics_get_line_stride(void) {
     return fb_stride;
 }
 
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
+{
+    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_VECTOR;
+
+    __asm volatile ("" ::: "memory");
+    menu_video_mode = mode;
+    menu_text_clear_for_mode();
+    __asm volatile ("" ::: "memory");
+}
+
+graphics_video_content_mode_t graphics_get_video_content_mode(void)
+{
+    return menu_video_mode;
+}
+
+void graphics_clear_menu_text(void)
+{
+    menu_text_clear_for_mode();
+}
+
+void graphics_set_menu_text_mode(bool enabled)
+{
+    graphics_set_video_content_mode(enabled
+                                  ? GRAPHICS_VIDEO_TEXT
+                                  : GRAPHICS_VIDEO_VECTOR);
+}
+
+bool graphics_get_menu_text_mode(void)
+{
+    return menu_text_active();
+}
+
 uint32_t graphics_get_width(void) {
-    return fb_w;
+    return menu_text_active()
+         ? MENU_TEXT_COLS * MENU_TEXT_CELL_W
+         : fb_w;
 }
 
 uint32_t graphics_get_height(void) {
-    return fb_h;
+    return menu_text_active()
+         ? MENU_TEXT_ROWS * MENU_TEXT_CELL_H
+         : fb_h;
 }
 
-// На HDMI видно весь буфер: 288 строк укладываются в кадр целиком
 uint32_t graphics_get_visible_height(void) {
-    return fb_h;
+    return graphics_get_height();
 }
 
 uint8_t *graphics_get_frame(void) {
-    return fb_data;
+    return menu_text_active() ? NULL : fb_data;
 }
 
 uint32_t graphics_get_font_width(void) {
-    return 8;
+    return MENU_TEXT_CELL_W;
 }
 
 uint32_t graphics_get_font_height(void) {
-    return 8;
+    return menu_text_active() ? MENU_TEXT_CELL_H : 8;
 }
 
 int graphics_get_picture_shift_x(void) {
-    return pic_shift_x;
+    return menu_text_active() ? 0 : pic_shift_x;
 }
 
 int graphics_get_picture_shift_y(void) {
-    return pic_shift_y;
+    return menu_text_active() ? 0 : pic_shift_y;
 }
 
-void graphics_inc_x(void) { ++pic_shift_x; }
-void graphics_dec_x(void) { --pic_shift_x; }
-void graphics_inc_y(void) { ++pic_shift_y; }
-void graphics_dec_y(void) { --pic_shift_y; }
+void graphics_inc_x(void) {
+    pic_shift_x += menu_text_active() ? MENU_TEXT_CELL_W : 1;
+}
+
+void graphics_dec_x(void) {
+    pic_shift_x -= menu_text_active() ? MENU_TEXT_CELL_W : 1;
+}
+
+void graphics_inc_y(void) {
+    pic_shift_y += menu_text_active() ? MENU_TEXT_CELL_H : 1;
+}
+
+void graphics_dec_y(void) {
+    pic_shift_y -= menu_text_active() ? MENU_TEXT_CELL_H : 1;
+}
 
 void graphics_set_offset(const int x, const int y) {
     pic_shift_x = x;
@@ -324,31 +917,139 @@ static inline void _plot(int32_t x, int32_t y, uint8_t color) {
     fb_data[(size_t)fb_stride * y + x] = color;
 }
 
-static void hdmi_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t color) {
+void plot(int x, int y, uint8_t color)
+{
+    if (menu_text_active()) {
+        const int cx = x / MENU_TEXT_CELL_W;
+        const int cy = y / MENU_TEXT_CELL_H;
+        if ((unsigned)cx < MENU_TEXT_COLS &&
+            (unsigned)cy < MENU_TEXT_ROWS) {
+            const uint16_t old =
+                menu_text_cells[cy * MENU_TEXT_COLS + cx];
+            const uint8_t attr = (uint8_t)(old >> 8);
+            const uint8_t fg = menu_color_index(color);
+            menu_text_put_cell(cx, cy, (uint8_t)old,
+                               (uint8_t)((attr & 0xf0u) | fg));
+        }
+        return;
+    }
+
+    _plot(x, y, color);
+}
+
+static void hdmi_line(
+        int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+        uint8_t color)
+{
     if (x0 == x1) {
-        if (y1 < y0) { int32_t t = y0; y0 = y1; y1 = t; }
-        for (int32_t yi = y0; yi <= y1; ++yi) _plot(x0, yi, color);
+        if (y1 < y0) {
+            int32_t t = y0; y0 = y1; y1 = t;
+        }
+        for (int32_t yi = y0; yi <= y1; ++yi)
+            _plot(x0, yi, color);
         return;
     }
+
     if (y0 == y1) {
-        if (x1 < x0) { int32_t t = x0; x0 = x1; x1 = t; }
-        for (int32_t xi = x0; xi <= x1; ++xi) _plot(xi, y0, color);
+        if (x1 < x0) {
+            int32_t t = x0; x0 = x1; x1 = t;
+        }
+        for (int32_t xi = x0; xi <= x1; ++xi)
+            _plot(xi, y0, color);
         return;
     }
+
     const int32_t dx = x1 > x0 ? x1 - x0 : x0 - x1;
     const int32_t dy = y1 > y0 ? y1 - y0 : y0 - y1;
     if (dx > dy) {
         for (int32_t xi = 0; xi <= dx; ++xi)
             _plot(x0 + (x1 > x0 ? xi : -xi),
-                  y0 + (y1 > y0 ? xi * dy / dx : -(xi * dy / dx)), color);
+                  y0 + (y1 > y0
+                      ? xi * dy / dx : -(xi * dy / dx)),
+                  color);
     } else {
         for (int32_t yi = 0; yi <= dy; ++yi)
-            _plot(x0 + (x1 > x0 ? yi * dx / dy : -(yi * dx / dy)),
-                  y0 + (y1 > y0 ? yi : -yi), color);
+            _plot(x0 + (x1 > x0
+                      ? yi * dx / dy : -(yi * dx / dy)),
+                  y0 + (y1 > y0 ? yi : -yi),
+                  color);
     }
 }
 
-void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t color) {
+void line(int x0, int y0, int x1, int y1, uint8_t color)
+{
+    if (menu_text_active()) {
+        int cx0 = x0 / MENU_TEXT_CELL_W;
+        int cx1 = x1 / MENU_TEXT_CELL_W;
+        int cy0 = y0 / MENU_TEXT_CELL_H;
+        int cy1 = y1 / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+
+        if (cx0 > cx1) {
+            int t = cx0; cx0 = cx1; cx1 = t;
+        }
+        if (cy0 > cy1) {
+            int t = cy0; cy0 = cy1; cy1 = t;
+        }
+
+        if (cy0 == cy1) {
+            for (int x = cx0; x <= cx1; ++x) {
+                const uint16_t old =
+                    ((unsigned)x < MENU_TEXT_COLS &&
+                     (unsigned)cy0 < MENU_TEXT_ROWS)
+                    ? menu_text_cells[cy0 * MENU_TEXT_COLS + x]
+                    : 0x0720u;
+                menu_text_put_cell(
+                    x, cy0, '-',
+                    (uint8_t)(((old >> 8) & 0xf0u) | fg));
+            }
+        } else if (cx0 == cx1) {
+            for (int y = cy0; y <= cy1; ++y) {
+                const uint16_t old =
+                    ((unsigned)cx0 < MENU_TEXT_COLS &&
+                     (unsigned)y < MENU_TEXT_ROWS)
+                    ? menu_text_cells[y * MENU_TEXT_COLS + cx0]
+                    : 0x0720u;
+                menu_text_put_cell(
+                    cx0, y, '|',
+                    (uint8_t)(((old >> 8) & 0xf0u) | fg));
+            }
+        }
+        return;
+    }
+
+    hdmi_line(x0, y0, x1, y1, color);
+}
+
+void graphics_rect(
+        int32_t x0, int32_t y0,
+        uint32_t width, uint32_t height,
+        uint8_t color)
+{
+    if (menu_text_active()) {
+        const int x = x0 / MENU_TEXT_CELL_W;
+        const int y = y0 / MENU_TEXT_CELL_H;
+        const int x1 =
+            (x0 + (int32_t)width) / MENU_TEXT_CELL_W;
+        const int y1 =
+            (y0 + (int32_t)height) / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+
+        for (int cx = x; cx <= x1; ++cx) {
+            menu_text_put_cell(cx, y, '-', fg);
+            menu_text_put_cell(cx, y1, '-', fg);
+        }
+        for (int cy = y; cy <= y1; ++cy) {
+            menu_text_put_cell(x, cy, '|', fg);
+            menu_text_put_cell(x1, cy, '|', fg);
+        }
+        menu_text_put_cell(x, y, '+', fg);
+        menu_text_put_cell(x1, y, '+', fg);
+        menu_text_put_cell(x, y1, '+', fg);
+        menu_text_put_cell(x1, y1, '+', fg);
+        return;
+    }
+
     const int32_t x1 = x0 + (int32_t)width;
     const int32_t y1 = y0 + (int32_t)height;
     hdmi_line(x0, y0, x1, y0, color);
@@ -357,14 +1058,65 @@ void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
     hdmi_line(x0, y1, x0, y0, color);
 }
 
-void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
+void graphics_fill(
+        int32_t x0, int32_t y0,
+        uint32_t width, uint32_t height,
+        uint8_t bgcolor)
+{
+    if (menu_text_active()) {
+        if (width == 0 || height == 0)
+            return;
+
+        const int cx0 = x0 / MENU_TEXT_CELL_W;
+        const int cy0 = y0 / MENU_TEXT_CELL_H;
+        const int cx1 =
+            (x0 + (int32_t)width - 1) / MENU_TEXT_CELL_W;
+        const int cy1 =
+            (y0 + (int32_t)height - 1) / MENU_TEXT_CELL_H;
+        const uint8_t bg = menu_color_index(bgcolor);
+        const uint8_t fg =
+            (bg == 0 || bg == 1 || bg == 4 ||
+             bg == 5 || bg == 8) ? 7u : 0u;
+
+        for (int cy = cy0; cy <= cy1; ++cy)
+            for (int cx = cx0; cx <= cx1; ++cx)
+                menu_text_put_cell(
+                    cx, cy, ' ',
+                    (uint8_t)((bg << 4) | fg));
+        return;
+    }
+
     const int32_t x1 = x0 + (int32_t)width;
     const int32_t y1 = y0 + (int32_t)height;
     for (int32_t xi = x0; xi <= x1; ++xi)
         hdmi_line(xi, y0, xi, y1, bgcolor);
 }
 
-void graphics_type(int x, int y, uint8_t color, const char *msg, size_t msg_len) {
+void graphics_type(
+        int x, int y, uint8_t color,
+        const char *msg, size_t msg_len)
+{
+    if (menu_text_active()) {
+        int cx = x / MENU_TEXT_CELL_W;
+        const int cy = y / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+
+        for (size_t i = 0;
+             i < msg_len && cx < MENU_TEXT_COLS;
+             ++i, ++cx) {
+            if (cx < 0 || (unsigned)cy >= MENU_TEXT_ROWS)
+                continue;
+
+            const uint16_t old =
+                menu_text_cells[cy * MENU_TEXT_COLS + cx];
+            const uint8_t attr =
+                (uint8_t)(((old >> 8) & 0xf0u) | fg);
+            menu_text_put_cell(
+                cx, cy, (uint8_t)msg[i], attr);
+        }
+        return;
+    }
+
     for (size_t i = 0; i < msg_len; ++i) {
         const uint8_t ch = (uint8_t)msg[i];
         const uint8_t *glyph = font_8x8 + ch * 8;

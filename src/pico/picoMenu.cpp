@@ -22,9 +22,17 @@
 
 extern PalKeyCodeAction getKey();
 
-#if defined(PICO_RP2040) && defined(VGA_DRV)
-#ifndef RP2040_MENU_VIDEO_MODE
-#define RP2040_MENU_VIDEO_MODE GRAPHICS_VIDEO_COMBINED
+#if (defined(PICO_RP2040) && defined(VGA_DRV)) || defined(HDMI_DVI)
+#define SCANLINE_TEXT_MENU 1
+#endif
+
+#ifdef SCANLINE_TEXT_MENU
+#ifndef SCANLINE_MENU_VIDEO_MODE
+#if defined(HDMI_DVI)
+#define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_TEXT
+#else
+#define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_COMBINED
+#endif
 #endif
 #endif
 
@@ -1523,7 +1531,7 @@ static void drawTextDialog(const char* title, const char* const* lines, int line
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
     const bool textMode =
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
         graphics_get_menu_text_mode();
 #else
         false;
@@ -1738,7 +1746,7 @@ static constexpr uint64_t c_repeatRateUs  = 60000;
 
 static constexpr int c_menuMaxDepth = 8;
 
-#ifndef PICO_RP2040
+#ifndef SCANLINE_TEXT_MENU
 static constexpr int c_menuBackupPool = 65536;
 static uint8_t s_menuBackup[c_menuBackupPool];
 static int s_backupUsed = 0;
@@ -1821,7 +1829,7 @@ void popBackground(int depth)
 
 bool textMenuMode()
 {
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
     return graphics_get_menu_text_mode();
 #else
     return false;
@@ -2116,7 +2124,7 @@ void layoutLevel(int d)
 // след: стереть его нечем, эмуляция стоит на паузе.
 void relayoutMenu()
 {
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
     if (graphics_get_menu_text_mode()) {
         graphics_clear_menu_text();
         if (graphics_get_video_content_mode() == GRAPHICS_VIDEO_TEXT)
@@ -2134,7 +2142,7 @@ void relayoutMenu()
 
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
-#ifndef PICO_RP2040
+#ifndef SCANLINE_TEXT_MENU
     s_backupUsed = 0;
 #endif
 
@@ -2201,14 +2209,14 @@ void palOpenMainMenu()
     if (menu.mixer)
         menu.mixer->setMuted(true);
 
-#if defined(PICO_RP2040) && defined(VGA_DRV)
-    graphics_set_video_content_mode(RP2040_MENU_VIDEO_MODE);
+#ifdef SCANLINE_TEXT_MENU
+    graphics_set_video_content_mode(SCANLINE_MENU_VIDEO_MODE);
 #endif
 
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
 
-#ifndef PICO_RP2040
+#ifndef SCANLINE_TEXT_MENU
     s_backupUsed = 0;
     for (int i = 0; i < c_menuMaxDepth; ++i)
         s_backup[i].valid = false;
@@ -2233,7 +2241,7 @@ void palCloseMainMenu()
     for (int d = menu.depth; d >= 0; --d)
         popBackground(d);
     menu.open = false;
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
     graphics_set_video_content_mode(GRAPHICS_VIDEO_VECTOR);
 #endif
     saveMenuStateImpl();
@@ -2278,7 +2286,7 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         // Фон под закрываемым подменю возвращается на место
         popBackground(menu.depth);
         --menu.depth;
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
         if (graphics_get_menu_text_mode())
             relayoutMenu();
 #endif
@@ -2396,7 +2404,7 @@ void palMainMenuShift(int dx, int dy)
     const int screenW = graphics_get_width();
     const int visibleH = (int)graphics_get_visible_height();
 
-#if defined(PICO_RP2040) && defined(VGA_DRV)
+#ifdef SCANLINE_TEXT_MENU
     if (graphics_get_menu_text_mode()) {
         dx *= graphics_get_font_width();
         dy *= graphics_get_font_height();
