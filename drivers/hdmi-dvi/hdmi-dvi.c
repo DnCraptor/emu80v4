@@ -79,7 +79,11 @@ static uint32_t __attribute__((aligned(4))) tmds_palette[64 * 6];
 
 static uint8_t border_color = 0;
 
+#ifdef PICO_RP2040
+#define MENU_TEXT_COLS 80
+#else
 #define MENU_TEXT_COLS 100
+#endif
 #define MENU_TEXT_ROWS 37
 #define MENU_TEXT_CELL_W 8
 #define MENU_TEXT_CELL_H 16
@@ -91,6 +95,17 @@ static uint8_t border_color = 0;
  * separates menu/framebuffer isolation from DVI scan-line composition.
  */
 static uint16_t menu_text_cells[MENU_TEXT_COLS * MENU_TEXT_ROWS];
+
+/*
+ * For each 8-bit text attribute and each pair of glyph bits, store two
+ * ready RGB222 pixels. Four uint16_t writes produce one 8-pixel cell.
+ */
+static uint16_t menu_text_pair_lut[256][4];
+
+#ifdef PICO_RP2040
+static uint8_t menu_font_8x8_sram[256 * 8];
+#endif
+
 static volatile graphics_video_content_mode_t menu_video_mode =
     GRAPHICS_VIDEO_VECTOR;
 
@@ -126,6 +141,28 @@ static inline uint8_t menu_color_index(uint8_t color)
         }
     }
     return (uint8_t)best;
+}
+
+static const uint8_t menu_text_rgb222[16] = {
+    0x00, 0x02, 0x08, 0x0a,
+    0x20, 0x22, 0x24, 0x2a,
+    0x15, 0x17, 0x1d, 0x1f,
+    0x35, 0x37, 0x3d, 0x3f
+};
+
+static void menu_text_build_pair_lut(void)
+{
+    for (unsigned attr = 0; attr < 256; ++attr) {
+        const uint8_t fg = menu_text_rgb222[attr & 0x0fu];
+        const uint8_t bg = menu_text_rgb222[attr >> 4];
+
+        for (unsigned pair = 0; pair < 4; ++pair) {
+            const uint8_t p0 = (pair & 1u) ? fg : bg;
+            const uint8_t p1 = (pair & 2u) ? fg : bg;
+            menu_text_pair_lut[attr][pair] =
+                (uint16_t)p0 | ((uint16_t)p1 << 8);
+        }
+    }
 }
 
 static inline void menu_text_put_cell(
@@ -523,6 +560,41 @@ void video_copy_u32(uint32_t* dst, const uint32_t* src, size_t count)
         *dst++ = *src++;
 }
 
+static void __not_in_flash_func(render_menu_text_dvi_line)(
+        uint8_t* output, unsigned logical_y)
+{
+    const unsigned row = logical_y >> 3;
+    const unsigned glyph_line = logical_y & 7u;
+
+    if (row >= MENU_TEXT_ROWS)
+        return;
+
+    const uint16_t* cells =
+        &menu_text_cells[row * MENU_TEXT_COLS];
+#ifdef PICO_RP2040
+    const uint8_t* font = menu_font_8x8_sram;
+#else
+    const uint8_t* font = font_8x8;
+#endif
+    uint16_t* dst = (uint16_t*)(output + 80);
+
+    for (unsigned x = 0; x < MENU_TEXT_COLS; ++x) {
+        const uint16_t cell = cells[x];
+        uint8_t glyph =
+            font[((uint8_t)cell << 3) + glyph_line];
+        const uint16_t* pairs =
+            menu_text_pair_lut[(uint8_t)(cell >> 8)];
+
+        *dst++ = pairs[glyph & 3u];
+        glyph >>= 2;
+        *dst++ = pairs[glyph & 3u];
+        glyph >>= 2;
+        *dst++ = pairs[glyph & 3u];
+        glyph >>= 2;
+        *dst++ = pairs[glyph & 3u];
+    }
+}
+
 // ---------------------------------------------------------------------------
 //  Палитра
 // ---------------------------------------------------------------------------
@@ -611,6 +683,24 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
 #endif
 
             queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
+
+            if (menu_video_mode == GRAPHICS_VIDEO_TEXT) {
+                render_menu_text_dvi_line(line_buf, (unsigned)y);
+#ifdef PICO_RP2040
+                vector_ensure_blank_tmds_buffer(tmdsbuf);
+                tmds_encode_palette_data_span(
+                    (const uint32_t*)(line_buf + 80),
+                    tmds_palette, tmdsbuf,
+                    DVI_FRAME_WIDTH, 80, 640, 6);
+#else
+                tmds_encode_palette_data(
+                    (const uint32_t*)line_buf, tmds_palette,
+                    tmdsbuf, DVI_FRAME_WIDTH, 6);
+#endif
+                queue_add_blocking_u32(
+                    &dvi0.q_tmds_valid, &tmdsbuf);
+                continue;
+            }
 
 #ifdef PICO_RP2040
 #if HDMI_RP2040_DIAG_MODE == 1
@@ -754,6 +844,11 @@ static void __attribute__((noreturn)) hdmi_dvi_halt(int blinks) {
 
 void graphics_init(void) {
     DVI_VERTICAL_REPEAT = 2;
+#ifdef PICO_RP2040
+    video_copy_u8(menu_font_8x8_sram, font_8x8,
+                  sizeof(menu_font_8x8_sram));
+#endif
+    menu_text_build_pair_lut();
     menu_text_clear_for_mode();
 
     build_palette();
@@ -935,11 +1030,15 @@ int graphics_get_picture_shift_y(void) {
 }
 
 void graphics_inc_x(void) {
+#ifndef PICO_RP2040
     pic_shift_x += menu_text_active() ? MENU_TEXT_CELL_W : 1;
+#endif
 }
 
 void graphics_dec_x(void) {
+#ifndef PICO_RP2040
     pic_shift_x -= menu_text_active() ? MENU_TEXT_CELL_W : 1;
+#endif
 }
 
 void graphics_inc_y(void) {
@@ -951,7 +1050,17 @@ void graphics_dec_y(void) {
 }
 
 void graphics_set_offset(const int x, const int y) {
+#ifdef PICO_RP2040
+    /*
+     * The RP2040 fast path encodes one fixed 640-pixel TMDS span at x=80.
+     * Horizontal movement would move Vector pixels outside that span and can
+     * make the encoder miss its line deadline. Keep the image centered.
+     */
+    (void)x;
+    pic_shift_x = 0;
+#else
     pic_shift_x = x;
+#endif
     pic_shift_y = y;
 }
 
