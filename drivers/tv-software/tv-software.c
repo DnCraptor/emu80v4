@@ -1531,8 +1531,20 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     const int room =
                         (int)(LINE_SIZE_MAX - video_mode.begin_img_shx) -
                         (video_mode.img_W - d_end);
-                    if (shx < 0) shx = 0;
-                    if (shx > room) shx = room > 0 ? room : 0;
+
+                    /*
+                     * Do not clamp the image to begin_img_shx. NTSC has
+                     * buffer_shift == 0, which previously made every negative
+                     * shift impossible. The real left limit is the end of the
+                     * colour burst: moving farther would overwrite burst data.
+                     */
+                    const int burst_end =
+                        ((tv_out_mode.c_freq == _4433619) ? 23 : 19) * 4 + 40;
+                    int min_shx = burst_end - video_mode.begin_img_shx;
+                    min_shx = (min_shx / 4) * 4;
+
+                    if (shx < min_shx) shx = min_shx;
+                    if (shx > room) shx = room > min_shx ? room : min_shx;
                     output_buffer8 += shx;
                 }
 
@@ -1559,6 +1571,27 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                         const int n_line =
                             y + (vector_tv_frame_state.show_border
                                  ? 24 : 40);
+
+                        /*
+                         * Outside active Vector lines 40..295 only the border
+                         * must be emitted. Without this clipping roll_off wraps
+                         * as uint8_t and the top of VRAM is repeated below.
+                         */
+                        if (vector_tv_frame_state.show_border &&
+                            (n_line < 40 || n_line >= 296)) {
+                            const uint8_t border_rgb =
+                                (uint8_t)vector_tv_frame_state.border_pattern;
+                            const uint32_t border_wave =
+                                conv_color[li][
+                                    map64colors[border_rgb & 0x3fu]];
+
+                            for (int bx = 0; bx < source_width; ++bx) {
+                                vector_tv_emit_run(
+                                    &output_buffer8, border_wave, &phase,
+                                    vector_tv_runs[bx]);
+                            }
+                            break;
+                        }
 
                         if (vector_tv_frame_state.show_border) {
                             const uint8_t border_rgb =
@@ -1978,7 +2011,11 @@ void graphics_init() {
 };
 
 void graphics_set_offset(const int x, const int y) {
-    graphics_buffer.shift_x = x;
+    /*
+     * Old configuration files may contain arbitrary one-sample offsets.
+     * Round toward zero to keep the composite colour phase unchanged.
+     */
+    graphics_buffer.shift_x = (x / 4) * 4;
     graphics_buffer.shift_y = y;
 };
 
@@ -2059,8 +2096,14 @@ void graphics_set_duplicateLines(bool v) {
 // Сдвиг картинки с клавиатуры (серые + - * / на цифровом блоке).
 // В патче X это были заглушки, поэтому для TV кнопки не работали.
 // Для NTSC особенно нужно: реальных строк растра там меньше, чем строк кадра.
-void graphics_inc_x(void) { graphics_buffer.shift_x++; }
-void graphics_dec_x(void) { graphics_buffer.shift_x--; }
+/*
+ * Composite chroma is encoded with four DAC samples per subcarrier period.
+ * Moving the picture by a non-multiple of four rotates the chroma phase and
+ * visibly changes colours, so horizontal movement is quantised to one full
+ * colour cycle.
+ */
+void graphics_inc_x(void) { graphics_buffer.shift_x += 4; }
+void graphics_dec_x(void) { graphics_buffer.shift_x -= 4; }
 void graphics_inc_y(void) { graphics_buffer.shift_y++; }
 void graphics_dec_y(void) { graphics_buffer.shift_y--; }
 
