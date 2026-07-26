@@ -636,32 +636,24 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 src < 0 || src >= vector_height) {
                 copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
             } else {
-                const int source_width =
-                    vector_frame_state.show_border ? 626 : 512;
-                int source_left =
-                    (DVI_FRAME_WIDTH - source_width) / 2 + pic_shift_x;
-                int visible_left = source_left;
-                int visible_right = source_left + source_width;
-
-                if (visible_left < 0)
-                    visible_left = 0;
-                if (visible_right > DVI_FRAME_WIDTH)
-                    visible_right = DVI_FRAME_WIDTH;
-
                 /*
-                 * The assembler palette loop processes 80 pixels per
-                 * unrolled iteration. Start from the real beginning of the
-                 * scanline so DC balance is initialized correctly, and round
-                 * the encoded right edge up to a complete 80-pixel block.
+                 * Both Vector layouts fit completely inside x=80..719:
+                 *
+                 *   border mode: 626 pixels at nominal x=87
+                 *   crop mode:   512 pixels at nominal x=144
+                 *
+                 * Encode one fixed 640-pixel span. The start and width are
+                 * both compatible with the assembly loop's 80-pixel
+                 * granularity. The outer 80-pixel columns remain the
+                 * pre-encoded black template.
+                 *
+                 * Running disparity is restarted at x=80 in this RP2040 fast
+                 * path. The resulting symbols remain valid TMDS symbols, and
+                 * removing one more 80-pixel block is necessary to meet the
+                 * scanline deadline.
                  */
-                const int encode_x = 0;
-                int encode_right =
-                    ((visible_right + TMDS_PALETTE_SPAN_GRANULARITY - 1) /
-                     TMDS_PALETTE_SPAN_GRANULARITY) *
-                    TMDS_PALETTE_SPAN_GRANULARITY;
-                if (encode_right > DVI_FRAME_WIDTH)
-                    encode_right = DVI_FRAME_WIDTH;
-                const int encode_width = encode_right;
+                const int encode_x = 80;
+                const int encode_width = 640;
 
                 if (encode_x != vector_span_x ||
                     encode_width != vector_span_width) {
