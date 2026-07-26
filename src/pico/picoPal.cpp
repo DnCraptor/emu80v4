@@ -177,7 +177,8 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     uint32_t fntw = graphics_get_font_width();
     uint32_t fnth = graphics_get_font_height();
     const bool textMode =
-#if (defined(PICO_RP2040) && defined(VGA_DRV)) || defined(HDMI_DVI)
+#if (defined(PICO_RP2040) && \
+     (defined(VGA_DRV) || defined(SOFTTV))) || defined(HDMI_DVI)
         graphics_get_menu_text_mode();
 #else
         false;

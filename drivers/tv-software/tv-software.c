@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "graphics.h"
 #include "font8x8.h"
+#include "font8x16.h"
 #include "hardware/clocks.h"
 #include <stdalign.h>
 
@@ -92,9 +93,194 @@ static uint8_t __scratch_x("buff4") paletteRGB[3][256]; //768 байт
 
 static repeating_timer_t video_timer;
 
-void menu_text_clear_for_mode(void) {
-    // TODO:
+#ifdef PICO_RP2040
+#define MENU_TEXT_COLS 50
+#define MENU_TEXT_ROWS 18
+#define MENU_TEXT_CELL_W 16
+#define MENU_TEXT_CELL_H 16
+#define MENU_TEXT_GLYPH_W 8
+#define MENU_TEXT_GLYPH_H 8
+#define MENU_TEXT_SOURCE_W (MENU_TEXT_COLS * MENU_TEXT_GLYPH_W)
+#define MENU_TEXT_TRANSPARENT_ATTR 0xeeu
+#define MENU_TEXT_TRANSPARENT_CELL \
+    ((uint16_t)' ' | ((uint16_t)MENU_TEXT_TRANSPARENT_ATTR << 8))
+
+/*
+ * This is the same logical text surface used by vga-nextgen:
+ * one 16-bit cell, character in the low byte and VGA-style attribute in the
+ * high byte. Only the final scanline conversion differs for composite TV.
+ */
+static uint16_t menu_text_cells[MENU_TEXT_COLS * MENU_TEXT_ROWS];
+static uint8_t menu_font_8x8_sram[256 * MENU_TEXT_GLYPH_H];
+
+/*
+ * Number of composite samples emitted for each doubled logical glyph pixel.
+ * The plan is rebuilt only when PAL/NTSC changes the active output width.
+ */
+static uint8_t menu_text_runs[MENU_TEXT_SOURCE_W];
+static int menu_text_runs_width = -1;
+
+static inline uint8_t menu_color_index(uint8_t color)
+{
+    static const uint8_t __not_in_flash("rgb16") rgb16[16][3] = {
+        {0, 0, 0}, {0, 0, 2}, {0, 2, 0}, {0, 2, 2},
+        {2, 0, 0}, {2, 0, 2}, {2, 1, 0}, {2, 2, 2},
+        {1, 1, 1}, {1, 1, 3}, {1, 3, 1}, {1, 3, 3},
+        {3, 1, 1}, {3, 1, 3}, {3, 3, 1}, {3, 3, 3}
+    };
+
+    const int r = (color >> 4) & 3u;
+    const int g = (color >> 2) & 3u;
+    const int b = color & 3u;
+    unsigned best = 0;
+    unsigned best_distance = ~0u;
+
+    for (unsigned i = 0; i < 16; ++i) {
+        const int dr = r - rgb16[i][0];
+        const int dg = g - rgb16[i][1];
+        const int db = b - rgb16[i][2];
+        const unsigned distance =
+            (unsigned)(dr * dr + dg * dg + db * db);
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = i;
+        }
+    }
+    return (uint8_t)best;
 }
+
+static inline void menu_text_put_cell(int x, int y, uint8_t ch, uint8_t attr)
+{
+    if ((unsigned)x >= MENU_TEXT_COLS || (unsigned)y >= MENU_TEXT_ROWS)
+        return;
+    menu_text_cells[y * MENU_TEXT_COLS + x] =
+        (uint16_t)ch | ((uint16_t)attr << 8);
+}
+
+static void menu_text_clear(uint8_t attr)
+{
+    const uint16_t cell = (uint16_t)' ' | ((uint16_t)attr << 8);
+    for (unsigned i = 0; i < MENU_TEXT_COLS * MENU_TEXT_ROWS; ++i)
+        menu_text_cells[i] = cell;
+}
+
+void menu_text_clear_for_mode(void)
+{
+    menu_text_clear(menu_video_mode == GRAPHICS_VIDEO_COMBINED
+                  ? MENU_TEXT_TRANSPARENT_ATTR
+                  : 0x17u);
+}
+
+/*
+ * TV menu geometry is deliberately coarser than VGA:
+ * 50x18 characters, font 8x8, every glyph pixel doubled horizontally and
+ * every glyph scanline doubled vertically. The public cell is therefore
+ * 16x16, while the hot renderer only processes 400 source pixels per line.
+ */
+static void menu_text_build_runs(int output_width)
+{
+    for (unsigned i = 0; i < MENU_TEXT_SOURCE_W; ++i)
+        menu_text_runs[i] = 0;
+
+    if (output_width <= 0)
+        return;
+
+    int accumulator = 0;
+    unsigned source_x = 0;
+    for (int out_x = 0;
+         out_x < output_width && source_x < MENU_TEXT_SOURCE_W;
+         ++out_x) {
+        ++menu_text_runs[source_x];
+        accumulator += MENU_TEXT_SOURCE_W;
+        if (accumulator >= output_width) {
+            accumulator -= output_width;
+            ++source_x;
+        }
+    }
+    menu_text_runs_width = output_width;
+}
+
+static inline __attribute__((always_inline))
+void menu_text_emit_run(uint8_t** output_ptr, uint32_t waveform,
+                        unsigned* phase_ptr, unsigned run)
+{
+    uint8_t* output = *output_ptr;
+    unsigned phase = *phase_ptr;
+
+    if (run >= 1) {
+        *output++ =
+            (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+    if (run >= 2) {
+        *output++ =
+            (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+    if (run >= 3) {
+        *output++ =
+            (uint8_t)(waveform >> ((phase & 3u) * 8u));
+        ++phase;
+    }
+
+    *output_ptr = output;
+    *phase_ptr = phase;
+}
+
+static void __not_in_flash_func(render_menu_text_line_tv)(
+        uint8_t* output, int raster_y, int raster_height,
+        int output_width, int li)
+{
+    if (output_width <= 0 || raster_height <= 0)
+        return;
+
+    if (menu_text_runs_width != output_width)
+        menu_text_build_runs(output_width);
+
+    /*
+     * PAL: 18 * 8 * 2 = 288 physical lines exactly.
+     * NTSC: rescale the same 288-line logical surface to the available raster.
+     */
+    unsigned logical_y =
+        ((uint32_t)raster_y *
+         (MENU_TEXT_ROWS * MENU_TEXT_CELL_H)) /
+        (uint32_t)raster_height;
+    if (logical_y >= MENU_TEXT_ROWS * MENU_TEXT_CELL_H)
+        logical_y = MENU_TEXT_ROWS * MENU_TEXT_CELL_H - 1;
+
+    const unsigned row = logical_y >> 4;
+    const unsigned glyph_line = (logical_y >> 1) & 7u;
+    const uint16_t* cells =
+        &menu_text_cells[row * MENU_TEXT_COLS];
+
+    unsigned source_x = 0;
+    unsigned phase = 0;
+
+    for (unsigned cell_x = 0;
+         cell_x < MENU_TEXT_COLS;
+         ++cell_x) {
+        const uint16_t cell = cells[cell_x];
+        const uint8_t glyph =
+            menu_font_8x8_sram[
+                ((uint8_t)cell << 3) + glyph_line];
+        const uint8_t attr = (uint8_t)(cell >> 8);
+        const uint32_t fg =
+            conv_color[li][200u + (attr & 0x0fu)];
+        const uint32_t bg =
+            conv_color[li][200u + (attr >> 4)];
+
+        for (unsigned bit = 0; bit < 8; ++bit, ++source_x) {
+            const uint32_t waveform =
+                (glyph & (1u << bit)) ? fg : bg;
+            menu_text_emit_run(
+                &output, waveform, &phase,
+                menu_text_runs[source_x]);
+        }
+    }
+}
+#else
+void menu_text_clear_for_mode(void) {}
+#endif
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
@@ -1514,8 +1700,9 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
             const bool source_valid = input_buffer != NULL;
 #else
             const bool source_valid =
-                vector_tv_frame_state_valid &&
-                y >= 0 && y < img_H;
+                y >= 0 && y < img_H &&
+                (menu_text_active() ||
+                 vector_tv_frame_state_valid);
 #endif
 
             if (!source_valid) {
@@ -1547,6 +1734,20 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     if (shx > room) shx = room > min_shx ? room : min_shx;
                     output_buffer8 += shx;
                 }
+
+#ifdef PICO_RP2040
+                if (menu_video_mode == GRAPHICS_VIDEO_TEXT) {
+                    const int output_width =
+                        video_mode.img_W - d_end;
+                    tv_fill_u8(output_buffer8,
+                               video_mode.LVL_BLACK_TMPL,
+                               output_width);
+                    render_menu_text_line_tv(
+                        output_buffer8, y, img_H,
+                        output_width, li);
+                    break;
+                }
+#endif
 
                 switch (tv_out_mode.mode_bpp) {
                     case GRAPHICSMODE_DEFAULT: {
@@ -1821,6 +2022,11 @@ uint16_t graphics_get_line_stride(void) {
 
 //выделение и настройка общих ресурсов - 4 DMA канала, PIO программ и 2 SM
 void graphics_init() {
+#ifdef PICO_RP2040
+    tv_copy_u8(menu_font_8x8_sram, font_8x8,
+               sizeof(menu_font_8x8_sram));
+    menu_text_clear(0x17u);
+#endif
     //настройка PIO
     SM_video = pio_claim_unused_sm(PIO_VIDEO, true);
     //выделение  DMA каналов
@@ -2038,10 +2244,18 @@ void graphics_set_mode(const enum graphics_mode_t mode) {
 // ---------------------------------------------------------------------------
 
 uint32_t graphics_get_width() {
+#ifdef PICO_RP2040
+    if (menu_text_active())
+        return MENU_TEXT_COLS * MENU_TEXT_CELL_W;
+#endif
     return graphics_buffer.width;
 }
 
 uint32_t graphics_get_height() {
+#ifdef PICO_RP2040
+    if (menu_text_active())
+        return MENU_TEXT_ROWS * MENU_TEXT_CELL_H;
+#endif
     return graphics_buffer.height;
 }
 
@@ -2051,14 +2265,24 @@ uint32_t graphics_get_height() {
 // Строка буфера y попадает на строку растра y + 23 + shift_y, то есть рост
 // shift_y опускает картинку вниз — знак уже такой, какой нужен наружу.
 int graphics_get_picture_shift_y() {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return 0;
+#endif
     return graphics_buffer.shift_y;
 }
 
 int graphics_get_picture_shift_x() {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return 0;
+#endif
     return graphics_buffer.shift_x;
 }
 
 uint32_t graphics_get_visible_height() {
+#ifdef PICO_RP2040
+    if (menu_text_active())
+        return MENU_TEXT_ROWS * MENU_TEXT_CELL_H;
+#endif
     int last;
     switch (tv_out_mode.N_lines) {
         case _624_lines:
@@ -2082,10 +2306,18 @@ uint8_t* graphics_get_frame() {
 }
 
 uint32_t graphics_get_font_width() {
+#ifdef PICO_RP2040
+    if (menu_text_active())
+        return MENU_TEXT_CELL_W;
+#endif
     return 8;
 }
 
 uint32_t graphics_get_font_height() {
+#ifdef PICO_RP2040
+    if (menu_text_active())
+        return MENU_TEXT_CELL_H;
+#endif
     return 8;
 }
 
@@ -2102,10 +2334,30 @@ void graphics_set_duplicateLines(bool v) {
  * visibly changes colours, so horizontal movement is quantised to one full
  * colour cycle.
  */
-void graphics_inc_x(void) { graphics_buffer.shift_x += 4; }
-void graphics_dec_x(void) { graphics_buffer.shift_x -= 4; }
-void graphics_inc_y(void) { graphics_buffer.shift_y++; }
-void graphics_dec_y(void) { graphics_buffer.shift_y--; }
+void graphics_inc_x(void) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return;
+#endif
+    graphics_buffer.shift_x += 4;
+}
+void graphics_dec_x(void) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return;
+#endif
+    graphics_buffer.shift_x -= 4;
+}
+void graphics_inc_y(void) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return;
+#endif
+    graphics_buffer.shift_y++;
+}
+void graphics_dec_y(void) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) return;
+#endif
+    graphics_buffer.shift_y--;
+}
 
 static inline void _plot(int32_t x, int32_t y, uint8_t color) {
     if (!graphics_framebuffer) return;
@@ -2137,6 +2389,28 @@ static void tv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint8_t colo
 }
 
 void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t color) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) {
+        const int x1 = (x0 + (int32_t)width) / MENU_TEXT_CELL_W;
+        const int y1 = (y0 + (int32_t)height) / MENU_TEXT_CELL_H;
+        const int x = x0 / MENU_TEXT_CELL_W;
+        const int y = y0 / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+        for (int cx = x; cx <= x1; ++cx) {
+            menu_text_put_cell(cx, y, '-', fg);
+            menu_text_put_cell(cx, y1, '-', fg);
+        }
+        for (int cy = y; cy <= y1; ++cy) {
+            menu_text_put_cell(x, cy, '|', fg);
+            menu_text_put_cell(x1, cy, '|', fg);
+        }
+        menu_text_put_cell(x, y, '+', fg);
+        menu_text_put_cell(x1, y, '+', fg);
+        menu_text_put_cell(x, y1, '+', fg);
+        menu_text_put_cell(x1, y1, '+', fg);
+        return;
+    }
+#endif
     const int32_t x1 = x0 + (int32_t)width;
     const int32_t y1 = y0 + (int32_t)height;
     tv_line(x0, y0, x1, y0, color);
@@ -2146,6 +2420,30 @@ void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
 }
 
 void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) {
+        if (width == 0 || height == 0)
+            return;
+
+        const int cx0 = x0 / MENU_TEXT_CELL_W;
+        const int cy0 = y0 / MENU_TEXT_CELL_H;
+        const int cx1 =
+            (x0 + (int32_t)width - 1) / MENU_TEXT_CELL_W;
+        const int cy1 =
+            (y0 + (int32_t)height - 1) / MENU_TEXT_CELL_H;
+        const uint8_t bg = menu_color_index(bgcolor);
+        for (int cy = cy0; cy <= cy1; ++cy)
+            for (int cx = cx0; cx <= cx1; ++cx) {
+                const uint8_t fg =
+                    (bg == 0 || bg == 1 || bg == 4 ||
+                     bg == 5 || bg == 8) ? 7u : 0u;
+                menu_text_put_cell(
+                    cx, cy, ' ',
+                    (uint8_t)((bg << 4) | fg));
+            }
+        return;
+    }
+#endif
     const int32_t x1 = x0 + (int32_t)width;
     const int32_t y1 = y0 + (int32_t)height;
     for (int32_t xi = x0; xi <= x1; ++xi)
@@ -2153,6 +2451,26 @@ void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
 }
 
 void graphics_type(int x, int y, uint8_t color, const char* msg, size_t msg_len) {
+#ifdef PICO_RP2040
+    if (menu_text_active()) {
+        int cx = x / MENU_TEXT_CELL_W;
+        const int cy = y / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+        for (size_t i = 0;
+             i < msg_len && cx < MENU_TEXT_COLS;
+             ++i, ++cx) {
+            if (cx < 0 || (unsigned)cy >= MENU_TEXT_ROWS)
+                continue;
+            const uint16_t old =
+                menu_text_cells[cy * MENU_TEXT_COLS + cx];
+            const uint8_t attr =
+                (uint8_t)(((old >> 8) & 0xf0u) | fg);
+            menu_text_put_cell(
+                cx, cy, (uint8_t)msg[i], attr);
+        }
+        return;
+    }
+#endif
     for (size_t i = 0; i < msg_len; ++i) {
         const uint8_t ch = (uint8_t)msg[i];
         const uint8_t* glyph = font_8x8 + ch * 8;

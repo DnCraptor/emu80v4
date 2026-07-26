@@ -28,7 +28,7 @@ extern PalKeyCodeAction getKey();
 
 #ifdef SCANLINE_TEXT_MENU
 #ifndef SCANLINE_MENU_VIDEO_MODE
-#if defined(HDMI_DVI)
+#if defined(HDMI_DVI) || defined(SOFTTV)
 #define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_TEXT
 #else
 #define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_COMBINED
