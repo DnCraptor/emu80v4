@@ -904,7 +904,9 @@ static bool audioStartPacedOutput(int sampleRate)
 
 void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
     const uint32_t sample = uint16_t(left) | (uint32_t(uint16_t(right)) << 16);
-
+#if defined(HDMI_DVI) && defined(PICO_RP2350)
+    hdmi_dvi_push_audio_sample(left, right);
+#endif
     if (!s_audioPaced) {
         if (s_audioI2S) {
             if (s_audioOutputInitialized

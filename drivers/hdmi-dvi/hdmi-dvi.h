@@ -31,4 +31,8 @@ void graphics_set_vector_source(const uint8_t* memory, const uint8_t* palette,
 // Цикл кодирования строк. Занимает ядро целиком и не возвращается.
 void hdmi_dvi_core_loop(void);
 
+// Передать один стереоотсчёт 16+16 бит в HDMI audio ring.
+// До инициализации DVI отсчёт безопасно отбрасывается.
+void hdmi_dvi_push_audio_sample(int16_t left, int16_t right);
+
 #endif // HDMI_DVI_H

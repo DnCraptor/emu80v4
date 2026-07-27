@@ -43,6 +43,25 @@ extern uint8_t DVI_VERTICAL_REPEAT;
 
 static struct dvi_inst dvi0;
 
+#define HDMI_AUDIO_RATE 48000
+#define HDMI_AUDIO_BUFFER_SIZE 256
+
+static audio_sample_t hdmi_audio_buffer[HDMI_AUDIO_BUFFER_SIZE];
+static volatile bool hdmi_audio_ready = false;
+
+void __not_in_flash_func(hdmi_dvi_push_audio_sample)(
+        int16_t left, int16_t right)
+{
+    if (!hdmi_audio_ready ||
+        get_write_size(&dvi0.audio_ring, false) == 0)
+        return;
+
+    audio_sample_t* sample = get_write_pointer(&dvi0.audio_ring);
+    sample->channels[0] = left;
+    sample->channels[1] = right;
+    increase_write_pointer(&dvi0.audio_ring, 1);
+}
+
 // Кадровый буфер эмулятора. Ставится из graphics_set_buffer().
 static uint8_t *fb_data = NULL;
 static uint16_t fb_w = PICTURE_W;
@@ -886,6 +905,14 @@ void graphics_init(void) {
 #endif
     dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
+#if defined(PICO_RP2350)
+    // HDMI audio, как в PICO-BK для 800x600@60. Пиксельная частота
+    // этого режима 40 МГц; N=6144 и CTS=40000 дают ровно 48 кГц.
+    dvi_audio_sample_buffer_set(
+        &dvi0, hdmi_audio_buffer, HDMI_AUDIO_BUFFER_SIZE);
+    dvi_set_audio_freq(&dvi0, HDMI_AUDIO_RATE, 40000, 6144);
+    hdmi_audio_ready = true;
+#endif
     // Как в PICO-BK: приоритет шины ядру 1, иначе обращения ядра 0 к памяти
     // подтормаживают выдачу строк. И явное обнуление полей кадра — dvi_init
     // их не трогает.
