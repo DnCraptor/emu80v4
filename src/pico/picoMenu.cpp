@@ -17,6 +17,7 @@
 #include "../Emulation.h"
 #include "../Vector.h"
 #include "../SoundMixer.h"
+#include "../Memory.h"
 #include "hway.h"
 #include "pico/picoPal.h"
 
@@ -1773,7 +1774,7 @@ static constexpr int c_menuMaxDepth = 8;
 
 #ifndef SCANLINE_TEXT_MENU
 static constexpr int c_menuBackupPool = 65536;
-static uint8_t s_menuBackup[c_menuBackupPool];
+static SRam s_menuBackup{c_menuBackupPool};
 static int s_backupUsed = 0;
 
 struct BackupRec {
@@ -1808,8 +1809,9 @@ void pushBackground(int depth, int x, int y, int w, int h)
 
     r = {x, y, w, h, s_backupUsed, true};
     for (int row = 0; row < h; ++row)
-        std::memcpy(s_menuBackup + r.offset + row * w,
-                    frame + (y + row) * frameStride + x, w);
+        s_menuBackup.writeBlock(
+            r.offset + row * w,
+            frame + (y + row) * frameStride + x, w);
     s_backupUsed += w * h;
 }
 
@@ -1822,8 +1824,9 @@ void popBackground(int depth)
     if (r.valid && frame) {
         const int frameStride = graphics_get_line_stride();
         for (int row = 0; row < r.h; ++row)
-            std::memcpy(frame + (r.y + row) * frameStride + r.x,
-                        s_menuBackup + r.offset + row * r.w, r.w);
+            s_menuBackup.readBlock(
+                r.offset + row * r.w,
+                frame + (r.y + row) * frameStride + r.x, r.w);
         s_backupUsed = r.offset;
     }
     r.valid = false;
@@ -2185,6 +2188,9 @@ void relayoutMenu()
 
 void palLoadMenuState()
 {
+#ifndef SCANLINE_TEXT_MENU
+    s_menuBackup.init();
+#endif
     loadMenuStateImpl();
 }
 

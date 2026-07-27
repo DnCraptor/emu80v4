@@ -30,6 +30,8 @@ class SRam : public AddressableDevice
         virtual ~SRam();
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
+        void writeBlock(int addr, const uint8_t* data, int size);
+        void readBlock(int addr, uint8_t* data, int size);
         int getSize() { return m_size; }
         void init() override;
 

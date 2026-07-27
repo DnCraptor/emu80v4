@@ -35,25 +35,37 @@ extern uint8_t* PSRAM_DATA;
 extern uint32_t butter_psram_size();
 
 static FIL f;
+static bool sram_file_open = false;
+static unsigned sram_object_count = 0;
 static const char PAGEFILE[] = "/tmp/.v06c.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
 /// TODO:    memset(m_buf, 0, memSize);
     sram_used += m_size;
+    ++sram_object_count;
 }
 
 
 void SRam::init()
 {
-    // Файловая система готова только к моменту init(), в конструкторе её может
-    // ещё не быть
-    f_open(&f, PAGEFILE, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+    // Все SRam используют один pagefile. Повторный init() другого объекта не
+    // должен заново открывать и обнулять уже используемый файл.
+    if (!sram_file_open) {
+        sram_file_open =
+            f_open(&f, PAGEFILE,
+                   FA_READ | FA_WRITE | FA_CREATE_ALWAYS) == FR_OK;
+    }
 }
 
 SRam::~SRam() {
     sram_used -= m_size; /// TODO: ensure order
-    f_close(&f);
+    if (sram_object_count != 0)
+        --sram_object_count;
+    if (sram_object_count == 0 && sram_file_open) {
+        f_close(&f);
+        sram_file_open = false;
+    }
 }
 
 void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
@@ -90,6 +102,71 @@ uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
     uint8_t value;
     f_read(&f, &value, 1, &br);
     return value;
+
+}
+
+void __not_in_flash_func(SRam::writeBlock)(
+        int addr, const uint8_t* data, int size)
+{
+    if (!data || size <= 0 || addr < 0 || addr >= m_size)
+        return;
+    if (size > m_size - addr)
+        size = m_size - addr;
+
+    const size_t off = m_offset + (size_t)addr;
+    if (butter_psram_size() >= off + (size_t)size) {
+        memcpy(PSRAM_DATA + off, data, (size_t)size);
+        return;
+    }
+#if PSRAM
+    if (psram_size() >= off + (size_t)size) {
+        for (int i = 0; i < size; ++i)
+            write8psram(off + (size_t)i, data[i]);
+        return;
+    }
+#endif
+    if (!sram_file_open)
+        init();
+    if (!sram_file_open)
+        return;
+
+    UINT written = 0;
+    f_lseek(&f, (FSIZE_t)off);
+    f_write(&f, data, (UINT)size, &written);
+}
+
+void __not_in_flash_func(SRam::readBlock)(
+        int addr, uint8_t* data, int size)
+{
+    if (!data || size <= 0 || addr < 0 || addr >= m_size)
+        return;
+    if (size > m_size - addr)
+        size = m_size - addr;
+
+    const size_t off = m_offset + (size_t)addr;
+    if (butter_psram_size() >= off + (size_t)size) {
+        memcpy(data, PSRAM_DATA + off, (size_t)size);
+        return;
+    }
+#if PSRAM
+    if (psram_size() >= off + (size_t)size) {
+        for (int i = 0; i < size; ++i)
+            data[i] = read8psram(off + (size_t)i);
+        return;
+    }
+#endif
+    if (!sram_file_open)
+        init();
+    if (!sram_file_open) {
+        memset(data, 0, (size_t)size);
+        return;
+    }
+
+    UINT read = 0;
+    f_lseek(&f, (FSIZE_t)off);
+    f_read(&f, data, (UINT)size, &read);
+    if (read < (UINT)size)
+        memset(data + read, 0, (size_t)size - read);
 }
 
 Ram::Ram(unsigned memSize)
