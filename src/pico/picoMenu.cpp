@@ -316,6 +316,20 @@ const char* cpuLoadStatus()
     return cpuLoadStatusBuffer;
 }
 
+static const char* cpuClockStatus()
+{
+    static char cpuClockStatusBuffer[17];
+#if PICO_RP2040
+    char* dst = appendText(cpuClockStatusBuffer, "RP2040: ");
+#else
+    char* dst = appendText(cpuClockStatusBuffer, "RP2350: ");
+#endif
+    dst = appendUnsigned(dst, palGetSystemClockMHz());
+    dst = appendText(dst, " MHz");
+    *dst = '\0';
+    return cpuClockStatusBuffer;
+}
+
 static const MenuItem cpuClockItems[] = {
     {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
@@ -328,6 +342,7 @@ static const MenuItem cpuClockItems[] = {
     {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {nullptr, cpuFpsStatus, nullptr, nullptr, menuItemDisabled, nullptr},
     {nullptr, cpuLoadStatus, nullptr, nullptr, menuItemDisabled, nullptr},
+    {nullptr, cpuClockStatus, nullptr, nullptr, menuItemDisabled, nullptr},
 };
 
 static const MenuPage cpuClockPage {
@@ -1249,8 +1264,14 @@ void coreVoltageSetValue(int value)
 }
 
 static const MenuItem systemClockItems[] = {
-#ifdef HDMI_DVI
+#if defined(HDMI_DVI)
     {"400 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#elif defined(PICO_RP2040)
+    {"400 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"402 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"404 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"408 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
+    {"412 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
 #else
     {"400 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
     {"440 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
@@ -1266,11 +1287,15 @@ static const MenuPage systemClockPage {
 };
 
 static const MenuItem coreVoltageItems[] = {
+#if defined(PICO_RP2040)
+    {"1.30 V", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#else
     {"1.30 V", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"1.40 V", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"1.50 V", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"1.60 V", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"1.65 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+#endif
 };
 static const MenuPage coreVoltagePage {
     "Core voltage", nullptr, coreVoltageItems,

@@ -1030,35 +1030,6 @@ uint32_t palGetSystemClockMHz()
     return clock_get_hz(clk_sys) / MHZ;
 }
 
-bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
-{
-    if (mhz == palGetSystemClockMHz())
-        return true;
-
-    if (!graphics_system_clock_can_change())
-        return mhz == palGetSystemClockMHz();
-
-    uint32_t count = 0;
-    const uint32_t* clocks = graphics_get_supported_system_clocks(&count);
-    bool supported = false;
-    for (uint32_t i = 0; i < count; ++i)
-        supported = supported || clocks[i] == mhz;
-    if (!supported)
-        return false;
-
-        const uint32_t irqState = save_and_disable_interrupts();
-    multicore_lockout_start_blocking();
-    flash_timings(mhz);
-    const bool changed = set_sys_clock_khz(mhz * KHZ, false);
-    graphics_system_clock_changed();
-    multicore_lockout_end_blocking();
-    restore_interrupts(irqState);
-
-    if (changed)
-        palAudioSystemClockChanged();
-    return changed;
-}
-
 uint16_t palGetCoreVoltageMv()
 {
     return s_coreVoltageMv;
@@ -1085,10 +1056,45 @@ bool palSetCoreVoltageMv(uint16_t mv)
 }
 #else
 uint32_t palGetSystemClockMHz() { return clock_get_hz(clk_sys) / MHZ; }
-bool palSetSystemClockMHz(uint32_t) { return false; }
-uint16_t palGetCoreVoltageMv() { return 0; }
+uint16_t palGetCoreVoltageMv() { return 1300; }
 bool palSetCoreVoltageMv(uint16_t) { return false; }
 #endif
+
+bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
+{
+    if (mhz == palGetSystemClockMHz())
+        return true;
+
+    if (!graphics_system_clock_can_change())
+        return mhz == palGetSystemClockMHz();
+
+    uint32_t count = 0;
+    const uint32_t* clocks = graphics_get_supported_system_clocks(&count);
+    bool supported = false;
+    for (uint32_t i = 0; i < count; ++i)
+        supported = supported || clocks[i] == mhz;
+    if (!supported)
+        return false;
+
+    const uint32_t irqState = save_and_disable_interrupts();
+    multicore_lockout_start_blocking();
+#if !PICO_RP2040
+    flash_timings(mhz);
+    const bool changed = set_sys_clock_khz(mhz * KHZ, false);
+    graphics_system_clock_changed();
+    multicore_lockout_end_blocking();
+    restore_interrupts(irqState);
+
+    if (changed)
+        palAudioSystemClockChanged();
+#else
+    const bool changed = set_sys_clock_khz(mhz * KHZ, false);
+    multicore_lockout_end_blocking();
+    restore_interrupts(irqState);
+#endif
+    return changed;
+}
+
 
 int main() {
 #if !PICO_RP2040
