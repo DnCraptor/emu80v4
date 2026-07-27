@@ -6,10 +6,7 @@
 #include "hardware/clocks.h"
 #include "pico/time.h"
 
-// no blocking for now, it may brek input from keyboard
-//#include "hardware/sync.h"
-#define save_and_disable_interrupts() 0
-#define restore_interrupts(x)
+#include "hardware/sync.h"
 
 // --- Ноги. В PICO-BK: LATCH=26, CLK=27, DATA=28, такт AY = 21 или 29. ---
 #ifndef HWAY_LATCH_PIN
@@ -227,6 +224,27 @@ void __not_in_flash_func(hway_ay_data)(uint8_t val) {
     restore_interrupts(irq);
 }
 
+// Полная транзакция AY должна быть неделимой относительно callback ковокса:
+// иначе тот может переключить шину на AY1 между адресом и данными.
+void __not_in_flash_func(hway_ay_write)(uint8_t reg, uint8_t val) {
+    if (!s_ready)
+        return;
+    const uint8_t n = reg & 0x0F;
+    uint32_t irq = save_and_disable_interrupts();
+    HI(CS_AY0); LO(CS_AY1);
+    send595(HI(BDIR | BC1) | n);
+    send595(LO(BDIR | BC1) | n);
+    send595(LO(BDIR) | val);
+    send595(HI(BDIR) | val);
+    send595(LO(BDIR) | val);
+#if HWAY_BUS_GAP_US
+    busy_wait_us(HWAY_BUS_GAP_US);
+#endif
+    s_ay0_reg = n;
+    s_bus_dirty = false;
+    restore_interrupts(irq);
+}
+
 // Ковокс: полная последовательность из PICO-BK — выбор второго чипа,
 // R7 = 0x80 (port B на вывод), затем R15 = значение. R7 переписывается
 // каждый раз, как в оригинале. Посылка только при изменении значения.
@@ -292,6 +310,16 @@ static bool s_q_sync = false;
 static uint32_t s_q_emu0 = 0;
 static uint32_t s_q_real0 = 0;
 
+void hway_queue_reset(void) {
+    uint32_t irq = save_and_disable_interrupts();
+    s_qr = 0;
+    s_qw = 0;
+    s_q_sync = false;
+    s_q_emu0 = 0;
+    s_q_real0 = 0;
+    restore_interrupts(irq);
+}
+
 void __not_in_flash_func(hway_ay_queue)(uint8_t reg, uint8_t val, uint32_t emu_us) {
     if (!s_ready)
         return;
@@ -320,8 +348,7 @@ void __not_in_flash_func(hway_queue_drain)(void) {
             break;                  // время этой записи ещё не пришло
         if (due < -HWAY_Q_RESYNC_US)
             s_q_sync = false;       // отстали слишком сильно, сверимся заново
-        hway_ay_address(s_q[s_qr].reg);
-        hway_ay_data(s_q[s_qr].val);
+        hway_ay_write(s_q[s_qr].reg, s_q[s_qr].val);
         s_qr = (s_qr + 1u) % HWAY_Q_SIZE;
     }
 }

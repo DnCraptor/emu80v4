@@ -213,15 +213,16 @@ void setPictureShiftY(int target)
     }
 }
 
+extern "C" FIL g_file;
+
 bool writeStateText(const char* text, size_t length)
 {
-    FIL file;
-    if (f_open(&file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+    if (f_open(&g_file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
         return false;
     UINT written = 0;
-    const FRESULT result = f_write(&file, text, static_cast<UINT>(length), &written);
-    f_sync(&file);
-    f_close(&file);
+    const FRESULT result = f_write(&g_file, text, static_cast<UINT>(length), &written);
+    f_sync(&g_file);
+    f_close(&g_file);
     return result == FR_OK && written == length;
 }
 
@@ -1422,16 +1423,15 @@ void loadMenuStateImpl()
         return;
     f_mkdir("/.config");
 
-    FIL file;
-    if (f_open(&file, c_stateFileName, FA_READ) != FR_OK) {
+    if (f_open(&g_file, c_stateFileName, FA_READ) != FR_OK) {
         saveMenuStateImpl();
         return;
     }
 
     char* const text = s_stateText;
     UINT read = 0;
-    const FRESULT result = f_read(&file, text, c_stateFileMax, &read);
-    f_close(&file);
+    const FRESULT result = f_read(&g_file, text, c_stateFileMax, &read);
+    f_close(&g_file);
     if (result != FR_OK)
         return;
     text[read] = '\0';

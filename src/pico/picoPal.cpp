@@ -11,6 +11,8 @@
 #include <hardware/watchdog.h>
 #include "hway.h"
 
+extern "C" FIL g_file = {};
+
 // Аппаратная перезагрузка устройства (та же, что по Ctrl+Alt+Del): взводим
 // watchdog на минимальный таймаут и зависаем — сброс происходит почти мгновенно.
 void palReboot()
@@ -31,12 +33,11 @@ int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t*
     else
         fullFileName = fileName;
 
-    FIL file;
-    if (f_open(&file, fullFileName.c_str(), FA_READ) == FR_OK) {
-        f_lseek(&file, offset);
+    if (f_open(&g_file, fullFileName.c_str(), FA_READ) == FR_OK) {
+        f_lseek(&g_file, offset);
         UINT nBytesRead;
-        f_read(&file, buffer, sizeToRead, &nBytesRead);
-        f_close(&file);
+        f_read(&g_file, buffer, sizeToRead, &nBytesRead);
+        f_close(&g_file);
         return nBytesRead;
     }
     return 0;
@@ -808,6 +809,11 @@ static bool __not_in_flash_func(audioTimerCb)(repeating_timer_t*)
         s_audioLast = s_audioRing[s_audioRead];
         s_audioRead = (s_audioRead + 1) & c_audioRingMask;
     }
+    #if defined(HDMI_DVI) && defined(PICO_RP2350)
+    hdmi_dvi_push_audio_sample(
+        int16_t(s_audioLast & 0xffffu),
+        int16_t(s_audioLast >> 16));
+    #endif
     if (s_audioHwAy) {
         hway_queue_drain();   // выдать записи AY, чьё время наступило
         hway_dac_out(int16_t(s_audioLast & 0xFFFF), int16_t(s_audioLast >> 16));
@@ -904,9 +910,6 @@ static bool audioStartPacedOutput(int sampleRate)
 
 void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
     const uint32_t sample = uint16_t(left) | (uint32_t(uint16_t(right)) << 16);
-#if defined(HDMI_DVI) && defined(PICO_RP2350)
-    hdmi_dvi_push_audio_sample(left, right);
-#endif
     if (!s_audioPaced) {
         if (s_audioI2S) {
             if (s_audioOutputInitialized

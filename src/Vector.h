@@ -660,7 +660,7 @@ class VectorHddRegisters : public AddressableDevice
 
         void attachAtaDrive(AtaDrive* ataDrive) {m_ataDrive = ataDrive;}
         bool getEnabled() const {return m_enabled;}
-        void setEnabled(bool enabled) {m_enabled = enabled;}
+        void setEnabled(bool enabled);
 
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int) override;

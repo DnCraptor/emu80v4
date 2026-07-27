@@ -43,14 +43,32 @@ extern uint8_t DVI_VERTICAL_REPEAT;
 
 static struct dvi_inst dvi0;
 
+#define HDMI_AUDIO_INPUT_RATE 50000
 #define HDMI_AUDIO_RATE 48000
 #define HDMI_AUDIO_BUFFER_SIZE 256
 
 static audio_sample_t hdmi_audio_buffer[HDMI_AUDIO_BUFFER_SIZE];
 static volatile bool hdmi_audio_ready = false;
 
-void __not_in_flash_func(hdmi_dvi_push_audio_sample)(
-        int16_t left, int16_t right)
+/*
+ * SoundMixer generates exactly 50 kHz. HDMI/libdvi consumes 48 kHz.
+ *
+ * The conversion is performed here, at the output boundary, so AY, Covox,
+ * beeper and the rest of the emulation keep their existing 50 kHz timing.
+ *
+ * 48/50 = 24/25: for each 25 input samples, 24 output samples are produced.
+ * The output position is tracked with an integer phase accumulator. A linear
+ * interpolation is made at the exact fractional position between the previous
+ * and current 50 kHz samples. No division is used in the common no-output
+ * path, and there can be at most one output sample per input sample.
+ */
+static bool hdmi_resampler_started = false;
+static uint32_t hdmi_resampler_phase = 0;
+static int16_t hdmi_resampler_prev_left = 0;
+static int16_t hdmi_resampler_prev_right = 0;
+
+static inline __attribute__((always_inline))
+void hdmi_audio_enqueue(int16_t left, int16_t right)
 {
     if (!hdmi_audio_ready ||
         get_write_size(&dvi0.audio_ring, false) == 0)
@@ -60,6 +78,55 @@ void __not_in_flash_func(hdmi_dvi_push_audio_sample)(
     sample->channels[0] = left;
     sample->channels[1] = right;
     increase_write_pointer(&dvi0.audio_ring, 1);
+}
+
+void __not_in_flash_func(hdmi_dvi_push_audio_sample)(
+        int16_t left, int16_t right)
+{
+    if (!hdmi_resampler_started) {
+        hdmi_resampler_prev_left = left;
+        hdmi_resampler_prev_right = right;
+        hdmi_resampler_started = true;
+        return;
+    }
+
+    const uint32_t old_phase = hdmi_resampler_phase;
+    uint32_t new_phase = old_phase + HDMI_AUDIO_RATE;
+
+    if (new_phase >= HDMI_AUDIO_INPUT_RATE) {
+        /*
+         * The next 48 kHz sample lies inside the interval:
+         *
+         *   previous + fraction * (current - previous)
+         *
+         * fraction = (INPUT_RATE - old_phase) / OUTPUT_RATE.
+         */
+        const uint32_t numerator =
+            HDMI_AUDIO_INPUT_RATE - old_phase;
+
+        const int32_t left_delta =
+            (int32_t)left - hdmi_resampler_prev_left;
+        const int32_t right_delta =
+            (int32_t)right - hdmi_resampler_prev_right;
+
+        const int32_t out_left =
+            hdmi_resampler_prev_left +
+            (int32_t)(((int64_t)left_delta * numerator +
+                       HDMI_AUDIO_RATE / 2) /
+                      HDMI_AUDIO_RATE);
+        const int32_t out_right =
+            hdmi_resampler_prev_right +
+            (int32_t)(((int64_t)right_delta * numerator +
+                       HDMI_AUDIO_RATE / 2) /
+                      HDMI_AUDIO_RATE);
+
+        hdmi_audio_enqueue((int16_t)out_left, (int16_t)out_right);
+        new_phase -= HDMI_AUDIO_INPUT_RATE;
+    }
+
+    hdmi_resampler_phase = new_phase;
+    hdmi_resampler_prev_left = left;
+    hdmi_resampler_prev_right = right;
 }
 
 // Кадровый буфер эмулятора. Ставится из graphics_set_buffer().
@@ -911,6 +978,8 @@ void graphics_init(void) {
     dvi_audio_sample_buffer_set(
         &dvi0, hdmi_audio_buffer, HDMI_AUDIO_BUFFER_SIZE);
     dvi_set_audio_freq(&dvi0, HDMI_AUDIO_RATE, 40000, 6144);
+    hdmi_resampler_started = false;
+    hdmi_resampler_phase = 0;
     hdmi_audio_ready = true;
 #endif
     // Как в PICO-BK: приоритет шины ядру 1, иначе обращения ядра 0 к памяти

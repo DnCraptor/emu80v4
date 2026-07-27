@@ -133,9 +133,7 @@ bool DiskImage::read(uint8_t* buf, int len)
 {
     if (!m_file.isOpen())
         return false;
-    for (int i = 0; i < len; i++)
-        buf[i] = m_file.read8();
-    return true;
+    return m_file.read(buf, static_cast<UINT>(len)) == static_cast<UINT>(len);
 }
 
 
@@ -143,8 +141,7 @@ bool DiskImage::write(uint8_t* buf, int len)
 {
     if (!m_file.isOpen() || m_isWriteProtected)
         return false;
-    for (int i = 0; i < len; i++)
-        m_file.write8(buf[i]);
+    return m_file.write(buf, static_cast<UINT>(len)) == static_cast<UINT>(len);
     return true;
 }
 

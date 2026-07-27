@@ -31,6 +31,18 @@ class PalFile
         }
         bool isOpen() { return m_isOpen; }
         bool eof() { return !m_isOpen || f_eof(&m_file); }
+        UINT read(void* buf, UINT btr) {
+            if (!m_isOpen) return 0;
+            UINT br = 0;
+            f_read(&m_file, buf, btr, &br);
+            return br;
+        }
+        UINT write(const void* buf, UINT btw) {
+            if (!m_isOpen) return 0;
+            UINT bw = 0;
+            f_write(&m_file, buf, btw, &bw);
+            return bw;
+        }
         uint8_t read8() {
             if (!m_isOpen) return 0;
             uint8_t res;

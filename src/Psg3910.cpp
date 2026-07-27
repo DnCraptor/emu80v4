@@ -241,9 +241,11 @@ extern "C" void psgTestTick(void)        // из таймера, частота 
 Psg3910::Psg3910()
 {
     s_testPsg = this;
-    m_prevClock = g_emulation->getCurClock();
-    m_discreteClock = m_prevClock - m_prevClock % (m_kDiv * 8);
-    Psg3910::reset();
+    // Psg3910 входит в статический s_devices и создаётся до main(),
+    // когда g_emulation ещё равен nullptr. Полная инициализация выполняется
+    // штатным reset() после создания Emulation.
+    m_prevClock = 0;
+    m_discreteClock = 0;
 }
 
 
@@ -259,8 +261,12 @@ void Psg3910::reset()
     m_curReg = 0;
     for (int i = 0; i < 16; i++)
         m_regs[i] = 0;
-    if (palAudioIsHwAy())
+    if (palAudioIsHwAy()) {
+        // Не позволяем callback аудио воспроизвести после reset команды,
+        // накопленные до F11/F12.
+        hway_queue_reset();
         hway_reset();
+    }
 
     m_noiseFreq = 0;
     m_envFreq = 0;
@@ -303,8 +309,7 @@ void Psg3910::setEnabled(bool enabled)
     // явно: иначе реальный AY продолжит тянуть последнюю ноту.
     if (!enabled && palAudioIsHwAy())
         for (int i = 8; i <= 10; i++) {
-            hway_ay_address(uint8_t(i));
-            hway_ay_data(0);
+            hway_ay_write(uint8_t(i), 0);
         }
 
     if (enabled) {
@@ -323,11 +328,10 @@ void Psg3910::postLoad()
         return;
     // Snapshot восстановил регистры только в эмуляторе. Реальный чип нужно
     // перезалить целиком, иначе он продолжит играть доснимочное состояние.
+    hway_queue_reset();
     hway_reset();
-    for (int i = 0; i < 16; i++) {
-        hway_ay_address(uint8_t(i));
-        hway_ay_data(m_regs[i]);
-    }
+    for (int i = 0; i < 16; i++)
+        hway_ay_write(uint8_t(i), m_regs[i]);
     hway_ay_address(uint8_t(m_curReg));
 }
 

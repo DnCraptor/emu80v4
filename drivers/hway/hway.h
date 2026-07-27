@@ -13,6 +13,7 @@ void hway_reset(void);
 
 void hway_ay_address(uint8_t reg);         // защёлкнуть номер регистра на AY0
 void hway_ay_data(uint8_t val);            // записать данные в выбранный регистр
+void hway_ay_write(uint8_t reg, uint8_t val); // атомарная запись регистра AY0
 void hway_dac_out(int16_t l, int16_t r);   // ковокс -> port B второго чипа
 
 void hway_set_dac_enabled(bool on);
@@ -36,6 +37,7 @@ void hway_covox_test(bool on);
 bool hway_covox_test_on(void);
 
 void hway_queue_drain(void);
+void hway_queue_reset(void);
 void hway_ay_queue(uint8_t reg, uint8_t val, uint32_t emu_us);
 
 #ifdef __cplusplus

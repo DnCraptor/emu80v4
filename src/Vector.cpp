@@ -57,6 +57,8 @@
 #include "pico/picoMenu.h"
 #include "graphics.h"
 
+extern "C" FIL g_file;
+
 using namespace std;
 
 
@@ -1028,7 +1030,6 @@ bool VectorFileLoader::chooseAndLoadFile(bool run)
     return true;
 }
 
-
 bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool readOnly)
 {
     auto periodPos = fileName.find_last_of(".");
@@ -1055,8 +1056,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
         return true;
     }
 
-    FIL f;
-    if (f_open(&f, fileName.c_str(), FA_READ) != FR_OK)
+    if (f_open(&g_file, fileName.c_str(), FA_READ) != FR_OK)
         return false;
     bool basFile = false;
     uint16_t begAddr = 0x100;
@@ -1083,10 +1083,10 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
 
     UINT br;
     if (!basFile)
-        for (int i = 0; i < f_size(&f); ++i) {
+        for (int i = 0; i < f_size(&g_file); ++i) {
             uint16_t addr = begAddr + i;
             uint8_t v;
-            f_read(&f, &v, 1, &br);
+            f_read(&g_file, &v, 1, &br);
             m_addrSpace->writeByte(addr, v);
             if (!run && (addr & 0xFF) == 0) {
                 // paint block
@@ -1097,24 +1097,24 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
             }
         }
     else {
-        int fileSize = f_size(&f);
+        int fileSize = f_size(&g_file);
         uint32_t v;
-        f_read(&f, &v, 4, &br);
+        f_read(&g_file, &v, 4, &br);
         // check for CAS
         if (fileSize >= 14 && v == 0xD3D3D3D3) {
             // Cas file
             while (fileSize) {
                 uint8_t v;
-                f_read(&f, &v, 1, &br);
+                f_read(&g_file, &v, 1, &br);
                 if (v == 0xE6) break;
                 fileSize--;
             }
 
             if (fileSize < 7) {
-                f_close(&f);
+                f_close(&g_file);
                 return false;
             }
-            f_lseek(&f, f_tell(&f) + 5);
+            f_lseek(&g_file, f_tell(&g_file) + 5);
             fileSize -= 5;
         }
 
@@ -1132,12 +1132,12 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
         addr = nextAddr = 0x4301;
         for(;;) {
             if (addr == nextAddr + 1) {
-                f_lseek(&f, f_tell(&f) - 1);
-                f_read(&f, &nextAddr, 2, &br); // TODO: ensure order of bytes
-                f_lseek(&f, f_tell(&f) - 1);
+                f_lseek(&g_file, f_tell(&g_file) - 1);
+                f_read(&g_file, &nextAddr, 2, &br); // TODO: ensure order of bytes
+                f_lseek(&g_file, f_tell(&g_file) - 1);
             }
             uint8_t v;
-            f_read(&f, &v, 1, &br);
+            f_read(&g_file, &v, 1, &br);
             m_addrSpace->writeByte(addr++, v);
             fileSize--;
             if (nextAddr == 0 || fileSize == 0 || addr >= 0x7EFF)
@@ -1149,7 +1149,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
         m_addrSpace->writeByte(0x4048, addr >> 8);
         m_addrSpace->writeByte(0x4049, addr & 0xFF);
         m_addrSpace->writeByte(0x404A, addr >> 8);
-        f_close(&f);
+        f_close(&g_file);
 
         if (run) {
             m_addrSpace->writeByte(0x3DBF, 'R');
@@ -1165,7 +1165,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
     }
 
 
-    f_close(&f);
+    f_close(&g_file);
 
     if (run) {
         as->disableRom();
@@ -1351,6 +1351,20 @@ void VectorPpi8255Circuit2::setPortC(uint8_t value)
     m_printerStrobe = newStrobe;
 }
 
+
+
+void VectorHddRegisters::setEnabled(bool enabled)
+{
+    if (m_enabled == enabled)
+        return;
+
+    m_enabled = enabled;
+    m_highR = 0;
+    m_highW = 0;
+
+    if (!enabled && m_ataDrive)
+        m_ataDrive->reset();
+}
 
 
 void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
@@ -1665,8 +1679,8 @@ VectorCore::VectorCore()
      */
     m_ay->setEnabled(false);               // PSG
     m_hddRegisters->setEnabled(false);     // HDD interface
-    m_ramDiskSelector->setEnabled(false);  // EDD
-    m_ramDiskSelector2->setEnabled(false); // EDD2
+//    m_ramDiskSelector->setEnabled(false);  // EDD
+//    m_ramDiskSelector2->setEnabled(false); // EDD2
 
     init();
 
@@ -2606,8 +2620,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
     char fileName[32];
     snapshotFileName(fileName, slot);
 
-    FIL file{};
-    if (f_open(&file, fileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+    if (f_open(&g_file, fileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
         return false;
 
     SnapshotFileHeaderV2 header{};
@@ -2633,7 +2646,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
         ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
         : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
 
-    SnapshotWriter writer(file);
+    SnapshotWriter writer(g_file);
     bool ok = writer.writeValue(header);
     ok = ok && writeSnapshotSection(writer, *this); // CORE must precede CPU.
     ok = ok && writeSnapshotSection(writer, *cpuState);
@@ -2655,7 +2668,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
     ok = ok && writeSnapshotSection(writer, *g_emulation);
     ok = ok && writer.good();
 
-    if (f_close(&file) != FR_OK)
+    if (f_close(&g_file) != FR_OK)
         ok = false;
     if (!ok)
         f_unlink(fileName);
@@ -2689,18 +2702,17 @@ bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
     char fileName[32];
     snapshotFileName(fileName, slot);
 
-    FIL file{};
-    const FRESULT openResult = f_open(&file, fileName, FA_READ);
+    const FRESULT openResult = f_open(&g_file, fileName, FA_READ);
     if (openResult == FR_NO_FILE || openResult == FR_NO_PATH)
         return true;
     if (openResult != FR_OK)
         return false;
 
     info.present = true;
-    SnapshotReader reader(file);
+    SnapshotReader reader(g_file);
     SnapshotFileHeaderV2 header{};
     const bool readOk = reader.readValue(header);
-    const bool closeOk = f_close(&file) == FR_OK;
+    const bool closeOk = f_close(&g_file) == FR_OK;
     if (!readOk || !closeOk)
         return false;
 
@@ -2728,14 +2740,13 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
     char fileName[32];
     snapshotFileName(fileName, slot);
 
-    FIL file{};
-    const FRESULT openResult = f_open(&file, fileName, FA_READ);
+    const FRESULT openResult = f_open(&g_file, fileName, FA_READ);
     if (openResult == FR_NO_FILE || openResult == FR_NO_PATH)
         return SnapshotLoadResult::NotFound;
     if (openResult != FR_OK)
         return SnapshotLoadResult::IoError;
 
-    SnapshotReader reader(file);
+    SnapshotReader reader(g_file);
     SnapshotFileHeaderV2 header{};
     SnapshotLoadResult result = SnapshotLoadResult::Ok;
     if (!reader.readValue(header)) {
@@ -2825,7 +2836,7 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
         }
     }
 
-    if (f_close(&file) != FR_OK && result == SnapshotLoadResult::Ok)
+    if (f_close(&g_file) != FR_OK && result == SnapshotLoadResult::Ok)
         result = SnapshotLoadResult::IoError;
     if (result != SnapshotLoadResult::Ok)
         return result;

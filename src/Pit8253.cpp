@@ -31,8 +31,11 @@ using namespace std;
 Pit8253Counter::Pit8253Counter(Pit8253* pit)
 {
     m_pit = pit;
-    m_prevClock = g_emulation->getCurClock();
-    m_clockPhase = uint32_t(m_prevClock % uint64_t(m_kDiv));
+    // Pit8253 входит в статический s_devices и создаётся до main(),
+    // когда g_emulation ещё равен nullptr. Нулевое начальное время
+    // согласовано с инициализаторами полей; рабочее время задаётся позднее.
+    m_prevClock = 0;
+    m_clockPhase = 0;
     m_isCounting = false;
     m_gate = true;
     m_out = false;

@@ -69,7 +69,10 @@ SRam::~SRam() {
 }
 
 void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
-    size_t off = m_offset + addr;
+    if (addr < 0 || addr >= m_size)
+        return;
+
+    const size_t off = m_offset + static_cast<size_t>(addr);
     if (butter_psram_size() > off) {
         PSRAM_DATA[off] = value;
         return;
@@ -82,12 +85,21 @@ void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
 #endif
     UINT br;
     FSIZE_t lba = m_offset;
+    // Как и в writeBlock: файл подкачки мог не открыться (напр., каталога нет).
+    // Без этой проверки f_lseek/f_write идут по неоткрытому FIL -> hardfault.
+    if (!sram_file_open)
+        init();
+    if (!sram_file_open)
+        return;
     f_lseek(&f, lba + addr);
     f_write(&f, &value, 1, &br);
 }
 
 uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
-    size_t off = m_offset + addr;
+    if (addr < 0 || addr >= m_size)
+        return 0xFF;
+
+    const size_t off = m_offset + static_cast<size_t>(addr);
     if (butter_psram_size() > off) {
         return PSRAM_DATA[off];
     }
@@ -98,6 +110,11 @@ uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
 #endif
     UINT br;
     FSIZE_t lba = m_offset;
+    // Симметрично readBlock: если файл подкачки не открыт, не трогаем FIL.
+    if (!sram_file_open)
+        init();
+    if (!sram_file_open)
+        return 0xFF;
     f_lseek(&f, lba + addr);
     uint8_t value;
     f_read(&f, &value, 1, &br);
