@@ -1658,6 +1658,16 @@ VectorCore::VectorCore()
     m_tapeHooks[8] = m_closeFileHookEmuRk;
     m_tapeHooks[9] = m_skipHookMon;
 
+    /*
+     * Базовая конфигурация соответствует обычному Вектору-06Ц (с FDD).
+     * Расширения остаются доступными из меню и через конфигурационный файл,
+     * но при первом запуске без /.config/vector06c.cfg выключены.
+     */
+    m_ay->setEnabled(false);               // PSG
+    m_hddRegisters->setEnabled(false);     // HDD interface
+    m_ramDiskSelector->setEnabled(false);  // EDD
+    m_ramDiskSelector2->setEnabled(false); // EDD2
+
     init();
 
     reset();

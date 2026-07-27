@@ -24,10 +24,10 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
-set(SOFTTV ON)
+#set(SOFTTV ON)
 #set(TV_NTSC ON)
 #set(VGA_DRV ON)
-#set(HDMI_DVI ON)
+set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)
@@ -42,7 +42,7 @@ set(CPU_MHZ 400)
 #set(CPU_MHZ 500)
 #set(CPU_MHZ 520)
 
-set (PORT_VERSION "0.5.9")
+set (PORT_VERSION "0.6.0")
 
 # При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
 # системной, а 800x600@60 требует ровно 400 МГц.
