@@ -88,8 +88,8 @@ struct MenuPage {
 // --- Persistent editable settings ------------------------------------------
 
 constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
-constexpr size_t c_stateFileMax = 4096;
-static char s_stateText[c_stateFileMax + 1];
+// Промежуточного буфера на весь файл больше нет: конфиг пишется прямо в файл
+// по кускам, а читается построчно в маленький стековый буфер. SRAM дорога.
 
 // Смещение картинки — это подстройка конкретного устройства вывода, а не
 // свойство эмуляции: у PAL/NTSC-композита, VGA и HDMI/DVI разная геометрия
@@ -215,15 +215,52 @@ void setPictureShiftY(int target)
 
 extern "C" FIL g_file;
 
-bool writeStateText(const char* text, size_t length)
+// Потоковая запись конфигурации прямо в g_file — без сборки всего файла в
+// памяти. Кусочные f_write буферизуются FatFS в секторном буфере FIL, поэтому
+// это не побайтный доступ к SD. Числа форматируются в крошечный локальный
+// буфер (не в общий буфер на весь файл).
+static void cfgPut(const char* s)
 {
-    if (f_open(&g_file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
-        return false;
-    UINT written = 0;
-    const FRESULT result = f_write(&g_file, text, static_cast<UINT>(length), &written);
-    f_sync(&g_file);
-    f_close(&g_file);
-    return result == FR_OK && written == length;
+    UINT bw = 0;
+    f_write(&g_file, s, static_cast<UINT>(std::strlen(s)), &bw);
+}
+
+static void cfgPutUnsigned(unsigned value)
+{
+    char digits[10];
+    int count = 0;
+    do { digits[count++] = static_cast<char>('0' + value % 10); value /= 10; } while (value);
+    char out[10];
+    for (int i = 0; i < count; ++i) out[i] = digits[count - 1 - i];
+    UINT bw = 0;
+    f_write(&g_file, out, static_cast<UINT>(count), &bw);
+}
+
+static void cfgPutSigned(int value)
+{
+    if (value < 0) { cfgPut("-"); cfgPutUnsigned(static_cast<unsigned>(-value)); }
+    else cfgPutUnsigned(static_cast<unsigned>(value));
+}
+
+static void cfgPutBool(bool value) { cfgPut(value ? "yes" : "no"); }
+
+// Читает одну строку конфигурации из файла в маленький буфер. Возвращает false
+// на конце файла (последняя строка без '\n' тоже отдаётся). '\r' отбрасывается,
+// хвост слишком длинной строки игнорируется (key=value помещается в начале).
+static bool readConfigLine(FIL* fp, char* buf, size_t size)
+{
+    size_t n = 0;
+    for (;;) {
+        char c;
+        UINT br = 0;
+        if (f_read(fp, &c, 1, &br) != FR_OK || br == 0) {
+            buf[n] = '\0';
+            return n > 0;
+        }
+        if (c == '\n') { buf[n] = '\0'; return true; }
+        if (c == '\r') continue;
+        if (n + 1 < size) buf[n++] = c;
+    }
 }
 
 // --- Processor -------------------------------------------------------------
@@ -1350,71 +1387,60 @@ void saveMenuStateImpl()
                         : (hway_ayclk_mode() == 2 ? "alt" : "main");
     const int volume = s_userMuted ? 0 : (mixer ? mixer->getVolume() : 5);
 
-    char* const text = s_stateText;
-    char* dst = text;
-    const auto appendBool = [&dst](bool value) {
-        dst = appendText(dst, value ? "yes" : "no");
-    };
-    const auto appendSigned = [&dst](int value) {
-        if (value < 0) {
-            *dst++ = '-';
-            dst = appendUnsigned(dst, static_cast<unsigned>(-value));
-        } else {
-            dst = appendUnsigned(dst, static_cast<unsigned>(value));
-        }
-    };
+    // Пишем прямо в файл, без промежуточного буфера на весь конфиг.
+    if (f_open(&g_file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+        return;
 
-    dst = appendText(dst,
-        "# Vector-06C emulator settings. This is a plain text test file.\n"
-        "# Edit it on a PC while the emulator is not running.\n"
-        "# Unknown keys are ignored; invalid values keep the current setting.\n"
-        "version = 1\n\n"
-        "processor = ");
-    dst = appendText(dst, cpu);
-    dst = appendText(dst, "                 # i8080 | z80\ncpu_clock_hz = ");
-    dst = appendUnsigned(dst, core->getCpuFrequency());
+    cfgPut("# Vector-06C emulator settings. This is a plain text test file.\n"
+           "# Edit it on a PC while the emulator is not running.\n"
+           "# Unknown keys are ignored; invalid values keep the current setting.\n"
+           "version = 1\n\n"
+           "processor = ");
+    cfgPut(cpu);
+    cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
+    cfgPutUnsigned(core->getCpuFrequency());
 
-    dst = appendText(dst, "\n\ndrive_a_read_only = ");
-    appendBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
-    dst = appendText(dst, "\ndrive_b_read_only = ");
-    appendBool(core->floppyReadOnlyMode(VectorFloppyDrive::B));
-    dst = appendText(dst, "\nhdd_enabled = ");
-    appendBool(core->getHddEnabled());
-    dst = appendText(dst, "\nedd_enabled = ");
-    appendBool(core->ramDiskEnabled(0));
-    dst = appendText(dst, "\nedd2_enabled = ");
-    appendBool(core->ramDiskEnabled(1));
+    cfgPut("\n\ndrive_a_read_only = ");
+    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
+    cfgPut("\ndrive_b_read_only = ");
+    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::B));
+    cfgPut("\nhdd_enabled = ");
+    cfgPutBool(core->getHddEnabled());
+    cfgPut("\nedd_enabled = ");
+    cfgPutBool(core->ramDiskEnabled(0));
+    cfgPut("\nedd2_enabled = ");
+    cfgPutBool(core->ramDiskEnabled(1));
 
-    dst = appendText(dst, "\n\nsound_output = ");
-    dst = appendText(dst, output);
-    dst = appendText(dst, "              # pwm | i2s | hway\nvolume = ");
-    appendSigned(volume);
-    dst = appendText(dst, "                    # 0..7; 0 is mute\npsg_enabled = ");
-    appendBool(core->getPsgEnabled());
-    dst = appendText(dst, "\npsg_stereo = ");
-    appendBool(core->getPsgStereo());
-    dst = appendText(dst, "\npsg_order = ");
-    dst = appendText(dst, order);
-    dst = appendText(dst, "                 # abc | acb\nhway_covox = ");
-    appendBool(hway_dac_enabled());
-    dst = appendText(dst, "\nay_clock = ");
-    dst = appendText(dst, ayClock);
-    dst = appendText(dst, "                  # off | main | alt\n\ntape_redirect = ");
-    appendBool(core->tapeHooksEnabled());
+    cfgPut("\n\nsound_output = ");
+    cfgPut(output);
+    cfgPut("              # pwm | i2s | hway\nvolume = ");
+    cfgPutSigned(volume);
+    cfgPut("                    # 0..7; 0 is mute\npsg_enabled = ");
+    cfgPutBool(core->getPsgEnabled());
+    cfgPut("\npsg_stereo = ");
+    cfgPutBool(core->getPsgStereo());
+    cfgPut("\npsg_order = ");
+    cfgPut(order);
+    cfgPut("                 # abc | acb\nhway_covox = ");
+    cfgPutBool(hway_dac_enabled());
+    cfgPut("\nay_clock = ");
+    cfgPut(ayClock);
+    cfgPut("                  # off | main | alt\n\ntape_redirect = ");
+    cfgPutBool(core->tapeHooksEnabled());
 
-    dst = appendText(dst, "\n\n" VIDEO_OFFSET_X_KEY " = ");
-    appendSigned(graphics_get_picture_shift_x());
-    dst = appendText(dst, "\n" VIDEO_OFFSET_Y_KEY " = ");
-    appendSigned(graphics_get_picture_shift_y());
+    cfgPut("\n\n" VIDEO_OFFSET_X_KEY " = ");
+    cfgPutSigned(graphics_get_picture_shift_x());
+    cfgPut("\n" VIDEO_OFFSET_Y_KEY " = ");
+    cfgPutSigned(graphics_get_picture_shift_y());
 
-    dst = appendText(dst, "\n\nrp2350_mhz = ");
-    dst = appendUnsigned(dst, static_cast<unsigned>(palGetSystemClockMHz()));
-    dst = appendText(dst, "\ncore_voltage_mv = ");
-    dst = appendUnsigned(dst, static_cast<unsigned>(palGetCoreVoltageMv()));
-    *dst++ = '\n';
+    cfgPut("\n\nrp2350_mhz = ");
+    cfgPutUnsigned(static_cast<unsigned>(palGetSystemClockMHz()));
+    cfgPut("\ncore_voltage_mv = ");
+    cfgPutUnsigned(static_cast<unsigned>(palGetCoreVoltageMv()));
+    cfgPut("\n");
 
-    writeStateText(text, static_cast<size_t>(dst - text));
-
+    f_sync(&g_file);
+    f_close(&g_file);
 }
 
 void loadMenuStateImpl()
@@ -1428,26 +1454,19 @@ void loadMenuStateImpl()
         return;
     }
 
-    char* const text = s_stateText;
-    UINT read = 0;
-    const FRESULT result = f_read(&g_file, text, c_stateFileMax, &read);
-    f_close(&g_file);
-    if (result != FR_OK)
-        return;
-    text[read] = '\0';
-
     VectorCore* core = g_emulation->getVector();
     SoundMixer* mixer = g_emulation->getSoundMixer();
     int videoX = graphics_get_picture_shift_x();
     int videoY = graphics_get_picture_shift_y();
     unsigned systemClock = palGetSystemClockMHz();
     unsigned coreVoltage = palGetCoreVoltageMv();
-    const char* soundOutput = nullptr;
+    char soundOutput[8] = {0};       // копия значения, а не указатель в буфер строки
+    bool haveSoundOutput = false;
 
-    for (char* line = text; line && *line; ) {
-        char* next = std::strchr(line, '\n');
-        if (next)
-            *next++ = '\0';
+    // Строки конфига короткие (key = value [# comment]); читаем по одной в
+    // маленький стековый буфер и сразу разбираем. Буфера на весь файл нет.
+    char line[128];
+    while (readConfigLine(&g_file, line, sizeof(line))) {
         char* comment = std::strchr(line, '#');
         if (comment)
             *comment = '\0';
@@ -1478,8 +1497,11 @@ void loadMenuStateImpl()
             } else if (textEquals(key, "edd2_enabled") && parseBoolValue(value, boolean)) {
                 core->setRamDiskEnabled(1, boolean);
             } else if (textEquals(key, "sound_output")) {
-                if (textEquals(value, "pwm") || textEquals(value, "i2s") || textEquals(value, "hway"))
-                    soundOutput = value;
+                if (textEquals(value, "pwm") || textEquals(value, "i2s") || textEquals(value, "hway")) {
+                    std::strncpy(soundOutput, value, sizeof(soundOutput) - 1);
+                    soundOutput[sizeof(soundOutput) - 1] = '\0';
+                    haveSoundOutput = true;
+                }
             } else if (textEquals(key, "volume") && parseUnsignedValue(value, number) && number <= 7) {
                 s_userMuted = number == 0;
                 if (mixer) {
@@ -1511,8 +1533,8 @@ void loadMenuStateImpl()
                 coreVoltage = number;
             }
         }
-        line = next;
     }
+    f_close(&g_file);
 
     for (uint16_t voltage : coreVoltageValues)
         if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
@@ -1532,7 +1554,7 @@ void loadMenuStateImpl()
     setPictureShiftX(videoX);
     setPictureShiftY(videoY);
 
-    if (soundOutput) {
+    if (haveSoundOutput) {
         if (textEquals(soundOutput, "hway")) {
             palSetAudioOutputI2S(false);
             palSetAudioOutputHwAy(true);
