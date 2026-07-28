@@ -1900,6 +1900,15 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                                     vector_tv_runs[x]);
                         }
 #else
+                        const int output_width =
+                            video_mode.img_W - d_end;
+                        uint16_t di =
+                            (uint16_t)((0x100u *
+                                        (uint)graphics_buffer.width) /
+                                       (uint)output_width);
+                        if (di == 0)
+                            di = 1;
+
                         register int x = 0;
                         register uint8_t c = input_buffer[x++];
                         uint8_t color =
@@ -1909,7 +1918,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
 #pragma unroll(640)
                         for (int i = 0;
-                             i < video_mode.img_W - d_end;
+                             i < output_width;
                              ++i) {
                             *output_buffer8++ = c_4[i & 3];
                             next_ibuf -= di;
