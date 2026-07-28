@@ -18,6 +18,8 @@
 /
 /----------------------------------------------------------------------------*/
 
+#include <pico.h>
+#include <hardware/pio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "ff.h"			/* Declarations of FatFs API */
@@ -3861,6 +3863,9 @@ FRESULT f_read (
 	UINT rcnt, cc, csect;
 	BYTE *rbuff = (BYTE*)buff;
 
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+#endif
 
 	*br = 0;	/* Clear read byte counter */
 	res = validate(&fp->obj, &fs);				/* Check validity of the file object */
@@ -3935,6 +3940,10 @@ FRESULT f_read (
 #endif
 	}
 
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
+
 	LEAVE_FF(fs, FR_OK);
 }
 
@@ -3960,6 +3969,9 @@ FRESULT f_write (
 	UINT wcnt, cc, csect;
 	const BYTE *wbuff = (const BYTE*)buff;
 
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+#endif
 
 	*bw = 0;	/* Clear write byte counter */
 	res = validate(&fp->obj, &fs);			/* Check validity of the file object */
@@ -4056,6 +4068,10 @@ FRESULT f_write (
 	}
 
 	fp->flag |= FA_MODIFIED;				/* Set file change flag */
+
+#ifdef PICO_DEFAULT_LED_PIN
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
 
 	LEAVE_FF(fs, FR_OK);
 }

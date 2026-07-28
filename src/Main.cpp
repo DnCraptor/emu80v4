@@ -876,6 +876,10 @@ static const char* argv[1] = {
 };
 
 static int BUTTER_PSRAM_SIZE = -1;
+// Порог максимальной частоты QSPI-PSRAM (МГц), настраивается из меню и хранится
+// в конфиге. Из него psram_set_timing() считает делитель/rxdelay. По умолчанию
+// 133 (спека ESP-PSRAM64H). Значение переживает смену частоты RP2350.
+static int s_psram_max_freq_mhz = 133;
 #ifdef PICO_RP2350
 #define MB16 (16ul << 20)
 #define MB8 (8ul << 20)
@@ -945,6 +949,7 @@ void __not_in_flash_func(psram_set_timing)(int freq_mhz) {
  * This function MUST run from RAM, not flash, as it reconfigures the XIP controller.
  */
 void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_mhz) {
+    s_psram_max_freq_mhz = freq_mhz;   // порог по умолчанию (может переопределить конфиг)
 
     // Configure GPIO for XIP CS1 function
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
@@ -996,17 +1001,21 @@ void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_m
 void __not_in_flash_func(sigbus)(void) {
     while(true) {
         sleep_ms(330);
+#ifdef PICO_DEFAULT_LED_PIN
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(330);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
     }
 }
 void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused const char *fmt, ...) {
     while (true) {
         sleep_ms(33);
+#ifdef PICO_DEFAULT_LED_PIN
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
     }
 }
 #else
@@ -1065,10 +1074,31 @@ bool palSetCoreVoltageMv(uint16_t mv)
     s_coreVoltageMv = mv;
     return true;
 }
+
+int palGetPsramMaxFreqMHz()
+{
+    return s_psram_max_freq_mhz;
+}
+
+void palSetPsramMaxFreqMHz(int mhz)
+{
+    if (mhz <= 0 || mhz == s_psram_max_freq_mhz)
+        return;
+    s_psram_max_freq_mhz = mhz;
+    // Применяем новый порог к таймингам PSRAM немедленно — в критической секции
+    // с локаутом второго ядра, как и при смене системной частоты.
+    const uint32_t irqState = save_and_disable_interrupts();
+    multicore_lockout_start_blocking();
+    psram_set_timing(s_psram_max_freq_mhz);
+    multicore_lockout_end_blocking();
+    restore_interrupts(irqState);
+}
 #else
 uint32_t palGetSystemClockMHz() { return clock_get_hz(clk_sys) / MHZ; }
 uint16_t palGetCoreVoltageMv() { return 1300; }
 bool palSetCoreVoltageMv(uint16_t) { return false; }
+int palGetPsramMaxFreqMHz() { return s_psram_max_freq_mhz; }
+void palSetPsramMaxFreqMHz(int mhz) { if (mhz > 0) s_psram_max_freq_mhz = mhz; }
 #endif
 
 bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
@@ -1092,11 +1122,11 @@ bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
 #if !PICO_RP2040
     flash_timings(mhz);
     const bool changed = set_sys_clock_khz(mhz * KHZ, false);
-    // Частота изменилась — пересчитываем тайминги PSRAM под новый clk_sys, тем
-    // же целевым 133 МГц, что и при инициализации (psram_init_with_freq выше).
+    // Частота изменилась — пересчитываем тайминги PSRAM под новый clk_sys с
+    // текущим порогом (по умолчанию 133 МГц, может быть изменён в меню/конфиге).
     // Иначе при разгоне PSRAM осталась бы с делителем/rxdelay под стартовую
     // частоту и ушла бы за предел спецификации.
-    psram_set_timing(133);
+    psram_set_timing(s_psram_max_freq_mhz);
     graphics_system_clock_changed();
     multicore_lockout_end_blocking();
     restore_interrupts(irqState);
@@ -1133,6 +1163,7 @@ int main() {
     sleep_ms(10);
     set_sys_clock_khz(CPU_MHZ * KHZ, true);
 #endif
+#ifdef PICO_DEFAULT_LED_PIN
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     for (int i = 0; i < 6; i++) {
@@ -1141,7 +1172,7 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
-
+#endif
 #ifdef KBDUSB
     tuh_init(BOARD_TUH_RHPORT);
     ps2kbd.init_gpio();

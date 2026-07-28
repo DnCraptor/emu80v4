@@ -1342,6 +1342,41 @@ static const MenuPage coreVoltagePage {
     coreVoltageGetValue, coreVoltageSetValue
 };
 
+static constexpr int psramFreqValues[] = {166, 133, 100, 84, 66, 33};
+
+int psramFreqGetValue()
+{
+    const int current = palGetPsramMaxFreqMHz();
+    for (int i = 0; i < static_cast<int>(sizeof(psramFreqValues) / sizeof(psramFreqValues[0])); ++i)
+        if (psramFreqValues[i] == current)
+            return i;
+    return 1;   // по умолчанию 133 МГц
+}
+
+void psramFreqSetValue(int value)
+{
+    if (value >= 0 && value < static_cast<int>(sizeof(psramFreqValues) / sizeof(psramFreqValues[0])))
+        palSetPsramMaxFreqMHz(psramFreqValues[value]);
+}
+
+static const MenuItem psramFreqItems[] = {
+#if defined(PICO_RP2040)
+    {"133 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#else
+    {"166 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"133 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"100 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"84 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"66 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"33 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
+#endif
+};
+static const MenuPage psramFreqPage {
+    "QSPI PSRAM max freq.", nullptr, psramFreqItems,
+    static_cast<int>(sizeof(psramFreqItems) / sizeof(psramFreqItems[0])),
+    psramFreqGetValue, psramFreqSetValue
+};
+
 void machineReset() { invokeSysReq(SR_RESET); }
 
 void machineResetTurnOnRom()
@@ -1361,6 +1396,7 @@ void rebootDevice() { palReboot(); }
 static const MenuItem systemItems[] = {
     {"RP2350 frequency", nullptr, &systemClockPage, nullptr, nullptr, nullptr},
     {"Core voltage", nullptr, &coreVoltagePage, nullptr, nullptr, nullptr},
+    {"QSPI PSRAM max freq.", nullptr, &psramFreqPage, nullptr, nullptr, nullptr},
     {"Reset [Alt+F11]", nullptr, nullptr, machineReset, nullptr, nullptr},
     {"Turn on ROM and Reset [F11]", nullptr, nullptr, machineResetTurnOnRom, nullptr, nullptr},
     {"Turn off ROM and Reset [F12]", nullptr, nullptr, machineResetTurnOffRom, nullptr, nullptr},
@@ -1437,6 +1473,8 @@ void saveMenuStateImpl()
     cfgPutUnsigned(static_cast<unsigned>(palGetSystemClockMHz()));
     cfgPut("\ncore_voltage_mv = ");
     cfgPutUnsigned(static_cast<unsigned>(palGetCoreVoltageMv()));
+    cfgPut("\npsram_max_freq_mhz = ");
+    cfgPutUnsigned(static_cast<unsigned>(palGetPsramMaxFreqMHz()));
     cfgPut("\n");
 
     f_sync(&g_file);
@@ -1460,6 +1498,7 @@ void loadMenuStateImpl()
     int videoY = graphics_get_picture_shift_y();
     unsigned systemClock = palGetSystemClockMHz();
     unsigned coreVoltage = palGetCoreVoltageMv();
+    int psramMaxFreq = palGetPsramMaxFreqMHz();
     char soundOutput[8] = {0};       // копия значения, а не указатель в буфер строки
     bool haveSoundOutput = false;
 
@@ -1531,6 +1570,8 @@ void loadMenuStateImpl()
                 systemClock = number;
             } else if (textEquals(key, "core_voltage_mv") && parseUnsignedValue(value, number)) {
                 coreVoltage = number;
+            } else if (textEquals(key, "psram_max_freq_mhz") && parseUnsignedValue(value, number)) {
+                psramMaxFreq = static_cast<int>(number);
             }
         }
     }
@@ -1538,6 +1579,11 @@ void loadMenuStateImpl()
 
     for (uint16_t voltage : coreVoltageValues)
         if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
+
+    // Порог PSRAM выставляем ДО применения частоты RP2350: последующий разгон
+    // пересчитает тайминги PSRAM уже с этим порогом.
+    for (int freq : psramFreqValues)
+        if (freq == psramMaxFreq) palSetPsramMaxFreqMHz(psramMaxFreq);
 
     // В сборках, где видеодрайвер жёстко привязан к одной системной частоте
     // (HDMI/DVI: libdvi поддерживает строго одну частоту на разрешение —

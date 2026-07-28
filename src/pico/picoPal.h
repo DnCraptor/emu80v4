@@ -59,6 +59,8 @@ uint32_t palGetSystemClockMHz();
 bool palSetSystemClockMHz(uint32_t mhz);
 uint16_t palGetCoreVoltageMv();
 bool palSetCoreVoltageMv(uint16_t mv);
+int palGetPsramMaxFreqMHz();
+void palSetPsramMaxFreqMHz(int mhz);
 
 // Состояние SD-карты: монтирование при старте могло не удаться
 void palSetSdMounted(bool mounted);

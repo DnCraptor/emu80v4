@@ -46,12 +46,16 @@ int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t*
 void palLog(const std::string& s) {
 #if LOG
     static FIL pl;
+#ifdef PICO_DEFAULT_LED_PIN
     gpio_put(PICO_DEFAULT_LED_PIN, true);
+#endif
     f_open(&pl, "/emu80.log", FA_WRITE | FA_OPEN_APPEND);
     UINT bw;
     f_write(&pl, s.c_str(), s.length(), &bw);
     f_close(&pl);
+#ifdef PICO_DEFAULT_LED_PIN
     gpio_put(PICO_DEFAULT_LED_PIN, false);
+#endif
 #endif
 }
 
