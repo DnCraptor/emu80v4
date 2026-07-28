@@ -83,15 +83,15 @@ void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
         return;
     }
 #endif
-    UINT br;
-    FSIZE_t lba = m_offset;
     // Как и в writeBlock: файл подкачки мог не открыться (напр., каталога нет).
     // Без этой проверки f_lseek/f_write идут по неоткрытому FIL -> hardfault.
     if (!sram_file_open)
         init();
     if (!sram_file_open)
         return;
-    f_lseek(&f, lba + addr);
+    FSIZE_t lba = m_offset + addr;
+    if (lba != f_tell(&f)) f_lseek(&f, lba);
+    UINT br;
     f_write(&f, &value, 1, &br);
 }
 
@@ -108,15 +108,15 @@ uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
         return read8psram(off);
     }
 #endif
-    UINT br;
-    FSIZE_t lba = m_offset;
     // Симметрично readBlock: если файл подкачки не открыт, не трогаем FIL.
     if (!sram_file_open)
         init();
     if (!sram_file_open)
         return 0xFF;
-    f_lseek(&f, lba + addr);
+    FSIZE_t lba = m_offset + addr;
+    if (lba != f_tell(&f)) f_lseek(&f, lba);
     uint8_t value;
+    UINT br;
     f_read(&f, &value, 1, &br);
     return value;
 
@@ -148,7 +148,8 @@ void __not_in_flash_func(SRam::writeBlock)(
         return;
 
     UINT written = 0;
-    f_lseek(&f, (FSIZE_t)off);
+    FSIZE_t lba = off;
+    if (lba != f_tell(&f)) f_lseek(&f, lba);
     f_write(&f, data, (UINT)size, &written);
 }
 
@@ -180,7 +181,8 @@ void __not_in_flash_func(SRam::readBlock)(
     }
 
     UINT read = 0;
-    f_lseek(&f, (FSIZE_t)off);
+    FSIZE_t lba = off;
+    if (lba != f_tell(&f)) f_lseek(&f, lba);
     f_read(&f, data, (UINT)size, &read);
     if (read < (UINT)size)
         memset(data + read, 0, (size_t)size - read);
