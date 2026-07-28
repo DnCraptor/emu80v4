@@ -900,28 +900,18 @@ uint32_t __not_in_flash_func(butter_psram_size)() {
     BUTTER_PSRAM_SIZE = res << 20;
     return BUTTER_PSRAM_SIZE;
 }
+
 /**
- * Initialize PSRAM hardware with specified frequency.
- * This function MUST run from RAM, not flash, as it reconfigures the XIP controller.
+ * Recompute QMI PSRAM timing (divisor / rxdelay / select windows) for the
+ * CURRENT system clock. These depend on clk_sys, so this must run not only at
+ * init but on EVERY RP2350 frequency change: otherwise after overclock (e.g.
+ * config 520 while the firmware starts at 400) the PSRAM keeps the divisor and
+ * rxdelay computed for the boot clock and runs out of spec -> corrupted reads /
+ * hardfault. Only the timing register is touched (no re-issue of QPI enable),
+ * so it is safe to call on the live PSRAM. Runs from RAM.
  */
-void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_mhz) {
+void __not_in_flash_func(psram_set_timing)(int freq_mhz) {
     const int clock_hz = clock_get_hz(clk_sys);
-
-    // Configure GPIO for XIP CS1 function
-    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
-
-    // Enter direct mode with slow clock for initialization
-    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB |
-                        QMI_DIRECT_CSR_EN_BITS |
-                        QMI_DIRECT_CSR_AUTO_CS1N_BITS;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
-
-    // Send QPI enable command (0x35) to PSRAM
-    const uint CMD_QPI_EN = 0x35;
-    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
-
-    // Calculate optimal clock divisor for target PSRAM frequency
     const int max_psram_freq = freq_mhz * 1000000;
 
     int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
@@ -948,6 +938,31 @@ void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_m
         min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
         rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
         divisor << QMI_M1_TIMING_CLKDIV_LSB;
+}
+
+/**
+ * Initialize PSRAM hardware with specified frequency.
+ * This function MUST run from RAM, not flash, as it reconfigures the XIP controller.
+ */
+void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_mhz) {
+
+    // Configure GPIO for XIP CS1 function
+    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
+
+    // Enter direct mode with slow clock for initialization
+    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB |
+                        QMI_DIRECT_CSR_EN_BITS |
+                        QMI_DIRECT_CSR_AUTO_CS1N_BITS;
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
+
+    // Send QPI enable command (0x35) to PSRAM
+    const uint CMD_QPI_EN = 0x35;
+    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
+
+    // Тайминги вынесены в psram_set_timing(), чтобы пересчитывать их и при
+    // смене частоты RP2350 (см. palSetSystemClockMHz), а не только здесь.
+    psram_set_timing(freq_mhz);
 
     // Configure read format: Quad mode, 0xEB fast read command, 6 dummy cycles
     qmi_hw->m[1].rfmt =
@@ -997,6 +1012,7 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
 #else
 uint8_t* PSRAM_DATA = (uint8_t*)0;
 uint32_t butter_psram_size() { return 0; }
+void psram_set_timing(int freq_mhz) { (void)freq_mhz; }
 #endif
 
 #ifndef PICO_RP2040
@@ -1076,6 +1092,11 @@ bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
 #if !PICO_RP2040
     flash_timings(mhz);
     const bool changed = set_sys_clock_khz(mhz * KHZ, false);
+    // Частота изменилась — пересчитываем тайминги PSRAM под новый clk_sys, тем
+    // же целевым 133 МГц, что и при инициализации (psram_init_with_freq выше).
+    // Иначе при разгоне PSRAM осталась бы с делителем/rxdelay под стартовую
+    // частоту и ушла бы за предел спецификации.
+    psram_set_timing(133);
     graphics_system_clock_changed();
     multicore_lockout_end_blocking();
     restore_interrupts(irqState);
