@@ -24,6 +24,7 @@
 #include "CrtRenderer.h"
 #include "Keyboard.h"
 #include "KbdLayout.h"
+#include "Pit8253Sound.h"
 
 #include <string>
 #include <cstddef>
@@ -60,7 +61,7 @@ class KorvetGraphicsAdapter;
 class KorvetVideoPpiCircuit;
 class KorvetPpi8255Circuit2;
 class Pit8253;
-class Pit8253SoundSource;
+class KorvetPit8253SoundSource;
 class Psg3910;
 class Psg3910SoundSource;
 class KorvetFddControlRegister;
@@ -287,7 +288,9 @@ enum KorvetCpuType {
 
 enum class KorvetFloppyDrive : uint8_t {
     A = 0,
-    B = 1
+    B = 1,
+    C = 2,
+    D = 3
 };
 
 
@@ -349,6 +352,14 @@ class KorvetCore : public SnapshotSerializable
         uint8_t getVideoDisplayPage() const;
         uint8_t getVideoFontNumber() const;
         bool getVideoWideCharMode() const;
+        uint16_t getCpuPc() const;
+        uint16_t getCpuAf() const;
+        uint16_t getCpuBc() const;
+        uint16_t getCpuDe() const;
+        uint16_t getCpuHl() const;
+        uint16_t getCpuSp() const;
+        uint8_t getCpuMemoryByte(uint16_t addr) const;
+        uint8_t getMemoryConfig() const;
         int getKbdLayoutModeIndex() const;
 
         // Аппаратные сбросы Вектор-06Ц, дублирующие клавиши F11/F12, чтобы их
@@ -434,7 +445,9 @@ class KorvetCore : public SnapshotSerializable
         KorvetHddRegisters* m_hddRegisters = nullptr;
         FdImage* m_diskA = nullptr;
         FdImage* m_diskB = nullptr;
-        bool m_floppyReadOnlyMode[2] = {false, false};
+        FdImage* m_diskC = nullptr;
+        FdImage* m_diskD = nullptr;
+        bool m_floppyReadOnlyMode[4] = {false, false, false, false};
         DiskImage* m_hdd = nullptr;
         KorvetFileLoader* m_loader = nullptr;
         TapeRedirector* m_tapeInFile = nullptr;
@@ -460,6 +473,7 @@ class KorvetCore : public SnapshotSerializable
 
         bool m_intReq = false;
         bool m_intsEnabled = false;
+        bool m_curVrtc = false;
         bool m_tapeOut = false;
 };
 
@@ -562,31 +576,49 @@ class KorvetKeyboard : public Keyboard
         void resetKeys() override;
         void processKey(EmuKey key, bool isPressed) override;
 
-        void setMatrixMask(uint8_t mask) {m_mask = ~mask;}
-        uint8_t getMatrixData();
-        uint8_t getCtrlKeys() {return ~m_ctrlKeys;}
+        void setMatrix1Mask(uint8_t mask) {m_mask1 = mask;}
+        void setMatrix2Mask(uint8_t mask) {m_mask2 = mask;}
+        uint8_t getMatrix1Data();
+        uint8_t getMatrix2Data();
 
+        // Compatibility for the disabled Vector PPI circuit.
+        void setMatrixMask(uint8_t mask) {m_mask1 = static_cast<uint8_t>(~mask);}
+        uint8_t getMatrixData() {return static_cast<uint8_t>(~getMatrix1Data());}
+        uint8_t getCtrlKeys() const {return 0xFF;}
 
     private:
-
-        const EmuKey m_keyMatrix[8][8] = {
-            { EK_TAB,  EK_LF,    EK_CR,    EK_BSP,       EK_LEFT,    EK_UP,       EK_RIGHT,  EK_DOWN  },
-            { EK_HOME, EK_CLEAR, EK_ESC,   EK_F1,        EK_F2,      EK_F3,       EK_F4,     EK_F5    },
-            { EK_0,    EK_1,     EK_2,     EK_3,         EK_4,       EK_5,        EK_6,      EK_7     },
-            { EK_8,    EK_9,     EK_COLON, EK_SEMICOLON, EK_COMMA,   EK_MINUS,    EK_PERIOD, EK_SLASH },
-            { EK_AT,   EK_A,     EK_B,     EK_C,         EK_D,       EK_E,        EK_F,      EK_G     },
-            { EK_H,    EK_I,     EK_J,     EK_K,         EK_L,       EK_M,        EK_N,      EK_O     },
-            { EK_P,    EK_Q,     EK_R,     EK_S,         EK_T,       EK_U,        EK_V,      EK_W     },
-            { EK_X,    EK_Y,     EK_Z,     EK_LBRACKET,  EK_BKSLASH, EK_RBRACKET, EK_CARET,  EK_SPACE }
+        const EmuKey m_keyMatrix1[8][8] = {
+            { EK_AT,    EK_A,     EK_B,     EK_C,         EK_D,       EK_E,        EK_F,      EK_G      },
+            { EK_H,     EK_I,     EK_J,     EK_K,         EK_L,       EK_M,        EK_N,      EK_O      },
+            { EK_P,     EK_Q,     EK_R,     EK_S,         EK_T,       EK_U,        EK_V,      EK_W      },
+            { EK_X,     EK_Y,     EK_Z,     EK_LBRACKET,  EK_BKSLASH, EK_RBRACKET, EK_CARET,  EK_UNDSCR },
+            { EK_0,     EK_1,     EK_2,     EK_3,         EK_4,       EK_5,        EK_6,      EK_7      },
+            { EK_8,     EK_9,     EK_COLON, EK_SEMICOLON, EK_COMMA,   EK_MINUS,    EK_PERIOD, EK_SLASH  },
+            { EK_CR,    EK_CLEAR, EK_STOP,  EK_INS,       EK_DEL,     EK_BSP,      EK_TAB,    EK_SPACE  },
+            { EK_SHIFT, EK_LANG,  EK_GRAPH, EK_ESC,       EK_SEL,     EK_CTRL,     EK_FIX,    EK_SHIFT  }
         };
 
-        const EmuKey m_ctrlKeyMatrix[8] = {
-            EK_NONE, EK_NONE, EK_NONE, EK_NONE, EK_NONE, EK_SHIFT, EK_CTRL, EK_LANG
+        const EmuKey m_keyMatrix2[3][8] = {
+            { EK_PHOME, EK_SHOME, EK_DOWN, EK_SEND, EK_LEFT, EK_MENU, EK_RIGHT, EK_HOME },
+            { EK_UP,    EK_END,   EK_NONE, EK_NONE, EK_NONE, EK_NONE, EK_PEND,  EK_NONE },
+            { EK_F1,    EK_F2,    EK_F3,   EK_F4,   EK_F5,   EK_NONE, EK_NONE,  EK_NONE }
         };
 
-        uint8_t m_keys[8];
-        uint8_t m_ctrlKeys;
-        uint8_t m_mask;
+        uint8_t m_keys1[8];
+        uint8_t m_keys2[3];
+        uint8_t m_mask1;
+        uint8_t m_mask2;
+};
+
+class KorvetKeyboardRegisters : public AddressableDevice
+{
+    public:
+        void attachKeyboard(KorvetKeyboard* keyboard) {m_keyboard = keyboard;}
+        void writeByte(int, uint8_t) override {}
+        uint8_t readByte(int addr) override;
+
+    private:
+        KorvetKeyboard* m_keyboard = nullptr;
 };
 
 
@@ -615,6 +647,21 @@ class KorvetPpi8255Circuit : public Ppi8255Circuit
 };
 
 
+class KorvetPit8253SoundSource : public Pit8253SoundSource
+{
+    public:
+        int calcValue() override;
+        void tuneupPit() override;
+        void setGate(bool gate);
+
+    private:
+        void updateStats();
+
+        bool m_gate = false;
+        int m_sumValue = 0;
+};
+
+
 class KorvetPpi8255Circuit2 : public Ppi8255Circuit
 {
     public:
@@ -626,14 +673,33 @@ class KorvetPpi8255Circuit2 : public Ppi8255Circuit
         void setPortC(uint8_t value) override; // port 03
 
         void attachCovox(Covox* covox) {m_covox = covox;}
+        void attachPitSoundSource(KorvetPit8253SoundSource* source) {m_pitSoundSource = source;}
 
 
     private:
         // Источник звука - ковокс
-        Covox* m_covox;
+        Covox* m_covox = nullptr;
+        KorvetPit8253SoundSource* m_pitSoundSource = nullptr;
 
         uint8_t m_printerData = 0;
         bool m_printerStrobe = true;
+};
+
+
+class KorvetPpiPsgAdapter : public Ppi8255Circuit
+{
+    public:
+        void attachPsg(Psg3910* psg) {m_psg = psg;}
+
+        uint8_t getPortA() override;
+        void setPortA(uint8_t value) override;
+        void setPortB(uint8_t value) override;
+
+    private:
+        Psg3910* m_psg = nullptr;
+        bool m_strobe = false;
+        uint8_t m_read = 0;
+        uint8_t m_write = 0;
 };
 
 
@@ -654,12 +720,15 @@ class KorvetColorRegister : public AddressableDevice
 
 
 
-class KorvetKbdLayout : public RkKbdLayout
+class KorvetKbdLayout : public KbdLayout
 {
-    public:
-
     protected:
+        EmuKey translateKey(PalKeyCode keyCode) override;
+        EmuKey translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang) override;
         bool processSpecialKeys(PalKeyCode keyCode) override;
+
+    private:
+        bool m_downAsNumpad5 = false;
 };
 
 

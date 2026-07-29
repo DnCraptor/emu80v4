@@ -31,6 +31,7 @@ class Pit8253Helper;
 class Pit8253Counter : public EmuObject //PassiveDevice
 {
     public:
+        using OutCallback = void (*)(void* context, int counter, bool state);
         explicit Pit8253Counter(Pit8253* pit);
 
         void setGate(bool gate);
@@ -47,6 +48,12 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         void syncClockPhase() {m_clockPhase = uint32_t(m_prevClock % uint64_t(m_kDiv));}
 
         void setExtClockMode(bool extClockMode) {m_extClockMode = extClockMode;}
+        void setOutCallback(OutCallback callback, void* context, int counter)
+        {
+            m_outCallback = callback;
+            m_outCallbackContext = context;
+            m_counterNumber = counter;
+        }
         inline bool getExtClockMode() {return m_extClockMode;}
 
         friend class Pit8253;
@@ -56,6 +63,9 @@ class Pit8253Counter : public EmuObject //PassiveDevice
         Pit8253* m_pit;
         Pit8253Helper* m_helper = nullptr;
         bool m_extClockMode = false;
+        OutCallback m_outCallback = nullptr;
+        void* m_outCallbackContext = nullptr;
+        int m_counterNumber = 0;
 
 
         uint64_t m_prevClock = 0;
@@ -87,6 +97,7 @@ class Pit8253Counter : public EmuObject //PassiveDevice
 
 
         void planIrq();
+        void notifyOutChange(bool previousOut);
 };
 
 class Pit8253 : public AddressableDevice, public SnapshotSerializable
@@ -118,6 +129,11 @@ class Pit8253 : public AddressableDevice, public SnapshotSerializable
         bool getOut(int counter);
 
         Pit8253Counter* getCounter(int counterNum) {return m_counters[counterNum];}
+        void setOutCallback(Pit8253Counter::OutCallback callback, void* context)
+        {
+            for (int i = 0; i < 3; ++i)
+                m_counters[i]->setOutCallback(callback, context, i);
+        }
 
         uint32_t snapshotSectionId() const override;
         uint16_t snapshotSectionVersion() const override;

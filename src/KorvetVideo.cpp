@@ -1,6 +1,7 @@
 #include <cstring>
 #include "KorvetVideo.h"
 #include "Korvet.h"
+#include "Pic8259.h"
 
 namespace {
 #if 0
@@ -116,6 +117,56 @@ void KorvetLutRegister::writeByte(int, uint8_t value)
     m_lut[index] = value >> 4;
     if (m_renderer)
         m_renderer->setLutValue(index, m_lut[index]);
+}
+
+KorvetFddMotor::KorvetFddMotor()
+{
+    pause();
+    setFrequency(1);
+}
+
+void KorvetFddMotor::on()
+{
+    resume();
+    syncronize();
+    m_curClock += m_kDiv * 3;
+}
+
+void KorvetFddMotor::operate()
+{
+    pause();
+    if (m_pic) {
+        m_pic->irq(7, true);
+        m_pic->irq(7, false);
+    }
+}
+
+uint8_t KorvetVideoPpiCircuit::getPortA()
+{
+    const uint8_t attr = m_textAdapter && m_textAdapter->getAttr() ? 0x08 : 0x00;
+    return 0x04 | (m_vbl ? 0x02 : 0x00) | attr;
+}
+
+void KorvetVideoPpiCircuit::setPortB(uint8_t value)
+{
+    if (!m_fdc)
+        return;
+
+    if (value & 0x01)
+        m_fdc->setDrive(0);
+    else if (value & 0x02)
+        m_fdc->setDrive(1);
+    else if (value & 0x04)
+        m_fdc->setDrive(2);
+    else if (value & 0x08)
+        m_fdc->setDrive(3);
+
+    m_fdc->setHead((value >> 4) & 1);
+
+    const bool motorBit = (value & 0x20) != 0;
+    if (motorBit && !m_motorBit && m_motor)
+        m_motor->on();
+    m_motorBit = motorBit;
 }
 
 void KorvetVideoPpiCircuit::setPortC(uint8_t value)

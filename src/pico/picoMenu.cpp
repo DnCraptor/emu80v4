@@ -395,7 +395,7 @@ static const MenuPage cpuClockPage {
 
 // --- Storage / floppy drives ----------------------------------------------
 
-char driveTitleBuffer[2][96];
+char driveTitleBuffer[4][96];
 
 const char* driveTitle(KorvetFloppyDrive drive)
 {
@@ -404,7 +404,7 @@ const char* driveTitle(KorvetFloppyDrive drive)
     char* buffer = driveTitleBuffer[static_cast<int>(drive)];
     constexpr char prefix[] = "Drive A: ";
     std::memcpy(buffer, prefix, sizeof(prefix));
-    buffer[6] = drive == KorvetFloppyDrive::A ? 'A' : 'B';
+    buffer[6] = static_cast<char>('A' + static_cast<int>(drive));
     if (fileName.empty()) {
         constexpr char empty[] = "empty";
         std::memcpy(buffer + sizeof(prefix) - 1, empty, sizeof(empty));
@@ -455,18 +455,32 @@ void driveToggleReadOnly(KorvetFloppyDrive drive)
 
 const char* driveATitle() { return driveTitle(KorvetFloppyDrive::A); }
 const char* driveBTitle() { return driveTitle(KorvetFloppyDrive::B); }
+const char* driveCTitle() { return driveTitle(KorvetFloppyDrive::C); }
+const char* driveDTitle() { return driveTitle(KorvetFloppyDrive::D); }
 bool driveAHasImage() { return driveHasImage(KorvetFloppyDrive::A); }
 bool driveBHasImage() { return driveHasImage(KorvetFloppyDrive::B); }
+bool driveCHasImage() { return driveHasImage(KorvetFloppyDrive::C); }
+bool driveDHasImage() { return driveHasImage(KorvetFloppyDrive::D); }
 void driveAInsert() { driveInsert(KorvetFloppyDrive::A); }
 void driveBInsert() { driveInsert(KorvetFloppyDrive::B); }
+void driveCInsert() { driveInsert(KorvetFloppyDrive::C); }
+void driveDInsert() { driveInsert(KorvetFloppyDrive::D); }
 void driveAEject() { driveEject(KorvetFloppyDrive::A); }
 void driveBEject() { driveEject(KorvetFloppyDrive::B); }
+void driveCEject() { driveEject(KorvetFloppyDrive::C); }
+void driveDEject() { driveEject(KorvetFloppyDrive::D); }
 bool driveAReadOnly() { return driveReadOnly(KorvetFloppyDrive::A); }
 bool driveBReadOnly() { return driveReadOnly(KorvetFloppyDrive::B); }
+bool driveCReadOnly() { return driveReadOnly(KorvetFloppyDrive::C); }
+bool driveDReadOnly() { return driveReadOnly(KorvetFloppyDrive::D); }
 bool driveAReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::A); }
 bool driveBReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::B); }
+bool driveCReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::C); }
+bool driveDReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::D); }
 void driveAToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::A); }
 void driveBToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::B); }
+void driveCToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::C); }
+void driveDToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::D); }
 
 static const MenuItem driveAItems[] = {
     {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr, nullptr},
@@ -477,6 +491,16 @@ static const MenuItem driveBItems[] = {
     {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr, nullptr},
     {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly, true},
     {"Eject", nullptr, nullptr, driveBEject, driveBHasImage, nullptr},
+};
+static const MenuItem driveCItems[] = {
+    {"Insert image...", nullptr, nullptr, driveCInsert, nullptr, nullptr},
+    {"Read only", nullptr, nullptr, driveCToggleReadOnly, driveCReadOnlyEnabled, driveCReadOnly, true},
+    {"Eject", nullptr, nullptr, driveCEject, driveCHasImage, nullptr},
+};
+static const MenuItem driveDItems[] = {
+    {"Insert image...", nullptr, nullptr, driveDInsert, nullptr, nullptr},
+    {"Read only", nullptr, nullptr, driveDToggleReadOnly, driveDReadOnlyEnabled, driveDReadOnly, true},
+    {"Eject", nullptr, nullptr, driveDEject, driveDHasImage, nullptr},
 };
 char hddTitleBuffer[96];
 
@@ -527,6 +551,8 @@ static const MenuItem hddItems[] = {
 };
 static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
 static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
+static const MenuPage driveCPage {"Drive C", driveCTitle, driveCItems, static_cast<int>(sizeof(driveCItems) / sizeof(driveCItems[0])), nullptr, nullptr};
+static const MenuPage driveDPage {"Drive D", driveDTitle, driveDItems, static_cast<int>(sizeof(driveDItems) / sizeof(driveDItems[0])), nullptr, nullptr};
 static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeof(hddItems) / sizeof(hddItems[0])), nullptr, nullptr};
 
 void invokeSysReq(SysReq request)
@@ -586,12 +612,25 @@ static const MenuPage romPage {"ROM", nullptr, romItems, static_cast<int>(sizeof
 static const MenuItem storageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
     {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
+    {"Drive C", driveCTitle, &driveCPage, nullptr, nullptr, nullptr},
+    {"Drive D", driveDTitle, &driveDPage, nullptr, nullptr, nullptr},
     {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
     {"EDD", nullptr, &eddPage, nullptr, nullptr, nullptr},
     {"EDD2", nullptr, &edd2Page, nullptr, nullptr, nullptr},
     {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
+
+static const MenuItem korvetStorageItems[] = {
+    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
+    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
+    {"Drive C", driveCTitle, &driveCPage, nullptr, nullptr, nullptr},
+    {"Drive D", driveDTitle, &driveDPage, nullptr, nullptr, nullptr},
+};
+static const MenuPage korvetStoragePage {
+    "Storage", nullptr, korvetStorageItems,
+    static_cast<int>(sizeof(korvetStorageItems) / sizeof(korvetStorageItems[0])), nullptr, nullptr
+};
 
 const char* soundTitle()
 {
@@ -1194,7 +1233,7 @@ static const MenuPage snapshotPage {
 };
 // --- Video ----------------------------------------------------------------
 
-char videoShiftStatusBuffer[80];
+char videoShiftStatusBuffer[256];
 
 const char* videoShiftStatus()
 {
@@ -1224,6 +1263,27 @@ const char* videoShiftStatus()
         dst = appendText(dst, " Font=");
         dst = appendUnsigned(dst, core->getVideoFontNumber());
         dst = appendText(dst, core->getVideoWideCharMode() ? " Wide" : " Normal");
+        const uint16_t pc = core->getCpuPc();
+        dst = appendText(dst, " PC=");
+        dst = appendUnsigned(dst, pc);
+        dst = appendText(dst, " OP=");
+        dst = appendUnsigned(dst, core->getCpuMemoryByte(pc));
+        *dst++ = ',';
+        dst = appendUnsigned(dst, core->getCpuMemoryByte(static_cast<uint16_t>(pc + 1)));
+        *dst++ = ',';
+        dst = appendUnsigned(dst, core->getCpuMemoryByte(static_cast<uint16_t>(pc + 2)));
+        dst = appendText(dst, " AF=");
+        dst = appendUnsigned(dst, core->getCpuAf());
+        dst = appendText(dst, " BC=");
+        dst = appendUnsigned(dst, core->getCpuBc());
+        dst = appendText(dst, " DE=");
+        dst = appendUnsigned(dst, core->getCpuDe());
+        dst = appendText(dst, " HL=");
+        dst = appendUnsigned(dst, core->getCpuHl());
+        dst = appendText(dst, " SP=");
+        dst = appendUnsigned(dst, core->getCpuSp());
+        dst = appendText(dst, " CFG=");
+        dst = appendUnsigned(dst, core->getMemoryConfig());
     }
     *dst = '\0';
     return videoShiftStatusBuffer;
@@ -1798,6 +1858,7 @@ static const MenuItem rootItems[] = {
     {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
+    {"Storage", nullptr, &korvetStoragePage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
     {"Help", nullptr, nullptr, showHelpDialog, nullptr, nullptr},
     {"About", nullptr, nullptr, showAboutDialog, nullptr, nullptr},

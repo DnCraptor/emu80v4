@@ -4,8 +4,10 @@
 #include <cstdint>
 #include "EmuObjects.h"
 #include "Ppi8255Circuit.h"
+#include "Fdc1793.h"
 
 class KorvetRenderer;
+class Pic8259;
 
 class KorvetGraphicsAdapter : public AddressableDevice
 {
@@ -61,23 +63,43 @@ private:
     uint8_t m_lut[16] = {};
 };
 
+class KorvetFddMotor : public ActiveDevice
+{
+public:
+    KorvetFddMotor();
+    void attachPic(Pic8259* pic) {m_pic = pic;}
+    void on();
+    void operate() override;
+private:
+    Pic8259* m_pic = nullptr;
+};
+
 class KorvetVideoPpiCircuit : public Ppi8255Circuit
 {
 public:
     void attachGraphicsAdapter(KorvetGraphicsAdapter* adapter) {m_graphicsAdapter = adapter;}
     void attachTextAdapter(KorvetTextAdapter* adapter) {m_textAdapter = adapter;}
     void attachRenderer(KorvetRenderer* renderer) {m_renderer = renderer;}
+    void attachFdc1793(Fdc1793* fdc) {m_fdc = fdc;}
+    void attachFddMotor(KorvetFddMotor* motor) {m_motor = motor;}
+    uint8_t getPortA() override;
+    void setPortB(uint8_t value) override;
     void setPortC(uint8_t value) override;
     uint8_t getDisplayPage() const {return m_displayPage;}
     uint8_t getFontNumber() const {return m_fontNumber;}
     bool getWideCharMode() const {return m_wideCharMode;}
+    void setVbl(bool vbl) {m_vbl = vbl;}
 private:
     KorvetGraphicsAdapter* m_graphicsAdapter = nullptr;
     KorvetTextAdapter* m_textAdapter = nullptr;
     KorvetRenderer* m_renderer = nullptr;
+    Fdc1793* m_fdc = nullptr;
+    KorvetFddMotor* m_motor = nullptr;
     uint8_t m_displayPage = 0;
     uint8_t m_fontNumber = 0;
     bool m_wideCharMode = false;
+    bool m_vbl = true;
+    bool m_motorBit = false;
 };
 
 #endif

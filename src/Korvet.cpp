@@ -46,6 +46,7 @@
 #include "KbdTapper.h"
 #include "Ppi8255.h"
 #include "Pit8253.h"
+#include "Pic8259.h"
 #include "Pit8253Sound.h"
 #include "Psg3910.h"
 #include "TapeRedirector.h"
@@ -73,12 +74,14 @@ using namespace std;
 // RAM и есть фактический статический бюджет, а разница до объёма SRAM —
 // запас под стеки и оставшиеся динамические объекты.
 //
-//   кадровый буфер   626 * 288 = 180 288 байт
+//   кадровый буфер   521 * 288 = 150 048 байт
 //   основное ОЗУ     64 * 1024 =  65 536 байт
-//   итого                        245 824 байта
+//   итого                        215 584 байта
 // ---------------------------------------------------------------------------
 
-static const int c_frameBufSize = 626 * 288;   // 626 = 704 / 13.5 * pixelFreq
+static const int c_frameBufWidth = 521;
+static const int c_frameBufHeight = 288;
+static const int c_frameBufSize = c_frameBufWidth * c_frameBufHeight;
 #ifndef PICO_RP2040
 static uint8_t s_frameBuffer[c_frameBufSize];
 #endif
@@ -115,6 +118,19 @@ class KorvetUnmappedPage : public AddressableDevice
         uint8_t readByte(int) override {return 0xFF;}
 };
 
+class KorvetDevicesPage : public AddressableDevice
+{
+    public:
+        uint8_t readByte(int addr) override {return m_devices.readByte(addr & 0x3F);}
+        void writeByte(int addr, uint8_t value) override {m_devices.writeByte(addr & 0x3F, value);}
+        void addRange(int first, int last, AddressableDevice* device, int devFirst = 0, bool invert = false)
+        {
+            m_devices.addRange(first, last, device, devFirst, invert);
+        }
+    private:
+        AddrSpace m_devices;
+};
+
 struct Devices {
     Ram                      ram{s_mainRam, c_mainRamSize};
     Rom                      rom1{0x2000, "korvet/rom1.bin"};
@@ -128,11 +144,14 @@ struct Devices {
     KorvetGraphicsAdapter    graphicsAdapter;
     KorvetColorRegister      korvetColorRegister;
     KorvetLutRegister        korvetLutRegister;
+    KorvetFddMotor           fddMotor;
     KorvetVideoPpiCircuit    korvetVideoPpiCircuit;
     Ppi8255                  korvetVideoPpi;
+    KorvetDevicesPage        korvetDevicesPage;
     AddrSpace                ioAddrSpace;
     KorvetRenderer           renderer;
     KorvetKeyboard           keyboard;
+    KorvetKeyboardRegisters  keyboardRegisters;
     KorvetKbdLayout          kbdLayout;
     KbdTapper                kbdTapper;
     KorvetPpi8255Circuit     ppiCircuit;
@@ -143,8 +162,11 @@ struct Devices {
     KorvetPpi8255Circuit2    covoxCircuit;
     Ppi8255                  ppi2;
     Pit8253                  pit;
-    Pit8253SoundSource       sndSource;
+    Pic8259                  pic;
+    KorvetPit8253SoundSource sndSource;
     Psg3910                  ay;
+    KorvetPpiPsgAdapter      psgAdapter;
+    Ppi8255                  ppi3;
     Psg3910SoundSource       psgSoundSource;
     Fdc1793                  fdc;
     KorvetFddControlRegister fddReg;
@@ -152,6 +174,8 @@ struct Devices {
     KorvetHddRegisters       hddRegisters;
     FdImage                  diskA{80, 2, 5, 1024};
     FdImage                  diskB{80, 2, 5, 1024};
+    FdImage                  diskC{80, 2, 5, 1024};
+    FdImage                  diskD{80, 2, 5, 1024};
     DiskImage                hdd;
     KorvetFileLoader         loader;
     WavWriter                wavWriter;
@@ -191,14 +215,16 @@ void KorvetAddrSpace::reset()
 void __not_in_flash_func(KorvetAddrSpace::writeByte)(int addr, uint8_t value)
 {
     const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
-    m_pages[page]->writeByte(addr, value);
+    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF : addr;
+    m_pages[page]->writeByte(deviceAddr, value);
 }
 
 
 uint8_t __not_in_flash_func(KorvetAddrSpace::readByte)(int addr)
 {
     const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
-    return m_pages[page]->readByte(addr);
+    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF : addr;
+    return m_pages[page]->readByte(deviceAddr);
 }
 
 
@@ -388,28 +414,20 @@ void KorvetAddrSpace::postLoad()
 void KorvetCore::inte(bool isActive)
 {
     m_intsEnabled = isActive;
-    if (!isActive)
-        m_intReq = false;
-    else if (m_intReq) {
-        Cpu8080Compatible* cpu = getCpu();
-        if (cpu->getInte()) {
-            cpu->intRst(7);
-            cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
-        }
-    }
+    s_devices.pic.inte(isActive);
 }
 
 
 void KorvetCore::vrtc(bool isActive)
 {
-    if (isActive && m_intsEnabled) {
-        m_intReq = true;
-        Cpu8080Compatible* cpu = getCpu();
-        if (cpu->getInte()) {
-            cpu->intRst(7);
-            cpu->hrq(cpu->getKDiv() * 5); // add waits to RST
-        }
-    }
+    if (m_curVrtc == isActive)
+        return;
+
+    m_curVrtc = isActive;
+    if (m_videoPpiCircuit)
+        m_videoPpiCircuit->setVbl(!isActive);
+
+    // IRQ4 remains disconnected until its timing and polarity are verified.
 }
 
 
@@ -469,6 +487,7 @@ KorvetRenderer::~KorvetRenderer()
 
 void __not_in_flash_func(KorvetRenderer::operate)()
 {
+    m_machine->vrtc(false);
     advanceTo(m_curClock);
     m_curFrameClock = m_curClock;
     m_curFramePixel = 0;
@@ -635,14 +654,31 @@ void __not_in_flash_func(KorvetRenderer::renderLine)(int nLine, int firstPx, int
 #endif
 
 #ifndef PICO_RP2040
-void KorvetRenderer::renderKorvetFrame()
+void __not_in_flash_func(KorvetRenderer::renderKorvetFrame)()
 {
     if (!m_graphicsAdapter || !m_textAdapter)
         return;
 
-    constexpr int stride = 521;
+    constexpr int stride = c_frameBufWidth;
     const uint8_t border = m_palette[m_korvetLut[0]];
-    memset(m_frameBuf, border, stride * 288);
+    uint8_t* fill = m_frameBuf;
+    size_t fillSize = c_frameBufSize;
+
+    while (fillSize && (reinterpret_cast<uintptr_t>(fill) & 3u)) {
+        *fill++ = border;
+        --fillSize;
+    }
+
+    const uint32_t borderWord = uint32_t(border) * 0x01010101u;
+    uint32_t* fillWords = reinterpret_cast<uint32_t*>(fill);
+    size_t wordCount = fillSize >> 2;
+    while (wordCount--)
+        *fillWords++ = borderWord;
+
+    fill = reinterpret_cast<uint8_t*>(fillWords);
+    fillSize &= 3u;
+    while (fillSize--)
+        *fill++ = border;
 
     const int page = m_displayPage % m_graphicsAdapter->getPageCount();
     const int pageOffset = page * 0x4000;
@@ -720,11 +756,11 @@ void KorvetRenderer::prepareFrame()
 
 void KorvetRenderer::applyFrameBuffer()
 {
-    // Кадровый буфер физически всегда 626 x 288 (стр. шаг 626). В режиме
+    // Кадровый буфер физически 521 x 288 (стр. шаг 521). В режиме
     // обрезки показываем только активную область m_sizeX x m_sizeY: буфер не
     // пересоздаём и не копируем, а передаём драйверу указатель на её
     // левый-верхний угол и физический шаг строки. Драйвер читает окно нужной
-    // ширины с шагом 626, поэтому строки не разъезжаются.
+    // ширины с шагом 521, поэтому строки не разъезжаются.
 #if defined(PICO_RP2040) && \
     (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
     // RP2040 has no room for the 626x288 frame buffer. The VGA driver reads
@@ -737,11 +773,11 @@ void KorvetRenderer::applyFrameBuffer()
     if (m_showBorder) {
 #ifndef PICO_RP2040
         graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
-        graphics_set_line_stride(521);
+        graphics_set_line_stride(c_frameBufWidth);
 #endif
     } else {
 #ifndef PICO_RP2040
-        const int stride = 521;
+        const int stride = c_frameBufWidth;
         const int originX = 4;
         const int originY = 17;
         graphics_set_buffer(m_frameBuf + stride * originY + originX,
@@ -1084,6 +1120,40 @@ uint8_t KorvetPpi8255Circuit::getPortC()
 
 
 
+uint8_t KorvetPpiPsgAdapter::getPortA()
+{
+    return m_read;
+}
+
+
+void KorvetPpiPsgAdapter::setPortA(uint8_t value)
+{
+    m_write = value;
+}
+
+
+void KorvetPpiPsgAdapter::setPortB(uint8_t value)
+{
+    const bool bdir = (value & 0x80) != 0;
+    const bool bc1 = (value & 0x40) != 0;
+
+    if (!m_strobe && (bdir || bc1)) {
+        m_strobe = true;
+        if (!bdir && bc1)
+            m_read = m_psg ? m_psg->readByte(0) : 0xFF;
+        else if (bdir && !bc1) {
+            if (m_psg)
+                m_psg->writeByte(0, m_write);
+        } else {
+            if (m_psg)
+                m_psg->writeByte(1, m_write & 0x0F);
+        }
+    } else if (!bdir && !bc1) {
+        m_strobe = false;
+    }
+}
+
+
 void KorvetColorRegister::writeByte(int, uint8_t value)
 {
     if (m_renderer)
@@ -1096,16 +1166,18 @@ void KorvetColorRegister::writeByte(int, uint8_t value)
 
 KorvetKeyboard::KorvetKeyboard()
 {
-    KorvetKeyboard::resetKeys();
+    resetKeys();
 }
 
 
 void KorvetKeyboard::resetKeys()
 {
-    for (int i = 0; i < 8; i++)
-        m_keys[i] = 0;
-    m_mask = 0;
-    m_ctrlKeys = 0;
+    for (int i = 0; i < 8; ++i)
+        m_keys1[i] = 0;
+    for (int i = 0; i < 3; ++i)
+        m_keys2[i] = 0;
+    m_mask1 = 0;
+    m_mask2 = 0;
 }
 
 
@@ -1114,66 +1186,149 @@ void __not_in_flash_func(KorvetKeyboard::processKey)(EmuKey key, bool isPressed)
     if (key == EK_NONE)
         return;
 
-    int i, j;
+    for (int i = 0; i < 8; ++i)
+        for (int j = 0; j < 8; ++j)
+            if (key == m_keyMatrix1[i][j]) {
+                if (isPressed)
+                    m_keys1[i] |= 1u << j;
+                else
+                    m_keys1[i] &= ~(1u << j);
+                return;
+            }
 
-    // Основная матрица
-    for (i = 0; i < 8; i++)
-        for (j = 0; j < 8; j++)
-            if (key == m_keyMatrix[i][j])
-                goto found;
-
-    // Управляющие клавиши
-    for (i = 0; i < 8; i++)
-        if (m_ctrlKeyMatrix[i] == key) {
-            if (isPressed)
-                m_ctrlKeys |= (1 << i);
-            else
-                m_ctrlKeys &= ~(1 << i);
-        }
-    return;
-
-found:
-    if (isPressed)
-        m_keys[i] |= (1 << j);
-    else
-        m_keys[i] &= ~(1 << j);
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 8; ++j)
+            if (key == m_keyMatrix2[i][j]) {
+                if (isPressed)
+                    m_keys2[i] |= 1u << j;
+                else
+                    m_keys2[i] &= ~(1u << j);
+                return;
+            }
 }
 
 
-uint8_t KorvetKeyboard::getMatrixData()
+uint8_t KorvetKeyboard::getMatrix1Data()
 {
-    uint8_t val = 0;
-    uint8_t mask = m_mask;
-    for (int i=0; i<8; i++) {
+    uint8_t value = 0;
+    uint8_t mask = m_mask1;
+    for (int i = 0; i < 8; ++i) {
         if (mask & 1)
-            val |= m_keys[i];
+            value |= m_keys1[i];
         mask >>= 1;
     }
-    return ~val;
+    return value;
+}
+
+
+uint8_t KorvetKeyboard::getMatrix2Data()
+{
+    uint8_t value = 0;
+    uint8_t mask = m_mask2;
+    for (int i = 0; i < 3; ++i) {
+        if (mask & 1)
+            value |= m_keys2[i];
+        mask >>= 1;
+    }
+    return value;
+}
+
+
+uint8_t KorvetKeyboardRegisters::readByte(int addr)
+{
+    if (!m_keyboard)
+        return 0;
+
+    addr &= 0x1FF;
+    if (addr < 0x100) {
+        m_keyboard->setMatrix1Mask(static_cast<uint8_t>(addr));
+        return m_keyboard->getMatrix1Data();
+    }
+
+    m_keyboard->setMatrix2Mask(static_cast<uint8_t>(addr & 7));
+    return m_keyboard->getMatrix2Data();
+}
+
+
+EmuKey KorvetKbdLayout::translateKey(PalKeyCode keyCode)
+{
+    switch (keyCode) {
+    case PK_INS: return EK_INS;
+    case PK_DEL: return EK_DEL;
+    case PK_PGUP: return EK_LANG;
+    case PK_KP_0: return EK_PHOME;
+    case PK_DOWN: return m_downAsNumpad5 ? EK_MENU : EK_DOWN;
+    default: break;
+    }
+
+    EmuKey key = translateCommonKeys(keyCode);
+    if (key != EK_NONE)
+        return key;
+
+    switch (keyCode) {
+    case PK_KP_1: return EK_HOME;
+    case PK_LCTRL:
+    case PK_RCTRL: return EK_CTRL;
+    case PK_F6: return EK_UNDSCR;
+    case PK_F10: return EK_GRAPH;
+    case PK_F8:
+    case PK_MENU: return EK_FIX;
+    case PK_F12: return EK_STOP;
+    case PK_F9: return EK_SEL;
+    case PK_KP_MUL: return EK_INS;
+    case PK_KP_DIV: return EK_DEL;
+    case PK_KP_7: return EK_SHOME;
+    case PK_KP_9: return EK_SEND;
+    case PK_KP_3: return EK_END;
+    case PK_KP_PERIOD: return EK_PEND;
+    case PK_KP_5: return EK_MENU;
+    case PK_KP_MINUS: return EK_CLEAR;
+    default: return EK_NONE;
+    }
+}
+
+
+EmuKey KorvetKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang)
+{
+    if (keyCode == PK_KP_MUL || keyCode == PK_KP_DIV || keyCode == PK_KP_MINUS)
+        return EK_NONE;
+
+    if (unicodeKey >= L'A' && unicodeKey <= L'Z')
+        unicodeKey += 0x20;
+    else if (unicodeKey >= L'a' && unicodeKey <= L'z')
+        unicodeKey -= 0x20;
+    else if (unicodeKey >= L'А' && unicodeKey <= L'Я')
+        unicodeKey += 0x20;
+    else if (unicodeKey >= L'а' && unicodeKey <= L'я')
+        unicodeKey -= 0x20;
+
+    EmuKey key = translateCommonUnicodeKeys(unicodeKey, shift, lang);
+    if (unicodeKey == L'@')
+        shift = false;
+    else if (unicodeKey == L'`') {
+        key = EK_AT;
+        shift = true;
+        lang = false;
+    } else if (unicodeKey == L'_') {
+        key = EK_UNDSCR;
+        shift = true;
+        lang = false;
+    }
+    return key;
 }
 
 
 bool KorvetKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
-    KorvetAddrSpace* addrSpace = m_machine->getAddrSpace();
+    if (keyCode != PK_F11)
+        return false;
 
-    if (keyCode == PK_F11) {
-        Keyboard* keyboard = m_machine->getKeyboard();
-        keyboard->disableKeysReset();
-        m_machine->reset();
-        keyboard->enableKeysReset();
-        return true;
-    } else if (keyCode == PK_F12) {
-        Keyboard* keyboard = m_machine->getKeyboard();
-        keyboard->disableKeysReset();
-        m_machine->reset();
-        keyboard->enableKeysReset();
-        addrSpace->disableRom();
-        return true;
-    }
-    return false;
+    Keyboard* keyboard = m_machine->getKeyboard();
+    keyboard->disableKeysReset();
+    m_machine->reset();
+    keyboard->enableKeysReset();
+    return true;
 }
-
 
 
 void KorvetRamDiskSelector::setEnabled(bool enabled)
@@ -1201,22 +1356,64 @@ void KorvetFddControlRegister::writeByte(int, uint8_t value)
 
 
 
+void KorvetPit8253SoundSource::tuneupPit()
+{
+    if (m_pit)
+        m_pit->getCounter(2)->setExtClockMode(true);
+}
+
+
+void KorvetPit8253SoundSource::updateStats()
+{
+    if (!m_pit)
+        return;
+
+    m_pit->getCounter(0)->updateState();
+    if (m_gate)
+        m_sumValue += m_pit->getCounter(0)->getAvgOut();
+}
+
+
+int __not_in_flash_func(KorvetPit8253SoundSource::calcValue)()
+{
+    if (!m_pit)
+        return 0;
+
+    updateStats();
+    const int result = m_sumValue;
+    m_sumValue = 0;
+
+    for (int i = 0; i < 3; ++i)
+        m_pit->getCounter(i)->resetStats();
+
+    return result * m_ampFactor;
+}
+
+
+void KorvetPit8253SoundSource::setGate(bool gate)
+{
+    updateStats();
+    m_gate = gate;
+}
+
+
 void KorvetPpi8255Circuit2::setPortA(uint8_t value)
 {
-    if (m_covox) {
-        m_covox->setValue(value >> 1);
-    }
-
     m_printerData = value;
 }
 
 
 void KorvetPpi8255Circuit2::setPortC(uint8_t value)
 {
-    bool newStrobe = value & 0x10;
-    if (m_printerStrobe && !newStrobe) {
-        g_emulation->getPrnWriter()->printByte(m_printerData);
-    }
+    static const int covoxValues[4] = {-7, 0, 0, 7};
+    if (m_covox)
+        m_covox->setValue(covoxValues[value & 3]);
+    if (m_pitSoundSource)
+        m_pitSoundSource->setGate((value & 0x08) != 0);
+
+    const bool newStrobe = (value & 0x20) != 0;
+    if (!m_printerStrobe && newStrobe)
+        g_emulation->getPrnWriter()->printByte(uint8_t(~m_printerData));
     m_printerStrobe = newStrobe;
 }
 
@@ -1302,8 +1499,9 @@ KorvetCore::KorvetCore()
     m_addrSpace->setPage(1, m_rom);
     m_addrSpace->setPage(2, m_rom2);
     m_addrSpace->setPage(3, m_rom3);
-    for (int page = 4; page < 7; ++page)
-        m_addrSpace->setPage(page, &s_devices.unmappedPage);
+    m_addrSpace->setPage(4, &s_devices.keyboardRegisters);
+    m_addrSpace->setPage(5, &s_devices.korvetDevicesPage);
+    m_addrSpace->setPage(6, &s_devices.unmappedPage);
     m_addrSpace->setPage(7, &s_devices.textAdapter);
     m_addrSpace->setPage(8, &s_devices.graphicsAdapter);
 
@@ -1330,7 +1528,7 @@ KorvetCore::KorvetCore()
     s_devices.korvetVideoPpi.setMachine(this);
     s_devices.korvetVideoPpi.setSnapshotIndex(2);
     s_devices.korvetVideoPpi.attachPpi8255Circuit(m_videoPpiCircuit);
-    m_ioAddrSpace->addRange(0x38, 0x3B, &s_devices.korvetVideoPpi, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x38, 0x3B, &s_devices.korvetVideoPpi, 0, true);
 
     m_cpu->attachAddrSpace(m_addrSpace);
     m_cpu->attachIoAddrSpace(m_ioAddrSpace);
@@ -1346,6 +1544,8 @@ KorvetCore::KorvetCore()
 
     m_keyboard = &s_devices.keyboard;
     m_keyboard->setMachine(this);
+    s_devices.keyboardRegisters.setMachine(this);
+    s_devices.keyboardRegisters.attachKeyboard(m_keyboard);
 
     m_kbdLayout = &s_devices.kbdLayout;
     m_kbdLayout->setMachine(this);
@@ -1386,29 +1586,49 @@ KorvetCore::KorvetCore()
     m_covoxCircuit = &s_devices.covoxCircuit;
     m_covoxCircuit->setMachine(this);
     m_covoxCircuit->attachCovox(m_covox);
+    m_covoxCircuit->attachPitSoundSource(&s_devices.sndSource);
 
     m_ppi2 = &s_devices.ppi2;
     m_ppi2->setMachine(this);
     m_ppi2->setSnapshotIndex(1);
     m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
-    m_ioAddrSpace->addRange(0x04, 0x07, m_ppi2, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x30, 0x33, m_ppi2, 0, true);
 
     m_pit = &s_devices.pit;
     m_pit->setMachine(this);
-    m_pit->setFrequency(1500000);
+    m_pit->setFrequency(2000000);
+    m_pit->setOutCallback(
+        [](void* context, int, bool state)
+        {
+            static_cast<Pic8259*>(context)->irq(5, state);
+        },
+        &s_devices.pic);
 
     m_sndSource = &s_devices.sndSource;
     m_sndSource->setMachine(this);
     m_sndSource->attachPit(m_pit);
     m_sndSource->setNegative(true);
 
-    m_ioAddrSpace->addRange(0x08, 0x0B, m_pit, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x00, 0x03, m_pit);
+
+    s_devices.pic.setMachine(this);
+    s_devices.pic.attachCpu(m_cpu);
+    s_devices.fddMotor.setMachine(this);
+    s_devices.fddMotor.attachPic(&s_devices.pic);
+    s_devices.korvetDevicesPage.addRange(0x28, 0x29, &s_devices.pic);
 
     m_ay = &s_devices.ay;
     m_ay->setMachine(this);
     m_ay->setFrequency(1750000);
-    m_ioAddrSpace->addRange(0x14, 0x15, m_ay);
+
+    s_devices.psgAdapter.setMachine(this);
+    s_devices.psgAdapter.attachPsg(m_ay);
+
+    s_devices.ppi3.setMachine(this);
+    s_devices.ppi3.setSnapshotIndex(2);
+    s_devices.ppi3.attachPpi8255Circuit(&s_devices.psgAdapter);
+    s_devices.korvetDevicesPage.addRange(0x08, 0x0B, &s_devices.ppi3, 0, true);
 
     m_psgSoundSource = &s_devices.psgSoundSource;
     m_psgSoundSource->setMachine(this);
@@ -1416,13 +1636,17 @@ KorvetCore::KorvetCore()
 
     m_fdc = &s_devices.fdc;
     m_fdc->setMachine(this);
-
-    m_ioAddrSpace->addRange(0x18, 0x1B, m_fdc, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x18, 0x1B, m_fdc, 0, true);
+    m_videoPpiCircuit->attachFdc1793(m_fdc);
+    m_videoPpiCircuit->attachFddMotor(&s_devices.fddMotor);
 
     m_fddReg = &s_devices.fddReg;
     m_fddReg->setMachine(this);
     m_fddReg->attachFdc1793(m_fdc);
+#if 0
+    // Vector-specific FDC control port. Keep the object initialized because reset() still uses it.
     m_ioAddrSpace->addRange(0x1C, 0x1C, m_fddReg);
+#endif
 
     m_ataDrive = &s_devices.ataDrive;
     m_ataDrive->setMachine(this);
@@ -1437,15 +1661,29 @@ KorvetCore::KorvetCore()
     m_diskA->setMachine(this);
     m_diskA->setSnapshotIndex(0);
     m_diskA->setLabel("A");
-    m_diskA->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_diskA->setFilter("Образы дисков Корвета (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(0, m_diskA);
 
     m_diskB = &s_devices.diskB;
     m_diskB->setMachine(this);
     m_diskB->setSnapshotIndex(1);
     m_diskB->setLabel("B");
-    m_diskB->setFilter("Образы дисков Вектора (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_diskB->setFilter("Образы дисков Корвета (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(1, m_diskB);
+
+    m_diskC = &s_devices.diskC;
+    m_diskC->setMachine(this);
+    m_diskC->setSnapshotIndex(3);
+    m_diskC->setLabel("C");
+    m_diskC->setFilter("Образы дисков Корвета (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_fdc->attachFdImage(2, m_diskC);
+
+    m_diskD = &s_devices.diskD;
+    m_diskD->setMachine(this);
+    m_diskD->setSnapshotIndex(4);
+    m_diskD->setLabel("D");
+    m_diskD->setFilter("Образы дисков Корвета (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_fdc->attachFdImage(3, m_diskD);
 
     m_hdd = &s_devices.hdd;
     m_hdd->setMachine(this);
@@ -1800,6 +2038,46 @@ bool KorvetCore::getVideoWideCharMode() const
     return m_videoPpiCircuit && m_videoPpiCircuit->getWideCharMode();
 }
 
+uint16_t KorvetCore::getCpuPc() const
+{
+    return m_cpu ? m_cpu->getPC() : 0;
+}
+
+uint16_t KorvetCore::getCpuAf() const
+{
+    return m_cpu ? m_cpu->getAF() : 0;
+}
+
+uint16_t KorvetCore::getCpuBc() const
+{
+    return m_cpu ? m_cpu->getBC() : 0;
+}
+
+uint16_t KorvetCore::getCpuDe() const
+{
+    return m_cpu ? m_cpu->getDE() : 0;
+}
+
+uint16_t KorvetCore::getCpuHl() const
+{
+    return m_cpu ? m_cpu->getHL() : 0;
+}
+
+uint16_t KorvetCore::getCpuSp() const
+{
+    return m_cpu ? m_cpu->getSP() : 0;
+}
+
+uint8_t KorvetCore::getCpuMemoryByte(uint16_t addr) const
+{
+    return m_addrSpace ? m_addrSpace->readByte(addr) : 0xFF;
+}
+
+uint8_t KorvetCore::getMemoryConfig() const
+{
+    return m_addrSpaceSelector ? m_addrSpaceSelector->getMemoryConfig() : 0;
+}
+
 
 int KorvetCore::getKbdLayoutModeIndex() const
 {
@@ -2106,9 +2384,15 @@ Keyboard* __not_in_flash_func(KorvetCore::getKeyboard)()
 }
 
 namespace {
-FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, KorvetFloppyDrive drive)
+FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, FdImage* diskC, FdImage* diskD, KorvetFloppyDrive drive)
 {
-    return drive == KorvetFloppyDrive::A ? diskA : diskB;
+    switch (drive) {
+        case KorvetFloppyDrive::A: return diskA;
+        case KorvetFloppyDrive::B: return diskB;
+        case KorvetFloppyDrive::C: return diskC;
+        case KorvetFloppyDrive::D: return diskD;
+    }
+    return nullptr;
 }
 }
 
@@ -2123,13 +2407,13 @@ bool KorvetCore::assignDiskAFileName(const std::string& fileName, bool readOnly)
 
 bool KorvetCore::floppyImagePresent(KorvetFloppyDrive drive) const
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     return disk && disk->getImagePresent();
 }
 
 bool KorvetCore::floppyImageReadOnly(KorvetFloppyDrive drive) const
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     return disk && disk->getImagePresent() && disk->getWriteProtectStatus();
 }
 
@@ -2140,7 +2424,7 @@ bool KorvetCore::floppyReadOnlyMode(KorvetFloppyDrive drive) const
 
 bool KorvetCore::canSetFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly) const
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     if (!disk)
         return false;
     if (!disk->getImagePresent())
@@ -2148,16 +2432,19 @@ bool KorvetCore::canSetFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly) co
     if (readOnly)
         return true;
 
-    FdImage* other = selectFloppy(m_diskA, m_diskB,
-        drive == KorvetFloppyDrive::A ? KorvetFloppyDrive::B : KorvetFloppyDrive::A);
-    return !other || !other->getImagePresent()
-        || other->getFileName() != disk->getFileName()
-        || other->getWriteProtectStatus();
+    FdImage* drives[] = {m_diskA, m_diskB, m_diskC, m_diskD};
+    for (FdImage* other : drives) {
+        if (other && other != disk && other->getImagePresent()
+                && other->getFileName() == disk->getFileName()
+                && !other->getWriteProtectStatus())
+            return false;
+    }
+    return true;
 }
 
 void KorvetCore::setFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly)
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     if (!disk || !canSetFloppyReadOnly(drive, readOnly))
         return;
 
@@ -2168,32 +2455,42 @@ void KorvetCore::setFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly)
 
 std::string KorvetCore::getFloppyFileName(KorvetFloppyDrive drive) const
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     return disk ? disk->getFileName() : std::string();
 }
 
 void KorvetCore::chooseFloppyImage(KorvetFloppyDrive drive)
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
-    FdImage* other = selectFloppy(m_diskA, m_diskB, drive == KorvetFloppyDrive::A ? KorvetFloppyDrive::B : KorvetFloppyDrive::A);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     if (!disk)
         return;
     bool readOnly = m_floppyReadOnlyMode[static_cast<int>(drive)];
-    const char* title = drive == KorvetFloppyDrive::A
-        ? "FDD-image file as A"
-        : "FDD-image file as B";
+    static const char* const titles[] = {
+        "FDD-image file as A",
+        "FDD-image file as B",
+        "FDD-image file as C",
+        "FDD-image file as D"
+    };
+    const char* title = titles[static_cast<int>(drive)];
     const std::string fileName = disk->chooseFileName(title, &readOnly);
     if (fileName.empty())
         return;
     m_floppyReadOnlyMode[static_cast<int>(drive)] = readOnly;
     const std::string fullFileName = palMakeFullFileName(fileName);
-    const bool duplicate = other && other->getImagePresent() && other->getFileName() == fullFileName;
+    bool duplicate = false;
+    FdImage* drives[] = {m_diskA, m_diskB, m_diskC, m_diskD};
+    for (FdImage* other : drives) {
+        if (other && other != disk && other->getImagePresent() && other->getFileName() == fullFileName) {
+            duplicate = true;
+            break;
+        }
+    }
     disk->assignFileName(fullFileName, readOnly || duplicate);
 }
 
 void KorvetCore::ejectFloppyImage(KorvetFloppyDrive drive)
 {
-    FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
+    FdImage* disk = selectFloppy(m_diskA, m_diskB, m_diskC, m_diskD, drive);
     if (disk)
         disk->assignFileName("");
 }

@@ -67,6 +67,12 @@ void __not_in_flash_func(Pit8253Counter::planIrq)()
 }
 
 
+void Pit8253Counter::notifyOutChange(bool previousOut)
+{
+    if (previousOut != m_out && m_outCallback)
+        m_outCallback(m_outCallbackContext, m_counterNumber, m_out);
+}
+
 void __not_in_flash_func(Pit8253Counter::operateForTicks)(int ticks)
 {
     if (m_countDelay) {
@@ -224,7 +230,9 @@ void __not_in_flash_func(Pit8253Counter::updateState)()
     if (m_out)
         m_tempAddOutClocks -= int(prevPhase);
 
+    const bool previousOut = m_out;
     operateForTicks(ticks);
+    notifyOutChange(previousOut);
 
     if (m_out)
         m_tempAddOutClocks += int(curPhase);
