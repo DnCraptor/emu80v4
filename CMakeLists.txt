@@ -14,20 +14,20 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
-set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
-#set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
-set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
+set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
+#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
-set(SOFTTV ON)
+#set(SOFTTV ON)
 #set(TV_NTSC ON)
 #set(VGA_DRV ON)
-#set(HDMI_DVI ON)
+set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)
@@ -42,7 +42,7 @@ set(CPU_MHZ 400)
 #set(CPU_MHZ 500)
 #set(CPU_MHZ 520)
 
-set (PORT_VERSION "0.6.0")
+set (PORT_VERSION "0.6.1")
 
 # При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
 # системной, а 800x600@60 требует ровно 400 МГц.
@@ -63,7 +63,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME v06c)
+SET(PROJECT_NAME korvet)
 set(FLASH_SIZE 4096)
 set(BUILD_NAME "${PROJECT_NAME}")
 
@@ -72,7 +72,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(v06c C CXX ASM)
+project(korvet C CXX ASM)
 
 message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
 message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
@@ -111,7 +111,7 @@ file(GLOB SRC
     "src/pico/**.c"
 )
 
-# The firmware contains a single statically constructed Vector-06C machine.
+# The firmware contains a single statically constructed Korvet machine.
 # Keep shared device implementations, but do not compile other platform models.
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -345,15 +345,15 @@ ELSE()
 ENDIF()
 
 if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for RP2350-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Korvet for RP2350-PiZero")
 elseif(${PICO_BOARD} MATCHES "waveshare_rp2040_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for RP2040-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Korvet for RP2040-PiZero")
 elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for Olimex RP2040-PICO-PC")
+    pico_set_program_name(${PROJECT_NAME} "Korvet for Olimex RP2040-PICO-PC")
 elseif(${PICO_BOARD} MATCHES "murmulator2")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 2.0")
+    pico_set_program_name(${PROJECT_NAME} "Korvet for MURMULATOR 2.0")
 else()
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 1.x")
+    pico_set_program_name(${PROJECT_NAME} "Korvet for MURMULATOR 1.x")
 endif()
 pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 

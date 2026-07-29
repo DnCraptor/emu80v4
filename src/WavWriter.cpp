@@ -19,7 +19,7 @@
 #include "Pal.h"
 #include "Globals.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "WavWriter.h"
 
 using namespace std;
@@ -34,7 +34,7 @@ WavWriter::WavWriter()
 }
 
 
-bool WavWriter::open(VectorCore* core, const string& fileName, bool cswFormat)
+bool WavWriter::open(KorvetCore* core, const string& fileName, bool cswFormat)
 {
     if (m_open)
         close();

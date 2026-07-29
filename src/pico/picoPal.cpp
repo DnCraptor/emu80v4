@@ -95,7 +95,7 @@ string palMakeFullFileName(string fileName)
 {
     if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\')
         return fileName;
-    string fullFileName("/vector06c/");
+    string fullFileName("/korvet/");
     fullFileName += fileName;
     return fullFileName;
 }
@@ -125,7 +125,7 @@ extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
 #include "picoMenu.h"
 #include <algorithm>
-static std::string fdir = "/vector06c";
+static std::string fdir = "/korvet";
 
 // Состояние карты. Монтирование при старте могло не удаться (карта не
 // вставлена), поэтому результат запоминается, а повторная попытка делается
@@ -145,7 +145,7 @@ bool palEnsureSdMounted()
     if (f_mount(&s_sdFs, "SD", 1) != FR_OK)
         return false;
     s_sdMounted = true;
-    f_mkdir("/vector06c");
+    f_mkdir("/korvet");
     return true;
 }
 

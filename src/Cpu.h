@@ -24,9 +24,9 @@
 
 
 class CpuHook;
-class VectorCore;
+class KorvetCore;
 class Cpu8080Compatible;
-class VectorRenderer;
+class KorvetRenderer;
 
 class Cpu : public ActiveDevice
 {
@@ -37,7 +37,7 @@ class Cpu : public ActiveDevice
 
         void attachAddrSpace(AddressableDevice* as);
         void attachIoAddrSpace(AddressableDevice* as);
-        void attachCore(VectorCore* core);
+        void attachCore(KorvetCore* core);
         void setStartAddr(unsigned addr) {m_startAddr = addr;}
 
         virtual void interrupt(int) {}
@@ -54,15 +54,15 @@ class Cpu : public ActiveDevice
         // смещению, то есть доступ выполняется как base[addr] без маскирования
         // (у Вектора и ОЗУ, и ПЗУ отображаются с адреса 0). nullptr означает
         // «идти прежним путём через m_addrSpace».
-        // Карту строит VectorAddrSpace::rebuildPageMap().
+        // Карту строит KorvetAddrSpace::rebuildPageMap().
         void clearPageMap();
         void setReadPage(int page, const uint8_t* base) {m_rdPage[page & 0xFF] = base;}
         void setWritePage(int page, uint8_t* base) {m_wrPage[page & 0xFF] = base;}
-        void attachCrtRenderer(VectorRenderer* crt) {m_crt = crt;}
+        void attachCrtRenderer(KorvetRenderer* crt) {m_crt = crt;}
 
     protected:
         // Обращение к гостевой памяти. Прежде это была цепочка из трёх
-        // виртуальных вызовов (m_addrSpace->readByte -> VectorAddrSpace::readByte
+        // виртуальных вызовов (m_addrSpace->readByte -> KorvetAddrSpace::readByte
         // -> Ram::readByte) с проверками страниц и границ на каждый байт.
         // Теперь в типовом случае это загрузка указателя страницы и загрузка
         // байта; всё, что не ложится в статическую карту, уходит на прежний путь.
@@ -87,16 +87,16 @@ class Cpu : public ActiveDevice
             m_addrSpace->writeByte(addr, value);
         }
 
-        // Определён в Cpu.cpp: заголовку не нужен полный тип VectorRenderer
+        // Определён в Cpu.cpp: заголовку не нужен полный тип KorvetRenderer
         void vidWriteNotify();
 
         const uint8_t* m_rdPage[256] = {};
         uint8_t* m_wrPage[256] = {};
-        VectorRenderer* m_crt = nullptr;
+        KorvetRenderer* m_crt = nullptr;
 
         AddressableDevice* m_addrSpace = nullptr;
         AddressableDevice* m_ioAddrSpace = nullptr;
-        VectorCore* m_core = nullptr;
+        KorvetCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
         bool m_hooksDisabled = false;

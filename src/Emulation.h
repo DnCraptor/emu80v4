@@ -32,7 +32,7 @@ class Cpu;
 class SoundMixer;
 class WavReader;
 class PrnWriter;
-class VectorCore;
+class KorvetCore;
 
 
 /*struct DevListItem
@@ -52,7 +52,7 @@ class Emulation : public SnapshotSerializable
         void init();
 
         // Однократный сбор всех созданных активных устройств
-        VectorCore* getVector() {return m_vector;}
+        KorvetCore* getKorvet() {return m_korvet;}
 
         void registerActiveDevices();
 
@@ -144,7 +144,7 @@ class Emulation : public SnapshotSerializable
         SoundMixer* m_mixer = nullptr;
         WavReader* m_wavReader = nullptr;
         PrnWriter* m_prnWriter = nullptr;
-        VectorCore* m_vector = nullptr;
+        KorvetCore* m_korvet = nullptr;
 
 };
 

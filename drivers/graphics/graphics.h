@@ -53,7 +53,7 @@ void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
 // RP2040/VGA scan-line source.
 typedef enum {
-    GRAPHICS_VIDEO_VECTOR = 0,
+    GRAPHICS_VIDEO_KORVET = 0,
     GRAPHICS_VIDEO_TEXT = 1,
     GRAPHICS_VIDEO_COMBINED = 2
 } graphics_video_content_mode_t;
@@ -61,7 +61,7 @@ extern volatile graphics_video_content_mode_t menu_video_mode;
 
 static inline bool menu_text_active(void)
 {
-    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
+    return menu_video_mode != GRAPHICS_VIDEO_KORVET;
 }
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
@@ -70,7 +70,7 @@ inline static graphics_video_content_mode_t graphics_get_video_content_mode(void
 #ifdef PICO_RP2040
     return menu_video_mode;
 #else
-    return GRAPHICS_VIDEO_VECTOR;
+    return GRAPHICS_VIDEO_KORVET;
 #endif
 }
 

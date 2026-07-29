@@ -23,7 +23,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "Pit8253.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 

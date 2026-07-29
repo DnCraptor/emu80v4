@@ -50,7 +50,7 @@ void graphics_set_modeTV(tv_out_mode_t mode);
 
 // RP2040: публикация видеопамяти и регистров Вектора для прямого
 // построчного рендеринга без полноэкранного framebuffer.
-void graphics_set_vector_source(const uint8_t* memory, const uint8_t* palette,
+void graphics_set_korvet_source(const uint8_t* memory, const uint8_t* palette,
                                 uint8_t border_color, uint8_t line_offset,
                                 bool mode512, bool show_border);
 

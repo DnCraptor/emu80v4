@@ -46,37 +46,43 @@ class RamDisk;
 class DiskImage;
 class KbdTapper;
 class CpuHook;
-class VectorFileLoader;
-class VectorAddrSpace;
+class KorvetFileLoader;
+class KorvetAddrSpace;
+class KorvetAddrSpaceSelector;
 class Cpu8080;
 class AddrSpace;
-class VectorKeyboard;
-class VectorKbdLayout;
-class VectorPpi8255Circuit;
+class KorvetKeyboard;
+class KorvetKbdLayout;
+class KorvetPpi8255Circuit;
 class Ppi8255;
-class VectorColorRegister;
-class VectorPpi8255Circuit2;
+class KorvetColorRegister;
+class KorvetGraphicsAdapter;
+class KorvetVideoPpiCircuit;
+class KorvetPpi8255Circuit2;
 class Pit8253;
 class Pit8253SoundSource;
 class Psg3910;
 class Psg3910SoundSource;
-class VectorFddControlRegister;
-class VectorHddRegisters;
+class KorvetFddControlRegister;
+class KorvetHddRegisters;
 class FdImage;
 class TapeRedirector;
 class RkTapeInHook;
 class RkTapeOutHook;
 class CloseFileHook;
 class Ret8080Hook;
-class VectorRamDiskSelector;
+class KorvetRamDiskSelector;
 class WavWriter;
 
 
-class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerializable
+class KorvetGraphicsAdapter;
+class KorvetTextAdapter;
+
+class KorvetRenderer : public CrtRenderer, public IActive, public SnapshotSerializable
 {
     public:
-        VectorRenderer();
-        ~VectorRenderer();
+        KorvetRenderer();
+        ~KorvetRenderer();
 
         void renderFrame() override;
 
@@ -91,6 +97,12 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         void init() override;
 
         void attachMemory(Ram* memory);
+        void attachGraphicsAdapter(KorvetGraphicsAdapter* adapter) {m_graphicsAdapter = adapter;}
+        void attachTextAdapter(KorvetTextAdapter* adapter) {m_textAdapter = adapter;}
+        void setDisplayPage(uint8_t page) {m_displayPage = page & 3;}
+        void setFontNumber(uint8_t fontNumber) {m_fontNumber = fontNumber & 1;}
+        void setWideCharMode(bool wideCharMode) {m_wideCharMode = wideCharMode;}
+        void setLutValue(uint8_t index, uint8_t value) {m_korvetLut[index & 0x0F] = value & 0x0F;}
         void setVisibleArea(bool visible) {m_showBorder = visible;}
 
         // Текущее состояние для отметок в меню.
@@ -151,6 +163,12 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         uint8_t* m_frameBuf = nullptr;
 #endif
         const uint8_t* m_screenMemory;
+        KorvetGraphicsAdapter* m_graphicsAdapter = nullptr;
+        KorvetTextAdapter* m_textAdapter = nullptr;
+        uint8_t m_displayPage = 0;
+        uint8_t m_fontNumber = 0;
+        bool m_wideCharMode = false;
+        uint8_t m_korvetLut[16] = {};
 
         bool m_showBorder = false;
         bool m_colorMode = true;
@@ -174,6 +192,7 @@ class VectorRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         void prepareFrame();
         void applyFrameBuffer();
 #ifndef PICO_RP2040
+        void renderKorvetFrame();
         void renderLine(int nLine, int firstPx, int LastPx, uint8_t* linePtr);
 #endif
         void advanceTo(uint64_t clocks);
@@ -261,22 +280,22 @@ private:
     FSIZE_t m_sectionEnd = 0;
 };
 
-enum VectorCpuType {
+enum KorvetCpuType {
     VECTOR_CPU_8080 = 0,
     VECTOR_CPU_Z80  = 1
 };
 
-enum class VectorFloppyDrive : uint8_t {
+enum class KorvetFloppyDrive : uint8_t {
     A = 0,
     B = 1
 };
 
 
-class VectorCore : public SnapshotSerializable
+class KorvetCore : public SnapshotSerializable
 {
     public:
-        VectorCore();
-        ~VectorCore();
+        KorvetCore();
+        ~KorvetCore();
 
         void init();
         void shutdown();
@@ -320,13 +339,16 @@ class VectorCore : public SnapshotSerializable
         // Смена ядра на ходу: старое разрушается, новое создаётся в том же
         // буфере и получает всю обвязку заново. Вызывающий обязан после этого
         // выполнить полный сброс машины.
-        VectorCpuType getCpuType() const;
-        void setCpuType(VectorCpuType type);
+        KorvetCpuType getCpuType() const;
+        void setCpuType(KorvetCpuType type);
 
         // Состояние для пунктов меню (отметки/радиогруппы), зеркалящих горячие
         // клавиши. Раскладка: 0=QWERTY, 1=ЙЦУКЕН, 2=Smart.
         bool getColorMode() const;
         bool getCroppedToVisible() const;
+        uint8_t getVideoDisplayPage() const;
+        uint8_t getVideoFontNumber() const;
+        bool getVideoWideCharMode() const;
         int getKbdLayoutModeIndex() const;
 
         // Аппаратные сбросы Вектор-06Ц, дублирующие клавиши F11/F12, чтобы их
@@ -338,16 +360,16 @@ class VectorCore : public SnapshotSerializable
         unsigned getCpuFrequency() const {return m_cpuFrequency;}
         void setCpuFrequency(unsigned frequency);
         Keyboard* getKeyboard();
-        VectorAddrSpace* getAddrSpace() {return m_addrSpace;}
+        KorvetAddrSpace* getAddrSpace() {return m_addrSpace;}
         bool assignDiskAFileName(const std::string& fileName, bool readOnly = false);
-        bool floppyImagePresent(VectorFloppyDrive drive) const;
-        bool floppyImageReadOnly(VectorFloppyDrive drive) const;
-        bool floppyReadOnlyMode(VectorFloppyDrive drive) const;
-        bool canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const;
-        void setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly);
-        std::string getFloppyFileName(VectorFloppyDrive drive) const;
-        void chooseFloppyImage(VectorFloppyDrive drive);
-        void ejectFloppyImage(VectorFloppyDrive drive);
+        bool floppyImagePresent(KorvetFloppyDrive drive) const;
+        bool floppyImageReadOnly(KorvetFloppyDrive drive) const;
+        bool floppyReadOnlyMode(KorvetFloppyDrive drive) const;
+        bool canSetFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly) const;
+        void setFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly);
+        std::string getFloppyFileName(KorvetFloppyDrive drive) const;
+        void chooseFloppyImage(KorvetFloppyDrive drive);
+        void ejectFloppyImage(KorvetFloppyDrive drive);
         bool hddImagePresent() const;
         std::string getHddFileName() const;
         void chooseHddImage();
@@ -382,35 +404,39 @@ class VectorCore : public SnapshotSerializable
     private:
         Ram* m_ram = nullptr;
         Rom* m_rom = nullptr;
+        Rom* m_rom2 = nullptr;
+        Rom* m_rom3 = nullptr;
         bool m_z80_installed = false;
         Cpu8080Compatible* m_cpu = nullptr;
-        unsigned m_cpuFrequency = 3000000;
-        VectorAddrSpace* m_addrSpace = nullptr;
+        unsigned m_cpuFrequency = 2500000;
+        KorvetAddrSpace* m_addrSpace = nullptr;
+        KorvetAddrSpaceSelector* m_addrSpaceSelector = nullptr;
         AddrSpace* m_ioAddrSpace = nullptr;
-        VectorRenderer* m_renderer = nullptr;
-        VectorKeyboard* m_keyboard = nullptr;
-        VectorKbdLayout* m_kbdLayout = nullptr;
+        KorvetRenderer* m_renderer = nullptr;
+        KorvetVideoPpiCircuit* m_videoPpiCircuit = nullptr;
+        KorvetKeyboard* m_keyboard = nullptr;
+        KorvetKbdLayout* m_kbdLayout = nullptr;
         KbdTapper* m_kbdTapper = nullptr;
-        VectorPpi8255Circuit* m_ppiCircuit = nullptr;
+        KorvetPpi8255Circuit* m_ppiCircuit = nullptr;
         GeneralSoundSource* m_tapeSoundSource = nullptr;
         Ppi8255* m_ppi = nullptr;
-        VectorColorRegister* m_colorReg = nullptr;
+        KorvetColorRegister* m_colorReg = nullptr;
         Covox* m_covox = nullptr;
-        VectorPpi8255Circuit2* m_covoxCircuit = nullptr;
+        KorvetPpi8255Circuit2* m_covoxCircuit = nullptr;
         Ppi8255* m_ppi2 = nullptr;
         Pit8253* m_pit = nullptr;
         Pit8253SoundSource* m_sndSource = nullptr;
         Psg3910* m_ay = nullptr;
         Psg3910SoundSource* m_psgSoundSource = nullptr;
         Fdc1793* m_fdc = nullptr;
-        VectorFddControlRegister* m_fddReg = nullptr;
+        KorvetFddControlRegister* m_fddReg = nullptr;
         AtaDrive* m_ataDrive = nullptr;
-        VectorHddRegisters* m_hddRegisters = nullptr;
+        KorvetHddRegisters* m_hddRegisters = nullptr;
         FdImage* m_diskA = nullptr;
         FdImage* m_diskB = nullptr;
         bool m_floppyReadOnlyMode[2] = {false, false};
         DiskImage* m_hdd = nullptr;
-        VectorFileLoader* m_loader = nullptr;
+        KorvetFileLoader* m_loader = nullptr;
         TapeRedirector* m_tapeInFile = nullptr;
         TapeRedirector* m_tapeOutFile = nullptr;
         WavWriter* m_wavWriter = nullptr;
@@ -426,10 +452,10 @@ class VectorCore : public SnapshotSerializable
         CloseFileHook* m_closeFileHookEmuRk = nullptr;
         SRam* m_ramDiskMem = nullptr;
         RamDisk* m_ramDisk = nullptr;
-        VectorRamDiskSelector* m_ramDiskSelector = nullptr;
+        KorvetRamDiskSelector* m_ramDiskSelector = nullptr;
         SRam* m_ramDiskMem2 = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
-        VectorRamDiskSelector* m_ramDiskSelector2 = nullptr;
+        KorvetRamDiskSelector* m_ramDiskSelector2 = nullptr;
         CpuHook* m_tapeHooks[10] = {};
 
         bool m_intReq = false;
@@ -437,7 +463,7 @@ class VectorCore : public SnapshotSerializable
         bool m_tapeOut = false;
 };
 
-class VectorAddrSpace : public AddressableDevice, public SnapshotSerializable
+class KorvetAddrSpace : public AddressableDevice, public SnapshotSerializable
 {
     public:
 
@@ -449,8 +475,10 @@ class VectorAddrSpace : public AddressableDevice, public SnapshotSerializable
         void attachRam(Ram* mem) {m_mainMemory = mem; rebuildPageMap();}
         void attachRom(Rom* rom) {m_rom = rom; rebuildPageMap();}
         void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu; rebuildPageMap();}
+        void attachSelector(KorvetAddrSpaceSelector* selector) {m_addrSpaceSelector = selector;}
+        void setPage(int pageNum, AddressableDevice* page) {m_pages[pageNum] = page;}
         void attachRamDisk(int diskNum, SRam* ramDisk);
-        void attachCrtRenderer(VectorRenderer* crtRenderer) {m_crtRenderer = crtRenderer; rebuildPageMap();}
+        void attachCrtRenderer(KorvetRenderer* crtRenderer) {m_crtRenderer = crtRenderer; rebuildPageMap();}
         void enableRom();
         void disableRom();
 
@@ -473,7 +501,9 @@ class VectorAddrSpace : public AddressableDevice, public SnapshotSerializable
         SRam* m_ramDisk = nullptr;
         SRam* m_ramDisk2 = nullptr;
         Cpu8080Compatible* m_cpu = nullptr;
-        VectorRenderer* m_crtRenderer = nullptr;
+        KorvetRenderer* m_crtRenderer = nullptr;
+        KorvetAddrSpaceSelector* m_addrSpaceSelector = nullptr;
+        AddressableDevice* m_pages[9] = {};
 
         bool m_romEnabled = true;
 
@@ -497,7 +527,19 @@ class VectorAddrSpace : public AddressableDevice, public SnapshotSerializable
 };
 
 
-class VectorFileLoader : public EmuObject
+class KorvetAddrSpaceSelector : public AddressableDevice
+{
+    public:
+        void reset() override {m_memCfg = 0;}
+        void writeByte(int, uint8_t value) override {m_memCfg = value & 0x7C;}
+        uint8_t getMemoryConfig() const {return m_memCfg;}
+
+    private:
+        uint8_t m_memCfg = 0;
+};
+
+
+class KorvetFileLoader : public EmuObject
 {
     public:
         bool loadFile(const std::string& fileName, bool run = false, bool readOnly = false);
@@ -512,10 +554,10 @@ class VectorFileLoader : public EmuObject
 };
 
 
-class VectorKeyboard : public Keyboard
+class KorvetKeyboard : public Keyboard
 {
     public:
-        VectorKeyboard();
+        KorvetKeyboard();
 
         void resetKeys() override;
         void processKey(EmuKey key, bool isPressed) override;
@@ -548,7 +590,7 @@ class VectorKeyboard : public Keyboard
 };
 
 
-class VectorPpi8255Circuit : public Ppi8255Circuit
+class KorvetPpi8255Circuit : public Ppi8255Circuit
 {
     public:
 
@@ -559,8 +601,8 @@ class VectorPpi8255Circuit : public Ppi8255Circuit
         void setPortB(uint8_t value) override; // port 02
         void setPortC(uint8_t value) override; // port 01
 
-        void attachKeyboard(VectorKeyboard* kbd) {m_kbd = kbd;}
-        void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
+        void attachKeyboard(KorvetKeyboard* kbd) {m_kbd = kbd;}
+        void attachRenderer(KorvetRenderer* renderer) {m_renderer = renderer;}
         void attachTapeSoundSource(GeneralSoundSource* source) {m_tapeSoundSource = source;}
 
 
@@ -568,12 +610,12 @@ class VectorPpi8255Circuit : public Ppi8255Circuit
         // Источник звука - вывод на магнитофон
         GeneralSoundSource* m_tapeSoundSource;
 
-        VectorKeyboard* m_kbd = nullptr;
-        VectorRenderer* m_renderer = nullptr;
+        KorvetKeyboard* m_kbd = nullptr;
+        KorvetRenderer* m_renderer = nullptr;
 };
 
 
-class VectorPpi8255Circuit2 : public Ppi8255Circuit
+class KorvetPpi8255Circuit2 : public Ppi8255Circuit
 {
     public:
 
@@ -595,22 +637,24 @@ class VectorPpi8255Circuit2 : public Ppi8255Circuit
 };
 
 
-class VectorColorRegister : public AddressableDevice
+class KorvetColorRegister : public AddressableDevice
 {
     public:
 
-        void attachRenderer(VectorRenderer* renderer) {m_renderer = renderer;}
+        void attachRenderer(KorvetRenderer* renderer) {m_renderer = renderer;}
+        void attachGraphicsAdapter(KorvetGraphicsAdapter* adapter) {m_graphicsAdapter = adapter;}
 
         void writeByte(int addr, uint8_t value) override;
 
 
     private:
-        VectorRenderer* m_renderer = nullptr;
+        KorvetRenderer* m_renderer = nullptr;
+        KorvetGraphicsAdapter* m_graphicsAdapter = nullptr;
 };
 
 
 
-class VectorKbdLayout : public RkKbdLayout
+class KorvetKbdLayout : public RkKbdLayout
 {
     public:
 
@@ -619,11 +663,11 @@ class VectorKbdLayout : public RkKbdLayout
 };
 
 
-class VectorRamDiskSelector : public AddressableDevice
+class KorvetRamDiskSelector : public AddressableDevice
 {
     public:
 
-        void attachVectorAddrSpace(VectorAddrSpace* vectorAddrSpace) {m_vectorAddrSpace = vectorAddrSpace;}
+        void attachKorvetAddrSpace(KorvetAddrSpace* vectorAddrSpace) {m_korvetAddrSpace = vectorAddrSpace;}
         void setDiskNum(int diskNum) {m_diskNum = diskNum;}
         bool getEnabled() const {return m_enabled;}
         void setEnabled(bool enabled);
@@ -633,13 +677,13 @@ class VectorRamDiskSelector : public AddressableDevice
 
 
     private:
-        VectorAddrSpace* m_vectorAddrSpace = nullptr;
+        KorvetAddrSpace* m_korvetAddrSpace = nullptr;
         int m_diskNum = 0;
         bool m_enabled = true;
 };
 
 
-class VectorFddControlRegister : public AddressableDevice
+class KorvetFddControlRegister : public AddressableDevice
 {
     public:
 
@@ -654,7 +698,7 @@ class VectorFddControlRegister : public AddressableDevice
 };
 
 
-class VectorHddRegisters : public AddressableDevice
+class KorvetHddRegisters : public AddressableDevice
 {
     public:
 

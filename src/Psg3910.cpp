@@ -28,7 +28,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "Psg3910.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "hway.h"
 #include "ff.h"
 #include <pico/time.h>
@@ -61,7 +61,7 @@ void ayLogWrite(uint8_t reg, uint8_t val, bool toHw)
     if (s_ayLogState < 0)
         return;
     if (s_ayLogState == 0) {
-        if (f_open(&s_ayLog, "/v06c_ay.log", FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
+        if (f_open(&s_ayLog, "/korvet_ay.log", FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
             s_ayLogState = -1;
             return;
         }

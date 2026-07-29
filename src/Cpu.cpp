@@ -22,7 +22,7 @@
 #include "Cpu.h"
 #include "CpuHook.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 
@@ -50,7 +50,7 @@ void Cpu::attachIoAddrSpace(AddressableDevice* as)
 
 
 
-void Cpu::attachCore(VectorCore* core)
+void Cpu::attachCore(KorvetCore* core)
 {
     m_core = core;
 }

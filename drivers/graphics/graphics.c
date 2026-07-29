@@ -2,7 +2,7 @@
 #include <string.h>
 #include <pico.h>
 
-volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_KORVET;
 
 const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
 #ifdef HDMI_DVI

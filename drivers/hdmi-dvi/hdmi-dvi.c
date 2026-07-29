@@ -272,9 +272,9 @@ void menu_text_clear_for_mode(void)
 /*
  * RP2040 HDMI/DVI timing diagnostics:
  *
- * 0 - normal path: Vector rendering + TMDS encoding;
+ * 0 - normal path: Korvet rendering + TMDS encoding;
  * 1 - TMDS encoding only, from a prebuilt RGB222 test line;
- * 2 - Vector rendering only; output uses the already encoded blank line.
+ * 2 - Korvet rendering only; output uses the already encoded blank line.
  *
  * A red fallback line from libdvi means this core failed to enqueue the
  * requested TMDS line before the transmitter needed it.
@@ -511,7 +511,7 @@ static void __not_in_flash_func(render_vector_dvi_line)(
      * line_buf is cleared once at the beginning of the DVI frame.  Every
      * source line overwrites the same drawable horizontal interval, so
      * clearing all 800 bytes again here is redundant and was enough to push
-     * Vector rendering + TMDS encoding beyond the RP2040 line budget.
+     * Korvet rendering + TMDS encoding beyond the RP2040 line budget.
      */
     output += left;
 
@@ -783,7 +783,7 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
 #ifdef PICO_RP2040
 #if HDMI_RP2040_DIAG_MODE == 1
             /*
-             * Encoder-only test.  No Vector state, RAM or LUT is touched.
+             * Encoder-only test.  No Korvet state, RAM or LUT is touched.
              * Every logical line encodes the same prebuilt 800-pixel pattern.
              */
             tmds_encode_palette_data(
@@ -791,7 +791,7 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 tmdsbuf, DVI_FRAME_WIDTH, 6);
 #elif HDMI_RP2040_DIAG_MODE == 2
             /*
-             * Renderer-only test.  Build the same Vector line as normal, but
+             * Renderer-only test.  Build the same Korvet line as normal, but
              * do not encode it; enqueue the pre-encoded blank TMDS line.
              */
             if (vector_frame_state_valid &&
@@ -805,7 +805,7 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                 copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
             } else {
                 /*
-                 * Both Vector layouts fit completely inside x=80..719:
+                 * Both Korvet layouts fit completely inside x=80..719:
                  *
                  *   border mode: 626 pixels at nominal x=87
                  *   crop mode:   512 pixels at nominal x=144
@@ -990,7 +990,7 @@ void graphics_init(void) {
     dvi_get_blank_settings(&dvi0)->bottom = 0;
 }
 
-void graphics_set_vector_source(
+void graphics_set_korvet_source(
         const uint8_t* memory, const uint8_t* palette,
         uint8_t vector_border_color, uint8_t line_offset,
         bool mode512, bool show_border)
@@ -1050,8 +1050,8 @@ uint16_t graphics_get_line_stride(void) {
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
-    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
-        mode = GRAPHICS_VIDEO_VECTOR;
+    if (mode < GRAPHICS_VIDEO_KORVET || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_KORVET;
 
     __asm volatile ("" ::: "memory");
     menu_video_mode = mode;
@@ -1063,7 +1063,7 @@ void graphics_set_menu_text_mode(bool enabled)
 {
     graphics_set_video_content_mode(enabled
                                   ? GRAPHICS_VIDEO_TEXT
-                                  : GRAPHICS_VIDEO_VECTOR);
+                                  : GRAPHICS_VIDEO_KORVET);
 }
 
 uint32_t graphics_get_width(void) {
@@ -1126,7 +1126,7 @@ void graphics_set_offset(const int x, const int y) {
 #ifdef PICO_RP2040
     /*
      * The RP2040 fast path encodes one fixed 640-pixel TMDS span at x=80.
-     * Horizontal movement would move Vector pixels outside that span and can
+     * Horizontal movement would move Korvet pixels outside that span and can
      * make the encoder miss its line deadline. Keep the image centered.
      */
     (void)x;

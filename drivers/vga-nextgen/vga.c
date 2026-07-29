@@ -200,10 +200,10 @@ static void __time_critical_func(render_menu_text_overlay_line)(
         uint8_t* output, uint32_t logical_line)
 {
     /*
-     * The Vector VGA path duplicates every generated line.  Use the 8x8 font
+     * The Korvet VGA path duplicates every generated line.  Use the 8x8 font
      * here: one glyph row is generated once and then repeated by VGA, giving
      * the same visible 8x16 cells as the standalone text mode without
-     * rendering the Vector background twice.
+     * rendering the Korvet background twice.
      */
     const unsigned row = logical_line >> 3;
     const unsigned glyph_line = logical_line & 7u;
@@ -264,14 +264,14 @@ static volatile uint32_t vector_video_seq = 0;
 
 /* Diagnostic publication state, written on core0 and read on core1:
  * 0 - no video API call yet;
- * 1 - graphics_set_vector_source() called with invalid/NULL memory;
- * 2 - graphics_set_vector_source() published valid state;
- * 3 - graphics_set_buffer() disabled direct Vector rendering.
+ * 1 - graphics_set_korvet_source() called with invalid/NULL memory;
+ * 2 - graphics_set_korvet_source() published valid state;
+ * 3 - graphics_set_buffer() disabled direct Korvet rendering.
  */
 static volatile uint8_t vector_video_publish_state = 0;
 
 /*
- * One byte from each of the four Vector planes describes eight source bits,
+ * One byte from each of the four Korvet planes describes eight source bits,
  * which become sixteen VGA pixels.  Each 2-bit slice of the four bytes forms
  * an 8-bit LUT index and produces four packed VGA pixels.  Three LUT copies
  * let core0 prepare a new palette without touching the table currently used
@@ -445,7 +445,7 @@ static void __time_critical_func(render_vector_vga_line)(
 
     /*
      * Four vertical bars plus a line-dependent alternation.  This path does
-     * not touch Vector RAM, palette state or LUTs, so it isolates pure
+     * not touch Korvet RAM, palette state or LUTs, so it isolates pure
      * DMA/PIO/IRQ timing from guest-video rendering cost.
      */
     const int left = graphics_buffer_shift_x > 0 ? graphics_buffer_shift_x : 0;
@@ -591,7 +591,7 @@ void __time_critical_func(dma_handler_VGA)() {
 #ifdef PICO_RP2040
     /*
      * Acquire the frame state before vertical clipping. With the centred
-     * Vector image line_number == 0 has a negative y, so returning first
+     * Korvet image line_number == 0 has a negative y, so returning first
      * skips the only snapshot attempt for the entire VGA frame.
      */
     if (line_number == 0) {
@@ -611,11 +611,11 @@ void __time_critical_func(dma_handler_VGA)() {
 #ifdef PICO_RP2040
 #if VECTOR_RP2040_DIAG_TEST_PATTERN
     /*
-     * Diagnostic snapshot test.  Do not decode Vector RAM or use the LUT.
+     * Diagnostic snapshot test.  Do not decode Korvet RAM or use the LUT.
      * At the beginning of every VGA frame, try to acquire the state published
      * by core0.  Fill the visible line with:
      *
-     *   red   - graphics_set_vector_source() has not published valid state;
+     *   red   - graphics_set_korvet_source() has not published valid state;
      *   green - a valid memory pointer and enabled state were received.
      */
     {
@@ -636,7 +636,7 @@ void __time_critical_func(dma_handler_VGA)() {
             color = 0xf3f3f3f3u;  /* magenta: graphics_set_buffer() disabled it */
             break;
         default:
-            color = 0xf0f0f0f0u;  /* red: graphics_set_vector_source() never called */
+            color = 0xf0f0f0f0u;  /* red: graphics_set_korvet_source() never called */
             break;
         }
         vector_fill32(output_buffer_8bit, graphics_buffer_width, color);
@@ -828,7 +828,7 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
 }
 
 #ifdef PICO_RP2040
-void graphics_set_vector_source(const uint8_t* memory, const uint8_t* palette,
+void graphics_set_korvet_source(const uint8_t* memory, const uint8_t* palette,
                                 uint8_t border_color, uint8_t line_offset,
                                 bool mode512, bool show_border) {
     vector_video_state_t next = vector_video_state;
@@ -1038,8 +1038,8 @@ void graphics_init() {
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
 #ifdef PICO_RP2040
-    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
-        mode = GRAPHICS_VIDEO_VECTOR;
+    if (mode < GRAPHICS_VIDEO_KORVET || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_KORVET;
 
     __asm volatile ("" ::: "memory");
     menu_video_mode = mode;
@@ -1054,7 +1054,7 @@ void graphics_set_menu_text_mode(bool enabled)
 {
     graphics_set_video_content_mode(enabled
                                   ? GRAPHICS_VIDEO_TEXT
-                                  : GRAPHICS_VIDEO_VECTOR);
+                                  : GRAPHICS_VIDEO_KORVET);
 }
 
 uint32_t graphics_get_width() {

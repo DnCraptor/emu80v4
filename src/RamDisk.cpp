@@ -21,7 +21,7 @@
 #include "PalFile.h"
 #include "Memory.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "RamDisk.h"
 
 using namespace std;

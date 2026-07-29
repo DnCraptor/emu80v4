@@ -23,7 +23,7 @@
 
 
 
-class VectorCore;
+class KorvetCore;
 class Cpu;
 class KbdLayout;
 class CrtRenderer;
@@ -59,11 +59,11 @@ class EmuObject
 
         virtual void reset() {}
 
-        void setMachine(VectorCore* machine) {m_machine = machine;}
+        void setMachine(KorvetCore* machine) {m_machine = machine;}
 
     protected:
         int m_kDiv = 1;
-        VectorCore* m_machine = nullptr;
+        KorvetCore* m_machine = nullptr;
 };
 
 class AddressableDevice : public EmuObject

@@ -28,7 +28,7 @@
 #include "AtaDrive.h"
 #include "DiskImage.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 
@@ -322,7 +322,7 @@ void AtaDrive::seek()
 }
 
 
-void AtaDrive::setVectorGeometry()
+void AtaDrive::setKorvetGeometry()
 {
     if (!m_image)
         return;

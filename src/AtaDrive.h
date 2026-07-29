@@ -48,7 +48,7 @@ class AtaDrive : public EmuObject, public DiskImageObserver, public SnapshotSeri
         uint8_t readStatus();
 
         void assignDiskImage(DiskImage* image);
-        void setVectorGeometry();
+        void setKorvetGeometry();
 
         uint32_t snapshotSectionId() const override;
         uint16_t snapshotSectionVersion() const override;

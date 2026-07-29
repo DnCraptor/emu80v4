@@ -23,7 +23,7 @@
 #include "Cpu.h"
 #include "Cpu8080.h"
 #include "CpuHook.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "Emulation.h"
 
 using namespace std;

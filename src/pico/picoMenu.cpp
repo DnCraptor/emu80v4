@@ -15,7 +15,7 @@
 #include "graphics.h"
 #include "../Globals.h"
 #include "../Emulation.h"
-#include "../Vector.h"
+#include "../Korvet.h"
 #include "../SoundMixer.h"
 #include "../Memory.h"
 #include "hway.h"
@@ -87,7 +87,7 @@ struct MenuPage {
 
 // --- Persistent editable settings ------------------------------------------
 
-constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
+constexpr const char* c_stateFileName = "/.config/korvet.cfg";
 // Промежуточного буфера на весь файл больше нет: конфиг пишется прямо в файл
 // по кускам, а читается построчно в маленький стековый буфер. SRAM дорога.
 
@@ -267,17 +267,17 @@ static bool readConfigLine(FIL* fp, char* buf, size_t size)
 
 int cpuGetValue()
 {
-    if (!g_emulation || !g_emulation->getVector())
+    if (!g_emulation || !g_emulation->getKorvet())
         return 0;
-    return static_cast<int>(g_emulation->getVector()->getCpuType());
+    return static_cast<int>(g_emulation->getKorvet()->getCpuType());
 }
 
 void cpuSetValue(int value)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core)
         return;
-    core->setCpuType(static_cast<VectorCpuType>(value));
+    core->setCpuType(static_cast<KorvetCpuType>(value));
 }
 
 static const MenuItem processorItems[] = {
@@ -301,7 +301,7 @@ static constexpr unsigned cpuClockValues[] = {
 
 int cpuClockGetValue()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core)
         return 0;
 
@@ -314,7 +314,7 @@ int cpuClockGetValue()
 
 void cpuClockSetValue(int value)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core || value < 0
         || value >= static_cast<int>(sizeof(cpuClockValues) / sizeof(cpuClockValues[0])))
         return;
@@ -397,14 +397,14 @@ static const MenuPage cpuClockPage {
 
 char driveTitleBuffer[2][96];
 
-const char* driveTitle(VectorFloppyDrive drive)
+const char* driveTitle(KorvetFloppyDrive drive)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     const std::string fileName = core ? core->getFloppyFileName(drive) : std::string();
     char* buffer = driveTitleBuffer[static_cast<int>(drive)];
     constexpr char prefix[] = "Drive A: ";
     std::memcpy(buffer, prefix, sizeof(prefix));
-    buffer[6] = drive == VectorFloppyDrive::A ? 'A' : 'B';
+    buffer[6] = drive == KorvetFloppyDrive::A ? 'A' : 'B';
     if (fileName.empty()) {
         constexpr char empty[] = "empty";
         std::memcpy(buffer + sizeof(prefix) - 1, empty, sizeof(empty));
@@ -425,48 +425,48 @@ const char* driveTitle(VectorFloppyDrive drive)
     return buffer;
 }
 
-bool driveHasImage(VectorFloppyDrive drive)
+bool driveHasImage(KorvetFloppyDrive drive)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->floppyImagePresent(drive);
 }
-void driveInsert(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseFloppyImage(drive); }
-void driveEject(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectFloppyImage(drive); }
-bool driveReadOnly(VectorFloppyDrive drive)
+void driveInsert(KorvetFloppyDrive drive) { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->chooseFloppyImage(drive); }
+void driveEject(KorvetFloppyDrive drive) { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->ejectFloppyImage(drive); }
+bool driveReadOnly(KorvetFloppyDrive drive)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->floppyReadOnlyMode(drive);
 }
-bool driveReadOnlyEnabled(VectorFloppyDrive drive)
+bool driveReadOnlyEnabled(KorvetFloppyDrive drive)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core)
         return false;
     return core->floppyReadOnlyMode(drive)
         ? core->canSetFloppyReadOnly(drive, false)
         : core->canSetFloppyReadOnly(drive, true);
 }
-void driveToggleReadOnly(VectorFloppyDrive drive)
+void driveToggleReadOnly(KorvetFloppyDrive drive)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setFloppyReadOnly(drive, !core->floppyReadOnlyMode(drive));
 }
 
-const char* driveATitle() { return driveTitle(VectorFloppyDrive::A); }
-const char* driveBTitle() { return driveTitle(VectorFloppyDrive::B); }
-bool driveAHasImage() { return driveHasImage(VectorFloppyDrive::A); }
-bool driveBHasImage() { return driveHasImage(VectorFloppyDrive::B); }
-void driveAInsert() { driveInsert(VectorFloppyDrive::A); }
-void driveBInsert() { driveInsert(VectorFloppyDrive::B); }
-void driveAEject() { driveEject(VectorFloppyDrive::A); }
-void driveBEject() { driveEject(VectorFloppyDrive::B); }
-bool driveAReadOnly() { return driveReadOnly(VectorFloppyDrive::A); }
-bool driveBReadOnly() { return driveReadOnly(VectorFloppyDrive::B); }
-bool driveAReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::A); }
-bool driveBReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::B); }
-void driveAToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::A); }
-void driveBToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::B); }
+const char* driveATitle() { return driveTitle(KorvetFloppyDrive::A); }
+const char* driveBTitle() { return driveTitle(KorvetFloppyDrive::B); }
+bool driveAHasImage() { return driveHasImage(KorvetFloppyDrive::A); }
+bool driveBHasImage() { return driveHasImage(KorvetFloppyDrive::B); }
+void driveAInsert() { driveInsert(KorvetFloppyDrive::A); }
+void driveBInsert() { driveInsert(KorvetFloppyDrive::B); }
+void driveAEject() { driveEject(KorvetFloppyDrive::A); }
+void driveBEject() { driveEject(KorvetFloppyDrive::B); }
+bool driveAReadOnly() { return driveReadOnly(KorvetFloppyDrive::A); }
+bool driveBReadOnly() { return driveReadOnly(KorvetFloppyDrive::B); }
+bool driveAReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::A); }
+bool driveBReadOnlyEnabled() { return driveReadOnlyEnabled(KorvetFloppyDrive::B); }
+void driveAToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::A); }
+void driveBToggleReadOnly() { driveToggleReadOnly(KorvetFloppyDrive::B); }
 
 static const MenuItem driveAItems[] = {
     {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr, nullptr},
@@ -482,7 +482,7 @@ char hddTitleBuffer[96];
 
 const char* hddTitle()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     const std::string fileName = core ? core->getHddFileName() : std::string();
     constexpr char prefix[] = "HDD: ";
     std::memcpy(hddTitleBuffer, prefix, sizeof(prefix));
@@ -502,23 +502,23 @@ const char* hddTitle()
 
 bool hddHasImage()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->hddImagePresent();
 }
 bool hddEnabled()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getHddEnabled();
 }
 const char* hddToggleTitle() { return hddEnabled() ? "Disable" : "Enable"; }
 void toggleHdd()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setHddEnabled(!core->getHddEnabled());
 }
-void hddInsert() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseHddImage(); }
-void hddEject() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectHddImage(); }
+void hddInsert() { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->chooseHddImage(); }
+void hddEject() { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->ejectHddImage(); }
 
 static const MenuItem hddItems[] = {
     {nullptr, hddToggleTitle, nullptr, toggleHdd, nullptr, nullptr, true},
@@ -531,7 +531,7 @@ static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeo
 
 void invokeSysReq(SysReq request)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->sysReq(request);
 }
@@ -543,7 +543,7 @@ void edd2SaveAs() { invokeSysReq(SR_SAVERAMDISK2AS); }
 
 bool ramDiskEnabled(int diskNum)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->ramDiskEnabled(diskNum);
 }
 
@@ -555,7 +555,7 @@ const char* edd2ToggleTitle() { return edd2Enabled() ? "Disable" : "Enable"; }
 
 void toggleRamDisk(int diskNum)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setRamDiskEnabled(diskNum, !core->ramDiskEnabled(diskNum));
 }
@@ -663,20 +663,20 @@ static const MenuPage volumePage {"Volume", nullptr, volumeItems, static_cast<in
 
 bool psgStereoChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getPsgStereo();
 }
 
 void togglePsgStereo()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setPsgStereo(!core->getPsgStereo());
 }
 
 bool psgEnabled()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getPsgEnabled();
 }
 
@@ -684,7 +684,7 @@ const char* psgToggleTitle() { return psgEnabled() ? "Disable" : "Enable"; }
 
 void togglePsg()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setPsgEnabled(!core->getPsgEnabled());
 }
@@ -782,26 +782,26 @@ void toggleHwayAyClk() { hway_set_ayclk_mode((hway_ayclk_mode() + 1) % 3); }
 
 bool psgAbcChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && !core->getPsgAcbOrder();
 }
 
 bool psgAcbChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getPsgAcbOrder();
 }
 
 void setPsgAbc()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setPsgAcbOrder(false);
 }
 
 void setPsgAcb()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setPsgAcbOrder(true);
 }
@@ -816,8 +816,6 @@ static const MenuPage psgPage {"PSG", nullptr, psgItems, static_cast<int>(sizeof
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
-    {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
-    {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
 //    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
 //    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
 //    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
@@ -827,8 +825,6 @@ static const MenuItem soundItems[] = {
 //    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
 //    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
 //    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
-    {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
-    {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 
@@ -854,54 +850,54 @@ const char* tapeStatus(char* buffer, const char* prefix, const std::string& file
 
 const char* tapeInputStatus()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return tapeStatus(tapeInputStatusBuffer, "Input: ",
                       core ? core->getTapeInputFileName() : std::string());
 }
 
 const char* tapeOutputStatus()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return tapeStatus(tapeOutputStatusBuffer, "Output: ",
                       core ? core->getTapeOutputFileName() : std::string());
 }
 
 bool tapeHooksChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->tapeHooksEnabled();
 }
 
 void toggleTapeHooks()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->setTapeHooksEnabled(!core->tapeHooksEnabled());
 }
 
 void tapeLoad()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->chooseTapeInput();
 }
 
 void tapeCreate()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->chooseTapeOutput();
 }
 
 bool tapeEjectEnabled()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->tapeFilePresent();
 }
 
 void tapeEject()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core)
         core->ejectTapeFiles();
 }
@@ -936,32 +932,32 @@ void showSnapshotMessage(const char* title, const char* line1, const char* line2
 
 void saveSnapshotSlot(unsigned slot)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core || !core->saveSnapshot(slot))
         showSnapshotMessage("Snapshot", "Unable to save snapshot.");
 }
 
 void loadSnapshotSlot(unsigned slot)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core)
         return;
 
     std::string firmwareVersion;
     uint16_t fileFormatVersion = 0;
-    const VectorCore::SnapshotLoadResult result =
+    const KorvetCore::SnapshotLoadResult result =
         core->loadSnapshot(slot, &firmwareVersion, &fileFormatVersion);
 
     switch (result) {
-    case VectorCore::SnapshotLoadResult::Ok:
+    case KorvetCore::SnapshotLoadResult::Ok:
         return;
-    case VectorCore::SnapshotLoadResult::NotFound:
+    case KorvetCore::SnapshotLoadResult::NotFound:
         showSnapshotMessage("Snapshot", "Snapshot is empty.");
         return;
-    case VectorCore::SnapshotLoadResult::IncompatibleFormat: {
+    case KorvetCore::SnapshotLoadResult::IncompatibleFormat: {
         char versions[64];
         char* dst = appendText(versions, "Format: expected ");
-        dst = appendUnsigned(dst, VectorCore::snapshotFormatVersion());
+        dst = appendUnsigned(dst, KorvetCore::snapshotFormatVersion());
         dst = appendText(dst, ", file ");
         dst = appendUnsigned(dst, fileFormatVersion);
         *dst = '\0';
@@ -973,7 +969,7 @@ void loadSnapshotSlot(unsigned slot)
         showSnapshotMessage("Incompatible snapshot", versions, firmware);
         return;
     }
-    case VectorCore::SnapshotLoadResult::InvalidFile:
+    case KorvetCore::SnapshotLoadResult::InvalidFile:
         showSnapshotMessage("Snapshot", "Invalid snapshot file.");
         return;
     default:
@@ -984,7 +980,7 @@ void loadSnapshotSlot(unsigned slot)
 
 void removeSnapshotSlot(unsigned slot)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (!core || !core->removeSnapshot(slot))
         showSnapshotMessage("Snapshot", "Unable to remove snapshot.");
 }
@@ -996,8 +992,8 @@ const char* snapshotSlotTitle(unsigned slot)
     dst = appendUnsigned(dst, slot);
     dst = appendText(dst, "  ");
 
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    VectorCore::SnapshotInfo info;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
+    KorvetCore::SnapshotInfo info;
     if (!core || !core->readSnapshotInfo(slot, info))
         dst = appendText(dst, info.present ? "(invalid)" : "(error)");
     else if (!info.present)
@@ -1198,7 +1194,7 @@ static const MenuPage snapshotPage {
 };
 // --- Video ----------------------------------------------------------------
 
-char videoShiftStatusBuffer[40];
+char videoShiftStatusBuffer[80];
 
 const char* videoShiftStatus()
 {
@@ -1221,6 +1217,14 @@ const char* videoShiftStatus()
         *dst++ = '+';
         dst = appendUnsigned(dst, static_cast<unsigned>(y));
     }
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
+    if (core) {
+        dst = appendText(dst, " Page=");
+        dst = appendUnsigned(dst, core->getVideoDisplayPage());
+        dst = appendText(dst, " Font=");
+        dst = appendUnsigned(dst, core->getVideoFontNumber());
+        dst = appendText(dst, core->getVideoWideCharMode() ? " Wide" : " Normal");
+    }
     *dst = '\0';
     return videoShiftStatusBuffer;
 }
@@ -1236,13 +1240,13 @@ void videoToggleCrop()  { invokeSysReq(SR_CROPTOVISIBLE); }
 
 bool videoColorChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getColorMode();
 }
 
 bool videoCropChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core && core->getCroppedToVisible();
 }
 
@@ -1381,13 +1385,13 @@ void machineReset() { invokeSysReq(SR_RESET); }
 
 void machineResetTurnOnRom()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core) core->resetTurnOnRom();
 }
 
 void machineResetTurnOffRom()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     if (core) core->resetTurnOffRom();
 }
 
@@ -1398,8 +1402,6 @@ static const MenuItem systemItems[] = {
     {"Core voltage", nullptr, &coreVoltagePage, nullptr, nullptr, nullptr},
     {"QSPI PSRAM max freq.", nullptr, &psramFreqPage, nullptr, nullptr, nullptr},
     {"Reset [Alt+F11]", nullptr, nullptr, machineReset, nullptr, nullptr},
-    {"Turn on ROM and Reset [F11]", nullptr, nullptr, machineResetTurnOnRom, nullptr, nullptr},
-    {"Turn off ROM and Reset [F12]", nullptr, nullptr, machineResetTurnOffRom, nullptr, nullptr},
     {"Reboot device [Ctrl+Alt+Del]", nullptr, nullptr, rebootDevice, nullptr, nullptr},
 };
 static const MenuPage systemPage {
@@ -1410,11 +1412,11 @@ static const MenuPage systemPage {
 
 void saveMenuStateImpl()
 {
-    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+    if (!g_emulation || !g_emulation->getKorvet() || !palEnsureSdMounted())
         return;
     f_mkdir("/.config");
 
-    VectorCore* core = g_emulation->getVector();
+    KorvetCore* core = g_emulation->getKorvet();
     SoundMixer* mixer = g_emulation->getSoundMixer();
     const char* output = palAudioIsHwAy() ? "hway" : (palAudioIsI2S() ? "i2s" : "pwm");
     const char* cpu = core->getCpuType() == VECTOR_CPU_Z80 ? "z80" : "i8080";
@@ -1427,7 +1429,7 @@ void saveMenuStateImpl()
     if (f_open(&g_file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
         return;
 
-    cfgPut("# Vector-06C emulator settings. This is a plain text test file.\n"
+    cfgPut("# Korvet emulator settings. This is a plain text test file.\n"
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
            "version = 1\n\n"
@@ -1437,9 +1439,9 @@ void saveMenuStateImpl()
     cfgPutUnsigned(core->getCpuFrequency());
 
     cfgPut("\n\ndrive_a_read_only = ");
-    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
+    cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::A));
     cfgPut("\ndrive_b_read_only = ");
-    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::B));
+    cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::B));
     cfgPut("\nhdd_enabled = ");
     cfgPutBool(core->getHddEnabled());
     cfgPut("\nedd_enabled = ");
@@ -1483,7 +1485,7 @@ void saveMenuStateImpl()
 
 void loadMenuStateImpl()
 {
-    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+    if (!g_emulation || !g_emulation->getKorvet() || !palEnsureSdMounted())
         return;
     f_mkdir("/.config");
 
@@ -1492,7 +1494,7 @@ void loadMenuStateImpl()
         return;
     }
 
-    VectorCore* core = g_emulation->getVector();
+    KorvetCore* core = g_emulation->getKorvet();
     SoundMixer* mixer = g_emulation->getSoundMixer();
     int videoX = graphics_get_picture_shift_x();
     int videoY = graphics_get_picture_shift_y();
@@ -1526,9 +1528,9 @@ void loadMenuStateImpl()
                 for (unsigned frequency : cpuClockValues)
                     if (frequency == number) core->setCpuFrequency(number);
             } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
-                core->setFloppyReadOnly(VectorFloppyDrive::A, boolean);
+                core->setFloppyReadOnly(KorvetFloppyDrive::A, boolean);
             } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {
-                core->setFloppyReadOnly(VectorFloppyDrive::B, boolean);
+                core->setFloppyReadOnly(KorvetFloppyDrive::B, boolean);
             } else if (textEquals(key, "hdd_enabled") && parseBoolValue(value, boolean)) {
                 core->setHddEnabled(boolean);
             } else if (textEquals(key, "edd_enabled") && parseBoolValue(value, boolean)) {
@@ -1708,12 +1710,12 @@ static void showTextDialog(const char* title, const char* const* lines, int line
 void showAboutDialog()
 {
     static const char* const lines[] = {
-        "Vector-06C emulator for",
+        "Korvet emulator for",
         "Murmulator 1.x / Murmulator 2.0",
         "and Raspberry Pi Pico 2 (RP2350)",
         "",
         "This firmware is a port of the",
-        "Vector-06C platform from the",
+        "Korvet platform from the",
         "multi-system emulator emu80v4.",
         "",
         "Original emulator:",
@@ -1767,7 +1769,7 @@ void showHelpDialog()
 
 int kbdLayoutGetValue()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
     return core ? core->getKbdLayoutModeIndex() : 0;
 }
 
@@ -1792,13 +1794,9 @@ static const MenuPage keyboardPage {
 };
 
 static const MenuItem rootItems[] = {
-    {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
-    {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
-    {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
-    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
     {"Help", nullptr, nullptr, showHelpDialog, nullptr, nullptr},
@@ -1808,14 +1806,11 @@ static const MenuItem rootItems[] = {
 // Заголовок корневой страницы отражает установленное ядро
 const char* rootTitle()
 {
-    if (g_emulation && g_emulation->getVector()
-        && g_emulation->getVector()->getCpuType() == VECTOR_CPU_Z80)
-        return "Vector-06C Z80";
-    return "Vector-06C 80A";
+    return "Korvet";
 }
 
 static const MenuPage rootPage {
-    "Vector-06C 80A",
+    "Korvet 80A",
     rootTitle,
     rootItems,
     static_cast<int>(sizeof(rootItems) / sizeof(rootItems[0])),
@@ -2341,7 +2336,7 @@ void palCloseMainMenu()
         popBackground(d);
     menu.open = false;
 #ifdef SCANLINE_TEXT_MENU
-    graphics_set_video_content_mode(GRAPHICS_VIDEO_VECTOR);
+    graphics_set_video_content_mode(GRAPHICS_VIDEO_KORVET);
 #endif
     saveMenuStateImpl();
     if (menu.mixer)

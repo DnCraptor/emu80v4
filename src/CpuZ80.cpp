@@ -24,7 +24,7 @@
 #include "CpuZ80.h"
 #include "CpuHook.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 

@@ -284,8 +284,8 @@ void menu_text_clear_for_mode(void) {}
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
-    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
-        mode = GRAPHICS_VIDEO_VECTOR;
+    if (mode < GRAPHICS_VIDEO_KORVET || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_KORVET;
 
     __asm volatile ("" ::: "memory");
     menu_video_mode = mode;
@@ -483,7 +483,7 @@ static uint32_t vector_tv_pair_lut[VECTOR_TV_LUT_COUNT][256];
 static volatile uint8_t vector_tv_lut_in_use = 0xff;
 
 /*
- * Final composite samples for four Vector pixels. Variants:
+ * Final composite samples for four Korvet pixels. Variants:
  * 0/1 = normal PAL/NTSC phase tables, 2/3 = inverted phase tables.
  * Built on core0 together with the palette LUT, read from SRAM by DMA IRQ.
  */
@@ -641,7 +641,7 @@ uint32_t vector_tv_plane_indices4(
         int active_x, int n_line)
 {
     /*
-     * One byte from every Vector plane contains all 16 pixels of the source
+     * One byte from every Korvet plane contains all 16 pixels of the source
      * block. Decode its four 4-pixel groups at once. The previous code called
      * vector_tv_plane_index() four times and re-read the same four SRAM bytes
      * on every call.
@@ -1774,7 +1774,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                                  ? 24 : 40);
 
                         /*
-                         * Outside active Vector lines 40..295 only the border
+                         * Outside active Korvet lines 40..295 only the border
                          * must be emitted. Without this clipping roll_off wraps
                          * as uint8_t and the top of VRAM is repeated below.
                          */
@@ -1968,7 +1968,7 @@ static void __time_critical_func(tv_soft_dma_handler)(void)
 }
 #endif
 
-void graphics_set_vector_source(
+void graphics_set_korvet_source(
         const uint8_t* memory, const uint8_t* palette,
         uint8_t border_color, uint8_t line_offset,
         bool mode512, bool show_border)

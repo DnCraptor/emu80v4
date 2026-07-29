@@ -19,7 +19,7 @@
 #include "Globals.h"
 #include "KbdLayout.h"
 #include "Keyboard.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "Emulation.h"
 
 
@@ -43,7 +43,7 @@ void KbdLayout::resetKeys()
 
 void KbdLayout::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-///    emuLog << "VectorCore::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
+///    emuLog << "KorvetCore::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (isPressed && processSpecialKeys(keyCode))
         return;
 

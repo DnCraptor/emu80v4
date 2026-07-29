@@ -24,7 +24,7 @@
 #include "Fdc1793.h"
 #include "DiskImage.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 

@@ -22,7 +22,9 @@
 
 #include "Globals.h"
 #include "EmuCalls.h"
-#include "Vector.h"
+#include "Korvet.h"
+#include "KorvetVideo.h"
+#include "pico/korvet_font.bin.h"
 #include "Cpu.h"
 #include "CpuZ80.h"
 #include "Cpu8080.h"
@@ -53,6 +55,7 @@
 #include "CpuHook.h"
 #include "RamDisk.h"
 #include "Version.h"
+#include "pico/korvet.mapper.mem.h"
 #include "ff.h"
 #include "pico/picoMenu.h"
 #include "graphics.h"
@@ -99,69 +102,58 @@ static uint8_t s_mainRam[c_mainRamSize];
 //
 // Конструкторы всех этих классов инертны: они не обращаются к g_emulation и
 // не трогают файловую систему, поэтому безопасно выполняются до main().
-// Вся настройка по-прежнему делается в конструкторе VectorCore, который
+// Вся настройка по-прежнему делается в конструкторе KorvetCore, который
 // вызывается из Emulation::init(), когда глобальные объекты уже готовы.
 // ---------------------------------------------------------------------------
 
-// Ядро CPU заменяется на ходу (8080 <-> Z80), поэтому лежит в отдельном буфере
-// и создаётся placement new. Буфер рассчитан на большее из двух ядер.
-static constexpr size_t c_cpuSlotSize =
-    sizeof(Cpu8080) > sizeof(CpuZ80) ? sizeof(Cpu8080) : sizeof(CpuZ80);
-
 namespace {
 
-struct CpuSlot {
-    alignas(8) uint8_t storage[c_cpuSlotSize];
-    Cpu8080Compatible* cpu = nullptr;
-    VectorCpuType type = VECTOR_CPU_8080;
-
-    // Ядро создаётся здесь, а не в VectorCore, чтобы сохранить свою позицию
-    // в порядке регистрации активных устройств
-    CpuSlot() {cpu = new (storage) Cpu8080();}
-
-    // Замена ядра на ходу. Резидентно всегда одно: старое разрушается,
-    // новое создаётся тем же placement new в том же буфере.
-    void replace(VectorCpuType newType)
-    {
-        if (newType == type)
-            return;
-        cpu->~Cpu8080Compatible();
-        cpu = (newType == VECTOR_CPU_Z80)
-            ? static_cast<Cpu8080Compatible*>(new (storage) CpuZ80())
-            : static_cast<Cpu8080Compatible*>(new (storage) Cpu8080());
-        type = newType;
-    }
+class KorvetUnmappedPage : public AddressableDevice
+{
+    public:
+        void writeByte(int, uint8_t) override {}
+        uint8_t readByte(int) override {return 0xFF;}
 };
 
 struct Devices {
     Ram                      ram{s_mainRam, c_mainRamSize};
-    Rom                      rom{0x8000, "vector/loader.rom"};
-    CpuSlot                  cpuSlot;
-    VectorAddrSpace          addrSpace;
+    Rom                      rom1{0x2000, "korvet/rom1.bin"};
+    Rom                      rom2{0x2000, "korvet/rom2.bin"};
+    Rom                      rom3{0x2000, "korvet/rom3.bin"};
+    Cpu8080                  cpu;
+    KorvetAddrSpace          addrSpace;
+    KorvetAddrSpaceSelector  addrSpaceSelector;
+    KorvetUnmappedPage       unmappedPage;
+    KorvetTextAdapter        textAdapter;
+    KorvetGraphicsAdapter    graphicsAdapter;
+    KorvetColorRegister      korvetColorRegister;
+    KorvetLutRegister        korvetLutRegister;
+    KorvetVideoPpiCircuit    korvetVideoPpiCircuit;
+    Ppi8255                  korvetVideoPpi;
     AddrSpace                ioAddrSpace;
-    VectorRenderer           renderer;
-    VectorKeyboard           keyboard;
-    VectorKbdLayout          kbdLayout;
+    KorvetRenderer           renderer;
+    KorvetKeyboard           keyboard;
+    KorvetKbdLayout          kbdLayout;
     KbdTapper                kbdTapper;
-    VectorPpi8255Circuit     ppiCircuit;
+    KorvetPpi8255Circuit     ppiCircuit;
     GeneralSoundSource       tapeSoundSource;
     Ppi8255                  ppi;
-    VectorColorRegister      colorReg;
+    KorvetColorRegister      colorReg;
     Covox                    covox{7};
-    VectorPpi8255Circuit2    covoxCircuit;
+    KorvetPpi8255Circuit2    covoxCircuit;
     Ppi8255                  ppi2;
     Pit8253                  pit;
     Pit8253SoundSource       sndSource;
     Psg3910                  ay;
     Psg3910SoundSource       psgSoundSource;
     Fdc1793                  fdc;
-    VectorFddControlRegister fddReg;
+    KorvetFddControlRegister fddReg;
     AtaDrive                 ataDrive;
-    VectorHddRegisters       hddRegisters;
+    KorvetHddRegisters       hddRegisters;
     FdImage                  diskA{80, 2, 5, 1024};
     FdImage                  diskB{80, 2, 5, 1024};
     DiskImage                hdd;
-    VectorFileLoader         loader;
+    KorvetFileLoader         loader;
     WavWriter                wavWriter;
     TapeRedirector           tapeInFile;
     TapeRedirector           tapeOutFile;
@@ -177,10 +169,10 @@ struct Devices {
     CloseFileHook            closeFileHookEmuRk{0xFF18, &tapeInFile, &tapeOutFile};
     SRam                     ramDiskMem{0x40000};
     RamDisk                  ramDisk{0x40000};
-    VectorRamDiskSelector    ramDiskSelector;
+    KorvetRamDiskSelector    ramDiskSelector;
     SRam                     ramDiskMem2{0x40000};
     RamDisk                  ramDisk2{0x40000};
-    VectorRamDiskSelector    ramDiskSelector2;
+    KorvetRamDiskSelector    ramDiskSelector2;
 };
 
 } // namespace
@@ -189,201 +181,68 @@ static Devices s_devices;
 
 
 
-void VectorAddrSpace::reset() {
-    m_romEnabled = true;
-    m_inRamPagesMask = 0;
-    m_stackDiskEnabled = false;
-    m_inRamDiskPage = 0;
-    m_stackDiskPage = 0;
-    m_inRamPagesMask2 = 0;
-    m_stackDiskEnabled2 = false;
-    m_inRamDiskPage2 = 0;
-    m_stackDiskPage2 = 0;
-    m_eramSegment = 0;
-    m_eramPageStartAddr = 0xA000;
-    m_eramPageEndAddr = 0xDFFF;
+void KorvetAddrSpace::reset()
+{
+    // The Korvet mapper is dynamic, so CPU direct page maps must stay disabled.
     rebuildPageMap();
 }
 
 
-void __not_in_flash_func(VectorAddrSpace::writeByte)(int addr, uint8_t value)
+void __not_in_flash_func(KorvetAddrSpace::writeByte)(int addr, uint8_t value)
 {
-    if (m_eram) {
-        // ERAM
-        if (m_stackDiskEnabled && m_cpu->checkForStackOperation())
-            m_ramDisk->writeByte(m_eramSegment * 0x40000 + m_stackDiskPage * 0x10000 + addr, value);
-        else if (m_inRamPagesMask & 2 && addr >= m_eramPageStartAddr && addr <= m_eramPageEndAddr)
-            m_ramDisk->writeByte(m_eramSegment * 0x40000 + m_inRamDiskPage * 0x10000 + addr, value);
-        else {
-            if (addr >= 0x8000 && m_crtRenderer)
-                m_crtRenderer->vidMemWriteNotify();
-            m_mainMemory->writeByte(addr, value);
-        }
-        return;
-    }
-
-    // Barkar
-    if (m_stackDiskEnabled && m_cpu->checkForStackOperation())
-        m_ramDisk->writeByte(m_stackDiskPage * 0x10000 + addr, value);
-    else if (m_stackDiskEnabled2 && m_cpu->checkForStackOperation())
-        m_ramDisk2->writeByte(m_stackDiskPage2 * 0x10000 + addr, value);
-    else if (m_inRamPagesMask && (addr >= 0x8000) && m_inRamPagesMask & (1 << ((addr & 0x6000) >> 13)))
-        m_ramDisk->writeByte(m_inRamDiskPage * 0x10000 + addr, value);
-    else if (m_inRamPagesMask2 && (addr >= 0x8000) && m_inRamPagesMask2 & (1 << ((addr & 0x6000) >> 13)))
-        m_ramDisk2->writeByte(m_inRamDiskPage2 * 0x10000 + addr, value);
-    else {
-        if (addr >= 0x8000 && m_crtRenderer)
-            m_crtRenderer->vidMemWriteNotify();
-        m_mainMemory->writeByte(addr, value);
-    }
+    const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
+    m_pages[page]->writeByte(addr, value);
 }
 
 
-uint8_t __not_in_flash_func(VectorAddrSpace::readByte)(int addr)
+uint8_t __not_in_flash_func(KorvetAddrSpace::readByte)(int addr)
 {
-    if (m_eram) {
-        // ERAM
-        if (m_stackDiskEnabled && m_cpu->checkForStackOperation())
-            return m_ramDisk->readByte(m_eramSegment * 0x40000 + m_stackDiskPage * 0x10000 + addr);
-        if (m_inRamPagesMask & 2 && addr >= m_eramPageStartAddr && addr <= m_eramPageEndAddr)
-            return m_ramDisk->readByte(m_eramSegment * 0x40000 + m_inRamDiskPage * 0x10000 + addr);
-        if (m_romEnabled && addr < m_rom->getSize())
-            return m_rom->readByte(addr); // add rom check
-        else
-            return m_mainMemory->readByte(addr);
-    }
-
-    // Barkar
-    if (m_stackDiskEnabled && m_cpu->checkForStackOperation())
-        return m_ramDisk->readByte(m_stackDiskPage * 0x10000 + addr);
-    if (m_stackDiskEnabled2 && m_cpu->checkForStackOperation())
-        return m_ramDisk2->readByte(m_stackDiskPage2 * 0x10000 + addr);
-    if (m_inRamPagesMask && (addr >= 0x8000) && m_inRamPagesMask & (1 << ((addr & 0x6000) >> 13)))
-        return m_ramDisk->readByte(m_inRamDiskPage * 0x10000 + addr);
-    if (m_inRamPagesMask2 && (addr >= 0x8000) && m_inRamPagesMask2 & (1 << ((addr & 0x6000) >> 13)))
-        return m_ramDisk2->readByte(m_inRamDiskPage2 * 0x10000 + addr);
-    if (m_romEnabled && addr < m_rom->getSize())
-        return m_rom->readByte(addr); // add rom check
-    else
-        return m_mainMemory->readByte(addr);
+    const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
+    return m_pages[page]->readByte(addr);
 }
 
 
-void VectorAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
+void KorvetAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
 {
+    // Compatibility only. Vector RAM disks are not part of the active Korvet map.
     if (diskNum == 0)
         m_ramDisk = ramDisk;
-    else // if (diskNum == 1)
+    else
         m_ramDisk2 = ramDisk;
-    rebuildPageMap();
 }
 
 
-void VectorAddrSpace::enableRom()
+void KorvetAddrSpace::enableRom()
 {
-    m_romEnabled = true;
-    rebuildPageMap();
+    // Compatibility only. ROM visibility is controlled by mapper.mem.
 }
 
 
-void VectorAddrSpace::disableRom()
+void KorvetAddrSpace::disableRom()
 {
-    m_romEnabled = false;
-    rebuildPageMap();
+    // Compatibility only. ROM visibility is controlled by mapper.mem.
 }
 
 
-// Пересекается ли страница [first..last] с областью, отданной RAM-диску.
-// Условия дословно повторяют readByte()/writeByte(), включая отсутствие
-// проверки указателя диска: если маска выставлена, страница уходит на прежний
-// путь и ведёт себя в точности как раньше.
-bool VectorAddrSpace::pageHitsRamDisk(int first, int last) const
-{
-    if (m_eram) {
-        // ERAM: окно задаётся произвольной парой адресов, поэтому проверяем
-        // пересечение интервалов, а не отдельные точки
-        return (m_inRamPagesMask & 2) &&
-               first <= int(m_eramPageEndAddr) && last >= int(m_eramPageStartAddr);
-    }
-
-    // Barkar: страницы по 8 КиБ в верхней половине адресного пространства.
-    // Номер банка внутри 256-байтной страницы постоянен.
-    if (first < 0x8000)
-        return false;
-    const int bank = 1 << ((first & 0x6000) >> 13);
-    return (m_inRamPagesMask & bank) || (m_inRamPagesMask2 & bank);
-}
-
-
-void VectorAddrSpace::rebuildPageMap()
+void KorvetAddrSpace::rebuildPageMap()
 {
     if (!m_cpu)
         return;
 
     m_cpu->attachCrtRenderer(m_crtRenderer);
     m_cpu->clearPageMap();
-
-    // Переключение стековой страницы зависит от признака текущей команды
-    // (checkForStackOperation), поэтому в статическую карту не ложится:
-    // пока оно включено, карта остаётся пустой и работает прежний путь.
-    if (m_stackDiskEnabled || m_stackDiskEnabled2)
-        return;
-
-    if (!m_mainMemory || m_mainMemory->getSize() < 0x10000)
-        return;
-
-    uint8_t* ramBase = m_mainMemory->getDataPtr();
-    if (!ramBase)
-        return;
-
-    const uint8_t* romBase = m_rom ? m_rom->getDataPtr() : nullptr;
-    const int romSize = m_rom ? m_rom->getSize() : 0;
-    const bool romActive = m_romEnabled && romBase && romSize > 0;
-
-    for (int pg = 0; pg < 256; pg++) {
-        const int first = pg << 8;
-        const int last = first + 0xFF;
-
-        if (pageHitsRamDisk(first, last))
-            continue;   // обе карты остаются пустыми, страница идёт прежним путём
-
-        // Запись: ПЗУ для записи прозрачно, writeByte() всегда адресует
-        // основное ОЗУ. Уведомление рендерера для addr >= 0x8000 выполняет
-        // сам CPU в as_output().
-        m_cpu->setWritePage(pg, ramBase);
-
-        // Чтение: ПЗУ перекрывает начало адресного пространства
-        if (!romActive || first >= romSize)
-            m_cpu->setReadPage(pg, ramBase);
-        else if (last < romSize)
-            m_cpu->setReadPage(pg, romBase);
-        // иначе страница пересекает границу ПЗУ — оставляем прежний путь
-    }
-}
-
-void VectorAddrSpace::ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage)
-{
-    if (diskNum == 0) {
-        m_inRamPagesMask = inRamPagesMask;
-        m_stackDiskEnabled = stackEnabled;
-        m_inRamDiskPage = inRamPage;
-        m_stackDiskPage = stackPage;
-    } else { // if (diskNum == 1)
-        m_inRamPagesMask2 = inRamPagesMask;
-        m_stackDiskEnabled2 = stackEnabled;
-        m_inRamDiskPage2 = inRamPage;
-        m_stackDiskPage2 = stackPage;
-    }
-    rebuildPageMap();
 }
 
 
-void VectorAddrSpace::eramControl(int eramSegment, int eramPageStartAddr, int eramPageEndAddr)
+void KorvetAddrSpace::ramDiskControl(int, int, bool, int, int)
 {
-    m_eramSegment = eramSegment;
-    m_eramPageStartAddr = eramPageStartAddr;
-    m_eramPageEndAddr = eramPageEndAddr;
-    rebuildPageMap();
+    // Compatibility only. Vector RAM-disk paging is disabled.
+}
+
+
+void KorvetAddrSpace::eramControl(int, int, int)
+{
+    // Compatibility only. Vector ERAM paging is disabled.
 }
 
 namespace {
@@ -392,7 +251,7 @@ constexpr uint32_t c_addrSpaceSnapshotSection =
     makeSnapshotSectionId('A', 'D', 'D', 'R');
 
 #pragma pack(push, 1)
-struct VectorAddrSpaceSnapshotStateV1 {
+struct KorvetAddrSpaceSnapshotStateV1 {
     uint32_t mainRamSize;
     uint32_t ramDisk1Size;
     uint32_t ramDisk2Size;
@@ -414,22 +273,22 @@ struct VectorAddrSpaceSnapshotStateV1 {
 
 } // namespace
 
-uint32_t VectorAddrSpace::snapshotSectionId() const
+uint32_t KorvetAddrSpace::snapshotSectionId() const
 {
     return c_addrSpaceSnapshotSection;
 }
 
-uint16_t VectorAddrSpace::snapshotSectionVersion() const
+uint16_t KorvetAddrSpace::snapshotSectionVersion() const
 {
     return 1;
 }
 
-bool VectorAddrSpace::saveState(SnapshotWriter& writer) const
+bool KorvetAddrSpace::saveState(SnapshotWriter& writer) const
 {
     if (!m_mainMemory || !m_ramDisk || !m_ramDisk2)
         return false;
 
-    VectorAddrSpaceSnapshotStateV1 state{};
+    KorvetAddrSpaceSnapshotStateV1 state{};
     state.mainRamSize = static_cast<uint32_t>(m_mainMemory->getSize());
     state.ramDisk1Size = static_cast<uint32_t>(m_ramDisk->getSize());
     state.ramDisk2Size = static_cast<uint32_t>(m_ramDisk2->getSize());
@@ -464,14 +323,14 @@ bool VectorAddrSpace::saveState(SnapshotWriter& writer) const
     return true;
 }
 
-bool VectorAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
+bool KorvetAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
 {
     if (version != snapshotSectionVersion() ||
         !m_mainMemory || !m_ramDisk || !m_ramDisk2 ||
-        reader.remaining() < sizeof(VectorAddrSpaceSnapshotStateV1))
+        reader.remaining() < sizeof(KorvetAddrSpaceSnapshotStateV1))
         return false;
 
-    VectorAddrSpaceSnapshotStateV1 state{};
+    KorvetAddrSpaceSnapshotStateV1 state{};
     if (!reader.readValue(state))
         return false;
 
@@ -521,12 +380,12 @@ bool VectorAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
     return true;
 }
 
-void VectorAddrSpace::postLoad()
+void KorvetAddrSpace::postLoad()
 {
     rebuildPageMap();
 }
 
-void VectorCore::inte(bool isActive)
+void KorvetCore::inte(bool isActive)
 {
     m_intsEnabled = isActive;
     if (!isActive)
@@ -541,7 +400,7 @@ void VectorCore::inte(bool isActive)
 }
 
 
-void VectorCore::vrtc(bool isActive)
+void KorvetCore::vrtc(bool isActive)
 {
     if (isActive && m_intsEnabled) {
         m_intReq = true;
@@ -555,7 +414,7 @@ void VectorCore::vrtc(bool isActive)
 
 
 
-VectorRenderer::VectorRenderer()
+KorvetRenderer::KorvetRenderer()
 {
     m_sizeX = 512;
     m_sizeY = 256;
@@ -563,13 +422,24 @@ VectorRenderer::VectorRenderer()
     m_pixelData = s_frameBuffer;
     m_frameBuf = m_pixelData;
 #endif
-    memset(m_colorPalette, 0, 16);
-    memset(m_bwPalette, 0, 16);
+    static const uint8_t levels[2][8] = {
+        {0x00, 0x00, 0x00, 0x00, 0xC0, 0xC0, 0xC0, 0xC0},
+        {0x40, 0x40, 0x40, 0x40, 0xFF, 0xFF, 0xFF, 0xFF}
+    };
+    for (int i = 0; i < 16; ++i) {
+        const uint8_t bright = uint8_t(i >> 3);
+        const uint8_t r = levels[bright][(i & 4) ? 4 : 0];
+        const uint8_t g = levels[bright][(i & 2) ? 4 : 0];
+        const uint8_t bl = levels[bright][(i & 1) ? 4 : 0];
+        m_colorPalette[i] = RGB888(r, g, bl);
+        const uint8_t bw = uint8_t((i * 255) / 15);
+        m_bwPalette[i] = RGB888(bw, bw, bw);
+    }
     m_palette = m_colorPalette;
 }
 
 
-void VectorRenderer::init()
+void KorvetRenderer::init()
 {
     // Требует готового g_emulation, поэтому не может выполняться в конструкторе
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
@@ -582,7 +452,7 @@ void VectorRenderer::init()
 #if defined(PICO_RP2040) && \
     (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
     /*
-     * The RP2040 VGA renderer consumes Vector RAM directly on core1.
+     * The RP2040 VGA renderer consumes Korvet RAM directly on core1.
      * Publish the RAM pointer and initial video registers immediately:
      * waiting for the first emulated frame leaves the VGA side without a
      * valid source if the renderer has not yet received its scheduler event.
@@ -592,12 +462,12 @@ void VectorRenderer::init()
 }
 
 
-VectorRenderer::~VectorRenderer()
+KorvetRenderer::~KorvetRenderer()
 {
 }
 
 
-void __not_in_flash_func(VectorRenderer::operate)()
+void __not_in_flash_func(KorvetRenderer::operate)()
 {
     advanceTo(m_curClock);
     m_curFrameClock = m_curClock;
@@ -619,115 +489,47 @@ static inline int divBy768(int px)
 }
 
 
-void __not_in_flash_func(VectorRenderer::advanceTo)(uint64_t clock)
+void __not_in_flash_func(KorvetRenderer::advanceTo)(uint64_t clock)
 {
-    const int bias = 189;
-#ifndef PICO_RP2040
-
     if (clock <= m_curFrameClock)
         return;
 
-    // Кадр длится m_ticksPerPixel * 768 * 312 = 33546240 тактов и заведомо
-    // помещается в 32 бита, а планировщик не даёт CPU уйти дальше ближайшего
-    // кадрового события. Прежнее 64-битное деление на каждую запись в
-    // видеопамять было вызовом __aeabi_uldivmod; теперь это обычное 32-битное.
+    // The Korvet frame is rendered once per vertical retrace from the
+    // graphics and text adapters.  Keep only the beam position here so
+    // legacy register-write notifications do not draw the old Vector frame.
     const uint64_t delta = clock - m_curFrameClock;
-    int toPixel = (delta < 0x100000000ull ? int(uint32_t(delta) / m_ticksPerPixel)
-                                          : int(delta / m_ticksPerPixel)) + bias;
-
-    if (toPixel <= m_curFramePixel) {
-        if (toPixel < 40 * 768 || toPixel >= 296 * 768)
-            m_lastColor = m_borderColor;
-        return;
-    }
-
-    if (toPixel >= 312 * 768)
-        toPixel = 312 * 768 - 1;
-
-    if (!m_lineOffsetIsLatched && toPixel > 768 * 40 + 180) {
-        m_lineOffsetIsLatched = true;
-        m_latchedLineOffset = m_lineOffset;
-    }
-
-    const int firstLine = divBy768(m_curFramePixel);
-    const int firstPixel = m_curFramePixel - firstLine * 768;
-    const int lastLine = divBy768(toPixel);
-    const int lastPixel = toPixel - lastLine * 768;
-    m_curFramePixel = toPixel;
-    uint8_t* linePtr = m_frameBuf + (firstLine - 24) * 626;
-    renderLine(firstLine, firstPixel, firstLine == lastLine ? lastPixel : 768, linePtr);
-    for (int line = firstLine + 1; line < lastLine; line++) {
-        linePtr = m_frameBuf + (line - 24) * 626;
-        renderLine(line, 0, 768, linePtr);
-    }
-    if (firstLine != lastLine) {
-        linePtr = m_frameBuf + (lastLine - 24) * 626;
-        renderLine(lastLine, 0, lastPixel, linePtr);
-    }
-#else
-    // The RP2040 VGA path renders scan lines independently on core1, so this
-    // side only follows the beam far enough to preserve Vector's unusual
-    // palette programming semantics: a write changes the palette entry of the
-    // color currently under the beam.
-    if (clock <= m_curFrameClock)
-        return;
-
-    const uint64_t delta = clock - m_curFrameClock;
-    int toPixel = (delta < 0x100000000ull ? int(uint32_t(delta) / m_ticksPerPixel)
-                                          : int(delta / m_ticksPerPixel)) + bias;
+    int toPixel = delta < 0x100000000ull
+                    ? int(uint32_t(delta) / m_ticksPerPixel)
+                    : int(delta / m_ticksPerPixel);
     if (toPixel < 0)
         toPixel = 0;
     if (toPixel >= 312 * 768)
         toPixel = 312 * 768 - 1;
     m_curFramePixel = toPixel;
-
-    if (!m_lineOffsetIsLatched && toPixel > 768 * 40 + 180) {
-        m_lineOffsetIsLatched = true;
-        m_latchedLineOffset = m_lineOffset;
-    }
-
-    const int line = divBy768(toPixel);
-    const int px = toPixel - line * 768;
-    if (line < 40 || line >= 296 || px < 181 || px >= 693) {
-        m_lastColor = m_borderColor;
-        return;
-    }
-
-    const int activePx = px - 181;
-    const uint8_t rollOff = uint8_t(m_latchedLineOffset - line + 40);
-    const int offset = ((activePx & 0x1F0) << 4) | rollOff;
-    const uint8_t mask = uint8_t(0x80u >> ((activePx & 0x0E) >> 1));
-    m_lastColor = 0;
-    if (m_screenMemory[0x8000 + offset] & mask) m_lastColor |= 0x08;
-    if (m_screenMemory[0xA000 + offset] & mask) m_lastColor |= 0x04;
-    if (m_screenMemory[0xC000 + offset] & mask) m_lastColor |= 0x02;
-    if (m_screenMemory[0xE000 + offset] & mask) m_lastColor |= 0x01;
-#endif
 }
 
-
-void VectorRenderer::setBorderColor(uint8_t color)
+void KorvetRenderer::setBorderColor(uint8_t color)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 48);
     m_borderColor = color;
 }
 
 
-void VectorRenderer::set512pxMode(bool mode512)
+void KorvetRenderer::set512pxMode(bool mode512)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 34);
     m_mode512px = mode512;
 }
 
 
-void VectorRenderer::setLineOffset(uint8_t lineOffset)
+void KorvetRenderer::setLineOffset(uint8_t lineOffset)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 48);
     m_lineOffset = lineOffset;
 }
 
 
-void VectorRenderer::setPaletteColor(uint8_t color)
+void KorvetRenderer::setPaletteColor(uint8_t color)
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 27);
     register uint32_t c = ((color & 0x7) << 21) | ((color & 0x7) << 18) | ((color & 0x6) << 15) |
@@ -739,14 +541,14 @@ void VectorRenderer::setPaletteColor(uint8_t color)
 }
 
 
-void __not_in_flash_func(VectorRenderer::vidMemWriteNotify)()
+void __not_in_flash_func(KorvetRenderer::vidMemWriteNotify)()
 {
     advanceTo(g_emulation->getCurClock() + m_ticksPerPixel * 40);
 }
 
 
 #ifndef PICO_RP2040
-void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int lastPx, uint8_t* linePtr)
+void __not_in_flash_func(KorvetRenderer::renderLine)(int nLine, int firstPx, int lastPx, uint8_t* linePtr)
 {
     // Render scan line #nLine
     // Vertical: 0-22 - invisible, 23-39 - border, 40-295 - visible, 296-311 - border) from firstPx to lastPx
@@ -832,8 +634,71 @@ void __not_in_flash_func(VectorRenderer::renderLine)(int nLine, int firstPx, int
 }
 #endif
 
-void VectorRenderer::renderFrame()
+#ifndef PICO_RP2040
+void KorvetRenderer::renderKorvetFrame()
 {
+    if (!m_graphicsAdapter || !m_textAdapter)
+        return;
+
+    constexpr int stride = 521;
+    const uint8_t border = m_palette[m_korvetLut[0]];
+    memset(m_frameBuf, border, stride * 288);
+
+    const int page = m_displayPage % m_graphicsAdapter->getPageCount();
+    const int pageOffset = page * 0x4000;
+    const uint8_t* plane0 = m_graphicsAdapter->getPlane(0) + pageOffset;
+    const uint8_t* plane1 = m_graphicsAdapter->getPlane(1) + pageOffset;
+    const uint8_t* plane2 = m_graphicsAdapter->getPlane(2) + pageOffset;
+    const uint8_t* symbols = m_textAdapter->getSymbols();
+    const uint8_t* attrs = m_textAdapter->getAttrs();
+    const uint8_t* font = korvet_font_bin + m_fontNumber * 4096;
+
+    for (int y = 0; y < 256; ++y) {
+        uint8_t* dst = m_frameBuf + (y + 17) * stride + 4;
+        const int rowBase = y * 64;
+        for (int byteNo = 0; byteNo < 64; ++byteNo) {
+            const int videoAddr = rowBase + byteNo;
+            uint8_t bt0 = plane0[videoAddr];
+            uint8_t bt1 = plane1[videoAddr];
+            uint8_t bt2 = plane2[videoAddr];
+            const int symbolAddr = ((videoAddr >> 4) & 0x3C0) | (videoAddr & 0x3F);
+            uint8_t bt3;
+            if (!m_wideCharMode) {
+                bt3 = font[(unsigned(symbols[symbolAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
+                      ^ attrs[symbolAddr];
+            } else {
+                const int wideAddr = symbolAddr & ~1;
+                uint8_t chr = font[(unsigned(symbols[wideAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
+                              ^ attrs[wideAddr];
+                if (symbolAddr & 1)
+                    chr <<= 4;
+                bt3 = (chr & 0x80 ? 0xC0 : 0) |
+                      (chr & 0x40 ? 0x30 : 0) |
+                      (chr & 0x20 ? 0x0C : 0) |
+                      (chr & 0x10 ? 0x03 : 0);
+            }
+
+            for (int bit = 0; bit < 8; ++bit) {
+                const uint8_t colorIndex = uint8_t((bt0 >> 7) |
+                                                   ((bt1 >> 6) & 2) |
+                                                   ((bt2 >> 5) & 4) |
+                                                   ((bt3 >> 4) & 8));
+                *dst++ = m_palette[m_korvetLut[colorIndex]];
+                bt0 <<= 1;
+                bt1 <<= 1;
+                bt2 <<= 1;
+                bt3 <<= 1;
+            }
+        }
+    }
+}
+#endif
+
+void KorvetRenderer::renderFrame()
+{
+#ifndef PICO_RP2040
+    renderKorvetFrame();
+#endif
     g_emulation->notifyFrameRendered();
     swapBuffers();
     prepareFrame();
@@ -841,19 +706,19 @@ void VectorRenderer::renderFrame()
 }
 
 
-void VectorRenderer::prepareFrame()
+void KorvetRenderer::prepareFrame()
 {
     if (!m_showBorder) {
         m_sizeX = 512;
         m_sizeY = 256;
     } else {
-        m_sizeX = 626;
+        m_sizeX = 521;
         m_sizeY = 288;
     }
 }
 
 
-void VectorRenderer::applyFrameBuffer()
+void KorvetRenderer::applyFrameBuffer()
 {
     // Кадровый буфер физически всегда 626 x 288 (стр. шаг 626). В режиме
     // обрезки показываем только активную область m_sizeX x m_sizeY: буфер не
@@ -863,21 +728,22 @@ void VectorRenderer::applyFrameBuffer()
 #if defined(PICO_RP2040) && \
     (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
     // RP2040 has no room for the 626x288 frame buffer. The VGA driver reads
-    // Vector video RAM directly on core1 and builds each scan line using a
+    // Korvet video RAM directly on core1 and builds each scan line using a
     // snapshot of the palette and current video registers. Mid-frame palette
     // and mode changes are intentionally not cycle-accurate in this mode.
-    graphics_set_vector_source(m_screenMemory, m_palette, m_borderColor,
+    graphics_set_korvet_source(m_screenMemory, m_palette, m_borderColor,
                                m_lineOffset, m_mode512px, m_showBorder);
 #else
     if (m_showBorder) {
 #ifndef PICO_RP2040
         graphics_set_buffer(m_frameBuf, m_sizeX, m_sizeY);
+        graphics_set_line_stride(521);
 #endif
     } else {
-        const int stride = 626;
 #ifndef PICO_RP2040
-        const int originX = (stride - m_sizeX) / 2;   // (626-512)/2 = 57
-        const int originY = (288 - m_sizeY) / 2;      // (288-256)/2 = 16
+        const int stride = 521;
+        const int originX = 4;
+        const int originY = 17;
         graphics_set_buffer(m_frameBuf + stride * originY + originX,
                             m_sizeX, m_sizeY);
         graphics_set_line_stride(stride);
@@ -887,26 +753,26 @@ void VectorRenderer::applyFrameBuffer()
 }
 
 
-void VectorRenderer::setColorMode(bool colorMode)
+void KorvetRenderer::setColorMode(bool colorMode)
 {
     m_colorMode = colorMode;
     m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
 }
 
 
-void VectorRenderer::toggleColorMode()
+void KorvetRenderer::toggleColorMode()
 {
     setColorMode(!m_colorMode);
 }
 
 
-void VectorRenderer::toggleCropping()
+void KorvetRenderer::toggleCropping()
 {
     m_showBorder = !m_showBorder;
 }
 
 
-void VectorRenderer::attachMemory(Ram* memory)
+void KorvetRenderer::attachMemory(Ram* memory)
 {
     m_screenMemory = memory->getDataPtr();
 }
@@ -914,7 +780,7 @@ void VectorRenderer::attachMemory(Ram* memory)
 namespace {
 
 #pragma pack(push, 1)
-struct VectorRendererSnapshotStateV1 {
+struct KorvetRendererSnapshotStateV1 {
     uint64_t curClock;
     uint64_t curFrameClock;
     int32_t curFramePixel;
@@ -938,19 +804,19 @@ constexpr uint32_t c_rendererSnapshotSection =
 } // namespace
 
 
-uint32_t VectorRenderer::snapshotSectionId() const
+uint32_t KorvetRenderer::snapshotSectionId() const
 {
     return c_rendererSnapshotSection;
 }
 
-uint16_t VectorRenderer::snapshotSectionVersion() const
+uint16_t KorvetRenderer::snapshotSectionVersion() const
 {
     return 1;
 }
 
-bool VectorRenderer::saveState(SnapshotWriter& writer) const
+bool KorvetRenderer::saveState(SnapshotWriter& writer) const
 {
-    VectorRendererSnapshotStateV1 state{};
+    KorvetRendererSnapshotStateV1 state{};
     state.curClock = m_curClock;
     state.curFrameClock = m_curFrameClock;
     state.curFramePixel = m_curFramePixel;
@@ -973,13 +839,13 @@ bool VectorRenderer::saveState(SnapshotWriter& writer) const
 #endif
 }
 
-bool VectorRenderer::loadState(SnapshotReader& reader, uint16_t version)
+bool KorvetRenderer::loadState(SnapshotReader& reader, uint16_t version)
 {
     if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(VectorRendererSnapshotStateV1) + c_frameBufSize)
+        reader.remaining() != sizeof(KorvetRendererSnapshotStateV1) + c_frameBufSize)
         return false;
 
-    VectorRendererSnapshotStateV1 state{};
+    KorvetRendererSnapshotStateV1 state{};
     if (!reader.readValue(state) ||
         state.curFramePixel < 0 || state.curFramePixel >= 312 * 768 ||
         state.lastColor < 0 || state.lastColor > 15 ||
@@ -1009,7 +875,7 @@ bool VectorRenderer::loadState(SnapshotReader& reader, uint16_t version)
     return true;
 }
 
-void VectorRenderer::postLoad()
+void KorvetRenderer::postLoad()
 {
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
     m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
@@ -1017,7 +883,7 @@ void VectorRenderer::postLoad()
     applyFrameBuffer();
 }
 
-bool VectorFileLoader::chooseAndLoadFile(bool run)
+bool KorvetFileLoader::chooseAndLoadFile(bool run)
 {
     bool readOnly = false;
     string fileName = palOpenFileDialog("Open file", m_filter, false, &readOnly);
@@ -1030,7 +896,7 @@ bool VectorFileLoader::chooseAndLoadFile(bool run)
     return true;
 }
 
-bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool readOnly)
+bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool readOnly)
 {
     auto periodPos = fileName.find_last_of(".");
     string ext = periodPos != string::npos ? fileName.substr(periodPos) : fileName;
@@ -1045,7 +911,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
         keyboard->enableKeysReset();
 
         Cpu8080Compatible* cpu = m_machine->getCpu();
-        VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
+        KorvetAddrSpace* addrSpace = m_machine->getAddrSpace();
         addrSpace->enableRom();
         g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
 
@@ -1071,7 +937,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
     }
 
     Cpu8080Compatible* cpu = m_machine->getCpu();
-    VectorAddrSpace* as = m_machine->getAddrSpace();
+    KorvetAddrSpace* as = m_machine->getAddrSpace();
     m_machine->reset();
     as->enableRom();
     cpu->disableHooks();
@@ -1181,7 +1047,7 @@ bool VectorFileLoader::loadFile(const std::string& fileName, bool run, bool read
 
 
 // Port 01
-void VectorPpi8255Circuit::setPortC(uint8_t value)
+void KorvetPpi8255Circuit::setPortC(uint8_t value)
 {
     m_tapeSoundSource->setValue(value & 1);
     m_machine->tapeOut(value & 1);
@@ -1189,7 +1055,7 @@ void VectorPpi8255Circuit::setPortC(uint8_t value)
 
 
 // Port 02
-void VectorPpi8255Circuit::setPortB(uint8_t value)
+void KorvetPpi8255Circuit::setPortB(uint8_t value)
 {
     // order is important!
     m_renderer->set512pxMode(value & 0x10);
@@ -1198,40 +1064,43 @@ void VectorPpi8255Circuit::setPortB(uint8_t value)
 
 
 // Port 03
-void VectorPpi8255Circuit::setPortA(uint8_t value)
+void KorvetPpi8255Circuit::setPortA(uint8_t value)
 {
     m_renderer->setLineOffset(value);
     m_kbd->setMatrixMask(value);
 }
 
 
-uint8_t VectorPpi8255Circuit::getPortB()
+uint8_t KorvetPpi8255Circuit::getPortB()
 {
     return m_kbd->getMatrixData();
 }
 
 
-uint8_t VectorPpi8255Circuit::getPortC()
+uint8_t KorvetPpi8255Circuit::getPortC()
 {
     return (m_kbd->getCtrlKeys() & 0xEF) | (g_emulation->getWavReader()->getCurValue() ? 0x10 : 0x00);
 }
 
 
 
-void VectorColorRegister::writeByte(int, uint8_t value)
+void KorvetColorRegister::writeByte(int, uint8_t value)
 {
-    m_renderer->setPaletteColor(value);
+    if (m_renderer)
+        m_renderer->setPaletteColor(value);
+    if (m_graphicsAdapter)
+        m_graphicsAdapter->setColorRegisterValue(value);
 }
 
 
 
-VectorKeyboard::VectorKeyboard()
+KorvetKeyboard::KorvetKeyboard()
 {
-    VectorKeyboard::resetKeys();
+    KorvetKeyboard::resetKeys();
 }
 
 
-void VectorKeyboard::resetKeys()
+void KorvetKeyboard::resetKeys()
 {
     for (int i = 0; i < 8; i++)
         m_keys[i] = 0;
@@ -1240,7 +1109,7 @@ void VectorKeyboard::resetKeys()
 }
 
 
-void __not_in_flash_func(VectorKeyboard::processKey)(EmuKey key, bool isPressed)
+void __not_in_flash_func(KorvetKeyboard::processKey)(EmuKey key, bool isPressed)
 {
     if (key == EK_NONE)
         return;
@@ -1271,7 +1140,7 @@ found:
 }
 
 
-uint8_t VectorKeyboard::getMatrixData()
+uint8_t KorvetKeyboard::getMatrixData()
 {
     uint8_t val = 0;
     uint8_t mask = m_mask;
@@ -1284,9 +1153,9 @@ uint8_t VectorKeyboard::getMatrixData()
 }
 
 
-bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
+bool KorvetKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
-    VectorAddrSpace* addrSpace = m_machine->getAddrSpace();
+    KorvetAddrSpace* addrSpace = m_machine->getAddrSpace();
 
     if (keyCode == PK_F11) {
         Keyboard* keyboard = m_machine->getKeyboard();
@@ -1307,23 +1176,23 @@ bool VectorKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 
 
 
-void VectorRamDiskSelector::setEnabled(bool enabled)
+void KorvetRamDiskSelector::setEnabled(bool enabled)
 {
     m_enabled = enabled;
-    if (!m_enabled && m_vectorAddrSpace)
-        m_vectorAddrSpace->ramDiskControl(m_diskNum, 0, false, 0, 0);
+    if (!m_enabled && m_korvetAddrSpace)
+        m_korvetAddrSpace->ramDiskControl(m_diskNum, 0, false, 0, 0);
 }
 
 
-void VectorRamDiskSelector::writeByte(int, uint8_t value)
+void KorvetRamDiskSelector::writeByte(int, uint8_t value)
 {
-    if (m_enabled && m_vectorAddrSpace)
-        m_vectorAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
+    if (m_enabled && m_korvetAddrSpace)
+        m_korvetAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
 }
 
 
 
-void VectorFddControlRegister::writeByte(int, uint8_t value)
+void KorvetFddControlRegister::writeByte(int, uint8_t value)
 {
     m_fdc->setDrive(value & 1);
     m_fdc->setHead(((value & 0x4) >> 2) ^ 1);
@@ -1332,7 +1201,7 @@ void VectorFddControlRegister::writeByte(int, uint8_t value)
 
 
 
-void VectorPpi8255Circuit2::setPortA(uint8_t value)
+void KorvetPpi8255Circuit2::setPortA(uint8_t value)
 {
     if (m_covox) {
         m_covox->setValue(value >> 1);
@@ -1342,7 +1211,7 @@ void VectorPpi8255Circuit2::setPortA(uint8_t value)
 }
 
 
-void VectorPpi8255Circuit2::setPortC(uint8_t value)
+void KorvetPpi8255Circuit2::setPortC(uint8_t value)
 {
     bool newStrobe = value & 0x10;
     if (m_printerStrobe && !newStrobe) {
@@ -1353,7 +1222,7 @@ void VectorPpi8255Circuit2::setPortC(uint8_t value)
 
 
 
-void VectorHddRegisters::setEnabled(bool enabled)
+void KorvetHddRegisters::setEnabled(bool enabled)
 {
     if (m_enabled == enabled)
         return;
@@ -1367,7 +1236,7 @@ void VectorHddRegisters::setEnabled(bool enabled)
 }
 
 
-void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
+void __not_in_flash_func(KorvetHddRegisters::writeByte)(int addr, uint8_t value)
 {
     if (!m_enabled || !m_ataDrive)
         return;
@@ -1386,7 +1255,7 @@ void __not_in_flash_func(VectorHddRegisters::writeByte)(int addr, uint8_t value)
 }
 
 
-uint8_t __not_in_flash_func(VectorHddRegisters::readByte)(int addr)
+uint8_t __not_in_flash_func(KorvetHddRegisters::readByte)(int addr)
 {
     if (!m_enabled || !m_ataDrive)
         return 0xFF;
@@ -1402,20 +1271,20 @@ uint8_t __not_in_flash_func(VectorHddRegisters::readByte)(int addr)
     return read & 0x00FF;
 }
 
-VectorCore::VectorCore()
+KorvetCore::KorvetCore()
 {
 
     // Ram с внешним буфером: владения нет, деструктор ничего не освобождает
     m_ram = &s_devices.ram;
     m_ram->setMachine(this);
 
-    m_rom = &s_devices.rom;
+    m_rom = &s_devices.rom1;
+    m_rom2 = &s_devices.rom2;
+    m_rom3 = &s_devices.rom3;
     m_rom->setMachine(this);
 
-    // Ядро уже создано конструктором CpuSlot (см. s_devices) — так за ним
-    // сохраняется прежняя позиция в порядке регистрации активных устройств.
-    // Замена 8080 <-> Z80 на ходу выполняется через s_devices.cpuSlot.
-    m_cpu = s_devices.cpuSlot.cpu;
+    // Корвет использует фиксированное ядро 8080.
+    m_cpu = &s_devices.cpu;
     m_cpu->setMachine(this);
     m_cpu->setFrequency(m_cpuFrequency);
     m_cpu->setStartAddr(0x0000);
@@ -1426,8 +1295,42 @@ VectorCore::VectorCore()
     m_addrSpace->attachRom(m_rom);
     m_addrSpace->attachCpu(m_cpu);
 
+    m_addrSpaceSelector = &s_devices.addrSpaceSelector;
+    m_addrSpaceSelector->setMachine(this);
+    m_addrSpace->attachSelector(m_addrSpaceSelector);
+    m_addrSpace->setPage(0, m_ram);
+    m_addrSpace->setPage(1, m_rom);
+    m_addrSpace->setPage(2, m_rom2);
+    m_addrSpace->setPage(3, m_rom3);
+    for (int page = 4; page < 7; ++page)
+        m_addrSpace->setPage(page, &s_devices.unmappedPage);
+    m_addrSpace->setPage(7, &s_devices.textAdapter);
+    m_addrSpace->setPage(8, &s_devices.graphicsAdapter);
+
     m_ioAddrSpace = &s_devices.ioAddrSpace;
     m_ioAddrSpace->setMachine(this);
+    m_ioAddrSpace->addRange(0x7F, 0x7F, m_addrSpaceSelector);
+
+    s_devices.korvetColorRegister.setMachine(this);
+    s_devices.korvetColorRegister.attachGraphicsAdapter(&s_devices.graphicsAdapter);
+    s_devices.renderer.attachGraphicsAdapter(&s_devices.graphicsAdapter);
+    s_devices.renderer.attachTextAdapter(&s_devices.textAdapter);
+    s_devices.korvetLutRegister.attachRenderer(&s_devices.renderer);
+    s_devices.korvetVideoPpiCircuit.attachRenderer(&s_devices.renderer);
+    m_ioAddrSpace->addRange(0xBF, 0xBF, &s_devices.korvetColorRegister);
+
+    s_devices.korvetLutRegister.setMachine(this);
+    m_ioAddrSpace->addRange(0xFB, 0xFB, &s_devices.korvetLutRegister);
+
+    m_videoPpiCircuit = &s_devices.korvetVideoPpiCircuit;
+    m_videoPpiCircuit->setMachine(this);
+    m_videoPpiCircuit->attachGraphicsAdapter(&s_devices.graphicsAdapter);
+    m_videoPpiCircuit->attachTextAdapter(&s_devices.textAdapter);
+
+    s_devices.korvetVideoPpi.setMachine(this);
+    s_devices.korvetVideoPpi.setSnapshotIndex(2);
+    s_devices.korvetVideoPpi.attachPpi8255Circuit(m_videoPpiCircuit);
+    m_ioAddrSpace->addRange(0x38, 0x3B, &s_devices.korvetVideoPpi, 0, true);
 
     m_cpu->attachAddrSpace(m_addrSpace);
     m_cpu->attachIoAddrSpace(m_ioAddrSpace);
@@ -1523,7 +1426,7 @@ VectorCore::VectorCore()
 
     m_ataDrive = &s_devices.ataDrive;
     m_ataDrive->setMachine(this);
-    m_ataDrive->setVectorGeometry();
+    m_ataDrive->setKorvetGeometry();
 
     m_hddRegisters = &s_devices.hddRegisters;
     m_hddRegisters->setMachine(this);
@@ -1641,7 +1544,7 @@ VectorCore::VectorCore()
 
     m_ramDiskSelector = &s_devices.ramDiskSelector;
     m_ramDiskSelector->setMachine(this);
-    m_ramDiskSelector->attachVectorAddrSpace(m_addrSpace);
+    m_ramDiskSelector->attachKorvetAddrSpace(m_addrSpace);
     m_ramDiskSelector->setDiskNum(0);
     m_ioAddrSpace->addRange(0x10, 0x10, m_ramDiskSelector);
 
@@ -1657,7 +1560,7 @@ VectorCore::VectorCore()
 
     m_ramDiskSelector2 = &s_devices.ramDiskSelector2;
     m_ramDiskSelector2->setMachine(this);
-    m_ramDiskSelector2->attachVectorAddrSpace(m_addrSpace);
+    m_ramDiskSelector2->attachKorvetAddrSpace(m_addrSpace);
     m_ramDiskSelector2->setDiskNum(1);
     m_ioAddrSpace->addRange(0x11, 0x11, m_ramDiskSelector2);
 
@@ -1675,7 +1578,7 @@ VectorCore::VectorCore()
     /*
      * Базовая конфигурация соответствует обычному Вектору-06Ц (с FDD).
      * Расширения остаются доступными из меню и через конфигурационный файл,
-     * но при первом запуске без /.config/vector06c.cfg выключены.
+     * но при первом запуске без /.config/korvet.cfg выключены.
      */
     m_ay->setEnabled(false);               // PSG
     m_hddRegisters->setEnabled(false);     // HDD interface
@@ -1689,13 +1592,13 @@ VectorCore::VectorCore()
 }
 
 
-bool VectorCore::getPsgEnabled() const
+bool KorvetCore::getPsgEnabled() const
 {
     return m_ay && m_ay->getEnabled();
 }
 
 
-void VectorCore::setPsgEnabled(bool enabled)
+void KorvetCore::setPsgEnabled(bool enabled)
 {
     if (!m_ay || !m_psgSoundSource || m_ay->getEnabled() == enabled)
         return;
@@ -1713,50 +1616,52 @@ void VectorCore::setPsgEnabled(bool enabled)
 }
 
 
-bool VectorCore::getPsgStereo() const
+bool KorvetCore::getPsgStereo() const
 {
     return m_psgSoundSource && m_psgSoundSource->getStereo();
 }
 
 
-void VectorCore::setPsgStereo(bool stereo)
+void KorvetCore::setPsgStereo(bool stereo)
 {
     if (m_psgSoundSource)
         m_psgSoundSource->setStereo(stereo);
 }
 
 
-bool VectorCore::getPsgAcbOrder() const
+bool KorvetCore::getPsgAcbOrder() const
 {
     return m_psgSoundSource && m_psgSoundSource->getAcbOrder();
 }
 
 
-void VectorCore::setPsgAcbOrder(bool acbOrder)
+void KorvetCore::setPsgAcbOrder(bool acbOrder)
 {
     if (m_psgSoundSource)
         m_psgSoundSource->setAcbOrder(acbOrder);
 }
 
 
-bool VectorCore::getHddEnabled() const
+bool KorvetCore::getHddEnabled() const
 {
     return m_hddRegisters && m_hddRegisters->getEnabled();
 }
 
 
-void VectorCore::setHddEnabled(bool enabled)
+void KorvetCore::setHddEnabled(bool enabled)
 {
     if (m_hddRegisters)
         m_hddRegisters->setEnabled(enabled);
 }
 
 
-void VectorCore::init()
+void KorvetCore::init()
 {
     m_wavWriter->init();
     m_ram->init();
     m_rom->init();
+    m_rom2->init();
+    m_rom3->init();
     m_cpu->init();
     m_addrSpace->init();
     m_ioAddrSpace->init();
@@ -1805,10 +1710,12 @@ void VectorCore::init()
     m_ramDiskSelector2->init();
 }
 
-void VectorCore::shutdown()
+void KorvetCore::shutdown()
 {
     m_ram->shutdown();
     m_rom->shutdown();
+    m_rom2->shutdown();
+    m_rom3->shutdown();
     m_cpu->shutdown();
     m_addrSpace->shutdown();
     m_ioAddrSpace->shutdown();
@@ -1855,31 +1762,46 @@ void VectorCore::shutdown()
     m_ramDiskSelector2->shutdown();
 }
 
-void VectorCore::coldReinitialize()
+void KorvetCore::coldReinitialize()
 {
     init();
     reset();
 }
 
-VectorCpuType VectorCore::getCpuType() const
+KorvetCpuType KorvetCore::getCpuType() const
 {
-    return s_devices.cpuSlot.type;
+    return VECTOR_CPU_8080;
 }
 
 
-bool VectorCore::getColorMode() const
+bool KorvetCore::getColorMode() const
 {
     return m_renderer ? m_renderer->getColorMode() : true;
 }
 
 
-bool VectorCore::getCroppedToVisible() const
+bool KorvetCore::getCroppedToVisible() const
 {
     return m_renderer && m_renderer->getCroppedToVisible();
 }
 
+uint8_t KorvetCore::getVideoDisplayPage() const
+{
+    return m_videoPpiCircuit ? m_videoPpiCircuit->getDisplayPage() : 0;
+}
 
-int VectorCore::getKbdLayoutModeIndex() const
+uint8_t KorvetCore::getVideoFontNumber() const
+{
+    return m_videoPpiCircuit ? m_videoPpiCircuit->getFontNumber() : 0;
+}
+
+bool KorvetCore::getVideoWideCharMode() const
+{
+    return m_videoPpiCircuit && m_videoPpiCircuit->getWideCharMode();
+}
+
+
+int KorvetCore::getKbdLayoutModeIndex() const
 {
     if (!m_kbdLayout)
         return 0;
@@ -1891,10 +1813,10 @@ int VectorCore::getKbdLayoutModeIndex() const
 }
 
 
-// Повторяют поведение VectorKbdLayout::processSpecialKeys для F11/F12, чтобы
+// Повторяют поведение KorvetKbdLayout::processSpecialKeys для F11/F12, чтобы
 // эти сбросы были доступны из меню. Обёртка disable/enableKeysReset нужна,
 // чтобы сам сброс не был воспринят как удержание клавиши.
-void VectorCore::resetTurnOnRom()
+void KorvetCore::resetTurnOnRom()
 {
     Keyboard* keyboard = getKeyboard();
     if (keyboard)
@@ -1905,7 +1827,7 @@ void VectorCore::resetTurnOnRom()
 }
 
 
-void VectorCore::resetTurnOffRom()
+void KorvetCore::resetTurnOffRom()
 {
     resetTurnOnRom();
     if (m_addrSpace)
@@ -1913,7 +1835,7 @@ void VectorCore::resetTurnOffRom()
 }
 
 
-void VectorCore::setCpuFrequency(unsigned frequency)
+void KorvetCore::setCpuFrequency(unsigned frequency)
 {
     if (frequency == m_cpuFrequency)
         return;
@@ -1923,57 +1845,22 @@ void VectorCore::setCpuFrequency(unsigned frequency)
 }
 
 
-void VectorCore::setCpuType(VectorCpuType type)
+void KorvetCore::setCpuType(KorvetCpuType type)
 {
-    if (type == s_devices.cpuSlot.type)
-        return;
-
-    // Позицию в массиве активных устройств надо сохранить: планировщик
-    // разрешает совпадение тактов по порядку регистрации, а совпадения CPU
-    // и рендерера случаются на каждой границе кадра. Деструктор старого ядра
-    // выкинет его из массива, конструктор нового допишет в конец — поэтому
-    // индекс запоминается заранее и восстанавливается после.
-    const int index = g_emulation->getActiveDeviceIndex(m_cpu);
-
-    shutdown();
-    s_devices.cpuSlot.replace(type);
-    m_cpu = s_devices.cpuSlot.cpu;
-
-    if (index >= 0)
-        g_emulation->moveActiveDevice(m_cpu, index);
-
-    // Вся обвязка заново, в том же порядке, что и в конструкторе
-    m_cpu->setMachine(this);
-    m_cpu->setFrequency(m_cpuFrequency);
-    m_cpu->setStartAddr(0x0000);
-    m_cpu->attachAddrSpace(m_addrSpace);
-    m_cpu->attachIoAddrSpace(m_ioAddrSpace);
-    m_cpu->attachCore(this);
-
-    // attachCpu перестраивает карту страниц уже в новом объекте
-    m_addrSpace->attachCpu(m_cpu);
-
-    m_cpu->addHook(m_tapeInHookBas);
-    m_cpu->addHook(m_tapeOutHookBas);
-    m_cpu->addHook(m_closeFileHookBas);
-    m_cpu->addHook(m_tapeInHookMon);
-    m_cpu->addHook(m_tapeOutHookMon);
-    m_cpu->addHook(m_skipHookMon);
-    m_cpu->addHook(m_closeFileHookMon);
-    m_cpu->addHook(m_tapeInHookEmuRk);
-    m_cpu->addHook(m_tapeOutHookEmuRk);
-    m_cpu->addHook(m_closeFileHookEmuRk);
-
-    coldReinitialize();
+    (void)type;
+    // ПК8020 использует КР580ВМ80А; смена ядра на Z80 отключена.
 }
 
 
-void VectorCore::reset()
+void KorvetCore::reset()
 {
     m_ram->reset();
     m_rom->reset();
+    m_rom2->reset();
+    m_rom3->reset();
     m_cpu->reset();
     m_addrSpace->reset();
+    m_addrSpaceSelector->reset();
     m_ioAddrSpace->reset();
     m_renderer->reset();
     m_keyboard->reset();
@@ -2020,7 +1907,7 @@ void VectorCore::reset()
     m_intsEnabled = false;
 }
 
-VectorCore::~VectorCore()
+KorvetCore::~KorvetCore()
 {
     // Объекты размещены статически (см. s_devices) и живут всё время работы
     // прошивки: удалять нечего. Явное уничтожение потребуется только при
@@ -2030,7 +1917,7 @@ VectorCore::~VectorCore()
 
 
 
-void VectorCore::sysReq(SysReq sr)
+void KorvetCore::sysReq(SysReq sr)
 {
     switch (sr) {
         case SR_RESET:
@@ -2061,11 +1948,12 @@ void VectorCore::sysReq(SysReq sr)
                 m_renderer->toggleColorMode();
             }
             break;
+#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
         case SR_DISKA:
-            chooseFloppyImage(VectorFloppyDrive::A);
+            chooseFloppyImage(KorvetFloppyDrive::A);
             break;
         case SR_DISKB:
-            chooseFloppyImage(VectorFloppyDrive::B);
+            chooseFloppyImage(KorvetFloppyDrive::B);
             break;
         case SR_HDD:
             chooseHddImage();
@@ -2103,6 +1991,7 @@ void VectorCore::sysReq(SysReq sr)
         case SR_TAPEHOOK:
             setTapeHooksEnabled(!tapeHooksEnabled());
             break;
+#endif
         default:
             break;
     }
@@ -2110,13 +1999,13 @@ void VectorCore::sysReq(SysReq sr)
 }
 
 
-bool VectorCore::tapeHooksEnabled() const
+bool KorvetCore::tapeHooksEnabled() const
 {
     return m_tapeHooks[0] && m_tapeHooks[0]->getEnabled();
 }
 
 
-void VectorCore::setTapeHooksEnabled(bool enabled)
+void KorvetCore::setTapeHooksEnabled(bool enabled)
 {
     for (CpuHook* hook : m_tapeHooks)
         if (hook)
@@ -2124,21 +2013,21 @@ void VectorCore::setTapeHooksEnabled(bool enabled)
 }
 
 
-void VectorCore::chooseTapeInput()
+void KorvetCore::chooseTapeInput()
 {
     if (m_tapeInFile)
         m_tapeInFile->openFile();
 }
 
 
-void VectorCore::chooseTapeOutput()
+void KorvetCore::chooseTapeOutput()
 {
     if (m_tapeOutFile)
         m_tapeOutFile->openFile();
 }
 
 
-void VectorCore::ejectTapeFiles()
+void KorvetCore::ejectTapeFiles()
 {
     if (m_tapeInFile)
         m_tapeInFile->ejectFile();
@@ -2147,56 +2036,56 @@ void VectorCore::ejectTapeFiles()
 }
 
 
-bool VectorCore::tapeFilePresent() const
+bool KorvetCore::tapeFilePresent() const
 {
     return (m_tapeInFile && m_tapeInFile->hasFile())
         || (m_tapeOutFile && m_tapeOutFile->hasFile());
 }
 
 
-std::string VectorCore::getTapeInputFileName() const
+std::string KorvetCore::getTapeInputFileName() const
 {
     return m_tapeInFile ? m_tapeInFile->getFileName() : std::string();
 }
 
 
-std::string VectorCore::getTapeOutputFileName() const
+std::string KorvetCore::getTapeOutputFileName() const
 {
     return m_tapeOutFile ? m_tapeOutFile->getFileName() : std::string();
 }
 
 
-bool VectorCore::ramDiskEnabled(int diskNum) const
+bool KorvetCore::ramDiskEnabled(int diskNum) const
 {
-    const VectorRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
+    const KorvetRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
     return selector && selector->getEnabled();
 }
 
 
-void VectorCore::setRamDiskEnabled(int diskNum, bool enabled)
+void KorvetCore::setRamDiskEnabled(int diskNum, bool enabled)
 {
-    VectorRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
+    KorvetRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
     if (selector && selector->getEnabled() != enabled)
         selector->setEnabled(enabled);
 }
 
 
-void VectorCore::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
+void KorvetCore::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    emuLog << "VectorCore::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
+    emuLog << "KorvetCore::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (m_kbdLayout)
         m_kbdLayout->processKey(keyCode, isPressed, unicodeKey);
 }
 
 
-void VectorCore::resetKeys()
+void KorvetCore::resetKeys()
 {
     if (m_kbdLayout)
         m_kbdLayout->resetKeys();
 }
 
 
-bool VectorCore::loadFile(const string& fileName, bool run)
+bool KorvetCore::loadFile(const string& fileName, bool run)
 {
     if (m_loader) {
         m_loader->loadFile(fileName, run);
@@ -2206,24 +2095,24 @@ bool VectorCore::loadFile(const string& fileName, bool run)
 }
 
 
-Cpu8080Compatible* VectorCore::getCpu()
+Cpu8080Compatible* KorvetCore::getCpu()
 {
     return m_cpu;
 }
 
-Keyboard* __not_in_flash_func(VectorCore::getKeyboard)()
+Keyboard* __not_in_flash_func(KorvetCore::getKeyboard)()
 {
     return m_keyboard;
 }
 
 namespace {
-FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, VectorFloppyDrive drive)
+FdImage* selectFloppy(FdImage* diskA, FdImage* diskB, KorvetFloppyDrive drive)
 {
-    return drive == VectorFloppyDrive::A ? diskA : diskB;
+    return drive == KorvetFloppyDrive::A ? diskA : diskB;
 }
 }
 
-bool VectorCore::assignDiskAFileName(const std::string& fileName, bool readOnly)
+bool KorvetCore::assignDiskAFileName(const std::string& fileName, bool readOnly)
 {
     if (!m_diskA)
         return false;
@@ -2232,24 +2121,24 @@ bool VectorCore::assignDiskAFileName(const std::string& fileName, bool readOnly)
     return m_diskA->assignFileName(fullFileName, readOnly || duplicate);
 }
 
-bool VectorCore::floppyImagePresent(VectorFloppyDrive drive) const
+bool KorvetCore::floppyImagePresent(KorvetFloppyDrive drive) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     return disk && disk->getImagePresent();
 }
 
-bool VectorCore::floppyImageReadOnly(VectorFloppyDrive drive) const
+bool KorvetCore::floppyImageReadOnly(KorvetFloppyDrive drive) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     return disk && disk->getImagePresent() && disk->getWriteProtectStatus();
 }
 
-bool VectorCore::floppyReadOnlyMode(VectorFloppyDrive drive) const
+bool KorvetCore::floppyReadOnlyMode(KorvetFloppyDrive drive) const
 {
     return m_floppyReadOnlyMode[static_cast<int>(drive)];
 }
 
-bool VectorCore::canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) const
+bool KorvetCore::canSetFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     if (!disk)
@@ -2260,13 +2149,13 @@ bool VectorCore::canSetFloppyReadOnly(VectorFloppyDrive drive, bool readOnly) co
         return true;
 
     FdImage* other = selectFloppy(m_diskA, m_diskB,
-        drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
+        drive == KorvetFloppyDrive::A ? KorvetFloppyDrive::B : KorvetFloppyDrive::A);
     return !other || !other->getImagePresent()
         || other->getFileName() != disk->getFileName()
         || other->getWriteProtectStatus();
 }
 
-void VectorCore::setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly)
+void KorvetCore::setFloppyReadOnly(KorvetFloppyDrive drive, bool readOnly)
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     if (!disk || !canSetFloppyReadOnly(drive, readOnly))
@@ -2277,20 +2166,20 @@ void VectorCore::setFloppyReadOnly(VectorFloppyDrive drive, bool readOnly)
         disk->setWriteProtection(readOnly);
 }
 
-std::string VectorCore::getFloppyFileName(VectorFloppyDrive drive) const
+std::string KorvetCore::getFloppyFileName(KorvetFloppyDrive drive) const
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     return disk ? disk->getFileName() : std::string();
 }
 
-void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
+void KorvetCore::chooseFloppyImage(KorvetFloppyDrive drive)
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
-    FdImage* other = selectFloppy(m_diskA, m_diskB, drive == VectorFloppyDrive::A ? VectorFloppyDrive::B : VectorFloppyDrive::A);
+    FdImage* other = selectFloppy(m_diskA, m_diskB, drive == KorvetFloppyDrive::A ? KorvetFloppyDrive::B : KorvetFloppyDrive::A);
     if (!disk)
         return;
     bool readOnly = m_floppyReadOnlyMode[static_cast<int>(drive)];
-    const char* title = drive == VectorFloppyDrive::A
+    const char* title = drive == KorvetFloppyDrive::A
         ? "FDD-image file as A"
         : "FDD-image file as B";
     const std::string fileName = disk->chooseFileName(title, &readOnly);
@@ -2302,30 +2191,30 @@ void VectorCore::chooseFloppyImage(VectorFloppyDrive drive)
     disk->assignFileName(fullFileName, readOnly || duplicate);
 }
 
-void VectorCore::ejectFloppyImage(VectorFloppyDrive drive)
+void KorvetCore::ejectFloppyImage(KorvetFloppyDrive drive)
 {
     FdImage* disk = selectFloppy(m_diskA, m_diskB, drive);
     if (disk)
         disk->assignFileName("");
 }
 
-bool VectorCore::hddImagePresent() const
+bool KorvetCore::hddImagePresent() const
 {
     return m_hdd && m_hdd->getImagePresent();
 }
 
-std::string VectorCore::getHddFileName() const
+std::string KorvetCore::getHddFileName() const
 {
     return m_hdd ? m_hdd->getFileName() : std::string();
 }
 
-void VectorCore::chooseHddImage()
+void KorvetCore::chooseHddImage()
 {
     if (m_hdd)
         m_hdd->chooseFile("HDD-image file");
 }
 
-void VectorCore::ejectHddImage()
+void KorvetCore::ejectHddImage()
 {
     if (m_hdd)
         m_hdd->assignFileName("");
@@ -2507,7 +2396,7 @@ static constexpr uint32_t c_snapshotSectionCount = 18;
 
 static void snapshotFileName(char* fileName, unsigned slot)
 {
-    char* dst = appendText(fileName, "/vector06c/.snap");
+    char* dst = appendText(fileName, "/korvet/.snap");
     dst = appendUnsigned(dst, slot);
     *dst = '\0';
 }
@@ -2527,7 +2416,7 @@ static bool writeSnapshotSection(SnapshotWriter& writer,
 namespace {
 
 #pragma pack(push, 1)
-struct VectorCoreSnapshotStateV1 {
+struct KorvetCoreSnapshotStateV1 {
     uint32_t cpuFrequency;
     uint8_t cpuType;
     uint8_t intReq;
@@ -2545,19 +2434,19 @@ struct VectorCoreSnapshotStateV1 {
 
 } // namespace
 
-uint32_t VectorCore::snapshotSectionId() const
+uint32_t KorvetCore::snapshotSectionId() const
 {
     return makeSnapshotSectionId('C', 'O', 'R', 'E');
 }
 
-uint16_t VectorCore::snapshotSectionVersion() const
+uint16_t KorvetCore::snapshotSectionVersion() const
 {
     return 1;
 }
 
-bool VectorCore::saveState(SnapshotWriter& writer) const
+bool KorvetCore::saveState(SnapshotWriter& writer) const
 {
-    VectorCoreSnapshotStateV1 state{};
+    KorvetCoreSnapshotStateV1 state{};
     state.cpuFrequency = m_cpuFrequency;
     state.cpuType = static_cast<uint8_t>(getCpuType());
     state.intReq = m_intReq ? 1 : 0;
@@ -2573,13 +2462,13 @@ bool VectorCore::saveState(SnapshotWriter& writer) const
     return writer.writeValue(state);
 }
 
-bool VectorCore::loadState(SnapshotReader& reader, uint16_t version)
+bool KorvetCore::loadState(SnapshotReader& reader, uint16_t version)
 {
     if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(VectorCoreSnapshotStateV1))
+        reader.remaining() != sizeof(KorvetCoreSnapshotStateV1))
         return false;
 
-    VectorCoreSnapshotStateV1 state{};
+    KorvetCoreSnapshotStateV1 state{};
     if (!reader.readValue(state) ||
         state.cpuType > VECTOR_CPU_Z80 ||
         state.intReq > 1 || state.intsEnabled > 1 || state.tapeOut > 1 ||
@@ -2589,7 +2478,7 @@ bool VectorCore::loadState(SnapshotReader& reader, uint16_t version)
         state.tapeHooksEnabled > 1)
         return false;
 
-    setCpuType(static_cast<VectorCpuType>(state.cpuType));
+    setCpuType(static_cast<KorvetCpuType>(state.cpuType));
     setCpuFrequency(state.cpuFrequency);
     m_intReq = state.intReq != 0;
     m_intsEnabled = state.intsEnabled != 0;
@@ -2604,18 +2493,18 @@ bool VectorCore::loadState(SnapshotReader& reader, uint16_t version)
     return true;
 }
 
-void VectorCore::postLoad()
+void KorvetCore::postLoad()
 {
     inte(m_intsEnabled);
     tapeOut(m_tapeOut);
 }
 
-bool VectorCore::saveSnapshot(unsigned slot)
+bool KorvetCore::saveSnapshot(unsigned slot)
 {
     if (slot < 1 || slot > 12 || !g_emulation)
         return false;
 
-    f_mkdir("/vector06c");
+    f_mkdir("/korvet");
 
     char fileName[32];
     snapshotFileName(fileName, slot);
@@ -2624,7 +2513,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
         return false;
 
     SnapshotFileHeaderV2 header{};
-    std::memcpy(header.magic, "V06SNAP", 7);
+    std::memcpy(header.magic, "KORVSNAP", 7);
     header.formatVersion = c_snapshotFormatVersion;
     header.headerSize = sizeof(header);
     header.sectionCount = c_snapshotSectionCount;
@@ -2675,7 +2564,7 @@ bool VectorCore::saveSnapshot(unsigned slot)
     return ok;
 }
 
-bool VectorCore::removeSnapshot(unsigned slot)
+bool KorvetCore::removeSnapshot(unsigned slot)
 {
     if (slot < 1 || slot > 12)
         return false;
@@ -2687,13 +2576,13 @@ bool VectorCore::removeSnapshot(unsigned slot)
 }
 
 
-uint16_t VectorCore::snapshotFormatVersion()
+uint16_t KorvetCore::snapshotFormatVersion()
 {
     return c_snapshotFormatVersion;
 }
 
 
-bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
+bool KorvetCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
 {
     info = SnapshotInfo{};
     if (slot < 1 || slot > 12)
@@ -2719,12 +2608,12 @@ bool VectorCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
     header.firmwareVersion[sizeof(header.firmwareVersion) - 1] = 0;
     info.formatVersion = header.formatVersion;
     info.firmwareVersion = header.firmwareVersion;
-    return std::memcmp(header.magic, "V06SNAP", 7) == 0 &&
+    return std::memcmp(header.magic, "KORVSNAP", 7) == 0 &&
            header.headerSize >= sizeof(SnapshotFileHeaderV2);
 }
 
 
-VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
+KorvetCore::SnapshotLoadResult KorvetCore::loadSnapshot(unsigned slot,
                                                         std::string* firmwareVersion,
                                                         uint16_t* fileFormatVersion)
 {
@@ -2758,7 +2647,7 @@ VectorCore::SnapshotLoadResult VectorCore::loadSnapshot(unsigned slot,
         if (fileFormatVersion)
             *fileFormatVersion = header.formatVersion;
 
-        if (std::memcmp(header.magic, "V06SNAP", 7) != 0 ||
+        if (std::memcmp(header.magic, "KORVSNAP", 7) != 0 ||
             header.headerSize < sizeof(SnapshotFileHeaderV2)) {
             result = SnapshotLoadResult::InvalidFile;
         } else if (header.formatVersion != c_snapshotFormatVersion) {

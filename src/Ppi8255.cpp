@@ -24,7 +24,7 @@
 #include "Ppi8255.h"
 #include "Ppi8255Circuit.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 

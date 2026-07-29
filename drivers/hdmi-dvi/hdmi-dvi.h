@@ -24,7 +24,7 @@ static inline void graphics_set_bgcolor(uint32_t color888) {
 
 // RP2040: публикация видеопамяти и регистров Вектора для прямого
 // построчного рендеринга на core1 без полноэкранного framebuffer.
-void graphics_set_vector_source(const uint8_t* memory, const uint8_t* palette,
+void graphics_set_korvet_source(const uint8_t* memory, const uint8_t* palette,
                                 uint8_t border_color, uint8_t line_offset,
                                 bool mode512, bool show_border);
 

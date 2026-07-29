@@ -25,7 +25,7 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 #include "Cpu.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
@@ -61,7 +61,7 @@ void Emulation::init()
     m_mixer->setVolume(5);
     setVsync(true);
 
-    m_vector = new VectorCore();
+    m_korvet = new KorvetCore();
 
     // Все объекты созданы — собираем активные устройства и источники звука.
     // Порядок обхода списков совпадает с порядком создания, то есть с прежним
@@ -69,7 +69,7 @@ void Emulation::init()
     registerActiveDevices();
     m_mixer->collectSoundSources();
 
-    m_vector->init();
+    m_korvet->init();
 }
 
 
@@ -82,7 +82,7 @@ void Emulation::registerActiveDevices()
 
 Emulation::~Emulation()
 {
-    delete m_vector;
+    delete m_korvet;
     delete m_prnWriter;
     delete m_wavReader;
     delete m_mixer;
@@ -164,8 +164,8 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
     // Указатель на CPU нужен, чтобы не пересканировать массив на каждой его
     // команде. Состав активных устройств фиксирован с момента старта, поэтому
     // достаточно определить его один раз.
-    if (!m_cpuDev && m_vector)
-        m_cpuDev = m_vector->getCpu();   // Cpu -> ActiveDevice -> IActive
+    if (!m_cpuDev && m_korvet)
+        m_cpuDev = m_korvet->getCpu();   // Cpu -> ActiveDevice -> IActive
 
     while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
         // Ближайшее событие среди всех устройств, кроме CPU. Раньше этот проход
@@ -231,8 +231,8 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 
 void Emulation::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    if (m_vector)
-        m_vector->processKey(keyCode, isPressed, unicodeKey);
+    if (m_korvet)
+        m_korvet->processKey(keyCode, isPressed, unicodeKey);
 }
 
 static bool isAltPressed = false;
@@ -244,7 +244,7 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif
-    if (!m_vector)
+    if (!m_korvet)
         return;
 
     const bool altKey = keyCode == PK_LALT || keyCode == PK_RALT;
@@ -316,7 +316,7 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 
         // Эмуляция остаётся на паузе, пока работает модальное окно: закрыв
         // меню раньше, мы бы отпустили рендерер, и он затёр бы диалог.
-        m_vector->sysReq(sr);
+        m_korvet->sysReq(sr);
 
         // Модальный диалог читает очередь клавиш сам, через getKey(), поэтому
         // отпускания Alt, Shift и Ctrl до machineKey не доходят и флаги
@@ -347,9 +347,9 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 
     const SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
     if (sr)
-        m_vector->sysReq(sr);
+        m_korvet->sysReq(sr);
     else
-        m_vector->processKey(keyCode, isPressed, unicodeKey);
+        m_korvet->processKey(keyCode, isPressed, unicodeKey);
 }
 
 
@@ -360,8 +360,8 @@ void Emulation::resetKeys()
     isCtrlPressed = false;
     isLWinPressed = false;
     isRWinPressed = false;
-    if (m_vector)
-        m_vector->resetKeys();
+    if (m_korvet)
+        m_korvet->resetKeys();
 }
 
 
@@ -534,6 +534,6 @@ void Emulation::postLoad()
     m_prevSysClock = 0;
     m_sysClock = 0;
     m_debugReqCpu = nullptr;
-    m_cpuDev = m_vector ? m_vector->getCpu() : nullptr;
+    m_cpuDev = m_korvet ? m_korvet->getCpu() : nullptr;
 }
 

@@ -24,7 +24,7 @@
 #include "EmuObjects.h"
 #include "PalFile.h"
 
-class VectorCore;
+class KorvetCore;
 
 class WavWriter : public ActiveDevice
 {
@@ -38,7 +38,7 @@ class WavWriter : public ActiveDevice
         // Прежде WavWriter создавался и удалялся по ходу эмуляции, из
         // RkTapeOutHook::hookProc(), то есть регистрация активного устройства
         // происходила прямо внутри обхода их массива в Emulation::exec().
-        bool open(VectorCore* core, const std::string& fileName, bool cswFormat);
+        bool open(KorvetCore* core, const std::string& fileName, bool cswFormat);
         void close();
 
         // derived from EmuObject
@@ -85,7 +85,7 @@ class WavWriter : public ActiveDevice
         PalFile m_file;
         std::string m_fileName;
         bool m_open = false;
-        VectorCore* m_core = nullptr;
+        KorvetCore* m_core = nullptr;
         unsigned m_size = 0;
         bool m_initialValue = false;
         bool m_cswFormat = false;

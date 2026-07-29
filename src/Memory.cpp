@@ -37,7 +37,7 @@ extern uint32_t butter_psram_size();
 static FIL f;
 static bool sram_file_open = false;
 static unsigned sram_object_count = 0;
-static const char PAGEFILE[] = "/tmp/.v06c.pagefile";
+static const char PAGEFILE[] = "/tmp/.korvet.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
@@ -228,15 +228,30 @@ uint8_t __not_in_flash_func(Ram::readByte)(int addr)
 }
 
 // Rom implementation
-#include "pico/vector_loader.rom.h"
+#include "pico/korvet_loader.rom.h"
+#include "pico/korvet_rom1.bin.h"
+#include "pico/korvet_rom2.bin.h"
+#include "pico/korvet_rom3.bin.h"
 
 Rom::Rom(unsigned memSize, const string& fileName)
 {
     m_capacity = memSize;
     if (fileName == "vector/loader.rom") {
         // Встроенный образ: указатель и размер известны сразу, чтения нет
-        m_buf = vector_loader_rom;
-        m_size = sizeof(vector_loader_rom);
+        m_buf = korvet_loader_rom;
+        m_size = sizeof(korvet_loader_rom);
+        return;
+    } else if (fileName == "korvet/rom1.bin") {
+        m_buf = korvet_rom1_bin;
+        m_size = sizeof(korvet_rom1_bin);
+        return;
+    } else if (fileName == "korvet/rom2.bin") {
+        m_buf = korvet_rom2_bin;
+        m_size = sizeof(korvet_rom2_bin);
+        return;
+    } else if (fileName == "korvet/rom3.bin") {
+        m_buf = korvet_rom3_bin;
+        m_size = sizeof(korvet_rom3_bin);
         return;
     }
 
@@ -285,8 +300,8 @@ void Rom::useBuiltIn()
 {
     if (b_ram)
         delete[] m_buf;
-    m_buf = vector_loader_rom;
-    m_size = sizeof(vector_loader_rom);
+    m_buf = korvet_loader_rom;
+    m_size = sizeof(korvet_loader_rom);
     m_fileName.clear();
     b_ram = false;
 }

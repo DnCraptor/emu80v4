@@ -1203,7 +1203,7 @@ int main() {
     bool res = f_mount(&fs, "SD", 1) == FR_OK;
     palSetSdMounted(res);
     if (res) {
-        f_mkdir("/vector06c");
+        f_mkdir("/korvet");
         f_mkdir("/tmp");
         f_mkdir("/.config");
     }

@@ -20,7 +20,7 @@
 #include "Globals.h"
 #include "DiskImage.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Korvet.h"
 
 using namespace std;
 
