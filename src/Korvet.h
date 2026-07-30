@@ -110,6 +110,10 @@ class KorvetRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         bool getColorMode() const {return m_colorMode;}
         bool getCroppedToVisible() const {return !m_showBorder;}
 
+        // Бит VBL (portA бит 1): находится ли луч в видимом поле в текущий такт.
+        // Вычисляется по позиции луча, т.к. operate() тикает раз в кадр.
+        bool isDisplayActive() const;
+
         void setBorderColor(uint8_t color);
         void set512pxMode(bool mode512);
         void setLineOffset(uint8_t lineOffset);

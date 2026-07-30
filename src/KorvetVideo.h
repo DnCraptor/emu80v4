@@ -9,6 +9,15 @@
 class KorvetRenderer;
 class Pic8259;
 
+// Число банков ГЗУ (страниц) на каждую из 3 плоскостей.
+//   1 = базовый ПК8020 (48 КБ ГЗУ) — влезает в ОЗУ RP2350;
+//   4 = полное ГЗУ 192 КБ с page-flip (rwPage/displayPage) — для машин/сборок
+//       с достаточным объёмом ОЗУ (собирать с -DKORVET_VIDEO_PAGE_COUNT=4).
+// Размер буфера ниже выводится из этого же значения, поэтому они не разъедутся.
+#ifndef KORVET_VIDEO_PAGE_COUNT
+#define KORVET_VIDEO_PAGE_COUNT 1
+#endif
+
 class KorvetGraphicsAdapter : public AddressableDevice
 {
 public:
@@ -21,11 +30,7 @@ public:
     const uint8_t* getPlane(int plane) const {return m_planes[plane];}
     int getPageCount() const {return c_pageCount;}
 private:
-#if 0
-    static constexpr int c_pageCount = 4;
-#else
-    static constexpr int c_pageCount = 1;
-#endif
+    static constexpr int c_pageCount = KORVET_VIDEO_PAGE_COUNT;
     static constexpr int c_pageSize = 0x4000;
     uint8_t m_colorRegisterValue = 0;
     uint8_t m_rwPage = 0;

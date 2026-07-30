@@ -7,11 +7,9 @@
 #include "WavReader.h"
 
 namespace {
-#if 0
-uint8_t s_graphicsMemory[3][0x10000];
-#else
-uint8_t s_graphicsMemory[3][0x4000];
-#endif
+// Размер обязан совпадать с c_pageCount * c_pageSize; выводим из того же
+// макроса KORVET_VIDEO_PAGE_COUNT (см. KorvetVideo.h), чтобы не разъехалось.
+uint8_t s_graphicsMemory[3][KORVET_VIDEO_PAGE_COUNT * 0x4000];
 }
 
 KorvetGraphicsAdapter::KorvetGraphicsAdapter()
@@ -148,7 +146,8 @@ uint8_t KorvetVideoPpiCircuit::getPortA()
 {
     const uint8_t attr = m_textAdapter && m_textAdapter->getAttr() ? 0x08 : 0x00;
     const uint8_t tapeIn = g_emulation->getWavReader()->getCurValue() ? 0x01 : 0x00;
-    return 0xF0 | tapeIn | 0x04 | (m_vbl ? 0x02 : 0x00) | attr;
+    const bool displayActive = m_renderer ? m_renderer->isDisplayActive() : m_vbl;
+    return 0xF0 | tapeIn | 0x04 | (displayActive ? 0x02 : 0x00) | attr;
 }
 
 void KorvetVideoPpiCircuit::setPortB(uint8_t value)

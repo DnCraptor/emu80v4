@@ -603,6 +603,26 @@ void __not_in_flash_func(KorvetRenderer::vidMemWriteNotify)()
 }
 
 
+bool KorvetRenderer::isDisplayActive() const
+{
+    // Бит VBL в portA опрашивается ЦП асинхронно, а operate() тикает раз в
+    // кадр — значит хранить состояние нельзя, его надо вычислять из текущего
+    // такта относительно начала кадра. Активная развёртка соответствует
+    // строкам 39..295 (в оригинале vrtc(false) на строке 39 и vrtc(true) на
+    // строке 296, а setVbl = !vrtc).
+    if (m_ticksPerPixel == 0)
+        return true;
+    const uint64_t now = g_emulation->getCurClock();
+    const uint64_t elapsed = now > m_curFrameClock ? now - m_curFrameClock : 0;
+    int line = int((elapsed / m_ticksPerPixel) / 768);
+    if (line < 0)
+        line = 0;
+    else if (line > 311)
+        line = 311;
+    return line >= 39 && line < 296;
+}
+
+
 #ifndef PICO_RP2040
 void __not_in_flash_func(KorvetRenderer::renderLine)(int nLine, int firstPx, int lastPx, uint8_t* linePtr)
 {
