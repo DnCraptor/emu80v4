@@ -2,6 +2,9 @@
 #include "KorvetVideo.h"
 #include "Korvet.h"
 #include "Pic8259.h"
+#include "Emulation.h"
+#include "Globals.h"
+#include "WavReader.h"
 
 namespace {
 #if 0
@@ -144,7 +147,8 @@ void KorvetFddMotor::operate()
 uint8_t KorvetVideoPpiCircuit::getPortA()
 {
     const uint8_t attr = m_textAdapter && m_textAdapter->getAttr() ? 0x08 : 0x00;
-    return 0x04 | (m_vbl ? 0x02 : 0x00) | attr;
+    const uint8_t tapeIn = g_emulation->getWavReader()->getCurValue() ? 0x01 : 0x00;
+    return 0xF0 | tapeIn | 0x04 | (m_vbl ? 0x02 : 0x00) | attr;
 }
 
 void KorvetVideoPpiCircuit::setPortB(uint8_t value)

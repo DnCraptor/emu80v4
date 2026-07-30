@@ -399,6 +399,8 @@ class KorvetCore : public SnapshotSerializable
         void setRamDiskEnabled(int diskNum, bool enabled);
 
         void vrtc(bool isActive);
+        void hrtc(bool isActive);
+        void int4(bool isActive);
         void inte(bool isActive);
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
@@ -474,6 +476,7 @@ class KorvetCore : public SnapshotSerializable
         bool m_intReq = false;
         bool m_intsEnabled = false;
         bool m_curVrtc = false;
+        bool m_curHrtc = false;
         bool m_tapeOut = false;
 };
 

@@ -295,8 +295,7 @@ static const MenuPage processorPage {
 };
 
 static constexpr unsigned cpuClockValues[] = {
-    3000000, 3500000, 6000000, 7000000, 12000000,
-    14000000, 20000000, 24000000, 28000000
+    2500000, 5000000
 };
 
 int cpuClockGetValue()
@@ -370,15 +369,8 @@ static const char* cpuClockStatus()
 }
 
 static const MenuItem cpuClockItems[] = {
-    {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"6 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"7 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"12 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"14 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"20 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"24 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"2.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
     {nullptr, cpuFpsStatus, nullptr, nullptr, menuItemDisabled, nullptr},
     {nullptr, cpuLoadStatus, nullptr, nullptr, menuItemDisabled, nullptr},
     {nullptr, cpuClockStatus, nullptr, nullptr, menuItemDisabled, nullptr},

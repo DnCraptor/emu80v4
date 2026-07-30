@@ -148,6 +148,7 @@ struct Devices {
     KorvetVideoPpiCircuit    korvetVideoPpiCircuit;
     Ppi8255                  korvetVideoPpi;
     KorvetDevicesPage        korvetDevicesPage;
+    AddrSpace                korvetRegistersPage;
     AddrSpace                ioAddrSpace;
     KorvetRenderer           renderer;
     KorvetKeyboard           keyboard;
@@ -215,7 +216,11 @@ void KorvetAddrSpace::reset()
 void __not_in_flash_func(KorvetAddrSpace::writeByte)(int addr, uint8_t value)
 {
     const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
-    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF : addr;
+    if (page == 5 && m_cpu)
+        m_cpu->hrq(2);
+    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF
+                         : page == 6 ? addr & 0x00FF
+                         : addr;
     m_pages[page]->writeByte(deviceAddr, value);
 }
 
@@ -223,7 +228,11 @@ void __not_in_flash_func(KorvetAddrSpace::writeByte)(int addr, uint8_t value)
 uint8_t __not_in_flash_func(KorvetAddrSpace::readByte)(int addr)
 {
     const uint8_t page = korvet_mapper_mem[(m_addrSpaceSelector->getMemoryConfig() << 6) | (addr >> 8)];
-    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF : addr;
+    if (page == 5 && m_cpu)
+        m_cpu->hrq(2);
+    const int deviceAddr = page >= 1 && page <= 3 ? addr & 0x1FFF
+                         : page == 6 ? addr & 0x00FF
+                         : addr;
     return m_pages[page]->readByte(deviceAddr);
 }
 
@@ -431,6 +440,23 @@ void KorvetCore::vrtc(bool isActive)
 }
 
 
+void KorvetCore::int4(bool isActive)
+{
+    s_devices.pic.irq(4, isActive);
+}
+
+
+void KorvetCore::hrtc(bool isActive)
+{
+    if (m_curHrtc == isActive)
+        return;
+
+    m_curHrtc = isActive;
+    if (isActive && m_pit)
+        m_pit->getCounter(2)->operateForTicks(1);
+}
+
+
 
 KorvetRenderer::KorvetRenderer()
 {
@@ -494,6 +520,8 @@ void __not_in_flash_func(KorvetRenderer::operate)()
     m_curClock += m_ticksPerPixel * 768 * 312;
     m_lineOffsetIsLatched = false;
     renderFrame();
+    m_machine->int4(true);
+    m_machine->int4(false);
     m_machine->vrtc(true);
     m_lastColor = 0;
 }
@@ -524,6 +552,15 @@ void __not_in_flash_func(KorvetRenderer::advanceTo)(uint64_t clock)
         toPixel = 0;
     if (toPixel >= 312 * 768)
         toPixel = 312 * 768 - 1;
+
+    const int oldLine = m_curFramePixel / 768;
+    const int newLine = toPixel / 768;
+    for (int line = oldLine + 1; line <= newLine; ++line) {
+        (void)line;
+        m_machine->hrtc(true);
+        m_machine->hrtc(false);
+    }
+
     m_curFramePixel = toPixel;
 }
 
@@ -1501,13 +1538,14 @@ KorvetCore::KorvetCore()
     m_addrSpace->setPage(3, m_rom3);
     m_addrSpace->setPage(4, &s_devices.keyboardRegisters);
     m_addrSpace->setPage(5, &s_devices.korvetDevicesPage);
-    m_addrSpace->setPage(6, &s_devices.unmappedPage);
+    m_addrSpace->setPage(6, &s_devices.korvetRegistersPage);
     m_addrSpace->setPage(7, &s_devices.textAdapter);
     m_addrSpace->setPage(8, &s_devices.graphicsAdapter);
 
+    s_devices.korvetRegistersPage.addRange(0x7F, 0x7F, m_addrSpaceSelector);
+
     m_ioAddrSpace = &s_devices.ioAddrSpace;
     m_ioAddrSpace->setMachine(this);
-    m_ioAddrSpace->addRange(0x7F, 0x7F, m_addrSpaceSelector);
 
     s_devices.korvetColorRegister.setMachine(this);
     s_devices.korvetColorRegister.attachGraphicsAdapter(&s_devices.graphicsAdapter);
@@ -1515,10 +1553,10 @@ KorvetCore::KorvetCore()
     s_devices.renderer.attachTextAdapter(&s_devices.textAdapter);
     s_devices.korvetLutRegister.attachRenderer(&s_devices.renderer);
     s_devices.korvetVideoPpiCircuit.attachRenderer(&s_devices.renderer);
-    m_ioAddrSpace->addRange(0xBF, 0xBF, &s_devices.korvetColorRegister);
+    s_devices.korvetRegistersPage.addRange(0xBF, 0xBF, &s_devices.korvetColorRegister);
 
     s_devices.korvetLutRegister.setMachine(this);
-    m_ioAddrSpace->addRange(0xFB, 0xFB, &s_devices.korvetLutRegister);
+    s_devices.korvetRegistersPage.addRange(0xFB, 0xFB, &s_devices.korvetLutRegister);
 
     m_videoPpiCircuit = &s_devices.korvetVideoPpiCircuit;
     m_videoPpiCircuit->setMachine(this);
@@ -1926,6 +1964,8 @@ void KorvetCore::init()
     m_hddRegisters->init();
     m_diskA->init();
     m_diskB->init();
+    m_diskC->init();
+    m_diskD->init();
     m_hdd->init();
     m_loader->init();
     m_tapeInFile->init();
@@ -1978,6 +2018,8 @@ void KorvetCore::shutdown()
     m_hddRegisters->shutdown();
     m_diskA->shutdown();
     m_diskB->shutdown();
+    m_diskC->shutdown();
+    m_diskD->shutdown();
     m_hdd->shutdown();
     m_loader->shutdown();
     m_tapeInFile->shutdown();
@@ -2140,6 +2182,12 @@ void KorvetCore::reset()
     m_addrSpace->reset();
     m_addrSpaceSelector->reset();
     m_ioAddrSpace->reset();
+    s_devices.graphicsAdapter.reset();
+    s_devices.textAdapter.reset();
+    s_devices.korvetLutRegister.reset();
+    s_devices.korvetVideoPpi.reset();
+    s_devices.ppi3.reset();
+    s_devices.pic.reset();
     m_renderer->reset();
     m_keyboard->reset();
     m_kbdLayout->reset();
@@ -2161,6 +2209,8 @@ void KorvetCore::reset()
     m_hddRegisters->reset();
     m_diskA->reset();
     m_diskB->reset();
+    m_diskC->reset();
+    m_diskD->reset();
     m_hdd->reset();
     m_loader->reset();
     m_tapeInFile->reset();
