@@ -1784,6 +1784,9 @@ void showAboutDialog()
         "Murmulator community:",
         "https://t.me/ZX_MURMULATOR/279905",
         "",
+#ifdef PORT_VERSION
+        "Version: " PORT_VERSION,
+#endif
         "Build: " __DATE__ " " __TIME__,
         "",
         "Enter / Esc - close"
@@ -1796,11 +1799,11 @@ void showHelpDialog()
     static const char* const lines[] = {
         "Alt - open / close menu",
         "Ctrl+Alt+Del - hard reset (reboot)",
-        "Alt+F11 - reset the machine",
+        "Alt+F11 - fast reset the machine",
+        "F1+F11 - Korvet fast reset",
+        "F11 - full (cold) reset",
         "Alt+L / Alt+F3 - load / load and run",
-        "Alt+A / Alt+B - mount disk A / B",
-        "Alt+F4 - mount HDD image",
-        "Alt+E / Alt+O - RAM-disk open / save",
+        "Alt+A / Alt+B - mount disk A / B (.kdi/.fdd)",
         "Alt+T - tape redirect on / off",
         "Alt+C / Alt+V - color / crop toggle",
         "Alt+Q / Alt+J / Alt+K - kbd layouts",

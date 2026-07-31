@@ -1766,7 +1766,7 @@ KorvetCore::KorvetCore()
     m_hdd->setMachine(this);
     m_hdd->setSnapshotIndex(2);
     m_hdd->setLabel("HDD");
-    m_hdd->setFilter("Образы HDD Вектора (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
+    m_hdd->setFilter("Образы HDD Корвета (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
     m_ataDrive->assignDiskImage(m_hdd);
 
     m_loader = &s_devices.loader;
