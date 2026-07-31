@@ -626,19 +626,13 @@ static const MenuPage korvetStoragePage {
 
 const char* soundTitle()
 {
-    if (palAudioIsHwAy())
-        return "Sound (HWAY)";
     return palAudioIsI2S() ? "Sound (I2S)" : "Sound (PWM)";
 }
 
 const char* soundOutputTitle()
 {
-    // Порядок перебора: PWM -> I2S -> HWAY -> PWM
-    if (palAudioIsHwAy())
-        return "Output: HWAY (to PWM)";
-    if (palAudioIsI2S())
-        return "Output: I2S (to HWAY)";
-    return "Output: PWM (to I2S)";
+    // Порядок перебора: PWM <-> I2S (HWAY не поддержан)
+    return palAudioIsI2S() ? "Output: I2S (to PWM)" : "Output: PWM (to I2S)";
 }
 
 bool soundOutputEnabled()
@@ -648,15 +642,10 @@ bool soundOutputEnabled()
 
 void toggleSoundOutput()
 {
-    if (palAudioIsHwAy()) {            // HWAY -> PWM
+    // HWAY не поддержан: переключаем только PWM <-> I2S.
+    if (palAudioIsHwAy())
         palSetAudioOutputHwAy(false);
-        palSetAudioOutputI2S(false);
-    } else if (palAudioIsI2S()) {      // I2S -> HWAY
-        palSetAudioOutputI2S(false);
-        palSetAudioOutputHwAy(true);
-    } else {                           // PWM -> I2S
-        palSetAudioOutputI2S(true);
-    }
+    palSetAudioOutputI2S(!palAudioIsI2S());
 }
 
 bool s_userMuted = false;
@@ -1247,35 +1236,6 @@ const char* videoShiftStatus()
     } else {
         *dst++ = '+';
         dst = appendUnsigned(dst, static_cast<unsigned>(y));
-    }
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core) {
-        dst = appendText(dst, " Page=");
-        dst = appendUnsigned(dst, core->getVideoDisplayPage());
-        dst = appendText(dst, " Font=");
-        dst = appendUnsigned(dst, core->getVideoFontNumber());
-        dst = appendText(dst, core->getVideoWideCharMode() ? " Wide" : " Normal");
-        const uint16_t pc = core->getCpuPc();
-        dst = appendText(dst, " PC=");
-        dst = appendUnsigned(dst, pc);
-        dst = appendText(dst, " OP=");
-        dst = appendUnsigned(dst, core->getCpuMemoryByte(pc));
-        *dst++ = ',';
-        dst = appendUnsigned(dst, core->getCpuMemoryByte(static_cast<uint16_t>(pc + 1)));
-        *dst++ = ',';
-        dst = appendUnsigned(dst, core->getCpuMemoryByte(static_cast<uint16_t>(pc + 2)));
-        dst = appendText(dst, " AF=");
-        dst = appendUnsigned(dst, core->getCpuAf());
-        dst = appendText(dst, " BC=");
-        dst = appendUnsigned(dst, core->getCpuBc());
-        dst = appendText(dst, " DE=");
-        dst = appendUnsigned(dst, core->getCpuDe());
-        dst = appendText(dst, " HL=");
-        dst = appendUnsigned(dst, core->getCpuHl());
-        dst = appendText(dst, " SP=");
-        dst = appendUnsigned(dst, core->getCpuSp());
-        dst = appendText(dst, " CFG=");
-        dst = appendUnsigned(dst, core->getMemoryConfig());
     }
     *dst = '\0';
     return videoShiftStatusBuffer;

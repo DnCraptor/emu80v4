@@ -2321,10 +2321,6 @@ void KorvetCore::sysReq(SysReq sr)
         case SR_DISKB:
             chooseFloppyImage(KorvetFloppyDrive::B);
             break;
-#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
-        case SR_HDD:
-            chooseHddImage();
-            break;
         case SR_LOAD:
             if (m_loader) {
                 m_loader->chooseAndLoadFile();
@@ -2334,6 +2330,10 @@ void KorvetCore::sysReq(SysReq sr)
             if (m_loader) {
                 m_loader->chooseAndLoadFile(true);
             }
+            break;
+#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
+        case SR_HDD:
+            chooseHddImage();
             break;
         case SR_DEBUG:
             // show debugger
