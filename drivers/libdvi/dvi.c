@@ -408,7 +408,21 @@ bool __dvi_func(dvi_update_data_packet_)(struct dvi_inst *inst, data_packet_t *p
     }
 
     inst->audio_sample_pos += inst->samples_per_line24;
-    if (inst->timing_state.v_state == DVI_STATE_FRONT_PORCH) {
+    // Служебные посылки идут в ЗАДНЕМ гасящем интервале, а не в переднем.
+    // v_ctr считается внутри состояния и обнуляется на каждом переходе, а у
+    // режима 800x600@60 передний интервал — ровно ОДНА строка
+    // (v_front_porch = 1), поэтому в DVI_STATE_FRONT_PORCH v_ctr принимал
+    // только значение 0: из четырёх посылок уходила лишь audio_info_frame, а
+    // Audio Clock Regeneration (N/CTS), AVI и vendor InfoFrame не уходили
+    // никогда. Без ACR приёмник не может восстановить частоту дискретизации
+    // звука, без AVI InfoFrame он вправе считать поток DVI (то есть вообще без
+    // звука) — отсюда «звук по HDMI не соответствует правде»: до телевизора
+    // доходили редкие отсчёты, растянутые его АЦП/ASRC в ступеньки.
+    // Исходный код рассчитан на 640x480@60 (v_front_porch = 10), где все
+    // четыре строки существуют. В заднем интервале строк заведомо хватает:
+    // 23 при 800x600@60, 33 при 640x480@60. Список DMA здесь тот же
+    // dma_list_vblank_nosync с включённым data island.
+    if (inst->timing_state.v_state == DVI_STATE_BACK_PORCH) {
         if (inst->timing_state.v_ctr == 0) {
             *packet = inst->audio_info_frame;
             return true;
