@@ -148,15 +148,11 @@ void Emulation::unregisterActiveDevice(IActive* device)
 /// TODO: .h
 extern void processKeys();
 
-void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
+void __not_in_flash_func(Emulation::exec)(uint64_t ticks)
 {
     m_lastExecDidWork = false;
     processKeys();
-    // forced означает «выполнить несмотря ни на что»: так загрузчик .fdd
-    // прокручивает 25 млн тактов, чтобы ПЗУ успело загрузиться с дискеты.
-    // Пока меню держит эмуляцию на паузе, без этой оговорки exec() выходил
-    // сразу, и сценарий загрузки .fdd по Alt+F3 переставал работать.
-    if (m_isPaused && !forced)
+    if (m_isPaused)
         return;
 
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
@@ -167,7 +163,7 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
     if (!m_cpuDev && m_korvet)
         m_cpuDev = m_korvet->getCpu();   // Cpu -> ActiveDevice -> IActive
 
-    while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
+    while ((m_curClock < toTime) && !m_debugReqCpu) {
         // Ближайшее событие среди всех устройств, кроме CPU. Раньше этот проход
         // выполнялся на каждую команду 8080, хотя побеждал в нём почти всегда
         // сам CPU: ближайшее чужое событие — звуковой сэмпл раз в ~7 команд.
@@ -223,7 +219,7 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 
     m_clockOffset = m_curClock - toTime;
 
-    if (!forced && m_debugReqCpu)
+    if (m_debugReqCpu)
         m_clockOffset = 0;
 
 }

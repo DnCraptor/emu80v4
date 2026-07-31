@@ -77,7 +77,7 @@ class Emulation : public SnapshotSerializable
         void resetKeys();
 
         void mainLoopCycle();
-        void exec(uint64_t ticks, bool forced = false);
+        void exec(uint64_t ticks);
         void notifyFrameRendered() {++m_renderedFrames;}
         bool performanceStatsReady() const {return m_fpsReady;}
         unsigned getVideoFps() const {return m_videoFps;}

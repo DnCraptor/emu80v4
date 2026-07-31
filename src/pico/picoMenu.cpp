@@ -1395,18 +1395,6 @@ static const MenuPage psramFreqPage {
 
 void machineReset() { invokeSysReq(SR_RESET); }
 
-void machineResetTurnOnRom()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core) core->resetTurnOnRom();
-}
-
-void machineResetTurnOffRom()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core) core->resetTurnOffRom();
-}
-
 void rebootDevice() { palReboot(); }
 
 static const MenuItem systemItems[] = {

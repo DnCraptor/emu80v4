@@ -248,18 +248,6 @@ void KorvetAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
 }
 
 
-void KorvetAddrSpace::enableRom()
-{
-    // Compatibility only. ROM visibility is controlled by mapper.mem.
-}
-
-
-void KorvetAddrSpace::disableRom()
-{
-    // Compatibility only. ROM visibility is controlled by mapper.mem.
-}
-
-
 void KorvetAddrSpace::rebuildPageMap()
 {
     if (!m_cpu)
@@ -1013,7 +1001,7 @@ bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool read
     auto periodPos = fileName.find_last_of(".");
     string ext = periodPos != string::npos ? fileName.substr(periodPos) : fileName;
     transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-    if (ext == ".fdd") {
+    if (ext == ".kdi") {
         if (!m_machine->assignDiskAFileName(fileName, readOnly))
             return false;
 
@@ -1024,12 +1012,8 @@ bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool read
 
         Cpu8080Compatible* cpu = m_machine->getCpu();
         KorvetAddrSpace* addrSpace = m_machine->getAddrSpace();
-        addrSpace->enableRom();
-        g_emulation->exec((int64_t)cpu->getKDiv() * 25000000, true);
-
         if (run) {
             m_machine->reset();
-            addrSpace->disableRom();
         }
         return true;
     }
@@ -1051,10 +1035,6 @@ bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool read
     Cpu8080Compatible* cpu = m_machine->getCpu();
     KorvetAddrSpace* as = m_machine->getAddrSpace();
     m_machine->reset();
-    as->enableRom();
-    cpu->disableHooks();
-    g_emulation->exec(int64_t(cpu->getKDiv()) * m_skipTicks, true);
-    cpu->enableHooks();
 
     for (unsigned i = 0; i < 0x100; i++)
         m_addrSpace->writeByte(i, 0x00);
@@ -1098,12 +1078,8 @@ bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool read
 
         for (int i = 0; i < 0x39c6; i++)
             m_addrSpace->writeByte(0x0100 + i, as->readByte(0x08C5 + i));
-        as->disableRom();
         cpu->setPC(begAddr);
         cpu->setIFF(false);
-        cpu->disableHooks();
-        g_emulation->exec(int64_t(cpu->getKDiv()) * 4000000, true);
-        cpu->enableHooks();
         m_addrSpace->writeByte(0x4300, 0);
 
         uint16_t addr, nextAddr;
@@ -1146,11 +1122,9 @@ bool KorvetFileLoader::loadFile(const std::string& fileName, bool run, bool read
     f_close(&g_file);
 
     if (run) {
-        as->disableRom();
         cpu->setPC(begAddr);
         cpu->setIFF(false);
     } else {
-        as->enableRom();
         cpu->setPC(0xDF);
     }
 
@@ -1772,7 +1746,7 @@ KorvetCore::KorvetCore()
     m_loader = &s_devices.loader;
     m_loader->setMachine(this);
     m_loader->attachAddrSpace(m_ram);
-    m_loader->setFilter("Файлы Вектора (*.rom;*.r0m;*.vec;*.cas;*.bas;*fdd)|*.rom;*.ROM;*.rom;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.fdd;*.FDD|Все файлы (*.*)|*");
+    m_loader->setFilter("Файлы Корвета (*.rom;*.r0m;*.vec;*.cas;*.bas;*.kdi)|*.rom;*.ROM;*.r0m;*.R0M;*.vec;*.VEC;*.cas;*.CAS;*.bas;*.BAS;*.kdi;*.KDI|Все файлы (*.*)|*");
 
     // Единственный на прошивку. Регистрируется как активное устройство один
     // раз здесь и до открытия файла остаётся приостановленным.
@@ -2170,29 +2144,6 @@ int KorvetCore::getKbdLayoutModeIndex() const
         default:                    return 0;
     }
 }
-
-
-// Повторяют поведение KorvetKbdLayout::processSpecialKeys для F11/F12, чтобы
-// эти сбросы были доступны из меню. Обёртка disable/enableKeysReset нужна,
-// чтобы сам сброс не был воспринят как удержание клавиши.
-void KorvetCore::resetTurnOnRom()
-{
-    Keyboard* keyboard = getKeyboard();
-    if (keyboard)
-        keyboard->disableKeysReset();
-    reset();
-    if (keyboard)
-        keyboard->enableKeysReset();
-}
-
-
-void KorvetCore::resetTurnOffRom()
-{
-    resetTurnOnRom();
-    if (m_addrSpace)
-        m_addrSpace->disableRom();
-}
-
 
 void KorvetCore::setCpuFrequency(unsigned frequency)
 {

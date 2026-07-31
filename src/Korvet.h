@@ -366,12 +366,6 @@ class KorvetCore : public SnapshotSerializable
         uint8_t getMemoryConfig() const;
         int getKbdLayoutModeIndex() const;
 
-        // Аппаратные сбросы Вектор-06Ц, дублирующие клавиши F11/F12, чтобы их
-        // можно было вызвать из меню:
-        //   resetTurnOnRom  — F11 (БЛК+ВВОД): сброс, ПЗУ включено (в монитор);
-        //   resetTurnOffRom — F12 (БЛК+СБР):  сброс, ПЗУ выключено (из ОЗУ).
-        void resetTurnOnRom();
-        void resetTurnOffRom();
         unsigned getCpuFrequency() const {return m_cpuFrequency;}
         void setCpuFrequency(unsigned frequency);
         Keyboard* getKeyboard();
@@ -500,8 +494,6 @@ class KorvetAddrSpace : public AddressableDevice, public SnapshotSerializable
         void setPage(int pageNum, AddressableDevice* page) {m_pages[pageNum] = page;}
         void attachRamDisk(int diskNum, SRam* ramDisk);
         void attachCrtRenderer(KorvetRenderer* crtRenderer) {m_crtRenderer = crtRenderer; rebuildPageMap();}
-        void enableRom();
-        void disableRom();
 
         // Перестроить быструю карту страниц в CPU по текущей конфигурации памяти.
         // Вызывается из всех операций, меняющих раскладку; на горячем пути не лежит.
