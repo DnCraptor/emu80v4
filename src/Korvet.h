@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2022
  *
@@ -735,7 +735,7 @@ class KorvetKbdLayout : public KbdLayout
         bool processSpecialKeys(PalKeyCode keyCode) override;
 
     private:
-        bool m_downAsNumpad5 = false;
+        bool m_downAsNumpad5 = true;
 };
 
 

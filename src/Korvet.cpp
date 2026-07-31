@@ -2315,13 +2315,13 @@ void KorvetCore::sysReq(SysReq sr)
                 m_renderer->toggleColorMode();
             }
             break;
-#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
         case SR_DISKA:
             chooseFloppyImage(KorvetFloppyDrive::A);
             break;
         case SR_DISKB:
             chooseFloppyImage(KorvetFloppyDrive::B);
             break;
+#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
         case SR_HDD:
             chooseHddImage();
             break;
