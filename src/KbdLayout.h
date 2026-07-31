@@ -212,7 +212,10 @@ class KbdLayout : public EmuObject
         virtual bool processSpecialKeys(PalKeyCode) {return false;}
 
         EmuKey translateCommonKeys(PalKeyCode keyCode);
+        EmuKey translateCommonKeysQwerty(PalKeyCode keyCode);
+        EmuKey translateCommonKeysJcuken(PalKeyCode keyCode);
         EmuKey translateCommonUnicodeKeys(unsigned unicodeKey, bool& shift, bool& lang);
+        bool isShiftPressed() const {return m_shiftPressed;}
 
     private:
         bool m_shiftPressed = false;
@@ -228,8 +231,6 @@ class KbdLayout : public EmuObject
 
         KbdLayoutHelper* m_helper = nullptr;
 
-        EmuKey translateCommonKeysQwerty(PalKeyCode keyCode);
-        EmuKey translateCommonKeysJcuken(PalKeyCode keyCode);
 };
 
 

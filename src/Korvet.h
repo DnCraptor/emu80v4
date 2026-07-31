@@ -721,13 +721,19 @@ class KorvetColorRegister : public AddressableDevice
 
 class KorvetKbdLayout : public KbdLayout
 {
+    public:
+        void resetSmartState() {m_smartRus = false;}
+
     protected:
         EmuKey translateKey(PalKeyCode keyCode) override;
+        EmuKey translateSmartKey(PalKeyCode keyCode);
+        unsigned translateSmartUnicodeKey(PalKeyCode keyCode) const;
         EmuKey translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang) override;
         bool processSpecialKeys(PalKeyCode keyCode) override;
 
     private:
         bool m_downAsNumpad5 = true;
+        bool m_smartRus = false;
 };
 
 

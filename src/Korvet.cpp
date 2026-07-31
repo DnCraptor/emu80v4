@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <cwctype>
 #include <cstring>
 #include <new>
 
@@ -1300,10 +1301,95 @@ uint8_t KorvetKeyboardRegisters::readByte(int addr)
 }
 
 
+unsigned KorvetKbdLayout::translateSmartUnicodeKey(PalKeyCode keyCode) const
+{
+    const bool shift = isShiftPressed();
+
+    if (keyCode >= PK_A && keyCode <= PK_Z) {
+        static const wchar_t rusLetters[] = {
+            L'Ф', L'И', L'С', L'В', L'У', L'А', L'П', L'Р', L'Ш', L'О', L'Л', L'Д', L'Ь',
+            L'Т', L'Щ', L'З', L'Й', L'К', L'Ы', L'Е', L'Г', L'М', L'Ц', L'Ч', L'Н', L'Я'
+        };
+        wchar_t ch = m_smartRus ? rusLetters[keyCode - PK_A] : L'A' + (keyCode - PK_A);
+        if (shift)
+            ch = std::towlower(ch);
+        return static_cast<unsigned>(ch);
+    }
+
+    switch (keyCode) {
+    case PK_KP_PLUS: return L'+';
+    case PK_1: return shift ? L'!' : L'1';
+    case PK_2: return shift ? (m_smartRus ? L'"' : L'@') : L'2';
+    case PK_3: return shift ? L'#' : L'3';
+    case PK_4: return shift ? L'$' : L'4';
+    case PK_5: return shift ? L'%' : L'5';
+    case PK_6: return shift ? L'^' : L'6';
+    case PK_7: return shift ? (m_smartRus ? L'?' : L'\'') : L'7';
+    case PK_8: return shift ? L'*' : L'8';
+    case PK_9: return shift ? L'(' : L'9';
+    case PK_0: return shift ? L')' : L'0';
+    default: break;
+    }
+
+    if (!m_smartRus) {
+        switch (keyCode) {
+        case PK_MINUS: return shift ? L'_' : L'-';
+        case PK_EQU: return shift ? L'+' : L'=';
+        case PK_LBRACKET: return L'[';
+        case PK_RBRACKET: return L']';
+        case PK_BSLASH: return shift ? L'|' : L'\\';
+        case PK_SEMICOLON: return shift ? L':' : L';';
+        case PK_APOSTROPHE: return shift ? L'"' : L'\'';
+        case PK_COMMA: return shift ? L'<' : L',';
+        case PK_PERIOD: return shift ? L'>' : L'.';
+        case PK_SLASH: return shift ? L'?' : L'/';
+        default: return 0;
+        }
+    }
+
+    switch (keyCode) {
+    case PK_MINUS: return shift ? L'_' : L'-';
+    case PK_EQU: return shift ? L'+' : L'=';
+    case PK_LBRACKET: return shift ? L'Х' : L'х';
+    case PK_RBRACKET: return L']';
+    case PK_BSLASH: return shift ? L'Э' : L'э';
+    case PK_SEMICOLON: return shift ? L'+' : L'ж';
+    case PK_APOSTROPHE: return shift ? L'"' : L'э';
+    case PK_COMMA: return shift ? L'<' : L'б';
+    case PK_PERIOD: return shift ? L'>' : L'ю';
+    case PK_SLASH: return shift ? L',' : L'.';
+    default: return 0;
+    }
+}
+
+
+EmuKey KorvetKbdLayout::translateSmartKey(PalKeyCode keyCode)
+{
+    // In the Smart table each PC key is paired with the character printed
+    // on the same key. The Korvet matrix key must therefore be selected
+    // by the Latin character, not by the JCUKEN key position.
+    switch (keyCode) {
+    case PK_RBRACKET: return EK_RBRACKET;
+    case PK_BSLASH: return EK_BKSLASH;
+    case PK_SEMICOLON: return EK_SEMICOLON;
+    case PK_APOSTROPHE: return EK_CARET;
+    case PK_COMMA: return EK_COMMA;
+    case PK_PERIOD: return EK_PERIOD;
+    case PK_SLASH: return EK_SLASH;
+    case PK_TILDE: return EK_NONE;
+    default: break;
+    }
+
+    EmuKey key = translateCommonKeysQwerty(keyCode);
+    return key != EK_NONE ? key : translateCommonKeys(keyCode);
+}
+
+
 EmuKey KorvetKbdLayout::translateKey(PalKeyCode keyCode)
 {
     switch (keyCode) {
     case PK_INS: return EK_INS;
+    case PK_HOME: return EK_SHOME;
     case PK_DEL: return EK_DEL;
     case PK_PGUP: return EK_LANG;
     case PK_KP_0: return EK_PHOME;
@@ -1311,7 +1397,7 @@ EmuKey KorvetKbdLayout::translateKey(PalKeyCode keyCode)
     default: break;
     }
 
-    EmuKey key = translateCommonKeys(keyCode);
+    EmuKey key = m_mode == KLM_SMART ? translateSmartKey(keyCode) : translateCommonKeys(keyCode);
     if (key != EK_NONE)
         return key;
 
@@ -1340,6 +1426,9 @@ EmuKey KorvetKbdLayout::translateKey(PalKeyCode keyCode)
 
 EmuKey KorvetKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyCode, bool& shift, bool& lang)
 {
+    if (m_mode == KLM_SMART && unicodeKey == 0)
+        unicodeKey = translateSmartUnicodeKey(keyCode);
+
     if (keyCode == PK_KP_MUL || keyCode == PK_KP_DIV || keyCode == PK_KP_MINUS)
         return EK_NONE;
 
@@ -1355,6 +1444,11 @@ EmuKey KorvetKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyC
     EmuKey key = translateCommonUnicodeKeys(unicodeKey, shift, lang);
     if (unicodeKey == L'@')
         shift = false;
+    else if (unicodeKey == L'\'') {
+        key = EK_7;
+        shift = true;
+        lang = false;
+    }
     else if (unicodeKey == L'`') {
         key = EK_AT;
         shift = true;
@@ -1370,6 +1464,9 @@ EmuKey KorvetKbdLayout::translateUnicodeKey(unsigned unicodeKey, PalKeyCode keyC
 
 bool KorvetKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 {
+    if (m_mode == KLM_SMART && keyCode == PK_PGUP)
+        m_smartRus = !m_smartRus;
+
     if (keyCode != PK_F11)
         return false;
 
@@ -2180,6 +2277,7 @@ void KorvetCore::reset()
     s_devices.pic.reset();
     m_renderer->reset();
     m_keyboard->reset();
+    m_kbdLayout->resetSmartState();
     m_kbdLayout->reset();
     m_kbdTapper->reset();
     m_ppiCircuit->reset();
@@ -2243,16 +2341,20 @@ void KorvetCore::sysReq(SysReq sr)
             break;
         case SR_QUERTY:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
                 m_kbdLayout->setQwertyMode();
             }
             break;
         case SR_JCUKEN:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
                 m_kbdLayout->setJcukenMode();
             }
             break;
         case SR_SMART:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
+                m_kbdLayout->resetSmartState();
                 m_kbdLayout->setSmartMode();
             }
             break;
