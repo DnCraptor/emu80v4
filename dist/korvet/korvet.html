@@ -6,43 +6,32 @@
     <title></title>
   </head>
   <body>
-    <h2></h2>
-    <h2>Вектор-06ц. Краткая справка</h2>
+    <h2>Корвет. Краткая справка</h2>
     <h3>Общая информация</h3>
-    <p>После выбора данной конфигурации из ПЗУ запускается программа-загрузчик.
-      Дальнейшие действия с ней описаны ниже.</p>
-    <h3>Загрузка файлов с помощью встроенного загрузчика</h3>
-    <p>Двоичные файлы Вектора (.rom, .r0m, .vec), а также файлы Бейсика 2.5
-      (.cas, .bas) можно загружать с помощью пункта меню «Файл -&gt; Загрузить и
-      выполнить», комбинации клавиш Alt-F3 (Meta-F3), либо соответствующей
-      кнопки на панели инструментов. Можно также перетащить нужный файл в окно
-      эмулятора.</p>
-    <h3>Запуск встроенного в загрузчик Бейсика</h3>
-    <p>Для запуска встроенного Бейсика нужно нажать и удерживать F3, после чего
-      выполнить сброс Вектора клавишей F11. На экране будет отображаться процесс
-      загрузки. Для запуска программы после загрузки нужно нажать F12.</p>
-    <h3>Запуск встроенного в загрузчик Монитора-отладчика</h3>
-    <p>Запуск встроенного Монитора производится аналогично описанному выше
-      запуску Бейсика, но нажать и удерживать необходимо клавишу F4.</p>
-    <h3>Загрузка с использованием перехватов магнитофонных операций</h3>
-    <p>В эмуляторе реализован перехват операций с магнитофоном для Бейсика 2.5,
-      Монитора и эмулятора РК/Микроши. Для загрузки файлов Бейсика (.cas) нужно
-      воспользоваться командой «CLOAD""».</p>
+    <p>После сброса и прохождения тестов без подключенных образов дисков&nbsp;
+      запускается встроенный Бейсик. Для запуска программ в большинстве случаев
+      следует подключить образ диска в формате .kdi.</p>
     <h3>Работа с образами дисков</h3>
-    <p>Файлы образов дискет (.fdd) и электронного диска (*.edd) подключаются с
-      помощью горячих клавиш Alt-A (Meta-A) для диска «A», Alt-B (Meta-B) для
-      диска «B» и Alt-E (Meta-E) - для электронного диска. Можно также
-      использовать соответствующие пункты меню или кнопки на панели
-      инструментов.</p>
-    <p>Для загрузки с электронного диска нужно перезагрузить Вектор с помощью
-      клавиши F11. Для загрузки с диска Aнужно при этом нажать и удерживать
-      одновременно клавиши F1+F2 (F1+F2 можно не нажимать, если электронный диск
-      не подключен). После перезагрузки нужно нажать F12 для загрузки с диска.</p>
+    <p> Файлы образов дискет (.kdi) для дисководов A-D подключаются с помощью
+      кнопок на панели инструментов, горячих клавиш Alt-A (Meta-A) для диска «A»
+      и Alt-B (Meta-B) — для диска «B» либо соответстующих пунктов меню.
+      Загрузка с диска A происходит автоматически после сброса. После загрузки
+      операционной системы CP/M можно набрать DIR для вывода списка файлов на
+      диске либо набрать имя программы для ее запуска.</p>
+    <h3>Особенности сброса</h3>
+    <p>По умолчанию в эмуляторе активирован быстрый сброс с помощью клавиш
+      Alt-F11, для быстрого сброса можно также воспользоваться штатным способом
+      Корвета — F1+F11 (просто F11 — всегда полный сброс).</p>
+    <h3>Загрузка с использованием перехватов магнитофонных операций</h3>
+    <p>В эмуляторе реализован перехват магнитофонных операций и работа с файлами
+      формата .cas. Чаще всего данный формат применяется в Бейсике. Для загрузки
+      файлов служит команда Бейсика «LOAD"CAS:"».
+    </p>
     <h3>Соответствие клавиш и раскладки клавиатуры</h3>
-    <p>Для Вектора рекомендуется использовать «Умную» раскладку клавиатуры, ввод
-      буквенно-цифровых символов при этом производится как обычно, раскладка
-      переключается средствами ОС, в которой запущен эмулятор. Раскладки клавиатуры
-      приведены ниже:</p>
+    <p>Для ПК «Корвет» рекомендуется использовать «Умную» раскладку клавиатуры,
+      ввод буквенно-цифровых символов при этом производится как обычно,
+      раскладка и регистр переключается средствами ОС, в которой запущен
+      эмулятор. Раскладки клавиатуры приведены ниже:</p>
     <h4>«Умная» раскладка:</h4>
     <table class="kbd">
       <tbody>
@@ -120,7 +109,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="6">АР2</td>
+          <td colspan="6">ПРФ</td>
           <td colspan="6" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">F1</td>
@@ -130,15 +119,15 @@
           <td colspan="3" class="blank"><br>
           </td>
           <td colspan="6">F5</td>
-          <td colspan="6" class="unused">F6</td>
+          <td colspan="6">_</td>
           <td colspan="6" class="unused">F7</td>
-          <td colspan="6" class="unused">F8</td>
+          <td colspan="6">◯</td>
           <td colspan="3" class="blank"><br>
           </td>
-          <td colspan="6" class="unused">F9</td>
-          <td colspan="6" class="unused">F10</td>
-          <td colspan="6">ВВ.<br/>БЛК</td>
-          <td colspan="6">СБР<br/>БЛК</td>
+          <td colspan="6">СЕЛ</td>
+          <td colspan="6">ГРФ</td>
+          <td colspan="6">RES</td>
+          <td colspan="6"><span style="font-size:x-small">СТОП</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="unused">PS</td>
@@ -146,7 +135,7 @@
           <td colspan="6" class="special">Ps</td>
           <td colspan="8" class="blank"><br>
           </td>
-          <td colspan="18" class="title"> <b>Вектор-06Ц</b><br>
+          <td colspan="18" class="title"> <b>Корвет</b><br>
             (smart) </td>
         </tr>
         <tr>
@@ -208,15 +197,15 @@
           </td>
           <td colspan="12">ЗБ</td>
           <td colspan="2" class="blank">&nbsp;</td>
-          <td colspan="6">ЛАТ</td>
+          <td colspan="6">ИЗ</td>
           <td colspan="6">↖</td>
-          <td colspan="6">СТР</td>
+          <td colspan="6"><span style="font-size:x-small">АЛФ</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="special">N/L</td>
-          <td colspan="6">/</td>
-          <td colspan="6">*</td>
-          <td colspan="6">-</td>
+          <td colspan="6">ВЗ</td>
+          <td colspan="6">ИЗ</td>
+          <td colspan="6"><span style="font-size:x-small">СТРН</span></td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
         </tr>
         <tr>
@@ -276,13 +265,13 @@
           </td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
-          <td colspan="6" class="unused">Del</td>
+          <td colspan="6">ВЗ</td>
           <td colspan="6" class="special">Spd</td>
-          <td colspan="6">ПС</td>
+          <td colspan="6" class="unused">PgDn</td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇖&nbsp;</div>
             <div align="left">&nbsp;7</div>
           </td>
           <td colspan="6">
@@ -290,7 +279,7 @@
             <div align="left">&nbsp;8</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇘&nbsp;</div>
             <div align="left">&nbsp;9</div>
           </td>
           <td colspan="6" rowspan="2">+</td>
@@ -351,7 +340,7 @@
             <div align="left">&nbsp;4</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right"><span style="font-size:x-small">меню</span></div>
             <div align="left">&nbsp;5</div>
           </td>
           <td colspan="6">
@@ -362,7 +351,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="14">СС</td>
+          <td colspan="14">РГ</td>
           <td colspan="6">
             <div align="right">Я&nbsp;</div>
             <div align="left">&nbsp;Z</div>
@@ -403,14 +392,14 @@
             <div align="right">.&nbsp;,&nbsp;</div>
             <div align="left">&nbsp;?&nbsp;/</div>
           </td>
-          <td colspan="16">СС</td>
+          <td colspan="16">РГ</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">↑</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇐&nbsp;</div>
             <div align="left">&nbsp;1</div>
           </td>
           <td colspan="6">
@@ -418,7 +407,7 @@
             <div align="left">&nbsp;2</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇒&nbsp;</div>
             <div align="left">&nbsp;3</div>
           </td>
           <td colspan="6" rowspan="2">ВК</td>
@@ -426,28 +415,31 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="9">УС</td>
+          <td colspan="9">УПР</td>
           <td colspan="7" class="special">Meta</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="37">Пробел</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="7" class="special">Meta</td>
-          <td colspan="7" class="unused">Menu</td>
-          <td colspan="9">УС<br>
-            (лат)</td>
+          <td colspan="7">◯</td>
+          <td colspan="9">УПР<br>
+            (алф)</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">←</td>
-          <td colspan="6">↓</td>
+          <td colspan="6">
+            <div>↓</div>
+            <div><span style="font-size:x-small">меню</span></div>
+          </td>
           <td colspan="6">→</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="12">
-            <div align="right">ЛАТ&nbsp;</div>
+            <div align="right">⇤&nbsp;</div>
             <div align="left">&nbsp;0</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇥&nbsp;</div>
             <div align="left">&nbsp;.</div>
           </td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
@@ -534,7 +526,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="6">АР2</td>
+          <td colspan="6">ПРФ</td>
           <td colspan="6" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">F1</td>
@@ -544,15 +536,15 @@
           <td colspan="3" class="blank"><br>
           </td>
           <td colspan="6">F5</td>
-          <td colspan="6" class="unused">F6</td>
+          <td colspan="6">_</td>
           <td colspan="6" class="unused">F7</td>
-          <td colspan="6" class="unused">F8</td>
+          <td colspan="6">◯</td>
           <td colspan="3" class="blank"><br>
           </td>
-          <td colspan="6" class="unused">F9</td>
-          <td colspan="6" class="unused">F10</td>
-          <td colspan="6">ВВ.<br/>БЛК</td>
-          <td colspan="6">СБР<br/>БЛК</td>
+          <td colspan="6">СЕЛ</td>
+          <td colspan="6">ГРФ</td>
+          <td colspan="6">RES</td>
+          <td colspan="6"><span style="font-size:x-small">СТОП</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="unused">PS</td>
@@ -560,7 +552,7 @@
           <td colspan="6" class="special">Ps</td>
           <td colspan="8" class="blank"><br>
           </td>
-          <td colspan="18" class="title"> <b>Вектор-06Ц</b><br>
+          <td colspan="18" class="title"> <b>Корвет</b><br>
             (qwerty) </td>
         </tr>
         <tr>
@@ -622,15 +614,15 @@
           </td>
           <td colspan="12">ЗБ</td>
           <td colspan="2" class="blank">&nbsp;</td>
-          <td colspan="6">ЛАТ</td>
+          <td colspan="6">ИЗ</td>
           <td colspan="6">↖</td>
-          <td colspan="6">СТР</td>
+          <td colspan="6"><span style="font-size:x-small">АЛФ</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="special">N/L</td>
-          <td colspan="6" class="unused">/</td>
-          <td colspan="6" class="unused">*</td>
-          <td colspan="6" class="unused">-</td>
+          <td colspan="6">ВЗ</td>
+          <td colspan="6">ИЗ</td>
+          <td colspan="6"><span style="font-size:x-small">СТРН</span></td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
         </tr>
         <tr>
@@ -690,13 +682,13 @@
           </td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
-          <td colspan="6" class="unused">Del</td>
+          <td colspan="6">ВЗ</td>
           <td colspan="6" class="special">Spd</td>
-          <td colspan="6">ПС</td>
+          <td colspan="6" class="unused">PgDn</td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇖&nbsp;</div>
             <div align="left">&nbsp;7</div>
           </td>
           <td colspan="6">
@@ -704,7 +696,7 @@
             <div align="left">&nbsp;8</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇘&nbsp;</div>
             <div align="left">&nbsp;9</div>
           </td>
           <td colspan="6" rowspan="2" class="unused">+</td>
@@ -765,7 +757,7 @@
             <div align="left">&nbsp;4</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right"><span style="font-size:x-small">меню</span></div>
             <div align="left">&nbsp;5</div>
           </td>
           <td colspan="6">
@@ -776,7 +768,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="14">СС</td>
+          <td colspan="14">РГ</td>
           <td colspan="6">
             <div align="right">З&nbsp;</div>
             <div align="left">&nbsp;Z</div>
@@ -817,14 +809,14 @@
             <div align="right">?&nbsp;</div>
             <div align="left">&nbsp;/</div>
           </td>
-          <td colspan="16">СС</td>
+          <td colspan="16">РГ</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">↑</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇐&nbsp;</div>
             <div align="left">&nbsp;1</div>
           </td>
           <td colspan="6">
@@ -832,7 +824,7 @@
             <div align="left">&nbsp;2</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇒&nbsp;</div>
             <div align="left">&nbsp;3</div>
           </td>
           <td colspan="6" rowspan="2">ВК</td>
@@ -840,28 +832,31 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="9">УС</td>
+          <td colspan="9">УПР</td>
           <td colspan="7" class="special">Meta</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="37">Пробел</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="7" class="special">Meta</td>
-          <td colspan="7" class="unused">Menu</td>
-          <td colspan="9">УС<br>
-            (лат)</td>
+          <td colspan="7">◯</td>
+          <td colspan="9">УПР<br>
+            (алф)</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">←</td>
-          <td colspan="6">↓</td>
+          <td colspan="6">
+            <div>↓</div>
+            <div><span style="font-size:x-small">меню</span></div>
+          </td>
           <td colspan="6">→</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="12">
-            <div align="right">ЛАТ&nbsp;</div>
+            <div align="right">⇤&nbsp;</div>
             <div align="left">&nbsp;0</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇥&nbsp;</div>
             <div align="left">&nbsp;.</div>
           </td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
@@ -948,7 +943,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="6">АР2</td>
+          <td colspan="6">ПРФ</td>
           <td colspan="6" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">F1</td>
@@ -958,15 +953,15 @@
           <td colspan="3" class="blank"><br>
           </td>
           <td colspan="6">F5</td>
-          <td colspan="6" class="unused">F6</td>
+          <td colspan="6">_</td>
           <td colspan="6" class="unused">F7</td>
-          <td colspan="6" class="unused">F8</td>
+          <td colspan="6">◯</td>
           <td colspan="3" class="blank"><br>
           </td>
-          <td colspan="6" class="unused">F9</td>
-          <td colspan="6" class="unused">F10</td>
-          <td colspan="6">ВВ.<br/>БЛК</td>
-          <td colspan="6">СБР<br/>БЛК</td>
+          <td colspan="6">СЕЛ</td>
+          <td colspan="6">ГРФ</td>
+          <td colspan="6">RES</td>
+          <td colspan="6"><span style="font-size:x-small">СТОП</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="unused">PS</td>
@@ -974,7 +969,7 @@
           <td colspan="6" class="special">Ps</td>
           <td colspan="8" class="blank"><br>
           </td>
-          <td colspan="18" class="title"> <b>Вектор-06Ц</b><br>
+          <td colspan="18" class="title"> <b>Корвет</b><br>
             (йцукен) </td>
         </tr>
         <tr>
@@ -1036,15 +1031,15 @@
           </td>
           <td colspan="12">ЗБ</td>
           <td colspan="2" class="blank">&nbsp;</td>
-          <td colspan="6">ЛАТ</td>
+          <td colspan="6">ИЗ</td>
           <td colspan="6">↖</td>
-          <td colspan="6">СТР</td>
+          <td colspan="6"><span style="font-size:x-small">АЛФ</span></td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6" class="special">N/L</td>
-          <td colspan="6" class="unused">/</td>
-          <td colspan="6" class="unused">*</td>
-          <td colspan="6" class="unused">-</td>
+          <td colspan="6">ВЗ</td>
+          <td colspan="6">ИЗ</td>
+          <td colspan="6"><span style="font-size:x-small">СТРН</span></td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
         </tr>
         <tr>
@@ -1104,13 +1099,13 @@
           </td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
-          <td colspan="6" class="unused">Del</td>
+          <td colspan="6">ВЗ</td>
           <td colspan="6" class="special">Spd</td>
-          <td colspan="6">ПС</td>
+          <td colspan="6" class="unused">PgDn</td>
           <td colspan="2" class="blank"><br>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇖&nbsp;</div>
             <div align="left">&nbsp;7</div>
           </td>
           <td colspan="6">
@@ -1118,7 +1113,7 @@
             <div align="left">&nbsp;8</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇘&nbsp;</div>
             <div align="left">&nbsp;9</div>
           </td>
           <td colspan="6" rowspan="2" class="unused">+</td>
@@ -1179,7 +1174,7 @@
             <div align="left">&nbsp;4</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right"><span style="font-size:x-small">меню</span></div>
             <div align="left">&nbsp;5</div>
           </td>
           <td colspan="6">
@@ -1190,7 +1185,7 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="14">СС</td>
+          <td colspan="14">РГ</td>
           <td colspan="6">
             <div align="right">Я&nbsp;</div>
             <div align="left">&nbsp;Q</div>
@@ -1231,14 +1226,14 @@
             <div align="right">?&nbsp;</div>
             <div align="left">&nbsp;/</div>
           </td>
-          <td colspan="16">СС</td>
+          <td colspan="16">РГ</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">↑</td>
           <td colspan="8" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇐&nbsp;</div>
             <div align="left">&nbsp;1</div>
           </td>
           <td colspan="6">
@@ -1246,7 +1241,7 @@
             <div align="left">&nbsp;2</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
+            <div align="right">⇒&nbsp;</div>
             <div align="left">&nbsp;3</div>
           </td>
           <td colspan="6" rowspan="2">ВК</td>
@@ -1254,29 +1249,32 @@
         </tr>
         <tr>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
-          <td colspan="9">УС</td>
+          <td colspan="9">УПР</td>
           <td colspan="7" class="special">Meta</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="37">Пробел</td>
           <td colspan="7" class="special">Alt</td>
           <td colspan="7" class="special">Meta</td>
-          <td colspan="7" class="unused">Menu</td>
-          <td colspan="9">УС<br>
-            (лат)</td>
+          <td colspan="7">◯</td>
+          <td colspan="9">УПР<br>
+            (алф)</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="6">←</td>
-          <td colspan="6">↓</td>
+          <td colspan="6">
+            <div>↓</div>
+            <div><span style="font-size:x-small">меню</span></div>
+          </td>
           <td colspan="6">→</td>
           <td colspan="2" class="blank">&nbsp;<br>
             &nbsp;</td>
           <td colspan="12">
-            <div align="right">ЛАТ&nbsp;</div>
+            <div align="right">⇤&nbsp;</div>
             <div align="left">&nbsp;0</div>
           </td>
           <td colspan="6">
-            <div align="right">&nbsp;</div>
-            <div align="left">&nbsp;@</div>
+            <div align="right">⇥&nbsp;</div>
+            <div align="left">&nbsp;.</div>
           </td>
           <td class="blank" colspan="2">&nbsp;&nbsp;</td>
         </tr>
@@ -1285,5 +1283,10 @@
         </tr>
       </tbody>
     </table>
+    <p>Клавиши дополнительной клавиатуры отображаются на соответствующие клавиши
+      дополнительной клавиатуры PC при выключенном режиме NumLock (для
+      SDL-версии статус NumLock не имеет значения).</p>
+    <p>Клавиша «Стрелка вниз» может быть перепрограммирована в настройках на
+      клавишу 5 (МЕНЮ) для удобства управления в некоторых играх.</p>
   </body>
 </html>
