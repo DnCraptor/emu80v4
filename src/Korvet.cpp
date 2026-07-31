@@ -83,7 +83,8 @@ static const int c_frameBufWidth = 521;
 static const int c_frameBufHeight = 288;
 static const int c_frameBufSize = c_frameBufWidth * c_frameBufHeight;
 #ifndef PICO_RP2040
-static uint8_t s_frameBuffer[c_frameBufSize];
+alignas(4) static uint8_t s_frameBuffer[c_frameBufSize];
+alignas(4) static uint8_t s_korvetLineBuffer[c_frameBufWidth];
 #endif
 
 static const int c_mainRamSize = 0x10000;
@@ -717,26 +718,12 @@ void __not_in_flash_func(KorvetRenderer::renderKorvetFrame)()
         return;
 
     constexpr int stride = c_frameBufWidth;
+    constexpr int activeX = 4;
+    constexpr int activeY = 17;
+    constexpr int activeHeight = 256;
+
     const uint8_t border = m_palette[m_korvetLut[0]];
-    uint8_t* fill = m_frameBuf;
-    size_t fillSize = c_frameBufSize;
-
-    while (fillSize && (reinterpret_cast<uintptr_t>(fill) & 3u)) {
-        *fill++ = border;
-        --fillSize;
-    }
-
     const uint32_t borderWord = uint32_t(border) * 0x01010101u;
-    uint32_t* fillWords = reinterpret_cast<uint32_t*>(fill);
-    size_t wordCount = fillSize >> 2;
-    while (wordCount--)
-        *fillWords++ = borderWord;
-
-    fill = reinterpret_cast<uint8_t*>(fillWords);
-    fillSize &= 3u;
-    while (fillSize--)
-        *fill++ = border;
-
     const int page = m_displayPage % m_graphicsAdapter->getPageCount();
     const int pageOffset = page * 0x4000;
     const uint8_t* plane0 = m_graphicsAdapter->getPlane(0) + pageOffset;
@@ -746,43 +733,75 @@ void __not_in_flash_func(KorvetRenderer::renderKorvetFrame)()
     const uint8_t* attrs = m_textAdapter->getAttrs();
     const uint8_t* font = korvet_font_bin + m_fontNumber * 4096;
 
-    for (int y = 0; y < 256; ++y) {
-        uint8_t* dst = m_frameBuf + (y + 17) * stride + 4;
-        const int rowBase = y * 64;
-        for (int byteNo = 0; byteNo < 64; ++byteNo) {
-            const int videoAddr = rowBase + byteNo;
-            uint8_t bt0 = plane0[videoAddr];
-            uint8_t bt1 = plane1[videoAddr];
-            uint8_t bt2 = plane2[videoAddr];
-            const int symbolAddr = ((videoAddr >> 4) & 0x3C0) | (videoAddr & 0x3F);
-            uint8_t bt3;
-            if (!m_wideCharMode) {
-                bt3 = font[(unsigned(symbols[symbolAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
-                      ^ attrs[symbolAddr];
-            } else {
-                const int wideAddr = symbolAddr & ~1;
-                uint8_t chr = font[(unsigned(symbols[wideAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
-                              ^ attrs[wideAddr];
-                if (symbolAddr & 1)
-                    chr <<= 4;
-                bt3 = (chr & 0x80 ? 0xC0 : 0) |
-                      (chr & 0x40 ? 0x30 : 0) |
-                      (chr & 0x20 ? 0x0C : 0) |
-                      (chr & 0x10 ? 0x03 : 0);
-            }
+    for (int frameY = 0; frameY < c_frameBufHeight; ++frameY) {
+        uint32_t* lineWords = reinterpret_cast<uint32_t*>(s_korvetLineBuffer);
+        int lineWordCount = stride >> 2;
+        while (lineWordCount--)
+            *lineWords++ = borderWord;
+        uint8_t* lineTail = reinterpret_cast<uint8_t*>(lineWords);
+        for (int i = stride & 3; i != 0; --i)
+            *lineTail++ = border;
 
-            for (int bit = 0; bit < 8; ++bit) {
-                const uint8_t colorIndex = uint8_t((bt0 >> 7) |
-                                                   ((bt1 >> 6) & 2) |
-                                                   ((bt2 >> 5) & 4) |
-                                                   ((bt3 >> 4) & 8));
-                *dst++ = m_palette[m_korvetLut[colorIndex]];
-                bt0 <<= 1;
-                bt1 <<= 1;
-                bt2 <<= 1;
-                bt3 <<= 1;
+        if (frameY >= activeY && frameY < activeY + activeHeight) {
+            const int y = frameY - activeY;
+            uint8_t* dst = s_korvetLineBuffer + activeX;
+            const int rowBase = y * 64;
+            for (int byteNo = 0; byteNo < 64; ++byteNo) {
+                const int videoAddr = rowBase + byteNo;
+                uint8_t bt0 = plane0[videoAddr];
+                uint8_t bt1 = plane1[videoAddr];
+                uint8_t bt2 = plane2[videoAddr];
+                const int symbolAddr = ((videoAddr >> 4) & 0x3C0) | (videoAddr & 0x3F);
+                uint8_t bt3;
+                if (!m_wideCharMode) {
+                    bt3 = font[(unsigned(symbols[symbolAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
+                          ^ attrs[symbolAddr];
+                } else {
+                    const int wideAddr = symbolAddr & ~1;
+                    uint8_t chr = font[(unsigned(symbols[wideAddr]) << 4) | ((videoAddr >> 6) & 0x0F)]
+                                  ^ attrs[wideAddr];
+                    if (symbolAddr & 1)
+                        chr <<= 4;
+                    bt3 = (chr & 0x80 ? 0xC0 : 0) |
+                          (chr & 0x40 ? 0x30 : 0) |
+                          (chr & 0x20 ? 0x0C : 0) |
+                          (chr & 0x10 ? 0x03 : 0);
+                }
+
+                for (int bit = 0; bit < 8; ++bit) {
+                    const uint8_t colorIndex = uint8_t((bt0 >> 7) |
+                                                       ((bt1 >> 6) & 2) |
+                                                       ((bt2 >> 5) & 4) |
+                                                       ((bt3 >> 4) & 8));
+                    *dst++ = m_palette[m_korvetLut[colorIndex]];
+                    bt0 <<= 1;
+                    bt1 <<= 1;
+                    bt2 <<= 1;
+                    bt3 <<= 1;
+                }
             }
         }
+
+        const uint8_t* src = s_korvetLineBuffer;
+        uint8_t* dst = m_frameBuf + frameY * stride;
+        size_t count = stride;
+
+        while (count && (reinterpret_cast<uintptr_t>(dst) & 3u)) {
+            *dst++ = *src++;
+            --count;
+        }
+
+        while (count >= 4) {
+            uint32_t word;
+            __builtin_memcpy(&word, src, sizeof(word));
+            *reinterpret_cast<uint32_t*>(dst) = word;
+            src += 4;
+            dst += 4;
+            count -= 4;
+        }
+
+        while (count--)
+            *dst++ = *src++;
     }
 }
 #endif
@@ -1586,7 +1605,7 @@ KorvetCore::KorvetCore()
     s_devices.korvetVideoPpi.setMachine(this);
     s_devices.korvetVideoPpi.setSnapshotIndex(2);
     s_devices.korvetVideoPpi.attachPpi8255Circuit(m_videoPpiCircuit);
-    s_devices.korvetDevicesPage.addRange(0x38, 0x3B, &s_devices.korvetVideoPpi, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x38, 0x3B, &s_devices.korvetVideoPpi);
 
     m_cpu->attachAddrSpace(m_addrSpace);
     m_cpu->attachIoAddrSpace(m_ioAddrSpace);
@@ -1651,7 +1670,7 @@ KorvetCore::KorvetCore()
     m_ppi2->setSnapshotIndex(1);
     m_ppi2->attachPpi8255Circuit(m_covoxCircuit);
 
-    s_devices.korvetDevicesPage.addRange(0x30, 0x33, m_ppi2, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x30, 0x33, m_ppi2);
 
     m_pit = &s_devices.pit;
     m_pit->setMachine(this);
@@ -1686,7 +1705,7 @@ KorvetCore::KorvetCore()
     s_devices.ppi3.setMachine(this);
     s_devices.ppi3.setSnapshotIndex(2);
     s_devices.ppi3.attachPpi8255Circuit(&s_devices.psgAdapter);
-    s_devices.korvetDevicesPage.addRange(0x08, 0x0B, &s_devices.ppi3, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x08, 0x0B, &s_devices.ppi3);
 
     m_psgSoundSource = &s_devices.psgSoundSource;
     m_psgSoundSource->setMachine(this);
@@ -1694,7 +1713,7 @@ KorvetCore::KorvetCore()
 
     m_fdc = &s_devices.fdc;
     m_fdc->setMachine(this);
-    s_devices.korvetDevicesPage.addRange(0x18, 0x1B, m_fdc, 0, true);
+    s_devices.korvetDevicesPage.addRange(0x18, 0x1B, m_fdc);
     m_videoPpiCircuit->attachFdc1793(m_fdc);
     m_videoPpiCircuit->attachFddMotor(&s_devices.fddMotor);
 
