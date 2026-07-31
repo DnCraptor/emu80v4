@@ -5,7 +5,7 @@
 
 class Cpu8080Compatible;
 
-class Pic8259 : public AddressableDevice
+class Pic8259 : public AddressableDevice, public SnapshotSerializable
 {
 public:
     void reset() override;
@@ -15,6 +15,12 @@ public:
     void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu;}
     void irq(int level, bool state);
     void inte(bool active);
+
+    uint32_t snapshotSectionId() const override;
+    uint16_t snapshotSectionVersion() const override;
+    bool saveState(SnapshotWriter& writer) const override;
+    bool loadState(SnapshotReader& reader, uint16_t version) override;
+    void postLoad() override;
 
 private:
     Cpu8080Compatible* m_cpu = nullptr;

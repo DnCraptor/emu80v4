@@ -187,3 +187,118 @@ void KorvetVideoPpiCircuit::setPortC(uint8_t value)
         m_renderer->setWideCharMode(m_wideCharMode);
     }
 }
+
+
+namespace {
+
+#pragma pack(push, 1)
+struct KorvetGraphicsSnapshotStateV1 {
+    uint8_t colorRegisterValue;
+    uint8_t rwPage;
+};
+
+struct KorvetTextSnapshotStateV1 {
+    uint8_t attrMask;
+    uint8_t curAttr;
+};
+#pragma pack(pop)
+
+}
+
+uint32_t KorvetGraphicsAdapter::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('G', 'R', 'A', 'F');
+}
+
+uint16_t KorvetGraphicsAdapter::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool KorvetGraphicsAdapter::saveState(SnapshotWriter& writer) const
+{
+    const KorvetGraphicsSnapshotStateV1 state{m_colorRegisterValue, m_rwPage};
+    return writer.writeValue(state) &&
+           writer.write(s_graphicsMemory, sizeof(s_graphicsMemory));
+}
+
+bool KorvetGraphicsAdapter::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(KorvetGraphicsSnapshotStateV1) + sizeof(s_graphicsMemory))
+        return false;
+
+    KorvetGraphicsSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.rwPage >= c_pageCount ||
+        !reader.read(s_graphicsMemory, sizeof(s_graphicsMemory)))
+        return false;
+
+    m_colorRegisterValue = state.colorRegisterValue;
+    m_rwPage = state.rwPage;
+    return true;
+}
+
+uint32_t KorvetTextAdapter::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('T', 'E', 'X', 'T');
+}
+
+uint16_t KorvetTextAdapter::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool KorvetTextAdapter::saveState(SnapshotWriter& writer) const
+{
+    const KorvetTextSnapshotStateV1 state{m_attrMask, m_curAttr};
+    return writer.writeValue(state) &&
+           writer.write(m_symbols, sizeof(m_symbols)) &&
+           writer.write(m_attrs, sizeof(m_attrs));
+}
+
+bool KorvetTextAdapter::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(KorvetTextSnapshotStateV1) + sizeof(m_symbols) + sizeof(m_attrs))
+        return false;
+
+    KorvetTextSnapshotStateV1 state{};
+    if (!reader.readValue(state) || state.attrMask > 3 ||
+        !reader.read(m_symbols, sizeof(m_symbols)) ||
+        !reader.read(m_attrs, sizeof(m_attrs)))
+        return false;
+
+    m_attrMask = state.attrMask;
+    m_curAttr = state.curAttr;
+    return true;
+}
+
+uint32_t KorvetLutRegister::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('L', 'U', 'T', ' ');
+}
+
+uint16_t KorvetLutRegister::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool KorvetLutRegister::saveState(SnapshotWriter& writer) const
+{
+    return writer.write(m_lut, sizeof(m_lut));
+}
+
+bool KorvetLutRegister::loadState(SnapshotReader& reader, uint16_t version)
+{
+    return version == snapshotSectionVersion() &&
+           reader.remaining() == sizeof(m_lut) &&
+           reader.read(m_lut, sizeof(m_lut));
+}
+
+void KorvetLutRegister::postLoad()
+{
+    if (!m_renderer)
+        return;
+    for (int i = 0; i < 16; ++i)
+        m_renderer->setLutValue(i, m_lut[i]);
+}

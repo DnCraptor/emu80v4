@@ -494,58 +494,10 @@ static const MenuItem driveDItems[] = {
     {"Read only", nullptr, nullptr, driveDToggleReadOnly, driveDReadOnlyEnabled, driveDReadOnly, true},
     {"Eject", nullptr, nullptr, driveDEject, driveDHasImage, nullptr},
 };
-char hddTitleBuffer[96];
-
-const char* hddTitle()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    const std::string fileName = core ? core->getHddFileName() : std::string();
-    constexpr char prefix[] = "HDD: ";
-    std::memcpy(hddTitleBuffer, prefix, sizeof(prefix));
-    if (fileName.empty()) {
-        constexpr char empty[] = "empty";
-        std::memcpy(hddTitleBuffer + sizeof(prefix) - 1, empty, sizeof(empty));
-        return hddTitleBuffer;
-    }
-    const size_t slash = fileName.find_last_of("/\\");
-    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
-    const size_t prefixLen = sizeof(prefix) - 1;
-    const size_t baseLen = std::min(std::strlen(base), sizeof(hddTitleBuffer) - prefixLen - 1);
-    std::memcpy(hddTitleBuffer + prefixLen, base, baseLen);
-    hddTitleBuffer[prefixLen + baseLen] = '\0';
-    return hddTitleBuffer;
-}
-
-bool hddHasImage()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->hddImagePresent();
-}
-bool hddEnabled()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->getHddEnabled();
-}
-const char* hddToggleTitle() { return hddEnabled() ? "Disable" : "Enable"; }
-void toggleHdd()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setHddEnabled(!core->getHddEnabled());
-}
-void hddInsert() { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->chooseHddImage(); }
-void hddEject() { if (g_emulation && g_emulation->getKorvet()) g_emulation->getKorvet()->ejectHddImage(); }
-
-static const MenuItem hddItems[] = {
-    {nullptr, hddToggleTitle, nullptr, toggleHdd, nullptr, nullptr, true},
-    {"Insert image [Alt+F4]...", nullptr, nullptr, hddInsert, nullptr, nullptr},
-    {"Eject", nullptr, nullptr, hddEject, hddHasImage, nullptr},
-};
 static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
 static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
 static const MenuPage driveCPage {"Drive C", driveCTitle, driveCItems, static_cast<int>(sizeof(driveCItems) / sizeof(driveCItems[0])), nullptr, nullptr};
 static const MenuPage driveDPage {"Drive D", driveDTitle, driveDItems, static_cast<int>(sizeof(driveDItems) / sizeof(driveDItems[0])), nullptr, nullptr};
-static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeof(hddItems) / sizeof(hddItems[0])), nullptr, nullptr};
 
 void invokeSysReq(SysReq request)
 {
@@ -553,65 +505,6 @@ void invokeSysReq(SysReq request)
     if (core)
         core->sysReq(request);
 }
-
-void eddOpen() { invokeSysReq(SR_OPENRAMDISK); }
-void eddSaveAs() { invokeSysReq(SR_SAVERAMDISKAS); }
-void edd2Open() { invokeSysReq(SR_OPENRAMDISK2); }
-void edd2SaveAs() { invokeSysReq(SR_SAVERAMDISK2AS); }
-
-bool ramDiskEnabled(int diskNum)
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->ramDiskEnabled(diskNum);
-}
-
-bool eddEnabled() { return ramDiskEnabled(0); }
-bool edd2Enabled() { return ramDiskEnabled(1); }
-
-const char* eddToggleTitle() { return eddEnabled() ? "Disable" : "Enable"; }
-const char* edd2ToggleTitle() { return edd2Enabled() ? "Disable" : "Enable"; }
-
-void toggleRamDisk(int diskNum)
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setRamDiskEnabled(diskNum, !core->ramDiskEnabled(diskNum));
-}
-
-void toggleEdd() { toggleRamDisk(0); }
-void toggleEdd2() { toggleRamDisk(1); }
-
-static const MenuItem eddItems[] = {
-    {nullptr, eddToggleTitle, nullptr, toggleEdd, nullptr, nullptr, true},
-    {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, nullptr, nullptr},
-    {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, nullptr, nullptr},
-};
-static const MenuItem edd2Items[] = {
-    {nullptr, edd2ToggleTitle, nullptr, toggleEdd2, nullptr, nullptr, true},
-    {"Load image [Alt+Shift+E]...", nullptr, nullptr, edd2Open, nullptr, nullptr},
-    {"Save image as [Alt+Shift+O]...", nullptr, nullptr, edd2SaveAs, nullptr, nullptr},
-};
-static const MenuPage eddPage {"EDD", nullptr, eddItems, static_cast<int>(sizeof(eddItems) / sizeof(eddItems[0])), nullptr, nullptr};
-static const MenuPage edd2Page {"EDD2", nullptr, edd2Items, static_cast<int>(sizeof(edd2Items) / sizeof(edd2Items[0])), nullptr, nullptr};
-void romLoad() { invokeSysReq(SR_LOAD); }
-void romLoadAndRun() { invokeSysReq(SR_LOADRUN); }
-static const MenuItem romItems[] = {
-    {"Load [Alt+L]...", nullptr, nullptr, romLoad, nullptr, nullptr},
-    {"Load and run [Alt+F3]...", nullptr, nullptr, romLoadAndRun, nullptr, nullptr},
-};
-static const MenuPage romPage {"ROM", nullptr, romItems, static_cast<int>(sizeof(romItems) / sizeof(romItems[0])), nullptr, nullptr};
-
-static const MenuItem storageItems[] = {
-    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
-    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
-    {"Drive C", driveCTitle, &driveCPage, nullptr, nullptr, nullptr},
-    {"Drive D", driveDTitle, &driveDPage, nullptr, nullptr, nullptr},
-    {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
-    {"EDD", nullptr, &eddPage, nullptr, nullptr, nullptr},
-    {"EDD2", nullptr, &edd2Page, nullptr, nullptr, nullptr},
-    {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
-};
-static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
 
 static const MenuItem korvetStorageItems[] = {
     {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
@@ -681,170 +574,9 @@ static const MenuItem volumeItems[] = {
 };
 static const MenuPage volumePage {"Volume", nullptr, volumeItems, static_cast<int>(sizeof(volumeItems) / sizeof(volumeItems[0])), volumeGetValue, volumeSetValue};
 
-bool psgStereoChecked()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->getPsgStereo();
-}
-
-void togglePsgStereo()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setPsgStereo(!core->getPsgStereo());
-}
-
-bool psgEnabled()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->getPsgEnabled();
-}
-
-const char* psgToggleTitle() { return psgEnabled() ? "Disable" : "Enable"; }
-
-void togglePsg()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setPsgEnabled(!core->getPsgEnabled());
-}
-
-// Панорамирование каналов PSG выполняет программный микшер. При HWAY звук
-// формирует сама микросхема, разводка её каналов задана платой, поэтому
-// Stereo и порядок ABC/ACB на результат не влияют.
-bool psgOrderEnabled() { return psgEnabled() && !palAudioIsHwAy(); }
-bool psgStereoEnabled() { return !palAudioIsHwAy(); }
-
-// Вывод спикера/ковокса в port B второго чипа. Каждая запись занимает шину
-// 595, поэтому при подозрении на помехи звучанию PSG его можно отключить.
-bool hwayDacEnabled() { return palAudioIsHwAy(); }
-bool hwayDacChecked() { return hway_dac_enabled(); }
-void toggleHwayDac() { hway_set_dac_enabled(!hway_dac_enabled()); }
-
-// Диагностика: тон 440 Гц пишется в AY0 напрямую, минуя эмулятор.
-bool hwayToneChecked() { return hway_test_tone_on(); }
-void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
-
-
-// Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
-extern "C" { void psgTestSet(int); int psgTestGet(void); }
-
-bool psgTestSquareChecked() { return psgTestGet() == 1; }
-void togglePsgTestSquare()  { psgTestSet(psgTestGet() == 1 ? 0 : 1); }
-extern "C" { void psgStairSpeedNext(void); unsigned psgStairSpeed(void); }
-
-// Темп лестницы перебирается, чтобы найти порог, на котором поток
-// записей в регистр громкости перестаёт воспроизводиться верно.
-const char* psgStairSpeedTitle()
-{
-    switch (psgStairSpeed()) {
-        case 480: return "Stair step: 10 ms";
-        case 48:  return "Stair step: 1 ms";
-        case 5:   return "Stair step: 100 us";
-        default:  return "Stair step: 100 ms";
-    }
-}
-void doPsgStairSpeed() { psgStairSpeedNext(); }
-
-bool psgTestStairChecked()  { return psgTestGet() == 2; }
-extern "C" { void psgScaleMulNext(void); unsigned psgScaleMul(void); }
-
-const char* psgScaleMulTitle()
-{
-    switch (psgScaleMul()) {
-        case 2:  return "Scale period: x2";
-        case 4:  return "Scale period: x4";
-        case 8:  return "Scale period: x8";
-        default: return "Scale period: x1";
-    }
-}
-void doPsgScaleMul() { psgScaleMulNext(); }
-
-bool psgTestScaleChecked()  { return psgTestGet() == 3; }
-void togglePsgTestScale()   { psgTestSet(psgTestGet() == 3 ? 0 : 3); }
-void togglePsgTestStair()   { psgTestSet(psgTestGet() == 2 ? 0 : 2); }
-
-const char* hwayR7Title()
-{
-    switch (hway_r7_state()) {
-        case 1:  return "R7 step: next tone B";
-        case 2:  return "R7 step: next tone C";
-        case 3:  return "R7 step: next noise";
-        default: return "R7 step: next tone A";
-    }
-}
-void doHwayR7Step() { hway_r7_step(); }
-
-const char* hwayCsTitle()
-{
-    switch (hway_cs_state()) {
-        case 1:  return "595 CS step: CS0 only";
-        case 2:  return "595 CS step: CS1 only";
-        case 3:  return "595 CS step: both high";
-        default: return "595 CS step: both low";
-    }
-}
-void doHwayCsStep() { hway_cs_step(); }
-
-bool hwayCovoxTestChecked() { return hway_covox_test_on(); }
-void toggleHwayCovoxTest() { hway_covox_test(!hway_covox_test_on()); }
-
-// Нога тактового выхода AY: в PICO-BK их две на выбор (GP21 / GP29).
-const char* hwayAyClkTitle()
-{
-    switch (hway_ayclk_mode()) {
-        case 0:  return "AY clock: off (board xtal)";
-        case 2:  return "AY clock: alt pin";
-        default: return "AY clock: main pin";
-    }
-}
-void toggleHwayAyClk() { hway_set_ayclk_mode((hway_ayclk_mode() + 1) % 3); }
-
-bool psgAbcChecked()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && !core->getPsgAcbOrder();
-}
-
-bool psgAcbChecked()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    return core && core->getPsgAcbOrder();
-}
-
-void setPsgAbc()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setPsgAcbOrder(false);
-}
-
-void setPsgAcb()
-{
-    KorvetCore* core = g_emulation ? g_emulation->getKorvet() : nullptr;
-    if (core)
-        core->setPsgAcbOrder(true);
-}
-
-static const MenuItem psgItems[] = {
-    {nullptr, psgToggleTitle, nullptr, togglePsg, nullptr, nullptr, true},
-    {"ABC", nullptr, nullptr, setPsgAbc, psgOrderEnabled, psgAbcChecked, true},
-    {"ACB", nullptr, nullptr, setPsgAcb, psgOrderEnabled, psgAcbChecked, true},
-};
-static const MenuPage psgPage {"PSG", nullptr, psgItems, static_cast<int>(sizeof(psgItems) / sizeof(psgItems[0])), nullptr, nullptr};
-
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
-//    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
-//    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
-//    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
-//    {"Scale period", psgScaleMulTitle, nullptr, doPsgScaleMul, nullptr, nullptr, true},
-//    {"Stair step", psgStairSpeedTitle, nullptr, doPsgStairSpeed, nullptr, nullptr, true},
-//    {"Test: R9 staircase", nullptr, nullptr, togglePsgTestStair, nullptr, psgTestStairChecked, true},
-//    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
-//    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
-//    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 
@@ -1418,11 +1150,9 @@ void saveMenuStateImpl()
 
     KorvetCore* core = g_emulation->getKorvet();
     SoundMixer* mixer = g_emulation->getSoundMixer();
-    const char* output = palAudioIsHwAy() ? "hway" : (palAudioIsI2S() ? "i2s" : "pwm");
-    const char* cpu = core->getCpuType() == VECTOR_CPU_Z80 ? "z80" : "i8080";
-    const char* order = core->getPsgAcbOrder() ? "acb" : "abc";
-    const char* ayClock = hway_ayclk_mode() == 0 ? "off"
-                        : (hway_ayclk_mode() == 2 ? "alt" : "main");
+    const char* output = palAudioIsI2S() ? "i2s" : "pwm";
+    static const char* const keyboardLayouts[] = {"qwerty", "jcuken", "smart"};
+    const int keyboardLayout = core->getKbdLayoutModeIndex();
     const int volume = s_userMuted ? 0 : (mixer ? mixer->getVolume() : 5);
 
     // Пишем прямо в файл, без промежуточного буфера на весь конфиг.
@@ -1432,39 +1162,32 @@ void saveMenuStateImpl()
     cfgPut("# Korvet emulator settings. This is a plain text test file.\n"
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
-           "version = 1\n\n"
-           "processor = ");
-    cfgPut(cpu);
-    cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
+           "version = 2\n\n"
+           "cpu_clock_hz = ");
     cfgPutUnsigned(core->getCpuFrequency());
+    cfgPut("\nkeyboard_layout = ");
+    cfgPut(keyboardLayouts[keyboardLayout >= 0 && keyboardLayout < 3 ? keyboardLayout : 0]);
+    cfgPut("          # qwerty | jcuken | smart");
 
     cfgPut("\n\ndrive_a_read_only = ");
     cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::A));
     cfgPut("\ndrive_b_read_only = ");
     cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::B));
-    cfgPut("\nhdd_enabled = ");
-    cfgPutBool(core->getHddEnabled());
-    cfgPut("\nedd_enabled = ");
-    cfgPutBool(core->ramDiskEnabled(0));
-    cfgPut("\nedd2_enabled = ");
-    cfgPutBool(core->ramDiskEnabled(1));
+    cfgPut("\ndrive_c_read_only = ");
+    cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::C));
+    cfgPut("\ndrive_d_read_only = ");
+    cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::D));
 
     cfgPut("\n\nsound_output = ");
     cfgPut(output);
-    cfgPut("              # pwm | i2s | hway\nvolume = ");
+    cfgPut("              # pwm | i2s\nvolume = ");
     cfgPutSigned(volume);
-    cfgPut("                    # 0..7; 0 is mute\npsg_enabled = ");
-    cfgPutBool(core->getPsgEnabled());
-    cfgPut("\npsg_stereo = ");
-    cfgPutBool(core->getPsgStereo());
-    cfgPut("\npsg_order = ");
-    cfgPut(order);
-    cfgPut("                 # abc | acb\nhway_covox = ");
-    cfgPutBool(hway_dac_enabled());
-    cfgPut("\nay_clock = ");
-    cfgPut(ayClock);
-    cfgPut("                  # off | main | alt\n\ntape_redirect = ");
-    cfgPutBool(core->tapeHooksEnabled());
+    cfgPut("                    # 0..7; 0 is mute");
+
+    cfgPut("\n\ncolor = ");
+    cfgPutBool(core->getColorMode());
+    cfgPut("\ncrop_to_visible = ");
+    cfgPutBool(core->getCroppedToVisible());
 
     cfgPut("\n\n" VIDEO_OFFSET_X_KEY " = ");
     cfgPutSigned(graphics_get_picture_shift_x());
@@ -1521,24 +1244,23 @@ void loadMenuStateImpl()
             unsigned number = 0;
             int signedNumber = 0;
 
-            if (textEquals(key, "processor")) {
-                if (textEquals(value, "z80")) core->setCpuType(VECTOR_CPU_Z80);
-                else if (textEquals(value, "i8080")) core->setCpuType(VECTOR_CPU_8080);
-            } else if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
+            if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
                 for (unsigned frequency : cpuClockValues)
                     if (frequency == number) core->setCpuFrequency(number);
+            } else if (textEquals(key, "keyboard_layout")) {
+                if (textEquals(value, "jcuken")) core->sysReq(SR_JCUKEN);
+                else if (textEquals(value, "smart")) core->sysReq(SR_SMART);
+                else if (textEquals(value, "qwerty")) core->sysReq(SR_QUERTY);
             } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
                 core->setFloppyReadOnly(KorvetFloppyDrive::A, boolean);
             } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {
                 core->setFloppyReadOnly(KorvetFloppyDrive::B, boolean);
-            } else if (textEquals(key, "hdd_enabled") && parseBoolValue(value, boolean)) {
-                core->setHddEnabled(boolean);
-            } else if (textEquals(key, "edd_enabled") && parseBoolValue(value, boolean)) {
-                core->setRamDiskEnabled(0, boolean);
-            } else if (textEquals(key, "edd2_enabled") && parseBoolValue(value, boolean)) {
-                core->setRamDiskEnabled(1, boolean);
+            } else if (textEquals(key, "drive_c_read_only") && parseBoolValue(value, boolean)) {
+                core->setFloppyReadOnly(KorvetFloppyDrive::C, boolean);
+            } else if (textEquals(key, "drive_d_read_only") && parseBoolValue(value, boolean)) {
+                core->setFloppyReadOnly(KorvetFloppyDrive::D, boolean);
             } else if (textEquals(key, "sound_output")) {
-                if (textEquals(value, "pwm") || textEquals(value, "i2s") || textEquals(value, "hway")) {
+                if (textEquals(value, "pwm") || textEquals(value, "i2s")) {
                     std::strncpy(soundOutput, value, sizeof(soundOutput) - 1);
                     soundOutput[sizeof(soundOutput) - 1] = '\0';
                     haveSoundOutput = true;
@@ -1549,21 +1271,10 @@ void loadMenuStateImpl()
                     if (number != 0) mixer->setVolume(static_cast<int>(number));
                     mixer->setMuted(s_userMuted);
                 }
-            } else if (textEquals(key, "psg_enabled") && parseBoolValue(value, boolean)) {
-                core->setPsgEnabled(boolean);
-            } else if (textEquals(key, "psg_stereo") && parseBoolValue(value, boolean)) {
-                core->setPsgStereo(boolean);
-            } else if (textEquals(key, "psg_order")) {
-                if (textEquals(value, "abc")) core->setPsgAcbOrder(false);
-                else if (textEquals(value, "acb")) core->setPsgAcbOrder(true);
-            } else if (textEquals(key, "hway_covox") && parseBoolValue(value, boolean)) {
-                hway_set_dac_enabled(boolean);
-            } else if (textEquals(key, "ay_clock")) {
-                if (textEquals(value, "off")) hway_set_ayclk_mode(0);
-                else if (textEquals(value, "main")) hway_set_ayclk_mode(1);
-                else if (textEquals(value, "alt")) hway_set_ayclk_mode(2);
-            } else if (textEquals(key, "tape_redirect") && parseBoolValue(value, boolean)) {
-                core->setTapeHooksEnabled(boolean);
+            } else if (textEquals(key, "color") && parseBoolValue(value, boolean)) {
+                if (core->getColorMode() != boolean) core->sysReq(SR_COLOR);
+            } else if (textEquals(key, "crop_to_visible") && parseBoolValue(value, boolean)) {
+                if (core->getCroppedToVisible() != boolean) core->sysReq(SR_CROPTOVISIBLE);
             } else if (textEquals(key, VIDEO_OFFSET_X_KEY) && parseSignedValue(value, signedNumber)) {
                 videoX = signedNumber;
             } else if (textEquals(key, VIDEO_OFFSET_Y_KEY) && parseSignedValue(value, signedNumber)) {
@@ -1603,16 +1314,8 @@ void loadMenuStateImpl()
     setPictureShiftY(videoY);
 
     if (haveSoundOutput) {
-        if (textEquals(soundOutput, "hway")) {
-            palSetAudioOutputI2S(false);
-            palSetAudioOutputHwAy(true);
-        } else if (textEquals(soundOutput, "i2s")) {
-            palSetAudioOutputHwAy(false);
-            palSetAudioOutputI2S(true);
-        } else {
-            palSetAudioOutputHwAy(false);
-            palSetAudioOutputI2S(false);
-        }
+        palSetAudioOutputHwAy(false);
+        palSetAudioOutputI2S(textEquals(soundOutput, "i2s"));
     }
 }
 
@@ -1802,6 +1505,7 @@ static const MenuItem rootItems[] = {
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &korvetStoragePage, nullptr, nullptr, nullptr},
+    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
     {"Help", nullptr, nullptr, showHelpDialog, nullptr, nullptr},
     {"About", nullptr, nullptr, showAboutDialog, nullptr, nullptr},
@@ -2417,9 +2121,9 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         if (item.action) {
             item.action();
             if (item.keepOpen) {
-                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
-                    || item.action == toggleSoundOutput || item.action == togglePsgStereo
-                    || item.action == tapeEject)
+                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly ||
+                    item.action == driveCToggleReadOnly || item.action == driveDToggleReadOnly
+                    || item.action == toggleSoundOutput || item.action == tapeEject)
                     redrawMenuAndParentItem();
                 else
                     redrawMenu();

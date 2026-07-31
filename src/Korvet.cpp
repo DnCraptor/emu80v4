@@ -43,13 +43,11 @@
 #include "hway.h"
 #include "pico/picoPal.h"
 #include "PrnWriter.h"
-#include "AtaDrive.h"
 #include "KbdTapper.h"
 #include "Ppi8255.h"
 #include "Pit8253.h"
 #include "Pic8259.h"
 #include "Pit8253Sound.h"
-#include "Psg3910.h"
 #include "TapeRedirector.h"
 #include "WavWriter.h"
 #include "RkTapeHooks.h"
@@ -167,19 +165,13 @@ struct Devices {
     Pit8253                  pit;
     Pic8259                  pic;
     KorvetPit8253SoundSource sndSource;
-    Psg3910                  ay;
-    KorvetPpiPsgAdapter      psgAdapter;
     Ppi8255                  ppi3;
-    Psg3910SoundSource       psgSoundSource;
     Fdc1793                  fdc;
     KorvetFddControlRegister fddReg;
-    AtaDrive                 ataDrive;
-    KorvetHddRegisters       hddRegisters;
     FdImage                  diskA{80, 2, 5, 1024};
     FdImage                  diskB{80, 2, 5, 1024};
     FdImage                  diskC{80, 2, 5, 1024};
     FdImage                  diskD{80, 2, 5, 1024};
-    DiskImage                hdd;
     KorvetFileLoader         loader;
     WavWriter                wavWriter;
     TapeRedirector           tapeInFile;
@@ -194,12 +186,6 @@ struct Devices {
     RkTapeInHook             tapeInHookEmuRk{0xFC31};
     RkTapeOutHook            tapeOutHookEmuRk{0xFC7D};
     CloseFileHook            closeFileHookEmuRk{0xFF18, &tapeInFile, &tapeOutFile};
-    SRam                     ramDiskMem{0x40000};
-    RamDisk                  ramDisk{0x40000};
-    KorvetRamDiskSelector    ramDiskSelector;
-    SRam                     ramDiskMem2{0x40000};
-    RamDisk                  ramDisk2{0x40000};
-    KorvetRamDiskSelector    ramDiskSelector2;
 };
 
 } // namespace
@@ -239,16 +225,6 @@ uint8_t __not_in_flash_func(KorvetAddrSpace::readByte)(int addr)
 }
 
 
-void KorvetAddrSpace::attachRamDisk(int diskNum, SRam* ramDisk)
-{
-    // Compatibility only. Vector RAM disks are not part of the active Korvet map.
-    if (diskNum == 0)
-        m_ramDisk = ramDisk;
-    else
-        m_ramDisk2 = ramDisk;
-}
-
-
 void KorvetAddrSpace::rebuildPageMap()
 {
     if (!m_cpu)
@@ -256,18 +232,6 @@ void KorvetAddrSpace::rebuildPageMap()
 
     m_cpu->attachCrtRenderer(m_crtRenderer);
     m_cpu->clearPageMap();
-}
-
-
-void KorvetAddrSpace::ramDiskControl(int, int, bool, int, int)
-{
-    // Compatibility only. Vector RAM-disk paging is disabled.
-}
-
-
-void KorvetAddrSpace::eramControl(int, int, int)
-{
-    // Compatibility only. Vector ERAM paging is disabled.
 }
 
 namespace {
@@ -278,21 +242,7 @@ constexpr uint32_t c_addrSpaceSnapshotSection =
 #pragma pack(push, 1)
 struct KorvetAddrSpaceSnapshotStateV1 {
     uint32_t mainRamSize;
-    uint32_t ramDisk1Size;
-    uint32_t ramDisk2Size;
-    int32_t inRamPagesMask;
-    int32_t inRamDiskPage;
-    int32_t stackDiskPage;
-    int32_t inRamPagesMask2;
-    int32_t inRamDiskPage2;
-    int32_t stackDiskPage2;
-    int32_t eramSegment;
-    uint16_t eramPageStartAddr;
-    uint16_t eramPageEndAddr;
     uint8_t romEnabled;
-    uint8_t stackDiskEnabled;
-    uint8_t stackDiskEnabled2;
-    uint8_t eram;
 };
 #pragma pack(pop)
 
@@ -310,48 +260,23 @@ uint16_t KorvetAddrSpace::snapshotSectionVersion() const
 
 bool KorvetAddrSpace::saveState(SnapshotWriter& writer) const
 {
-    if (!m_mainMemory || !m_ramDisk || !m_ramDisk2)
+    if (!m_mainMemory)
         return false;
 
     KorvetAddrSpaceSnapshotStateV1 state{};
     state.mainRamSize = static_cast<uint32_t>(m_mainMemory->getSize());
-    state.ramDisk1Size = static_cast<uint32_t>(m_ramDisk->getSize());
-    state.ramDisk2Size = static_cast<uint32_t>(m_ramDisk2->getSize());
-    state.inRamPagesMask = m_inRamPagesMask;
-    state.inRamDiskPage = m_inRamDiskPage;
-    state.stackDiskPage = m_stackDiskPage;
-    state.inRamPagesMask2 = m_inRamPagesMask2;
-    state.inRamDiskPage2 = m_inRamDiskPage2;
-    state.stackDiskPage2 = m_stackDiskPage2;
-    state.eramSegment = m_eramSegment;
-    state.eramPageStartAddr = m_eramPageStartAddr;
-    state.eramPageEndAddr = m_eramPageEndAddr;
     state.romEnabled = m_romEnabled ? 1 : 0;
-    state.stackDiskEnabled = m_stackDiskEnabled ? 1 : 0;
-    state.stackDiskEnabled2 = m_stackDiskEnabled2 ? 1 : 0;
-    state.eram = m_eram ? 1 : 0;
 
     if (!writer.writeValue(state) ||
         !writer.write(m_mainMemory->getDataPtr(), state.mainRamSize))
         return false;
 
-    for (uint32_t i = 0; i < state.ramDisk1Size; ++i) {
-        const uint8_t value = m_ramDisk->readByte(static_cast<int>(i));
-        if (!writer.writeValue(value))
-            return false;
-    }
-    for (uint32_t i = 0; i < state.ramDisk2Size; ++i) {
-        const uint8_t value = m_ramDisk2->readByte(static_cast<int>(i));
-        if (!writer.writeValue(value))
-            return false;
-    }
     return true;
 }
 
 bool KorvetAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
 {
-    if (version != snapshotSectionVersion() ||
-        !m_mainMemory || !m_ramDisk || !m_ramDisk2 ||
+    if (version != snapshotSectionVersion() || !m_mainMemory ||
         reader.remaining() < sizeof(KorvetAddrSpaceSnapshotStateV1))
         return false;
 
@@ -360,48 +285,17 @@ bool KorvetAddrSpace::loadState(SnapshotReader& reader, uint16_t version)
         return false;
 
     const uint32_t mainRamSize = static_cast<uint32_t>(m_mainMemory->getSize());
-    const uint32_t ramDisk1Size = static_cast<uint32_t>(m_ramDisk->getSize());
-    const uint32_t ramDisk2Size = static_cast<uint32_t>(m_ramDisk2->getSize());
-    const uint64_t expectedSize = static_cast<uint64_t>(mainRamSize) +
-                                  ramDisk1Size + ramDisk2Size;
+    const uint64_t expectedSize = static_cast<uint64_t>(mainRamSize);
     if (state.mainRamSize != mainRamSize ||
-        state.ramDisk1Size != ramDisk1Size ||
-        state.ramDisk2Size != ramDisk2Size ||
         reader.remaining() != expectedSize ||
-        state.romEnabled > 1 || state.stackDiskEnabled > 1 ||
-        state.stackDiskEnabled2 > 1 || state.eram > 1 ||
-        state.eramPageStartAddr > state.eramPageEndAddr)
+        state.romEnabled > 1)
         return false;
 
     if (!reader.read(m_mainMemory->getDataPtr(), mainRamSize))
         return false;
 
-    for (uint32_t i = 0; i < ramDisk1Size; ++i) {
-        uint8_t value = 0;
-        if (!reader.readValue(value))
-            return false;
-        m_ramDisk->writeByte(static_cast<int>(i), value);
-    }
-    for (uint32_t i = 0; i < ramDisk2Size; ++i) {
-        uint8_t value = 0;
-        if (!reader.readValue(value))
-            return false;
-        m_ramDisk2->writeByte(static_cast<int>(i), value);
-    }
 
-    m_inRamPagesMask = state.inRamPagesMask;
-    m_inRamDiskPage = state.inRamDiskPage;
-    m_stackDiskPage = state.stackDiskPage;
-    m_inRamPagesMask2 = state.inRamPagesMask2;
-    m_inRamDiskPage2 = state.inRamDiskPage2;
-    m_stackDiskPage2 = state.stackDiskPage2;
-    m_eramSegment = state.eramSegment;
-    m_eramPageStartAddr = state.eramPageStartAddr;
-    m_eramPageEndAddr = state.eramPageEndAddr;
     m_romEnabled = state.romEnabled != 0;
-    m_stackDiskEnabled = state.stackDiskEnabled != 0;
-    m_stackDiskEnabled2 = state.stackDiskEnabled2 != 0;
-    m_eram = state.eram != 0;
     return true;
 }
 
@@ -1170,41 +1064,6 @@ uint8_t KorvetPpi8255Circuit::getPortC()
 }
 
 
-
-uint8_t KorvetPpiPsgAdapter::getPortA()
-{
-    return m_read;
-}
-
-
-void KorvetPpiPsgAdapter::setPortA(uint8_t value)
-{
-    m_write = value;
-}
-
-
-void KorvetPpiPsgAdapter::setPortB(uint8_t value)
-{
-    const bool bdir = (value & 0x80) != 0;
-    const bool bc1 = (value & 0x40) != 0;
-
-    if (!m_strobe && (bdir || bc1)) {
-        m_strobe = true;
-        if (!bdir && bc1)
-            m_read = m_psg ? m_psg->readByte(0) : 0xFF;
-        else if (bdir && !bc1) {
-            if (m_psg)
-                m_psg->writeByte(0, m_write);
-        } else {
-            if (m_psg)
-                m_psg->writeByte(1, m_write & 0x0F);
-        }
-    } else if (!bdir && !bc1) {
-        m_strobe = false;
-    }
-}
-
-
 void KorvetColorRegister::writeByte(int, uint8_t value)
 {
     if (m_renderer)
@@ -1478,22 +1337,6 @@ bool KorvetKbdLayout::processSpecialKeys(PalKeyCode keyCode)
 }
 
 
-void KorvetRamDiskSelector::setEnabled(bool enabled)
-{
-    m_enabled = enabled;
-    if (!m_enabled && m_korvetAddrSpace)
-        m_korvetAddrSpace->ramDiskControl(m_diskNum, 0, false, 0, 0);
-}
-
-
-void KorvetRamDiskSelector::writeByte(int, uint8_t value)
-{
-    if (m_enabled && m_korvetAddrSpace)
-        m_korvetAddrSpace->ramDiskControl(m_diskNum, ((value & 0x40) >> 6) | ((value & 0x20) >> 4) | ((value & 0x20) >> 3) | ((value & 0x80) >> 4), value & 0x10, value & 0x3, (value >> 2) & 0x3);
-}
-
-
-
 void KorvetFddControlRegister::writeByte(int, uint8_t value)
 {
     m_fdc->setDrive(value & 1);
@@ -1565,56 +1408,6 @@ void KorvetPpi8255Circuit2::setPortC(uint8_t value)
 }
 
 
-
-void KorvetHddRegisters::setEnabled(bool enabled)
-{
-    if (m_enabled == enabled)
-        return;
-
-    m_enabled = enabled;
-    m_highR = 0;
-    m_highW = 0;
-
-    if (!enabled && m_ataDrive)
-        m_ataDrive->reset();
-}
-
-
-void __not_in_flash_func(KorvetHddRegisters::writeByte)(int addr, uint8_t value)
-{
-    if (!m_enabled || !m_ataDrive)
-        return;
-
-    if (addr == 8) {
-        m_highW = value;
-        return;
-    }
-
-    addr &= 7;
-
-    if (addr == 0)
-        m_ataDrive->writeReg(addr, value | m_highW << 8);
-    else
-        m_ataDrive->writeReg(addr, value);
-}
-
-
-uint8_t __not_in_flash_func(KorvetHddRegisters::readByte)(int addr)
-{
-    if (!m_enabled || !m_ataDrive)
-        return 0xFF;
-
-    if (addr == 8)
-        return m_highR;
-
-    addr &= 7;
-
-    uint16_t read = m_ataDrive->readReg(addr);
-    if (addr == 0)
-        m_highR = read >> 8;
-    return read & 0x00FF;
-}
-
 KorvetCore::KorvetCore()
 {
 
@@ -1674,7 +1467,7 @@ KorvetCore::KorvetCore()
     m_videoPpiCircuit->attachTextAdapter(&s_devices.textAdapter);
 
     s_devices.korvetVideoPpi.setMachine(this);
-    s_devices.korvetVideoPpi.setSnapshotIndex(2);
+    s_devices.korvetVideoPpi.setSnapshotIndex(3);
     s_devices.korvetVideoPpi.attachPpi8255Circuit(m_videoPpiCircuit);
     s_devices.korvetDevicesPage.addRange(0x38, 0x3B, &s_devices.korvetVideoPpi);
 
@@ -1743,6 +1536,13 @@ KorvetCore::KorvetCore()
 
     s_devices.korvetDevicesPage.addRange(0x30, 0x33, m_ppi2);
 
+    // ppi3 — штатная ВВ55 Корвета на портах 0x08–0x0B. POST проверяет исправность
+    // шины записью/чтением её порта A, поэтому PPI должна присутствовать на шине даже
+    // без AY (PSG на этой ВВ55 — необязательная периферия и здесь не подключается).
+    s_devices.ppi3.setMachine(this);
+    s_devices.ppi3.setSnapshotIndex(2);
+    s_devices.korvetDevicesPage.addRange(0x08, 0x0B, &s_devices.ppi3);
+
     m_pit = &s_devices.pit;
     m_pit->setMachine(this);
     m_pit->setFrequency(2000000);
@@ -1766,22 +1566,6 @@ KorvetCore::KorvetCore()
     s_devices.fddMotor.attachPic(&s_devices.pic);
     s_devices.korvetDevicesPage.addRange(0x28, 0x29, &s_devices.pic);
 
-    m_ay = &s_devices.ay;
-    m_ay->setMachine(this);
-    m_ay->setFrequency(1750000);
-
-    s_devices.psgAdapter.setMachine(this);
-    s_devices.psgAdapter.attachPsg(m_ay);
-
-    s_devices.ppi3.setMachine(this);
-    s_devices.ppi3.setSnapshotIndex(2);
-    s_devices.ppi3.attachPpi8255Circuit(&s_devices.psgAdapter);
-    s_devices.korvetDevicesPage.addRange(0x08, 0x0B, &s_devices.ppi3);
-
-    m_psgSoundSource = &s_devices.psgSoundSource;
-    m_psgSoundSource->setMachine(this);
-    m_psgSoundSource->attachPsg(m_ay);
-
     m_fdc = &s_devices.fdc;
     m_fdc->setMachine(this);
     s_devices.korvetDevicesPage.addRange(0x18, 0x1B, m_fdc);
@@ -1791,19 +1575,6 @@ KorvetCore::KorvetCore()
     m_fddReg = &s_devices.fddReg;
     m_fddReg->setMachine(this);
     m_fddReg->attachFdc1793(m_fdc);
-#if 0
-    // Vector-specific FDC control port. Keep the object initialized because reset() still uses it.
-    m_ioAddrSpace->addRange(0x1C, 0x1C, m_fddReg);
-#endif
-
-    m_ataDrive = &s_devices.ataDrive;
-    m_ataDrive->setMachine(this);
-    m_ataDrive->setKorvetGeometry();
-
-    m_hddRegisters = &s_devices.hddRegisters;
-    m_hddRegisters->setMachine(this);
-    m_hddRegisters->attachAtaDrive(m_ataDrive);
-    m_ioAddrSpace->addRange(0x50, 0x5F, m_hddRegisters);
 
     m_diskA = &s_devices.diskA;
     m_diskA->setMachine(this);
@@ -1832,13 +1603,6 @@ KorvetCore::KorvetCore()
     m_diskD->setLabel("D");
     m_diskD->setFilter("Образы дисков Корвета (*.fdd)|*.fdd;*.FDD|Все файлы (*.*)|*");
     m_fdc->attachFdImage(3, m_diskD);
-
-    m_hdd = &s_devices.hdd;
-    m_hdd->setMachine(this);
-    m_hdd->setSnapshotIndex(2);
-    m_hdd->setLabel("HDD");
-    m_hdd->setFilter("Образы HDD Корвета (*.hdd;*.img)|*.hdd;*.HDD;*.img;*.IMG|Все файлы (*.*)|*");
-    m_ataDrive->assignDiskImage(m_hdd);
 
     m_loader = &s_devices.loader;
     m_loader->setMachine(this);
@@ -1919,37 +1683,6 @@ KorvetCore::KorvetCore()
     m_closeFileHookEmuRk->setSignature("FB3A61F6E604");
     m_cpu->addHook(m_closeFileHookEmuRk);
 
-    m_ramDiskMem = &s_devices.ramDiskMem;
-    m_ramDiskMem->setMachine(this);
-    m_addrSpace->attachRamDisk(0, m_ramDiskMem);
-
-    m_ramDisk = &s_devices.ramDisk;
-    m_ramDisk->setMachine(this);
-    m_ramDisk->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    m_ramDisk->attachPage(m_ramDiskMem);
-
-    m_ramDiskSelector = &s_devices.ramDiskSelector;
-    m_ramDiskSelector->setMachine(this);
-    m_ramDiskSelector->attachKorvetAddrSpace(m_addrSpace);
-    m_ramDiskSelector->setDiskNum(0);
-    m_ioAddrSpace->addRange(0x10, 0x10, m_ramDiskSelector);
-
-    m_ramDiskMem2 = &s_devices.ramDiskMem2;
-    m_ramDiskMem2->setMachine(this);
-    m_addrSpace->attachRamDisk(1, m_ramDiskMem2);
-
-    m_ramDisk2 = &s_devices.ramDisk2;
-    m_ramDisk2->setMachine(this);
-    m_ramDisk2->setLabel("EDD2");
-    m_ramDisk2->setFilter("Файлы RAM-диска Вектора (*.edd)|*.edd;*.EDD|Все файлы (*.*)|*");
-    m_ramDisk2->attachPage(m_ramDiskMem2);
-
-    m_ramDiskSelector2 = &s_devices.ramDiskSelector2;
-    m_ramDiskSelector2->setMachine(this);
-    m_ramDiskSelector2->attachKorvetAddrSpace(m_addrSpace);
-    m_ramDiskSelector2->setDiskNum(1);
-    m_ioAddrSpace->addRange(0x11, 0x11, m_ramDiskSelector2);
-
     m_tapeHooks[0] = m_tapeOutHookBas;
     m_tapeHooks[1] = m_tapeInHookBas;
     m_tapeHooks[2] = m_closeFileHookBas;
@@ -1961,83 +1694,8 @@ KorvetCore::KorvetCore()
     m_tapeHooks[8] = m_closeFileHookEmuRk;
     m_tapeHooks[9] = m_skipHookMon;
 
-    /*
-     * Базовая конфигурация соответствует обычному Вектору-06Ц (с FDD).
-     * Расширения остаются доступными из меню и через конфигурационный файл,
-     * но при первом запуске без /.config/korvet.cfg выключены.
-     */
-    m_ay->setEnabled(false);               // PSG
-    m_hddRegisters->setEnabled(false);     // HDD interface
-//    m_ramDiskSelector->setEnabled(false);  // EDD
-//    m_ramDiskSelector2->setEnabled(false); // EDD2
-
     init();
-
     reset();
-
-}
-
-
-bool KorvetCore::getPsgEnabled() const
-{
-    return m_ay && m_ay->getEnabled();
-}
-
-
-void KorvetCore::setPsgEnabled(bool enabled)
-{
-    if (!m_ay || !m_psgSoundSource || m_ay->getEnabled() == enabled)
-        return;
-
-    m_ay->setEnabled(enabled);
-
-    SoundMixer* mixer = g_emulation ? g_emulation->getSoundMixer() : nullptr;
-    if (!mixer || !mixer->sourcesCollected())
-        return;
-
-    if (enabled)
-        mixer->addSoundSource(m_psgSoundSource);
-    else
-        mixer->removeSoundSource(m_psgSoundSource);
-}
-
-
-bool KorvetCore::getPsgStereo() const
-{
-    return m_psgSoundSource && m_psgSoundSource->getStereo();
-}
-
-
-void KorvetCore::setPsgStereo(bool stereo)
-{
-    if (m_psgSoundSource)
-        m_psgSoundSource->setStereo(stereo);
-}
-
-
-bool KorvetCore::getPsgAcbOrder() const
-{
-    return m_psgSoundSource && m_psgSoundSource->getAcbOrder();
-}
-
-
-void KorvetCore::setPsgAcbOrder(bool acbOrder)
-{
-    if (m_psgSoundSource)
-        m_psgSoundSource->setAcbOrder(acbOrder);
-}
-
-
-bool KorvetCore::getHddEnabled() const
-{
-    return m_hddRegisters && m_hddRegisters->getEnabled();
-}
-
-
-void KorvetCore::setHddEnabled(bool enabled)
-{
-    if (m_hddRegisters)
-        m_hddRegisters->setEnabled(enabled);
 }
 
 
@@ -2064,19 +1722,12 @@ void KorvetCore::init()
     m_ppi2->init();
     m_pit->init();
     m_sndSource->init();
-    m_ay->init();
-    m_psgSoundSource->init();
-    if (!m_ay->getEnabled() && g_emulation && g_emulation->getSoundMixer())
-        g_emulation->getSoundMixer()->removeSoundSource(m_psgSoundSource);
     m_fdc->init();
     m_fddReg->init();
-    m_ataDrive->init();
-    m_hddRegisters->init();
     m_diskA->init();
     m_diskB->init();
     m_diskC->init();
     m_diskD->init();
-    m_hdd->init();
     m_loader->init();
     m_tapeInFile->init();
     m_tapeOutFile->init();
@@ -2090,12 +1741,6 @@ void KorvetCore::init()
     m_tapeInHookEmuRk->init();
     m_tapeOutHookEmuRk->init();
     m_closeFileHookEmuRk->init();
-    m_ramDiskMem->init();
-    m_ramDisk->init();
-    m_ramDiskSelector->init();
-    m_ramDiskMem2->init();
-    m_ramDisk2->init();
-    m_ramDiskSelector2->init();
 }
 
 void KorvetCore::shutdown()
@@ -2120,17 +1765,12 @@ void KorvetCore::shutdown()
     m_ppi2->shutdown();
     m_pit->shutdown();
     m_sndSource->shutdown();
-    m_ay->shutdown();
-    m_psgSoundSource->shutdown();
     m_fdc->shutdown();
     m_fddReg->shutdown();
-    m_ataDrive->shutdown();
-    m_hddRegisters->shutdown();
     m_diskA->shutdown();
     m_diskB->shutdown();
     m_diskC->shutdown();
     m_diskD->shutdown();
-    m_hdd->shutdown();
     m_loader->shutdown();
     m_tapeInFile->shutdown();
     m_tapeOutFile->shutdown();
@@ -2144,12 +1784,6 @@ void KorvetCore::shutdown()
     m_tapeInHookEmuRk->shutdown();
     m_tapeOutHookEmuRk->shutdown();
     m_closeFileHookEmuRk->shutdown();
-    m_ramDiskMem->shutdown();
-    m_ramDisk->shutdown();
-    m_ramDiskSelector->shutdown();
-    m_ramDiskMem2->shutdown();
-    m_ramDisk2->shutdown();
-    m_ramDiskSelector2->shutdown();
 }
 
 void KorvetCore::coldReinitialize()
@@ -2289,17 +1923,12 @@ void KorvetCore::reset()
     m_ppi2->reset();
     m_pit->reset();
     m_sndSource->reset();
-    m_ay->reset();
-    m_psgSoundSource->reset();
     m_fdc->reset();
     m_fddReg->reset();
-    m_ataDrive->reset();
-    m_hddRegisters->reset();
     m_diskA->reset();
     m_diskB->reset();
     m_diskC->reset();
     m_diskD->reset();
-    m_hdd->reset();
     m_loader->reset();
     m_tapeInFile->reset();
     m_tapeOutFile->reset();
@@ -2313,12 +1942,6 @@ void KorvetCore::reset()
     m_tapeInHookEmuRk->reset();
     m_tapeOutHookEmuRk->reset();
     m_closeFileHookEmuRk->reset();
-    m_ramDiskMem->reset();
-    m_ramDisk->reset();
-    m_ramDiskSelector->reset();
-    m_ramDiskMem2->reset();
-    m_ramDisk2->reset();
-    m_ramDiskSelector2->reset();
     m_intReq = false;
     m_intsEnabled = false;
 }
@@ -2384,34 +2007,6 @@ void KorvetCore::sysReq(SysReq sr)
                 m_loader->chooseAndLoadFile(true);
             }
             break;
-#if 0 // Legacy Vector-specific commands; retained for staged Korvet port
-        case SR_HDD:
-            chooseHddImage();
-            break;
-        case SR_DEBUG:
-            // show debugger
-            g_emulation->debugRequest(m_cpu);
-            break;
-        case SR_OPENRAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->openFile();
-            break;
-        case SR_SAVERAMDISKAS:
-            if (m_ramDisk)
-                m_ramDisk->saveFileAs();
-            break;
-        case SR_OPENRAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->openFile();
-            break;
-        case SR_SAVERAMDISK2AS:
-            if (m_ramDisk2)
-                m_ramDisk2->saveFileAs();
-            break;
-        case SR_TAPEHOOK:
-            setTapeHooksEnabled(!tapeHooksEnabled());
-            break;
-#endif
         default:
             break;
     }
@@ -2472,21 +2067,6 @@ std::string KorvetCore::getTapeInputFileName() const
 std::string KorvetCore::getTapeOutputFileName() const
 {
     return m_tapeOutFile ? m_tapeOutFile->getFileName() : std::string();
-}
-
-
-bool KorvetCore::ramDiskEnabled(int diskNum) const
-{
-    const KorvetRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
-    return selector && selector->getEnabled();
-}
-
-
-void KorvetCore::setRamDiskEnabled(int diskNum, bool enabled)
-{
-    KorvetRamDiskSelector* selector = diskNum == 0 ? m_ramDiskSelector : m_ramDiskSelector2;
-    if (selector && selector->getEnabled() != enabled)
-        selector->setEnabled(enabled);
 }
 
 
@@ -2636,29 +2216,6 @@ void KorvetCore::ejectFloppyImage(KorvetFloppyDrive drive)
     if (disk)
         disk->assignFileName("");
 }
-
-bool KorvetCore::hddImagePresent() const
-{
-    return m_hdd && m_hdd->getImagePresent();
-}
-
-std::string KorvetCore::getHddFileName() const
-{
-    return m_hdd ? m_hdd->getFileName() : std::string();
-}
-
-void KorvetCore::chooseHddImage()
-{
-    if (m_hdd)
-        m_hdd->chooseFile("HDD-image file");
-}
-
-void KorvetCore::ejectHddImage()
-{
-    if (m_hdd)
-        m_hdd->assignFileName("");
-}
-
 
 
 SnapshotWriter::SnapshotWriter(FIL& file) :
@@ -2831,7 +2388,7 @@ uint32_t SnapshotReader::remaining() const
 namespace {
 
 static constexpr uint16_t c_snapshotFormatVersion = SNAPSHOT_STATE_FORMAT_VERSION;
-static constexpr uint32_t c_snapshotSectionCount = 18;
+static constexpr uint32_t c_snapshotSectionCount = 22;
 
 static void snapshotFileName(char* fileName, unsigned slot)
 {
@@ -2855,19 +2412,12 @@ static bool writeSnapshotSection(SnapshotWriter& writer,
 namespace {
 
 #pragma pack(push, 1)
-struct KorvetCoreSnapshotStateV1 {
+struct KorvetCoreSnapshotStateV3 {
     uint32_t cpuFrequency;
-    uint8_t cpuType;
     uint8_t intReq;
     uint8_t intsEnabled;
     uint8_t tapeOut;
-    uint8_t ramDisk1Enabled;
-    uint8_t ramDisk2Enabled;
-    uint8_t psgEnabled;
-    uint8_t psgStereo;
-    uint8_t psgAcbOrder;
-    uint8_t hddEnabled;
-    uint8_t tapeHooksEnabled;
+    uint8_t memConfig;          // конфигурация страничного селектора памяти
 };
 #pragma pack(pop)
 
@@ -2880,55 +2430,39 @@ uint32_t KorvetCore::snapshotSectionId() const
 
 uint16_t KorvetCore::snapshotSectionVersion() const
 {
-    return 1;
+    return 3;
 }
 
 bool KorvetCore::saveState(SnapshotWriter& writer) const
 {
-    KorvetCoreSnapshotStateV1 state{};
+    KorvetCoreSnapshotStateV3 state{};
     state.cpuFrequency = m_cpuFrequency;
-    state.cpuType = static_cast<uint8_t>(getCpuType());
     state.intReq = m_intReq ? 1 : 0;
     state.intsEnabled = m_intsEnabled ? 1 : 0;
     state.tapeOut = m_tapeOut ? 1 : 0;
-    state.ramDisk1Enabled = ramDiskEnabled(0) ? 1 : 0;
-    state.ramDisk2Enabled = ramDiskEnabled(1) ? 1 : 0;
-    state.psgEnabled = getPsgEnabled() ? 1 : 0;
-    state.psgStereo = getPsgStereo() ? 1 : 0;
-    state.psgAcbOrder = getPsgAcbOrder() ? 1 : 0;
-    state.hddEnabled = getHddEnabled() ? 1 : 0;
-    state.tapeHooksEnabled = tapeHooksEnabled() ? 1 : 0;
+    state.memConfig = getMemoryConfig();
     return writer.writeValue(state);
 }
 
 bool KorvetCore::loadState(SnapshotReader& reader, uint16_t version)
 {
     if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(KorvetCoreSnapshotStateV1))
+        reader.remaining() != sizeof(KorvetCoreSnapshotStateV3))
         return false;
 
-    KorvetCoreSnapshotStateV1 state{};
+    KorvetCoreSnapshotStateV3 state{};
     if (!reader.readValue(state) ||
-        state.cpuType > VECTOR_CPU_Z80 ||
-        state.intReq > 1 || state.intsEnabled > 1 || state.tapeOut > 1 ||
-        state.ramDisk1Enabled > 1 || state.ramDisk2Enabled > 1 ||
-        state.psgEnabled > 1 || state.psgStereo > 1 ||
-        state.psgAcbOrder > 1 || state.hddEnabled > 1 ||
-        state.tapeHooksEnabled > 1)
+        state.intReq > 1 || state.intsEnabled > 1 || state.tapeOut > 1)
         return false;
 
-    setCpuType(static_cast<KorvetCpuType>(state.cpuType));
     setCpuFrequency(state.cpuFrequency);
     m_intReq = state.intReq != 0;
     m_intsEnabled = state.intsEnabled != 0;
     m_tapeOut = state.tapeOut != 0;
-    setRamDiskEnabled(0, state.ramDisk1Enabled != 0);
-    setRamDiskEnabled(1, state.ramDisk2Enabled != 0);
-    setPsgEnabled(state.psgEnabled != 0);
-    setPsgStereo(state.psgStereo != 0);
-    setPsgAcbOrder(state.psgAcbOrder != 0);
-    setHddEnabled(state.hddEnabled != 0);
-    setTapeHooksEnabled(state.tapeHooksEnabled != 0);
+    // Восстанавливаем конфигурацию страничного селектора: без неё после
+    // загрузки карта памяти не совпадает с сохранённой и машина падает.
+    if (m_addrSpaceSelector)
+        m_addrSpaceSelector->writeByte(0, state.memConfig);
     return true;
 }
 
@@ -2952,7 +2486,7 @@ bool KorvetCore::saveSnapshot(unsigned slot)
         return false;
 
     SnapshotFileHeaderV2 header{};
-    std::memcpy(header.magic, "KORVSNAP", 7);
+    std::memcpy(header.magic, "KORVETSS", sizeof(header.magic));
     header.formatVersion = c_snapshotFormatVersion;
     header.headerSize = sizeof(header);
     header.sectionCount = c_snapshotSectionCount;
@@ -2970,28 +2504,31 @@ bool KorvetCore::saveSnapshot(unsigned slot)
     }
 #endif
 
-    SnapshotSerializable* cpuState = getCpuType() == VECTOR_CPU_Z80
-        ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
-        : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
+    SnapshotSerializable* cpuState =
+        static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
 
     SnapshotWriter writer(g_file);
     bool ok = writer.writeValue(header);
     ok = ok && writeSnapshotSection(writer, *this); // CORE must precede CPU.
     ok = ok && writeSnapshotSection(writer, *cpuState);
     ok = ok && writeSnapshotSection(writer, *m_addrSpace);
+    ok = ok && writeSnapshotSection(writer, s_devices.graphicsAdapter);
+    ok = ok && writeSnapshotSection(writer, s_devices.textAdapter);
+    ok = ok && writeSnapshotSection(writer, s_devices.korvetLutRegister);
+    ok = ok && writeSnapshotSection(writer, s_devices.korvetVideoPpi);
     ok = ok && writeSnapshotSection(writer, *m_ppi);
     ok = ok && writeSnapshotSection(writer, *m_ppi2);
+    ok = ok && writeSnapshotSection(writer, s_devices.ppi3);
+    ok = ok && writeSnapshotSection(writer, s_devices.pic);
     ok = ok && writeSnapshotSection(writer, *m_pit);
     ok = ok && writeSnapshotSection(writer, *m_renderer);
     ok = ok && writeSnapshotSection(writer, *m_tapeSoundSource);
     ok = ok && writeSnapshotSection(writer, *m_covox);
-    ok = ok && writeSnapshotSection(writer, *m_ay);
-    ok = ok && writeSnapshotSection(writer, *m_psgSoundSource);
     ok = ok && writeSnapshotSection(writer, *m_fdc);
-    ok = ok && writeSnapshotSection(writer, *m_ataDrive);
     ok = ok && writeSnapshotSection(writer, *m_diskA);
     ok = ok && writeSnapshotSection(writer, *m_diskB);
-    ok = ok && writeSnapshotSection(writer, *m_hdd);
+    ok = ok && writeSnapshotSection(writer, *m_diskC);
+    ok = ok && writeSnapshotSection(writer, *m_diskD);
     ok = ok && writeSnapshotSection(writer, *g_emulation->getSoundMixer());
     ok = ok && writeSnapshotSection(writer, *g_emulation);
     ok = ok && writer.good();
@@ -3047,7 +2584,7 @@ bool KorvetCore::readSnapshotInfo(unsigned slot, SnapshotInfo& info) const
     header.firmwareVersion[sizeof(header.firmwareVersion) - 1] = 0;
     info.formatVersion = header.formatVersion;
     info.firmwareVersion = header.firmwareVersion;
-    return std::memcmp(header.magic, "KORVSNAP", 7) == 0 &&
+    return std::memcmp(header.magic, "KORVETSS", sizeof(header.magic)) == 0 &&
            header.headerSize >= sizeof(SnapshotFileHeaderV2);
 }
 
@@ -3086,7 +2623,7 @@ KorvetCore::SnapshotLoadResult KorvetCore::loadSnapshot(unsigned slot,
         if (fileFormatVersion)
             *fileFormatVersion = header.formatVersion;
 
-        if (std::memcmp(header.magic, "KORVSNAP", 7) != 0 ||
+        if (std::memcmp(header.magic, "KORVETSS", sizeof(header.magic)) != 0 ||
             header.headerSize < sizeof(SnapshotFileHeaderV2)) {
             result = SnapshotLoadResult::InvalidFile;
         } else if (header.formatVersion != c_snapshotFormatVersion) {
@@ -3114,21 +2651,25 @@ KorvetCore::SnapshotLoadResult KorvetCore::loadSnapshot(unsigned slot,
             devices[0] = this;
             devices[1] = cpuState;
             devices[2] = m_addrSpace;
-            devices[3] = m_ppi;
-            devices[4] = m_ppi2;
-            devices[5] = m_pit;
-            devices[6] = m_renderer;
-            devices[7] = m_tapeSoundSource;
-            devices[8] = m_covox;
-            devices[9] = m_ay;
-            devices[10] = m_psgSoundSource;
-            devices[11] = m_fdc;
-            devices[12] = m_ataDrive;
-            devices[13] = m_diskA;
-            devices[14] = m_diskB;
-            devices[15] = m_hdd;
-            devices[16] = g_emulation->getSoundMixer();
-            devices[17] = g_emulation;
+            devices[3] = &s_devices.graphicsAdapter;
+            devices[4] = &s_devices.textAdapter;
+            devices[5] = &s_devices.korvetLutRegister;
+            devices[6] = &s_devices.korvetVideoPpi;
+            devices[7] = m_ppi;
+            devices[8] = m_ppi2;
+            devices[9] = &s_devices.ppi3;
+            devices[10] = &s_devices.pic;
+            devices[11] = m_pit;
+            devices[12] = m_renderer;
+            devices[13] = m_tapeSoundSource;
+            devices[14] = m_covox;
+            devices[15] = m_fdc;
+            devices[16] = m_diskA;
+            devices[17] = m_diskB;
+            devices[18] = m_diskC;
+            devices[19] = m_diskD;
+            devices[20] = g_emulation->getSoundMixer();
+            devices[21] = g_emulation;
 
             int deviceIndex = -1;
             for (uint32_t i = 0; i < c_snapshotSectionCount; ++i) {
@@ -3171,9 +2712,8 @@ KorvetCore::SnapshotLoadResult KorvetCore::loadSnapshot(unsigned slot,
 
     // Rebuild derived links and caches only after every device has accepted
     // its own state. CORE is already applied, so the current CPU pointer is final.
-    SnapshotSerializable* cpuState = getCpuType() == VECTOR_CPU_Z80
-        ? static_cast<SnapshotSerializable*>(static_cast<CpuZ80*>(m_cpu))
-        : static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
+    SnapshotSerializable* cpuState =
+        static_cast<SnapshotSerializable*>(static_cast<Cpu8080*>(m_cpu));
     devices[1] = cpuState;
     for (SnapshotSerializable* device : devices)
         device->postLoad();

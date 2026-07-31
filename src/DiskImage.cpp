@@ -284,11 +284,17 @@ uint32_t DiskImage::snapshotSectionId() const
 {
     switch (m_snapshotIndex) {
     case 0:
-        return makeSnapshotSectionId('F', 'D', 'A', ' ');
+        return makeSnapshotSectionId('D', 'S', 'K', 'A');
     case 1:
-        return makeSnapshotSectionId('F', 'D', 'B', ' ');
-    default:
+        return makeSnapshotSectionId('D', 'S', 'K', 'B');
+    case 2:
         return makeSnapshotSectionId('H', 'D', 'D', ' ');
+    case 3:
+        return makeSnapshotSectionId('D', 'S', 'K', 'C');
+    case 4:
+        return makeSnapshotSectionId('D', 'S', 'K', 'D');
+    default:
+        return 0;
     }
 }
 

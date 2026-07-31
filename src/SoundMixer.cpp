@@ -46,9 +46,6 @@ struct SoundMixerSnapshotStateV1 {
 #pragma pack(pop)
 }
 
-// Вызывается 48000 (SAMPLE_RATE) раз в секунду для получения текущего сэмпла и его проигрывания
-extern "C" void psgTestTick(void);
-
 void __not_in_flash_func(SoundMixer::operate)()
 {
     // Эталонные сигналы тактуются отсюда, а не от таймера вывода: operate()
@@ -56,8 +53,6 @@ void __not_in_flash_func(SoundMixer::operate)()
     // во всех режимах, поэтому темп теста не зависит от способа вывода и
     // режимы становятся сравнимыми. Вызов до опроса источников, чтобы новое
     // значение попало уже в текущий сэмпл.
-    psgTestTick();
-
     int leftSample = 0;
     int rightSample = 0;
     for (int i = 0; i < m_soundSourceCount; i++) {

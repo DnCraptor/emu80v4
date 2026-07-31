@@ -41,7 +41,6 @@ class Fdc1793;
 class GeneralSoundSource;
 class Cpu8080Compatible;
 class Covox;
-class AtaDrive;
 class Cpu;
 class RamDisk;
 class DiskImage;
@@ -62,10 +61,7 @@ class KorvetVideoPpiCircuit;
 class KorvetPpi8255Circuit2;
 class Pit8253;
 class KorvetPit8253SoundSource;
-class Psg3910;
-class Psg3910SoundSource;
 class KorvetFddControlRegister;
-class KorvetHddRegisters;
 class FdImage;
 class TapeRedirector;
 class RkTapeInHook;
@@ -206,7 +202,7 @@ class KorvetRenderer : public CrtRenderer, public IActive, public SnapshotSerial
 
 
 
-constexpr uint16_t SNAPSHOT_STATE_FORMAT_VERSION = 2;
+constexpr uint16_t SNAPSHOT_STATE_FORMAT_VERSION = 5;
 
 constexpr uint32_t makeSnapshotSectionId(char a, char b, char c, char d)
 {
@@ -379,10 +375,6 @@ class KorvetCore : public SnapshotSerializable
         std::string getFloppyFileName(KorvetFloppyDrive drive) const;
         void chooseFloppyImage(KorvetFloppyDrive drive);
         void ejectFloppyImage(KorvetFloppyDrive drive);
-        bool hddImagePresent() const;
-        std::string getHddFileName() const;
-        void chooseHddImage();
-        void ejectHddImage();
 
         bool tapeHooksEnabled() const;
         void setTapeHooksEnabled(bool enabled);
@@ -393,9 +385,6 @@ class KorvetCore : public SnapshotSerializable
         std::string getTapeInputFileName() const;
         std::string getTapeOutputFileName() const;
 
-        bool ramDiskEnabled(int diskNum) const;
-        void setRamDiskEnabled(int diskNum, bool enabled);
-
         void vrtc(bool isActive);
         void hrtc(bool isActive);
         void int4(bool isActive);
@@ -403,14 +392,6 @@ class KorvetCore : public SnapshotSerializable
         void tapeOut(bool isActive) {m_tapeOut = isActive;}
         bool getTapeOut() const {return m_tapeOut;}
         WavWriter* getWavWriter() {return m_wavWriter;}
-        bool getPsgEnabled() const;
-        void setPsgEnabled(bool enabled);
-        bool getPsgStereo() const;
-        void setPsgStereo(bool stereo);
-        bool getPsgAcbOrder() const;
-        void setPsgAcbOrder(bool acbOrder);
-        bool getHddEnabled() const;
-        void setHddEnabled(bool enabled);
 
     private:
         Ram* m_ram = nullptr;
@@ -437,18 +418,13 @@ class KorvetCore : public SnapshotSerializable
         Ppi8255* m_ppi2 = nullptr;
         Pit8253* m_pit = nullptr;
         Pit8253SoundSource* m_sndSource = nullptr;
-        Psg3910* m_ay = nullptr;
-        Psg3910SoundSource* m_psgSoundSource = nullptr;
         Fdc1793* m_fdc = nullptr;
         KorvetFddControlRegister* m_fddReg = nullptr;
-        AtaDrive* m_ataDrive = nullptr;
-        KorvetHddRegisters* m_hddRegisters = nullptr;
         FdImage* m_diskA = nullptr;
         FdImage* m_diskB = nullptr;
         FdImage* m_diskC = nullptr;
         FdImage* m_diskD = nullptr;
         bool m_floppyReadOnlyMode[4] = {false, false, false, false};
-        DiskImage* m_hdd = nullptr;
         KorvetFileLoader* m_loader = nullptr;
         TapeRedirector* m_tapeInFile = nullptr;
         TapeRedirector* m_tapeOutFile = nullptr;
@@ -463,12 +439,6 @@ class KorvetCore : public SnapshotSerializable
         RkTapeInHook* m_tapeInHookEmuRk = nullptr;
         RkTapeOutHook* m_tapeOutHookEmuRk = nullptr;
         CloseFileHook* m_closeFileHookEmuRk = nullptr;
-        SRam* m_ramDiskMem = nullptr;
-        RamDisk* m_ramDisk = nullptr;
-        KorvetRamDiskSelector* m_ramDiskSelector = nullptr;
-        SRam* m_ramDiskMem2 = nullptr;
-        RamDisk* m_ramDisk2 = nullptr;
-        KorvetRamDiskSelector* m_ramDiskSelector2 = nullptr;
         CpuHook* m_tapeHooks[10] = {};
 
         bool m_intReq = false;
@@ -492,14 +462,11 @@ class KorvetAddrSpace : public AddressableDevice, public SnapshotSerializable
         void attachCpu(Cpu8080Compatible* cpu) {m_cpu = cpu; rebuildPageMap();}
         void attachSelector(KorvetAddrSpaceSelector* selector) {m_addrSpaceSelector = selector;}
         void setPage(int pageNum, AddressableDevice* page) {m_pages[pageNum] = page;}
-        void attachRamDisk(int diskNum, SRam* ramDisk);
         void attachCrtRenderer(KorvetRenderer* crtRenderer) {m_crtRenderer = crtRenderer; rebuildPageMap();}
 
         // Перестроить быструю карту страниц в CPU по текущей конфигурации памяти.
         // Вызывается из всех операций, меняющих раскладку; на горячем пути не лежит.
         void rebuildPageMap();
-        void ramDiskControl(int diskNum, int inRamPagesMask, bool stackEnabled, int inRamPage, int stackPage);
-        void eramControl(int eramSegment, int eramPageStartAddr, int eramPageEndAddr);
 
         uint32_t snapshotSectionId() const override;
         uint16_t snapshotSectionVersion() const override;
@@ -511,29 +478,12 @@ class KorvetAddrSpace : public AddressableDevice, public SnapshotSerializable
     private:
         Ram* m_mainMemory = nullptr;
         Rom* m_rom = nullptr;
-        SRam* m_ramDisk = nullptr;
-        SRam* m_ramDisk2 = nullptr;
         Cpu8080Compatible* m_cpu = nullptr;
         KorvetRenderer* m_crtRenderer = nullptr;
         KorvetAddrSpaceSelector* m_addrSpaceSelector = nullptr;
         AddressableDevice* m_pages[9] = {};
 
         bool m_romEnabled = true;
-
-        int m_inRamPagesMask = 0;
-        bool m_stackDiskEnabled = false;
-        int m_inRamDiskPage = 0;
-        int m_stackDiskPage = 0;
-
-        int m_inRamPagesMask2 = 0;
-        bool m_stackDiskEnabled2 = false;
-        int m_inRamDiskPage2 = 0;
-        int m_stackDiskPage2 = 0;
-
-        int m_eramSegment = 0;
-        uint16_t m_eramPageStartAddr = 0xA000;
-        uint16_t m_eramPageEndAddr = 0xDFFF;
-        bool m_eram = false;
 
         // Пересекается ли страница [first..last] с окном RAM-диска
         bool pageHitsRamDisk(int first, int last) const;
@@ -685,23 +635,6 @@ class KorvetPpi8255Circuit2 : public Ppi8255Circuit
 };
 
 
-class KorvetPpiPsgAdapter : public Ppi8255Circuit
-{
-    public:
-        void attachPsg(Psg3910* psg) {m_psg = psg;}
-
-        uint8_t getPortA() override;
-        void setPortA(uint8_t value) override;
-        void setPortB(uint8_t value) override;
-
-    private:
-        Psg3910* m_psg = nullptr;
-        bool m_strobe = false;
-        uint8_t m_read = 0;
-        uint8_t m_write = 0;
-};
-
-
 class KorvetColorRegister : public AddressableDevice
 {
     public:
@@ -737,26 +670,6 @@ class KorvetKbdLayout : public KbdLayout
 };
 
 
-class KorvetRamDiskSelector : public AddressableDevice
-{
-    public:
-
-        void attachKorvetAddrSpace(KorvetAddrSpace* vectorAddrSpace) {m_korvetAddrSpace = vectorAddrSpace;}
-        void setDiskNum(int diskNum) {m_diskNum = diskNum;}
-        bool getEnabled() const {return m_enabled;}
-        void setEnabled(bool enabled);
-
-        void writeByte(int, uint8_t value) override;
-        uint8_t readByte(int)  override {return 0xff;}
-
-
-    private:
-        KorvetAddrSpace* m_korvetAddrSpace = nullptr;
-        int m_diskNum = 0;
-        bool m_enabled = true;
-};
-
-
 class KorvetFddControlRegister : public AddressableDevice
 {
     public:
@@ -769,27 +682,6 @@ class KorvetFddControlRegister : public AddressableDevice
 
     private:
         Fdc1793* m_fdc = nullptr;
-};
-
-
-class KorvetHddRegisters : public AddressableDevice
-{
-    public:
-
-        void attachAtaDrive(AtaDrive* ataDrive) {m_ataDrive = ataDrive;}
-        bool getEnabled() const {return m_enabled;}
-        void setEnabled(bool enabled);
-
-        void writeByte(int addr, uint8_t value) override;
-        uint8_t readByte(int) override;
-
-
-    private:
-        AtaDrive* m_ataDrive = nullptr;
-        bool m_enabled = true;
-
-        uint8_t m_highR = 0;
-        uint8_t m_highW = 0;
 };
 
 

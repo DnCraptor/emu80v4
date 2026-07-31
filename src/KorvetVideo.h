@@ -18,7 +18,7 @@ class Pic8259;
 #define KORVET_VIDEO_PAGE_COUNT 1
 #endif
 
-class KorvetGraphicsAdapter : public AddressableDevice
+class KorvetGraphicsAdapter : public AddressableDevice, public SnapshotSerializable
 {
 public:
     KorvetGraphicsAdapter();
@@ -28,6 +28,10 @@ public:
     void setColorRegisterValue(uint8_t value) {m_colorRegisterValue = value;}
     void setRwPage(uint8_t page);
     const uint8_t* getPlane(int plane) const {return m_planes[plane];}
+    uint32_t snapshotSectionId() const override;
+    uint16_t snapshotSectionVersion() const override;
+    bool saveState(SnapshotWriter& writer) const override;
+    bool loadState(SnapshotReader& reader, uint16_t version) override;
     int getPageCount() const {return c_pageCount;}
 private:
     static constexpr int c_pageCount = KORVET_VIDEO_PAGE_COUNT;
@@ -37,7 +41,7 @@ private:
     uint8_t* m_planes[3] = {};
 };
 
-class KorvetTextAdapter : public AddressableDevice
+class KorvetTextAdapter : public AddressableDevice, public SnapshotSerializable
 {
 public:
     KorvetTextAdapter();
@@ -48,6 +52,10 @@ public:
     bool getAttr() const {return m_curAttr != 0;}
     const uint8_t* getSymbols() const {return m_symbols;}
     const uint8_t* getAttrs() const {return m_attrs;}
+    uint32_t snapshotSectionId() const override;
+    uint16_t snapshotSectionVersion() const override;
+    bool saveState(SnapshotWriter& writer) const override;
+    bool loadState(SnapshotReader& reader, uint16_t version) override;
 private:
     uint8_t m_attrMask = 0;
     uint8_t m_curAttr = 0;
@@ -55,7 +63,7 @@ private:
     uint8_t m_attrs[1024] = {};
 };
 
-class KorvetLutRegister : public AddressableDevice
+class KorvetLutRegister : public AddressableDevice, public SnapshotSerializable
 {
 public:
     void attachRenderer(KorvetRenderer* renderer) {m_renderer = renderer;}
@@ -63,6 +71,11 @@ public:
     void writeByte(int addr, uint8_t value) override;
     uint8_t readByte(int) override {return 0xFF;}
     uint8_t getValue(int index) const {return m_lut[index & 0x0F];}
+    uint32_t snapshotSectionId() const override;
+    uint16_t snapshotSectionVersion() const override;
+    bool saveState(SnapshotWriter& writer) const override;
+    bool loadState(SnapshotReader& reader, uint16_t version) override;
+    void postLoad() override;
 private:
     KorvetRenderer* m_renderer = nullptr;
     uint8_t m_lut[16] = {};

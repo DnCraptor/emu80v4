@@ -188,9 +188,8 @@ struct Ppi8255SnapshotStateV1 {
 
 uint32_t Ppi8255::snapshotSectionId() const
 {
-    return m_snapshotIndex == 0
-        ? makeSnapshotSectionId('P', 'P', 'I', '0')
-        : makeSnapshotSectionId('P', 'P', 'I', '1');
+    return makeSnapshotSectionId('P', 'P', 'I',
+        m_snapshotIndex < 10 ? char('0' + m_snapshotIndex) : '?');
 }
 
 uint16_t Ppi8255::snapshotSectionVersion() const

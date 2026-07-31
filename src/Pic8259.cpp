@@ -1,5 +1,6 @@
 #include "Pic8259.h"
 #include "Cpu.h"
+#include "Korvet.h"
 
 void Pic8259::reset()
 {
@@ -183,4 +184,111 @@ void Pic8259::eoi(int level)
         serviceInt();
     else
         updateCurLevels();
+}
+
+
+namespace {
+
+#pragma pack(push, 1)
+struct Pic8259SnapshotStateV1 {
+    uint8_t irs;
+    uint8_t imr;
+    uint8_t irr;
+    uint8_t isr;
+    int32_t curIcwIndex;
+    int32_t totalIcws;
+    int32_t addrInterval;
+    uint16_t isrPageAddr;
+    int32_t curInServiceLevel;
+    int32_t curRequestLevel;
+    int32_t highestPrio;
+    uint8_t levelMode;
+    uint8_t readIsrFlag;
+    uint8_t pollMode;
+    uint8_t specialMask;
+    uint8_t autoEoi;
+    uint8_t rotateOnAeoi;
+    uint8_t inte;
+};
+#pragma pack(pop)
+
+}
+
+uint32_t Pic8259::snapshotSectionId() const
+{
+    return makeSnapshotSectionId('P', 'I', 'C', ' ');
+}
+
+uint16_t Pic8259::snapshotSectionVersion() const
+{
+    return 1;
+}
+
+bool Pic8259::saveState(SnapshotWriter& writer) const
+{
+    Pic8259SnapshotStateV1 state{};
+    state.irs = m_irs;
+    state.imr = m_imr;
+    state.irr = m_irr;
+    state.isr = m_isr;
+    state.curIcwIndex = m_curIcwIndex;
+    state.totalIcws = m_totalIcws;
+    state.addrInterval = m_addrInterval;
+    state.isrPageAddr = m_isrPageAddr;
+    state.curInServiceLevel = m_curInServiceLevel;
+    state.curRequestLevel = m_curRequestLevel;
+    state.highestPrio = m_highestPrio;
+    state.levelMode = m_levelMode ? 1 : 0;
+    state.readIsrFlag = m_readIsrFlag ? 1 : 0;
+    state.pollMode = m_pollMode ? 1 : 0;
+    state.specialMask = m_specialMask ? 1 : 0;
+    state.autoEoi = m_autoEoi ? 1 : 0;
+    state.rotateOnAeoi = m_rotateOnAeoi ? 1 : 0;
+    state.inte = m_inte ? 1 : 0;
+    return writer.writeValue(state);
+}
+
+bool Pic8259::loadState(SnapshotReader& reader, uint16_t version)
+{
+    if (version != snapshotSectionVersion() ||
+        reader.remaining() != sizeof(Pic8259SnapshotStateV1))
+        return false;
+
+    Pic8259SnapshotStateV1 state{};
+    if (!reader.readValue(state) ||
+        state.curIcwIndex < 0 || state.curIcwIndex > 3 ||
+        state.totalIcws < 2 || state.totalIcws > 4 ||
+        (state.addrInterval != 4 && state.addrInterval != 8) ||
+        state.curInServiceLevel < 0 || state.curInServiceLevel > 8 ||
+        state.curRequestLevel < 0 || state.curRequestLevel > 8 ||
+        state.highestPrio < 0 || state.highestPrio > 7 ||
+        state.levelMode > 1 || state.readIsrFlag > 1 ||
+        state.pollMode > 1 || state.specialMask > 1 ||
+        state.autoEoi > 1 || state.rotateOnAeoi > 1 || state.inte > 1)
+        return false;
+
+    m_irs = state.irs;
+    m_imr = state.imr;
+    m_irr = state.irr;
+    m_isr = state.isr;
+    m_curIcwIndex = state.curIcwIndex;
+    m_totalIcws = state.totalIcws;
+    m_addrInterval = state.addrInterval;
+    m_isrPageAddr = state.isrPageAddr;
+    m_curInServiceLevel = state.curInServiceLevel;
+    m_curRequestLevel = state.curRequestLevel;
+    m_highestPrio = state.highestPrio;
+    m_levelMode = state.levelMode != 0;
+    m_readIsrFlag = state.readIsrFlag != 0;
+    m_pollMode = state.pollMode != 0;
+    m_specialMask = state.specialMask != 0;
+    m_autoEoi = state.autoEoi != 0;
+    m_rotateOnAeoi = state.rotateOnAeoi != 0;
+    m_inte = state.inte != 0;
+    return true;
+}
+
+void Pic8259::postLoad()
+{
+    updateCurLevels();
 }
