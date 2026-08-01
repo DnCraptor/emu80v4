@@ -1421,6 +1421,8 @@ void saveMenuStateImpl()
     const char* order = core->getPsgAcbOrder() ? "acb" : "abc";
     const char* ayClock = hway_ayclk_mode() == 0 ? "off"
                         : (hway_ayclk_mode() == 2 ? "alt" : "main");
+    static const char* const keyboardLayouts[] = {"qwerty", "jcuken", "smart"};
+    const int keyboardLayout = core->getKbdLayoutModeIndex();
     const int volume = s_userMuted ? 0 : (mixer ? mixer->getVolume() : 5);
 
     // Пишем прямо в файл, без промежуточного буфера на весь конфиг.
@@ -1430,11 +1432,14 @@ void saveMenuStateImpl()
     cfgPut("# Vector-06C emulator settings. This is a plain text test file.\n"
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
-           "version = 1\n\n"
+           "version = 2\n\n"
            "processor = ");
     cfgPut(cpu);
     cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
     cfgPutUnsigned(core->getCpuFrequency());
+    cfgPut("\nkeyboard_layout = ");
+    cfgPut(keyboardLayouts[keyboardLayout >= 0 && keyboardLayout < 3 ? keyboardLayout : 0]);
+    cfgPut("          # qwerty | jcuken | smart");
 
     cfgPut("\n\ndrive_a_read_only = ");
     cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
@@ -1525,6 +1530,10 @@ void loadMenuStateImpl()
             } else if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
                 for (unsigned frequency : cpuClockValues)
                     if (frequency == number) core->setCpuFrequency(number);
+            } else if (textEquals(key, "keyboard_layout")) {
+                if (textEquals(value, "jcuken")) core->sysReq(SR_JCUKEN);
+                else if (textEquals(value, "smart")) core->sysReq(SR_SMART);
+                else if (textEquals(value, "qwerty")) core->sysReq(SR_QUERTY);
             } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
                 core->setFloppyReadOnly(VectorFloppyDrive::A, boolean);
             } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {

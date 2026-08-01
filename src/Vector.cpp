@@ -2038,16 +2038,19 @@ void VectorCore::sysReq(SysReq sr)
             break;
         case SR_QUERTY:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
                 m_kbdLayout->setQwertyMode();
             }
             break;
         case SR_JCUKEN:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
                 m_kbdLayout->setJcukenMode();
             }
             break;
         case SR_SMART:
             if (m_kbdLayout) {
+                m_kbdLayout->resetKeys();
                 m_kbdLayout->setSmartMode();
             }
             break;
