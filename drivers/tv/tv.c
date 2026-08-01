@@ -476,29 +476,31 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                     case GRAPHICSMODE_DEFAULT: {
                         //для 8-битного буфера
                         if (input_buffer != NULL) {
-                            int left = graphics_buffer.shift_x;
-                            if (left < 0)
-                                left = 0;
-
-                            int output_width =
-                                v_mode.img_size_x - left * 2;
-                            if (output_width < 0)
-                                output_width = 0;
-
-                            memset(output_buffer, 200, (size_t)left);
-                            output_buffer += left;
+                            /*
+                             * shift_x is a signed translation of the complete
+                             * scaled image.  It must not change image width:
+                             * positive values move it right, negative values
+                             * move it left.
+                             */
+                            const int shift_x = graphics_buffer.shift_x;
+                            const int output_width = v_mode.img_size_x;
 
                             for (int x = 0; x < output_width; ++x) {
+                                const int image_x = x - shift_x;
+                                if ((unsigned)image_x >=
+                                    (unsigned)output_width) {
+                                    *output_buffer++ = 200;
+                                    continue;
+                                }
+
                                 const uint32_t source_x =
-                                    (uint32_t)x * graphics_buffer.width /
+                                    (uint32_t)image_x *
+                                    graphics_buffer.width /
                                     (uint32_t)output_width;
                                 const uint8_t c = input_buffer[source_x];
                                 *output_buffer++ =
                                     map64colors[c & 0x3fu];
                             }
-
-                            memset(output_buffer, 200, (size_t)left);
-                            output_buffer += left;
                         }
                         break;
                     }
