@@ -30,7 +30,7 @@ enum graphics_mode_t {
 #ifdef VGA_DRV
 #include "vga.h"
 #endif
-#ifdef TV
+#ifdef RGB_TV
 #include "tv.h"
 #endif
 #ifdef HDMI_DVI
