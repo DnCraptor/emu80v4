@@ -408,7 +408,10 @@ bool __dvi_func(dvi_update_data_packet_)(struct dvi_inst *inst, data_packet_t *p
     }
 
     inst->audio_sample_pos += inst->samples_per_line24;
-    if (inst->timing_state.v_state == DVI_STATE_FRONT_PORCH) {
+    // Send HDMI auxiliary packets during the back porch. The 800x600 mode has
+    // only one front-porch line, so using the front porch sends only the first
+    // packet and drops ACR (N/CTS), AVI and vendor InfoFrames.
+    if (inst->timing_state.v_state == DVI_STATE_BACK_PORCH) {
         if (inst->timing_state.v_ctr == 0) {
             *packet = inst->audio_info_frame;
             return true;

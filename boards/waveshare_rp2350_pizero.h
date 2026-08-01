@@ -90,6 +90,7 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 
 // PS2KBD
 #define PS2KBD_GPIO_FIRST 2      // GP2 = CLOCK, GP3 = DATA
+#define PS2KBD_REVERSED_PINS 1   // select PIO program that waits for clock on GP2
 
 // NES Gamepad
 #define NES_GPIO_CLK 4           // GP4
