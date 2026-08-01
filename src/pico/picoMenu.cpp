@@ -107,8 +107,8 @@ constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
     #define VIDEO_OFFSET_PREFIX "vga_"
 #elif defined(HDMI)
     #define VIDEO_OFFSET_PREFIX "hdmi_"
-#elif defined(TV)
-    #define VIDEO_OFFSET_PREFIX "tv_"
+#elif defined(RGB_TV)
+    #define VIDEO_OFFSET_PREFIX "rgbtv_"
 #else
     // TFT/ST7789 и прочие: сохраняем прежние ключи video_offset_*.
     #define VIDEO_OFFSET_PREFIX ""

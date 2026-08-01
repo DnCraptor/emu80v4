@@ -25,10 +25,11 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
+set(RGB_TV ON)
 #set(SOFTTV ON)
 #set(TV_NTSC ON)
 #set(VGA_DRV ON)
-set(HDMI_DVI ON)
+#set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)
@@ -305,10 +306,10 @@ ELSEIF(HDMI)
     target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HDMI)
     SET(BUILD_NAME "${BUILD_NAME}-HDMI-${PORT_VERSION}")
-ELSEIF(TV)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE TV)
+ELSEIF(RGB_TV)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE RGB_TV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv)
-    SET(BUILD_NAME "${BUILD_NAME}-TV-${PORT_VERSION}")
+    SET(BUILD_NAME "${BUILD_NAME}-TV-RGB-${PORT_VERSION}")
 ELSEIF(HDMI_DVI)
     # VESA DMT 800x600@72: пиксельная 50.0 МГц ровно, битовая 500 МГц,
     # делитель PIO единичный.

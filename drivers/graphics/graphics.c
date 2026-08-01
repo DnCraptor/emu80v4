@@ -18,7 +18,7 @@ const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
 }
 
 bool graphics_system_clock_can_change() {
-#ifdef HDMI_DVI
+#if defined(HDMI_DVI) || defined(RGB_TV)
     return false;
 #else
     return true;

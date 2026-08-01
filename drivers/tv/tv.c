@@ -5,11 +5,17 @@
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
+#include "font8x8.h"
 
 #define SCREEN_WIDTH (320)
 #define SCREEN_HEIGHT (240)
 
 static uint8_t map64colors[64] = { 0 };
+static uint8_t color_map64[64];
+static uint8_t bw_map64[64];
+
+static uint8_t* framebuffer = NULL;
+static uint16_t framebuffer_stride = SCREEN_WIDTH;
 
 //программы PIO
 
@@ -149,9 +155,12 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
     conv_color16[i] = (c_hi << 8 | c_lo) & 0x3f3f | palette16_mask;
 }
 
-/// TODO: .h
-uint8_t* getLineBuffer(int line);
-void ESPectrum_vsync();
+static inline uint8_t* getLineBuffer(int line)
+{
+    if (!framebuffer || line < 0 || line >= (int)graphics_buffer.height)
+        return NULL;
+    return framebuffer + (size_t)line * framebuffer_stride;
+}
 
 //основная функция заполнения буферов видеоданных
 static void __scratch_x("tv_main_loop") main_video_loopTV() {
@@ -178,10 +187,6 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
             line_active = 0;
             frame_i++;
         }
-        if (line_active == 240) { // last visible line - 239 already shown
-            ESPectrum_vsync();
-        }
-
         lines_buf_inx = (lines_buf_inx + 1) % N_LINE_BUF;
         uint8_t* output_buffer = (uint8_t *)lines_buf[lines_buf_inx];
 
@@ -448,10 +453,14 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                     if ((line_active > 271)) { y = line_active - 282; };
                     break;
             }
-            if (y < 240 && y >= 0) {
-                input_buffer = getLineBuffer(y);
+            int source_y = -1;
+            if (y >= 0 && y < SCREEN_HEIGHT && graphics_buffer.height) {
+                source_y =
+                    (int)((uint32_t)y * graphics_buffer.height / SCREEN_HEIGHT) +
+                    graphics_buffer.shift_y;
+                input_buffer = getLineBuffer(source_y);
             }
-            if (y >= 240 || y < 0 || input_buffer == NULL) {
+            if (source_y < 0 || input_buffer == NULL) {
                 //вне изображения
                 memset(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.H_len - v_mode.begin_img_shx);
             }
@@ -464,23 +473,29 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                     case GRAPHICSMODE_DEFAULT: {
                         //для 8-битного буфера
                         if (input_buffer != NULL) {
-                            // TODO: shift_y, background_color
-                            for (uint x = graphics_buffer.shift_x; x--;) {
-                                *output_buffer++ = 200;
+                            int left = graphics_buffer.shift_x;
+                            if (left < 0)
+                                left = 0;
+
+                            int output_width =
+                                v_mode.img_size_x - left * 2;
+                            if (output_width < 0)
+                                output_width = 0;
+
+                            memset(output_buffer, 200, (size_t)left);
+                            output_buffer += left;
+
+                            for (int x = 0; x < output_width; ++x) {
+                                const uint32_t source_x =
+                                    (uint32_t)x * graphics_buffer.width /
+                                    (uint32_t)output_width;
+                                const uint8_t c = input_buffer[source_x];
+                                *output_buffer++ =
+                                    map64colors[c & 0x3fu];
                             }
 
-                            for (register uint32_t x = 0; x < graphics_buffer.width; ++x) {
-                                ///*output_buffer++ = *input_buffer8 < 240 ? *input_buffer8 : 0;
-                                ///input_buffer8++;
-                                register uint32_t c = input_buffer[x ^ 2];
-                                register uint8_t mc = map64colors[c & 0b00111111];
-                                *output_buffer++ = mc;
-                                ///uint8_t* input_buffer8 = input_buffer + y * graphics_buffer.width;
-                            }
-
-                            for (uint x = graphics_buffer.shift_x; x--;) {
-                                *output_buffer++ = 200;
-                            }
+                            memset(output_buffer, 200, (size_t)left);
+                            output_buffer += left;
                         }
                         break;
                     }
@@ -500,8 +515,18 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
+    framebuffer = buffer;
     graphics_buffer.height = height;
     graphics_buffer.width = width;
+    framebuffer_stride = width;
+}
+
+void graphics_set_line_stride(uint16_t stride) {
+    framebuffer_stride = stride;
+}
+
+uint16_t graphics_get_line_stride(void) {
+    return framebuffer_stride;
 }
 
 void graphics_set_offset(const int x, const int y) {
@@ -714,6 +739,106 @@ void tv_init(const output_format_e output_format) {
 };
 
 
+void graphics_set_color_mode(bool colorMode)
+{
+    memcpy(map64colors, colorMode ? color_map64 : bw_map64,
+           sizeof(map64colors));
+}
+
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
+{
+    (void)mode;
+    menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+}
+
+void graphics_set_menu_text_mode(bool enabled) { (void)enabled; }
+void menu_text_clear_for_mode(void) {}
+void graphics_set_duplicateLines(bool enabled) { (void)enabled; }
+
+void graphics_inc_x(void) { ++graphics_buffer.shift_x; }
+void graphics_dec_x(void) { --graphics_buffer.shift_x; }
+void graphics_inc_y(void) { ++graphics_buffer.shift_y; }
+void graphics_dec_y(void) { --graphics_buffer.shift_y; }
+
+int graphics_get_picture_shift_x(void) { return graphics_buffer.shift_x; }
+int graphics_get_picture_shift_y(void) { return graphics_buffer.shift_y; }
+
+uint32_t graphics_get_width(void) { return graphics_buffer.width; }
+uint32_t graphics_get_height(void) { return graphics_buffer.height; }
+uint32_t graphics_get_visible_height(void) { return graphics_buffer.height; }
+uint8_t* graphics_get_frame(void) { return framebuffer; }
+uint32_t graphics_get_font_width(void) { return 8; }
+uint32_t graphics_get_font_height(void) { return 8; }
+
+static inline void tv_plot(int x, int y, uint8_t color)
+{
+    if (!framebuffer ||
+        (unsigned)x >= graphics_buffer.width ||
+        (unsigned)y >= graphics_buffer.height)
+        return;
+    framebuffer[(size_t)y * framebuffer_stride + x] = color;
+}
+
+void plot(int x, int y, uint8_t color)
+{
+    tv_plot(x, y, color);
+}
+
+static inline int tv_iabs(int32_t value)
+{
+    const int32_t mask = value >> 31;
+    return (value ^ mask) - mask;
+}
+
+void line(int x0, int y0, int x1, int y1, uint8_t color)
+{
+    const int dx = tv_iabs(x1 - x0);
+    const int sx = x0 < x1 ? 1 : -1;
+    const int dy = -tv_iabs(y1 - y0);
+    const int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+
+    for (;;) {
+        tv_plot(x0, y0, color);
+        if (x0 == x1 && y0 == y1)
+            break;
+        const int e2 = err * 2;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+void graphics_rect(
+        int32_t x, int32_t y, uint32_t width, uint32_t height,
+        uint8_t color)
+{
+    line(x, y, x + (int)width, y, color);
+    line(x + (int)width, y, x + (int)width, y + (int)height, color);
+    line(x + (int)width, y + (int)height, x, y + (int)height, color);
+    line(x, y + (int)height, x, y, color);
+}
+
+void graphics_fill(
+        int32_t x, int32_t y, uint32_t width, uint32_t height,
+        uint8_t color)
+{
+    for (uint32_t row = 0; row <= height; ++row)
+        line(x, y + (int)row, x + (int)width, y + (int)row, color);
+}
+
+void graphics_type(
+        int x, int y, uint8_t color, const char* msg, size_t msg_len)
+{
+    for (size_t i = 0; i < msg_len; ++i) {
+        const uint8_t* glyph = font_8x8 + (uint8_t)msg[i] * 8;
+        for (unsigned row = 0; row < 8; ++row)
+            for (unsigned bit = 0; bit < 8; ++bit)
+                if (glyph[row] & (1u << bit))
+                    tv_plot(x + (int)i * 8 + (int)bit,
+                            y + (int)row, color);
+    }
+}
+
 void graphics_init() {
     tv_init(TV_OUT_PAL);
 
@@ -802,6 +927,24 @@ void graphics_init() {
     graphics_set_palette(214, RGB888(0xF3, 0xF3, 0x4E)); //light yellow
     graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
     graphics_set_palette(216, RGB888(0xFF, 0x7E, 0x00)); //orange
+
+    memcpy(color_map64, map64colors, sizeof(color_map64));
+
+    graphics_set_palette(217, RGB888(0x00, 0x00, 0x00));
+    graphics_set_palette(218, RGB888(0x55, 0x55, 0x55));
+    graphics_set_palette(219, RGB888(0xAA, 0xAA, 0xAA));
+    graphics_set_palette(220, RGB888(0xFF, 0xFF, 0xFF));
+
+    for (unsigned color = 0; color < 64; ++color) {
+        const unsigned r = (color >> 4) & 3u;
+        const unsigned g = (color >> 2) & 3u;
+        const unsigned b = color & 3u;
+        const unsigned y =
+            (77u * r + 150u * g + 29u * b + 128u) >> 8;
+        bw_map64[color] = (uint8_t)(217u + y);
+    }
+
+    graphics_set_color_mode(true);
 }
 
 void graphics_set_mode(const enum graphics_mode_t mode) {
