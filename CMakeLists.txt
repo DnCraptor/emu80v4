@@ -19,9 +19,9 @@ set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
 #set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 #set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
-set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
+#set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
-#set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
+set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
 
@@ -43,7 +43,7 @@ set(CPU_MHZ 400)
 #set(CPU_MHZ 500)
 #set(CPU_MHZ 520)
 
-set (PORT_VERSION "0.6.3")
+set (PORT_VERSION "0.6.4")
 
 # При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
 # системной, а 800x600@60 требует ровно 400 МГц.
