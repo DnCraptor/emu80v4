@@ -153,6 +153,30 @@ bool parseSignedValue(const char* text, int& value)
     return true;
 }
 
+bool parseJoystickMap(const char* text, PalKeyCode out[PAL_JOY_CONTROL_COUNT])
+{
+    for (unsigned i = 0; i < PAL_JOY_CONTROL_COUNT; ++i) {
+        while (*text == ' ' || *text == '\t' || *text == ',')
+            ++text;
+        if (!*text)
+            return false;
+        char* end = nullptr;
+        const long value = std::strtol(text, &end, 0);
+        if (end == text || value <= PK_NONE || value > PK_JOY_RIGHT)
+            return false;
+        out[i] = static_cast<PalKeyCode>(value);
+        text = end;
+        while (*text == ' ' || *text == '\t')
+            ++text;
+        if (i + 1 < PAL_JOY_CONTROL_COUNT) {
+            if (*text != ',')
+                return false;
+            ++text;
+        }
+    }
+    return *trimText(const_cast<char*>(text)) == '\0';
+}
+
 bool textEquals(const char* a, const char* b)
 {
     while (*a && *b) {
@@ -1162,12 +1186,21 @@ void saveMenuStateImpl()
     cfgPut("# Korvet emulator settings. This is a plain text test file.\n"
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
-           "version = 2\n\n"
+           "version = 3\n\n"
            "cpu_clock_hz = ");
     cfgPutUnsigned(core->getCpuFrequency());
     cfgPut("\nkeyboard_layout = ");
     cfgPut(keyboardLayouts[keyboardLayout >= 0 && keyboardLayout < 3 ? keyboardLayout : 0]);
     cfgPut("          # qwerty | jcuken | smart");
+
+    for (unsigned joystick = 0; joystick < 2; ++joystick) {
+        cfgPut(joystick == 0 ? "\njoystick_1_map = " : "\njoystick_2_map = ");
+        for (unsigned control = 0; control < PAL_JOY_CONTROL_COUNT; ++control) {
+            if (control) cfgPut(",");
+            cfgPutUnsigned(static_cast<unsigned>(palGetJoystickMapping(joystick, control)));
+        }
+    }
+    cfgPut("        # up,down,left,right,start,select,A,B");
 
     cfgPut("\n\ndrive_a_read_only = ");
     cfgPutBool(core->floppyReadOnlyMode(KorvetFloppyDrive::A));
@@ -1251,6 +1284,13 @@ void loadMenuStateImpl()
                 if (textEquals(value, "jcuken")) core->sysReq(SR_JCUKEN);
                 else if (textEquals(value, "smart")) core->sysReq(SR_SMART);
                 else if (textEquals(value, "qwerty")) core->sysReq(SR_QUERTY);
+            } else if (textEquals(key, "joystick_1_map") || textEquals(key, "joystick_2_map")) {
+                PalKeyCode mapping[PAL_JOY_CONTROL_COUNT];
+                if (parseJoystickMap(value, mapping)) {
+                    const unsigned joystick = textEquals(key, "joystick_2_map") ? 1u : 0u;
+                    for (unsigned control = 0; control < PAL_JOY_CONTROL_COUNT; ++control)
+                        palSetJoystickMapping(joystick, control, mapping[control]);
+                }
             } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
                 core->setFloppyReadOnly(KorvetFloppyDrive::A, boolean);
             } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {
@@ -1499,9 +1539,92 @@ static const MenuPage keyboardPage {
     kbdLayoutGetValue, kbdLayoutSetValue
 };
 
+void redrawMenu();
+void pushMessageBoxBackground(const char* title, const char* text);
+void popMessageBoxBackground();
+
+void captureJoystickMapping(unsigned joystick, unsigned control, const char* title)
+{
+    static constexpr const char* prompt = "Press desired key to map";
+    pushMessageBoxBackground(title, prompt);
+    palMessageBox(title, prompt);
+    while (true) {
+        sleep_ms(20);
+        palInputTick();
+        const PalKeyCodeAction key = getKey();
+        if (!key.pressed || key.vk == PK_NONE)
+            continue;
+        popMessageBoxBackground();
+        palSetJoystickMapping(joystick, control, key.vk);
+        redrawMenu();
+        return;
+    }
+}
+
+#define JOY_ACTION(name, joy, control, title) \
+    void name() { captureJoystickMapping(joy, control, title); }
+
+JOY_ACTION(mapJ1Up,     0, PAL_JOY_UP,     "Joystick #1: Up")
+JOY_ACTION(mapJ1Down,   0, PAL_JOY_DOWN,   "Joystick #1: Down")
+JOY_ACTION(mapJ1Left,   0, PAL_JOY_LEFT,   "Joystick #1: Left")
+JOY_ACTION(mapJ1Right,  0, PAL_JOY_RIGHT,  "Joystick #1: Right")
+JOY_ACTION(mapJ1Start,  0, PAL_JOY_START,  "Joystick #1: Start")
+JOY_ACTION(mapJ1Select, 0, PAL_JOY_SELECT, "Joystick #1: Select")
+JOY_ACTION(mapJ1A,      0, PAL_JOY_A,      "Joystick #1: A")
+JOY_ACTION(mapJ1B,      0, PAL_JOY_B,      "Joystick #1: B")
+JOY_ACTION(mapJ2Up,     1, PAL_JOY_UP,     "Joystick #2: Up")
+JOY_ACTION(mapJ2Down,   1, PAL_JOY_DOWN,   "Joystick #2: Down")
+JOY_ACTION(mapJ2Left,   1, PAL_JOY_LEFT,   "Joystick #2: Left")
+JOY_ACTION(mapJ2Right,  1, PAL_JOY_RIGHT,  "Joystick #2: Right")
+JOY_ACTION(mapJ2Start,  1, PAL_JOY_START,  "Joystick #2: Start")
+JOY_ACTION(mapJ2Select, 1, PAL_JOY_SELECT, "Joystick #2: Select")
+JOY_ACTION(mapJ2A,      1, PAL_JOY_A,      "Joystick #2: A")
+JOY_ACTION(mapJ2B,      1, PAL_JOY_B,      "Joystick #2: B")
+#undef JOY_ACTION
+
+static const MenuItem joystick1Items[] = {
+    {"Up", nullptr, nullptr, mapJ1Up, nullptr, nullptr, true},
+    {"Down", nullptr, nullptr, mapJ1Down, nullptr, nullptr, true},
+    {"Left", nullptr, nullptr, mapJ1Left, nullptr, nullptr, true},
+    {"Right", nullptr, nullptr, mapJ1Right, nullptr, nullptr, true},
+    {"Start", nullptr, nullptr, mapJ1Start, nullptr, nullptr, true},
+    {"Select", nullptr, nullptr, mapJ1Select, nullptr, nullptr, true},
+    {"A", nullptr, nullptr, mapJ1A, nullptr, nullptr, true},
+    {"B", nullptr, nullptr, mapJ1B, nullptr, nullptr, true},
+};
+static const MenuPage joystick1Page {
+    "Joystick #1", nullptr, joystick1Items,
+    static_cast<int>(sizeof(joystick1Items) / sizeof(joystick1Items[0])), nullptr, nullptr
+};
+
+static const MenuItem joystick2Items[] = {
+    {"Up", nullptr, nullptr, mapJ2Up, nullptr, nullptr, true},
+    {"Down", nullptr, nullptr, mapJ2Down, nullptr, nullptr, true},
+    {"Left", nullptr, nullptr, mapJ2Left, nullptr, nullptr, true},
+    {"Right", nullptr, nullptr, mapJ2Right, nullptr, nullptr, true},
+    {"Start", nullptr, nullptr, mapJ2Start, nullptr, nullptr, true},
+    {"Select", nullptr, nullptr, mapJ2Select, nullptr, nullptr, true},
+    {"A", nullptr, nullptr, mapJ2A, nullptr, nullptr, true},
+    {"B", nullptr, nullptr, mapJ2B, nullptr, nullptr, true},
+};
+static const MenuPage joystick2Page {
+    "Joystick #2", nullptr, joystick2Items,
+    static_cast<int>(sizeof(joystick2Items) / sizeof(joystick2Items[0])), nullptr, nullptr
+};
+
+static const MenuItem joysticksItems[] = {
+    {"Joystick #1", nullptr, &joystick1Page, nullptr, nullptr, nullptr},
+    {"Joystick #2", nullptr, &joystick2Page, nullptr, nullptr, nullptr},
+};
+static const MenuPage joysticksPage {
+    "Joysticks", nullptr, joysticksItems,
+    static_cast<int>(sizeof(joysticksItems) / sizeof(joysticksItems[0])), nullptr, nullptr
+};
+
 static const MenuItem rootItems[] = {
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
+    {"Joysticks", nullptr, &joysticksPage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"Storage", nullptr, &korvetStoragePage, nullptr, nullptr, nullptr},
@@ -2160,20 +2283,92 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
 }
 
 
-void palMessageBox(const char* title, const char* text)
+namespace {
+
+void messageBoxRect(const char* title, const char* text,
+                    int& x, int& y, int& w, int& h)
 {
     const int screenW = graphics_get_width();
     const int screenH = graphics_get_height();
     const int fontW = graphics_get_font_width();
     const int fontH = graphics_get_font_height();
-
     const int textLen = static_cast<int>(std::strlen(text));
     const int titleLen = static_cast<int>(std::strlen(title));
-    int w = (std::max(textLen, titleLen) + 3) * fontW;
-    if (w > screenW - 8) w = screenW - 8;
-    const int h = fontH * 2 + 12;
-    const int x = (screenW - w) / 2;
-    const int y = (screenH - h) / 2;
+
+    w = (std::max(textLen, titleLen) + 3) * fontW;
+    if (w > screenW - 8)
+        w = screenW - 8;
+    h = fontH * 2 + 12;
+    x = (screenW - w) / 2;
+    y = (screenH - h) / 2;
+}
+
+#ifndef SCANLINE_TEXT_MENU
+BackupRec s_messageBackup{};
+#endif
+
+void pushMessageBoxBackground(const char* title, const char* text)
+{
+#ifndef SCANLINE_TEXT_MENU
+    int x, y, w, h;
+    messageBoxRect(title, text, x, y, w, h);
+    w += 5;
+    h += 5;
+    s_messageBackup.valid = false;
+
+    uint8_t* frame = graphics_get_frame();
+    if (!frame)
+        return;
+
+    const int screenW = graphics_get_width();
+    const int screenH = graphics_get_height();
+    const int frameStride = graphics_get_line_stride();
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > screenW) w = screenW - x;
+    if (y + h > screenH) h = screenH - y;
+    if (w <= 0 || h <= 0 || s_backupUsed + w * h > c_menuBackupPool)
+        return;
+
+    s_messageBackup = {x, y, w, h, s_backupUsed, true};
+    for (int row = 0; row < h; ++row)
+        s_menuBackup.writeBlock(
+            s_messageBackup.offset + row * w,
+            frame + (y + row) * frameStride + x, w);
+    s_backupUsed += w * h;
+#else
+    (void)title;
+    (void)text;
+#endif
+}
+
+void popMessageBoxBackground()
+{
+#ifndef SCANLINE_TEXT_MENU
+    uint8_t* frame = graphics_get_frame();
+    if (s_messageBackup.valid && frame) {
+        const int frameStride = graphics_get_line_stride();
+        for (int row = 0; row < s_messageBackup.h; ++row)
+            s_menuBackup.readBlock(
+                s_messageBackup.offset + row * s_messageBackup.w,
+                frame + (s_messageBackup.y + row) * frameStride
+                    + s_messageBackup.x,
+                s_messageBackup.w);
+        s_backupUsed = s_messageBackup.offset;
+    }
+    s_messageBackup.valid = false;
+#endif
+}
+
+} // namespace
+
+void palMessageBox(const char* title, const char* text)
+{
+    const int fontH = graphics_get_font_height();
+    const int textLen = static_cast<int>(std::strlen(text));
+    const int titleLen = static_cast<int>(std::strlen(title));
+    int x, y, w, h;
+    messageBoxRect(title, text, x, y, w, h);
 
     graphics_fill(x + 4, y + 4, w, h, RGB888(32, 32, 32));            // тень
     graphics_fill(x, y, w, h, RGB888(232, 232, 232));
