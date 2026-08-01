@@ -171,7 +171,7 @@ class KorvetRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         bool m_wideCharMode = false;
         uint8_t m_korvetLut[16] = {};
 
-        bool m_showBorder = false;
+        bool m_showBorder = false; // deprecated
         bool m_colorMode = true;
 
         uint8_t m_lineOffset = 0xFF;
@@ -180,7 +180,6 @@ class KorvetRenderer : public CrtRenderer, public IActive, public SnapshotSerial
         uint8_t m_borderColor = 0;
         bool m_mode512px = false;
         uint8_t m_colorPalette[16];
-        uint8_t m_bwPalette[16];
         const uint8_t* m_palette = m_colorPalette;
         int m_lastColor = 0;
 

@@ -677,15 +677,21 @@ static void __not_in_flash_func(render_menu_text_dvi_line)(
 //  Палитра
 // ---------------------------------------------------------------------------
 
-static void build_palette(void) {
-    // Два бита на канал: 0, 85, 170, 255
+static void build_palette(bool color)
+{
     static const uint8_t lvl[4] = {0, 85, 170, 255};
     uint32_t pal24[64];
     for (unsigned c = 0; c < 64; ++c) {
-        const uint8_t r = (c >> 4) & 0x03;
-        const uint8_t g = (c >> 2) & 0x03;
-        const uint8_t b = (c >> 0) & 0x03;
-        pal24[c] = ((uint32_t)lvl[r] << 16) | ((uint32_t)lvl[g] << 8) | lvl[b];
+        const uint8_t r = lvl[(c >> 4) & 3];
+        const uint8_t g = lvl[(c >> 2) & 3];
+        const uint8_t b = lvl[(c >> 0) & 3];
+        if (color) {
+            pal24[c] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        } else {
+            // Y = 0.299R + 0.587G + 0.114B
+            const uint8_t y = (uint8_t)((77u * r + 150u * g + 29u * b + 128u) >> 8);
+            pal24[c] = ((uint32_t)y << 16) | ((uint32_t)y << 8) | y;
+        }
     }
     tmds_setup_palette24_symbols(pal24, tmds_palette, 64);
 }
@@ -929,7 +935,7 @@ void graphics_init(void) {
     menu_text_build_pair_lut();
     menu_text_clear_for_mode();
 
-    build_palette();
+    build_palette(true);
     build_blank_line();
 #if defined(PICO_RP2040) && HDMI_RP2040_DIAG_MODE == 1
     build_rp2040_tmds_test_line();
@@ -1374,4 +1380,8 @@ void graphics_type(
                     _plot(xt + k, y + j, color);
         }
     }
+}
+
+void graphics_set_color_mode(bool colorMode) {
+    build_palette(colorMode);
 }

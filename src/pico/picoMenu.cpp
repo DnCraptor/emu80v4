@@ -1004,7 +1004,6 @@ void videoMoveDown()  { graphics_inc_y(); }
 void videoCenter()    { graphics_set_offset(0, 0); }
 
 void videoToggleColor() { invokeSysReq(SR_COLOR); }
-void videoToggleCrop()  { invokeSysReq(SR_CROPTOVISIBLE); }
 
 bool videoColorChecked()
 {
@@ -1019,8 +1018,7 @@ bool videoCropChecked()
 }
 
 static const MenuItem videoItems[] = {
-    {"Color [Alt+C]",            nullptr, nullptr, videoToggleColor, nullptr, videoColorChecked, true},
-    {"Crop to visible [Alt+V]",  nullptr, nullptr, videoToggleCrop,  nullptr, videoCropChecked,  true},
+    {"Color [Alt+C]", nullptr, nullptr, videoToggleColor, nullptr, videoColorChecked, true},
     {"Move left",  nullptr, nullptr, videoMoveLeft,  nullptr, nullptr, true},
     {"Move right", nullptr, nullptr, videoMoveRight, nullptr, nullptr, true},
     {"Move up",    nullptr, nullptr, videoMoveUp,    nullptr, nullptr, true},
@@ -1496,7 +1494,7 @@ void showHelpDialog()
         "Alt+L / Alt+F3 - load / load and run",
         "Alt+A / Alt+B - mount disk A / B (.kdi/.fdd)",
         "Alt+T - tape redirect on / off",
-        "Alt+C / Alt+V - color / crop toggle",
+        "Alt+C - toggle color / BW",
         "Alt+Q / Alt+J / Alt+K - kbd layouts",
         "LWin+Fn / RWin+Fn - save / load snap",
         "",

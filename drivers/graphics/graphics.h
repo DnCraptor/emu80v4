@@ -155,6 +155,8 @@ void line(int x0, int y0, int x1, int y1, uint8_t color);
 void graphics_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint8_t color);
 void graphics_fill(int32_t x, int32_t y, uint32_t width, uint32_t height, uint8_t bgcolor);
 
+void graphics_set_color_mode(bool colorMode);
+
 #ifdef __cplusplus
 }
 #endif

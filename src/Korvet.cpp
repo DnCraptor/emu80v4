@@ -360,8 +360,6 @@ KorvetRenderer::KorvetRenderer()
         const uint8_t g = levels[bright][(i & 2) ? 4 : 0];
         const uint8_t bl = levels[bright][(i & 1) ? 4 : 0];
         m_colorPalette[i] = RGB888(r, g, bl);
-        const uint8_t bw = uint8_t((i * 255) / 15);
-        m_bwPalette[i] = RGB888(bw, bw, bw);
     }
     m_palette = m_colorPalette;
 }
@@ -476,8 +474,6 @@ void KorvetRenderer::setPaletteColor(uint8_t color)
                           ((color & 0x38) << 10) | ((color & 0x38) << 7) | ((color & 0x30) << 4) |
                           (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
     m_colorPalette[m_lastColor] = RGB888(((c >> 16) & 0xFF), ((c >> 8) & 0xFF), (c & 0xFF));
-    register uint8_t bw = c_bwMap[color];
-    m_bwPalette[m_lastColor] = RGB888(bw, bw, bw);
 }
 
 
@@ -751,7 +747,7 @@ void KorvetRenderer::applyFrameBuffer()
 void KorvetRenderer::setColorMode(bool colorMode)
 {
     m_colorMode = colorMode;
-    m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
+    graphics_set_color_mode(colorMode);
 }
 
 
@@ -789,7 +785,6 @@ struct KorvetRendererSnapshotStateV1 {
     uint8_t mode512px;
     uint8_t paused;
     uint8_t colorPalette[16];
-    uint8_t bwPalette[16];
 };
 #pragma pack(pop)
 
@@ -825,8 +820,8 @@ bool KorvetRenderer::saveState(SnapshotWriter& writer) const
     state.mode512px = m_mode512px ? 1 : 0;
     state.paused = m_isPaused ? 1 : 0;
     memcpy(state.colorPalette, m_colorPalette, sizeof(state.colorPalette));
-    memcpy(state.bwPalette, m_bwPalette, sizeof(state.bwPalette));
     return writer.writeValue(state) &&
+           writer.skip(16) &&
 #ifndef PICO_RP2040
            writer.write(m_frameBuf, c_frameBufSize);
 #else
@@ -837,7 +832,7 @@ bool KorvetRenderer::saveState(SnapshotWriter& writer) const
 bool KorvetRenderer::loadState(SnapshotReader& reader, uint16_t version)
 {
     if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(KorvetRendererSnapshotStateV1) + c_frameBufSize)
+        reader.remaining() != sizeof(KorvetRendererSnapshotStateV1) + 16 + c_frameBufSize)
         return false;
 
     KorvetRendererSnapshotStateV1 state{};
@@ -846,7 +841,7 @@ bool KorvetRenderer::loadState(SnapshotReader& reader, uint16_t version)
         state.lastColor < 0 || state.lastColor > 15 ||
         state.showBorder > 1 || state.colorMode > 1 ||
         state.lineOffsetIsLatched > 1 || state.mode512px > 1 ||
-        state.paused > 1
+        state.paused > 1 || !reader.skip(16)
 #ifndef PICO_RP2040
          || !reader.read(m_frameBuf, c_frameBufSize)
 #endif
@@ -866,14 +861,12 @@ bool KorvetRenderer::loadState(SnapshotReader& reader, uint16_t version)
     m_mode512px = state.mode512px != 0;
     m_isPaused = state.paused != 0;
     memcpy(m_colorPalette, state.colorPalette, sizeof(m_colorPalette));
-    memcpy(m_bwPalette, state.bwPalette, sizeof(m_bwPalette));
     return true;
 }
 
 void KorvetRenderer::postLoad()
 {
     m_ticksPerPixel = g_emulation->getFrequency() / 12000000;
-    m_palette = m_colorMode ? m_colorPalette : m_bwPalette;
     prepareFrame();
     applyFrameBuffer();
 }
