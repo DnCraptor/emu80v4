@@ -3,6 +3,24 @@
 
 #include "../PalKeys.h"
 
+
+// User-configurable gamepad-to-keyboard mapping. Controls are stored in this
+// fixed order in RAM and in /.config/vector06c.cfg.
+enum PalJoystickControl {
+    PAL_JOY_UP = 0,
+    PAL_JOY_DOWN,
+    PAL_JOY_LEFT,
+    PAL_JOY_RIGHT,
+    PAL_JOY_START,
+    PAL_JOY_SELECT,
+    PAL_JOY_A,
+    PAL_JOY_B,
+    PAL_JOY_CONTROL_COUNT
+};
+
+PalKeyCode palGetJoystickMapping(unsigned joystick, unsigned control);
+void palSetJoystickMapping(unsigned joystick, unsigned control, PalKeyCode key);
+
 char* appendText(char* dst, const char* text);
 char* appendUnsigned(char* dst, unsigned value);
 

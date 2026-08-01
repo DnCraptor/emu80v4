@@ -59,6 +59,26 @@ struct input_bits_t {
 input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
 static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
 
+
+static PalKeyCode joystickMappings[2][PAL_JOY_CONTROL_COUNT] = {
+    { PK_UP, PK_DOWN, PK_LEFT, PK_RIGHT, PK_LALT, PK_TAB, PK_SPACE, PK_ENTER },
+    { PK_UP, PK_DOWN, PK_LEFT, PK_RIGHT, PK_LALT, PK_TAB, PK_SPACE, PK_ENTER }
+};
+
+PalKeyCode palGetJoystickMapping(unsigned joystick, unsigned control)
+{
+    if (joystick >= 2 || control >= PAL_JOY_CONTROL_COUNT)
+        return PK_NONE;
+    return joystickMappings[joystick][control];
+}
+
+void palSetJoystickMapping(unsigned joystick, unsigned control, PalKeyCode key)
+{
+    if (joystick < 2 && control < PAL_JOY_CONTROL_COUNT
+        && key > PK_NONE && key <= PK_JOY_RIGHT)
+        joystickMappings[joystick][control] = key;
+}
+
 void repeat_handler(void);
 
 #define JPAD (Config::secondJoy == 3 ? back2joy2: joyPushData)
@@ -345,44 +365,67 @@ static void nespad_tick2(void) {
 
 inline static void addKey(PalKeyCode vk, bool pressed);
 
+static bool joystickControlState(const input_bits_t& bits, unsigned control)
+{
+    switch (control) {
+        case PAL_JOY_UP:     return bits.up;
+        case PAL_JOY_DOWN:   return bits.down;
+        case PAL_JOY_LEFT:   return bits.left;
+        case PAL_JOY_RIGHT:  return bits.right;
+        case PAL_JOY_START:  return bits.start;
+        case PAL_JOY_SELECT: return bits.select;
+        case PAL_JOY_A:      return bits.a;
+        case PAL_JOY_B:      return bits.b;
+        default:             return false;
+    }
+}
+
+static bool mappedKeyActive(const input_bits_t bits[2],
+                            const PalKeyCode maps[2][PAL_JOY_CONTROL_COUNT],
+                            PalKeyCode key)
+{
+    for (unsigned joystick = 0; joystick < 2; ++joystick)
+        for (unsigned control = 0; control < PAL_JOY_CONTROL_COUNT; ++control)
+            if (maps[joystick][control] == key
+                && joystickControlState(bits[joystick], control))
+                return true;
+    return false;
+}
+
 static void gamepad_to_keyboard_tick()
 {
-    static input_bits_t previous = { false, false, false, false, false, false, false, false };
-    const input_bits_t current = {
-        gamepad1_bits.a || gamepad2_bits.a,
-        gamepad1_bits.b || gamepad2_bits.b,
-        gamepad1_bits.select || gamepad2_bits.select,
-        gamepad1_bits.start || gamepad2_bits.start,
-        gamepad1_bits.right || gamepad2_bits.right,
-        gamepad1_bits.left || gamepad2_bits.left,
-        gamepad1_bits.up || gamepad2_bits.up,
-        gamepad1_bits.down || gamepad2_bits.down
+    static input_bits_t previousBits[2] = {};
+    static PalKeyCode previousMappings[2][PAL_JOY_CONTROL_COUNT] = {
+        { PK_UP, PK_DOWN, PK_LEFT, PK_RIGHT, PK_LALT, PK_TAB, PK_SPACE, PK_ENTER },
+        { PK_UP, PK_DOWN, PK_LEFT, PK_RIGHT, PK_LALT, PK_TAB, PK_SPACE, PK_ENTER }
     };
+    const input_bits_t currentBits[2] = { gamepad1_bits, gamepad2_bits };
 
-    if (current.up != previous.up) {
-        addKey(PalKeyCode::PK_UP, current.up);
+    // A key may be assigned to several controls and/or both joysticks. Emit a
+    // release only when no mapped control still holds it. Include both old and
+    // new mappings so remapping a held control cannot leave a stuck key.
+    bool checked[PK_JOY_RIGHT + 1] = {};
+    for (unsigned joystick = 0; joystick < 2; ++joystick) {
+        for (unsigned control = 0; control < PAL_JOY_CONTROL_COUNT; ++control) {
+            const PalKeyCode candidates[2] = {
+                previousMappings[joystick][control],
+                joystickMappings[joystick][control]
+            };
+            for (PalKeyCode key : candidates) {
+                if (key <= PK_NONE || key > PK_JOY_RIGHT || checked[key])
+                    continue;
+                checked[key] = true;
+                const bool wasPressed = mappedKeyActive(previousBits, previousMappings, key);
+                const bool isPressed = mappedKeyActive(currentBits, joystickMappings, key);
+                if (wasPressed != isPressed)
+                    addKey(key, isPressed);
+            }
+        }
     }
-    if (current.down != previous.down) {
-        addKey(PalKeyCode::PK_DOWN, current.down);
-    }
-    if (current.left != previous.left) {
-        addKey(PalKeyCode::PK_LEFT, current.left);
-    }
-    if (current.right != previous.right) {
-        addKey(PalKeyCode::PK_RIGHT, current.right);
-    }
-    if (current.a != previous.a) {
-        addKey(PalKeyCode::PK_SPACE, current.a);
-    }
-    if (current.b != previous.b) {
-        addKey(PalKeyCode::PK_ENTER, current.b);
-    }
-    if (current.select != previous.select)
-        addKey(PalKeyCode::PK_TAB, current.select);
-    if (current.start != previous.start)
-        addKey(PalKeyCode::PK_LALT, current.start);
 
-    previous = current;
+    previousBits[0] = currentBits[0];
+    previousBits[1] = currentBits[1];
+    std::memcpy(previousMappings, joystickMappings, sizeof(previousMappings));
 }
 
 #ifdef KBDUSB
