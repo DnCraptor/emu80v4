@@ -362,6 +362,26 @@ void tv_copy_u8(void* dst_void, const void* src_void, size_t count)
 
 static uint8_t map64colors[64] = { 0 };
 
+void graphics_set_color_mode(bool colorMode)
+{
+    for (unsigned color = 0; color < 64; ++color) {
+        unsigned mapped = color;
+
+        if (!colorMode) {
+            const unsigned r = (color >> 4) & 3u;
+            const unsigned g = (color >> 2) & 3u;
+            const unsigned b = color & 3u;
+
+            // PAL/NTSC luminance: Y = 0.299R + 0.587G + 0.114B.
+            const unsigned y =
+                (77u * r + 150u * g + 29u * b + 128u) >> 8;
+            mapped = y * 0x15u;
+        }
+
+        map64colors[color] = (uint8_t)(TV_PAL_BASE + mapped);
+    }
+}
+
 //параметры по умолчанию
 // Вектор-06Ц выдаёт PAL, и кадровый буфер эмулятора повторяет его развёртку,
 // поэтому PAL здесь основной режим. NTSC остаётся собираемым по ключу TV_NTSC.
