@@ -24,6 +24,7 @@
 | `m2` | Murmulator 2.0    |
 | `z0` | Waveshare PiZero  |
 | `PC` | Olimex PICO-PC    |
+| `DV` | Pimaronu Pico DV  |
 
 **Чип:**
 
@@ -112,6 +113,11 @@
 | `Alt+Q`   | Раскладка QWERTY            |
 | `Alt+J`   | Раскладка ЙЦУКЕН            |
 | `Alt+K`   | «Умная» раскладка           |
+
+#### Раскладки клавиатуры
+
+![Раскладки клавиатуры Вектора-06Ц: «Умная» и QWERTY](assets/keyboard-smart-qwerty-layout.png)
+![Раскладка клавиатуры Вектора-06Ц: ЙЦУКЕН](assets/keyboard-jcuken-layout.png)
 
 ### Сдвиг картинки на экране
 
