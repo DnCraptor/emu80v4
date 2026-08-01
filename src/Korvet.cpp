@@ -477,7 +477,7 @@ void KorvetRenderer::setPaletteColor(uint8_t color)
                           (color & 0xC0) | ((color & 0xC0) >> 2) | ((color & 0xC0) >> 4) | ((color & 0xC0) >> 6);
     m_colorPalette[m_lastColor] = RGB888(((c >> 16) & 0xFF), ((c >> 8) & 0xFF), (c & 0xFF));
     register uint8_t bw = c_bwMap[color];
-    m_bwPalette[m_lastColor] = RGB888((bw << 16), (bw << 8), bw);
+    m_bwPalette[m_lastColor] = RGB888(bw, bw, bw);
 }
 
 
