@@ -135,8 +135,9 @@
 
 Схемы раскладок клавиатуры Корвета:
 
-- [«Умная» и QWERTY](assets/keyboard-smart-qwerty-layout.png)
-- [ЙЦУКЕН](assets/keyboard-jcuken-layout.png)
+![Раскладки клавиатуры Корвета: «Умная» и QWERTY](assets/keyboard-smart-qwerty-layout.png)
+![Раскладка клавиатуры Корвета: ЙЦУКЕН](assets/keyboard-jcuken-layout.png)
+
 
 ### Сдвиг картинки на экране
 
