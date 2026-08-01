@@ -22,11 +22,14 @@ static inline void graphics_set_bgcolor(uint32_t color888) {
     (void)color888;
 }
 
-// RP2040: публикация видеопамяти и регистров Вектора для прямого
+// RP2040: публикация видеопамяти и регистров Корвета для прямого
 // построчного рендеринга на core1 без полноэкранного framebuffer.
-void graphics_set_korvet_source(const uint8_t* memory, const uint8_t* palette,
-                                uint8_t border_color, uint8_t line_offset,
-                                bool mode512, bool show_border);
+void graphics_set_korvet_source(
+        const uint8_t* plane0, const uint8_t* plane1,
+        const uint8_t* plane2, const uint8_t* symbols,
+        const uint8_t* attrs, const uint8_t* font,
+        const uint8_t* palette, const uint8_t* lut,
+        bool wide_char_mode, bool show_border);
 
 // Цикл кодирования строк. Занимает ядро целиком и не возвращается.
 void hdmi_dvi_core_loop(void);

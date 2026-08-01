@@ -36,6 +36,9 @@
 #define BORDER_X ((DVI_FRAME_WIDTH - PICTURE_W) / 2)    // 87
 #define BORDER_Y ((DVI_FRAME_HEIGHT - PICTURE_H) / 2)   // 6
 
+#define KORVET_PICTURE_W 512
+#define KORVET_PICTURE_H 256
+
 #define DWORDS_PER_PLANE (DVI_FRAME_WIDTH / DVI_SYMBOLS_PER_WORD)
 #define TMDS_WORDS (DWORDS_PER_PLANE * 3)
 
@@ -190,6 +193,12 @@ static uint16_t menu_text_pair_lut[256][4];
 
 #ifdef PICO_RP2040
 static uint8_t menu_font_8x8_sram[256 * 8];
+
+// The Korvet scan-line renderer runs on core1 from SRAM. Keep its currently
+// selected 256 x 16 font in SRAM too: reading one glyph byte per video byte
+// from XIP flash both misses the line deadline and stalls core0 flash fetches.
+static uint8_t korvet_font_sram[256 * 16];
+static const uint8_t* korvet_font_source = NULL;
 #endif
 
 static inline uint8_t menu_color_index(uint8_t color)
@@ -287,61 +296,72 @@ void menu_text_clear_for_mode(void)
 #error HDMI_RP2040_DIAG_MODE must be 0, 1 or 2
 #endif
 
-#define VECTOR_LUT_COUNT 3
+#define KORVET_LUT_COUNT 3
 
 typedef struct {
-    const uint8_t* memory;
-    uint8_t palette[16];
-    uint8_t border_color;
-    uint8_t line_offset;
+    const uint8_t* planes[3];
+    const uint8_t* symbols;
+    const uint8_t* attrs;
+    const uint8_t* font;
     uint8_t lut_index;
-    bool mode512;
-    bool show_border;
+    bool wide_char_mode;
     bool enabled;
-    uint32_t border_pattern;
-} vector_video_state_t;
+} korvet_video_state_t;
 
-static vector_video_state_t vector_video_state;
-static volatile uint32_t vector_video_seq = 0;
-static uint32_t vector_pair_lut[VECTOR_LUT_COUNT][256];
-static volatile uint8_t vector_lut_in_use = 0xff;
-static vector_video_state_t vector_frame_state;
-static bool vector_frame_state_valid = false;
+static korvet_video_state_t korvet_video_state;
+static volatile uint32_t korvet_video_seq = 0;
+static uint16_t korvet_pair_lut[KORVET_LUT_COUNT][256];
+static volatile uint8_t korvet_lut_in_use = 0xff;
+static korvet_video_state_t korvet_frame_state;
+static bool korvet_frame_state_valid = false;
 
-static inline void vector_video_barrier(void)
+static inline void korvet_video_barrier(void)
 {
     __asm volatile ("" ::: "memory");
 }
 
-static bool __not_in_flash_func(vector_video_snapshot)(
-        vector_video_state_t* state)
+static bool __not_in_flash_func(korvet_video_snapshot)(
+        korvet_video_state_t* state)
 {
     for (;;) {
-        const uint32_t seq0 = vector_video_seq;
+        const uint32_t seq0 = korvet_video_seq;
         if (seq0 & 1u)
             continue;
-        vector_video_barrier();
-        *state = vector_video_state;
-        vector_video_barrier();
-        const uint32_t seq1 = vector_video_seq;
+        korvet_video_barrier();
+        *state = korvet_video_state;
+        korvet_video_barrier();
+        const uint32_t seq1 = korvet_video_seq;
         if (seq0 == seq1 && !(seq1 & 1u))
-            return state->enabled && state->memory;
+            return state->enabled;
     }
 }
 
-static inline uint8_t vector_color_byte(
-        const vector_video_state_t* state, uint8_t color)
+static void korvet_build_pair_lut(
+        const uint8_t* palette, const uint8_t* lut, uint16_t* pair_lut)
 {
-    return state->palette[color];
+    uint8_t mapped[16];
+    for (unsigned i = 0; i < 16; ++i)
+        mapped[i] = palette[lut[i] & 0x0fu];
+
+    for (unsigned i = 0; i < 256; ++i) {
+        const uint8_t c0 =
+            (uint8_t)(((i & 0x02u) >> 1) |
+                      ((i & 0x08u) >> 2) |
+                      ((i & 0x20u) >> 3) |
+                      ((i & 0x80u) >> 4));
+        const uint8_t c1 =
+            (uint8_t)((i & 0x01u) |
+                      ((i & 0x04u) >> 1) |
+                      ((i & 0x10u) >> 2) |
+                      ((i & 0x40u) >> 3));
+        pair_lut[i] =
+            (uint16_t)mapped[c0] | ((uint16_t)mapped[c1] << 8);
+    }
 }
 
 #if HDMI_RP2040_DIAG_MODE == 1
 static void build_rp2040_tmds_test_line(void)
 {
-    /*
-     * Eight 100-pixel bars.  The buffer is prepared once on core0; core1 only
-     * executes the existing full-width palette TMDS encoder.
-     */
     static const uint8_t bars[8] = {
         0x00, 0x03, 0x0c, 0x0f,
         0x30, 0x33, 0x3c, 0x3f
@@ -352,209 +372,126 @@ static void build_rp2040_tmds_test_line(void)
 }
 #endif
 
-/* Runs on core0 when the frame state is published. */
-static void vector_build_lut(vector_video_state_t* state, uint32_t* lut)
+static inline __attribute__((always_inline, section(".time_critical.korvet_emit_byte")))
+void korvet_emit_byte(
+        uint32_t** dst, const uint16_t* pair_lut,
+        uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3)
 {
-    for (unsigned i = 0; i < 256; ++i) {
-        const unsigned y = i >> 6;
-        const unsigned r = (i >> 4) & 3u;
-        const unsigned g = (i >> 2) & 3u;
-        const unsigned b = i & 3u;
-        const uint8_t c0 = (uint8_t)(((y & 2u) << 2) |
-                                     ((r & 2u) << 1) |
-                                     (g & 2u) | (b >> 1));
-        const uint8_t c1 = (uint8_t)(((y & 1u) << 3) |
-                                     ((r & 1u) << 2) |
-                                     ((g & 1u) << 1) | (b & 1u));
-        uint8_t p0, p1, p2, p3;
-        if (state->mode512) {
-            p0 = vector_color_byte(state, c0 & 0x03u);
-            p1 = vector_color_byte(state, c0 & 0x0cu);
-            p2 = vector_color_byte(state, c1 & 0x03u);
-            p3 = vector_color_byte(state, c1 & 0x0cu);
-        } else {
-            p0 = p1 = vector_color_byte(state, c0);
-            p2 = p3 = vector_color_byte(state, c1);
-        }
-        lut[i] = (uint32_t)p0 | ((uint32_t)p1 << 8) |
-                 ((uint32_t)p2 << 16) | ((uint32_t)p3 << 24);
-    }
+    const unsigned i6 =
+        ((b0 >> 6) & 0x03u) |
+        ((b1 >> 4) & 0x0cu) |
+        ((b2 >> 2) & 0x30u) |
+        (b3 & 0xc0u);
+    const unsigned i4 =
+        ((b0 >> 4) & 0x03u) |
+        ((b1 >> 2) & 0x0cu) |
+        (b2 & 0x30u) |
+        ((unsigned)(b3 << 2) & 0xc0u);
+    const unsigned i2 =
+        ((b0 >> 2) & 0x03u) |
+        (b1 & 0x0cu) |
+        ((unsigned)(b2 << 2) & 0x30u) |
+        ((unsigned)(b3 << 4) & 0xc0u);
+    const unsigned i0 =
+        (b0 & 0x03u) |
+        ((unsigned)(b1 << 2) & 0x0cu) |
+        ((unsigned)(b2 << 4) & 0x30u) |
+        ((unsigned)(b3 << 6) & 0xc0u);
 
-    const uint8_t border = state->border_color;
-    if (state->mode512) {
-        const uint8_t p0 = vector_color_byte(state, border & 0x03u);
-        const uint8_t p1 = vector_color_byte(state, border & 0x0cu);
-        state->border_pattern = (uint32_t)p0 | ((uint32_t)p1 << 8) |
-                                ((uint32_t)p0 << 16) | ((uint32_t)p1 << 24);
-    } else {
-        const uint8_t p = vector_color_byte(state, border);
-        state->border_pattern = (uint32_t)p * 0x01010101u;
+    uint32_t* out = *dst;
+    out[0] = (uint32_t)pair_lut[i6] |
+             ((uint32_t)pair_lut[i4] << 16);
+    out[1] = (uint32_t)pair_lut[i2] |
+             ((uint32_t)pair_lut[i0] << 16);
+    *dst = out + 2;
+}
+
+static void __not_in_flash_func(render_korvet_normal_line)(
+        uint8_t* output, int y, const korvet_video_state_t* state)
+{
+    const uint16_t* pair_lut = korvet_pair_lut[state->lut_index];
+    uint32_t* dst = (uint32_t*)output;
+
+    const unsigned row_base = (unsigned)y << 6;
+    const unsigned text_base = ((unsigned)y >> 4) << 6;
+    const unsigned glyph_line = (unsigned)y & 0x0fu;
+
+    const uint8_t* p0 = state->planes[0] + row_base;
+    const uint8_t* p1 = state->planes[1] + row_base;
+    const uint8_t* p2 = state->planes[2] + row_base;
+    const uint8_t* symbols = state->symbols + text_base;
+    const uint8_t* attrs = state->attrs + text_base;
+    const uint8_t* font = state->font + glyph_line;
+
+    for (unsigned x = 0; x < 64; ++x) {
+        const uint8_t text =
+            font[(unsigned)symbols[x] << 4] ^ attrs[x];
+        korvet_emit_byte(
+            &dst, pair_lut, p0[x], p1[x], p2[x], text);
     }
 }
 
-static inline uint32_t vector_rotate_pattern(uint32_t pattern, unsigned bytes)
+static void __not_in_flash_func(render_korvet_wide_line)(
+        uint8_t* output, int y, const korvet_video_state_t* state)
 {
-    bytes &= 3u;
-    return bytes ? (pattern >> (bytes * 8u)) |
-                   (pattern << ((4u - bytes) * 8u)) : pattern;
+    const uint16_t* pair_lut = korvet_pair_lut[state->lut_index];
+    uint32_t* dst = (uint32_t*)output;
+
+    const unsigned row_base = (unsigned)y << 6;
+    const unsigned text_base = ((unsigned)y >> 4) << 6;
+    const unsigned glyph_line = (unsigned)y & 0x0fu;
+
+    const uint8_t* p0 = state->planes[0] + row_base;
+    const uint8_t* p1 = state->planes[1] + row_base;
+    const uint8_t* p2 = state->planes[2] + row_base;
+    const uint8_t* symbols = state->symbols + text_base;
+    const uint8_t* attrs = state->attrs + text_base;
+    const uint8_t* font = state->font + glyph_line;
+
+    for (unsigned x = 0; x < 64; x += 2) {
+        const uint8_t chr =
+            font[(unsigned)symbols[x] << 4] ^ attrs[x];
+        const uint8_t text0 =
+            (uint8_t)((chr & 0x80u ? 0xc0u : 0u) |
+                      (chr & 0x40u ? 0x30u : 0u) |
+                      (chr & 0x20u ? 0x0cu : 0u) |
+                      (chr & 0x10u ? 0x03u : 0u));
+        const uint8_t text1 =
+            (uint8_t)(((chr & 0x08u) ? 0xc0u : 0u) |
+                      ((chr & 0x04u) ? 0x30u : 0u) |
+                      ((chr & 0x02u) ? 0x0cu : 0u) |
+                      ((chr & 0x01u) ? 0x03u : 0u));
+
+        korvet_emit_byte(
+            &dst, pair_lut, p0[x], p1[x], p2[x], text0);
+        korvet_emit_byte(
+            &dst, pair_lut, p0[x + 1], p1[x + 1], p2[x + 1], text1);
+    }
 }
 
-static inline void vector_fill32(uint8_t* dst, int count, uint32_t pattern)
+static void __not_in_flash_func(render_korvet_active_line)(
+        uint8_t* output, int y, const korvet_video_state_t* state)
 {
-    while (count && ((uintptr_t)dst & 3u)) {
-        *dst++ = (uint8_t)pattern;
-        pattern = vector_rotate_pattern(pattern, 1);
-        --count;
-    }
-    uint32_t* dst32 = (uint32_t*)dst;
-    while (count >= 16) {
-        dst32[0] = pattern;
-        dst32[1] = pattern;
-        dst32[2] = pattern;
-        dst32[3] = pattern;
-        dst32 += 4;
-        count -= 16;
-    }
-    while (count >= 4) {
-        *dst32++ = pattern;
-        count -= 4;
-    }
-    dst = (uint8_t*)dst32;
-    while (count--) {
-        *dst++ = (uint8_t)pattern;
-        pattern = vector_rotate_pattern(pattern, 1);
-    }
+    if (state->wide_char_mode)
+        render_korvet_wide_line(output, y, state);
+    else
+        render_korvet_normal_line(output, y, state);
 }
 
-static inline uint8_t vector_pixel_slow(
-        const vector_video_state_t* state, int x, uint8_t roll_off)
-{
-    const int offset = ((x & 0x1f0) << 4) | roll_off;
-    const uint8_t mask = (uint8_t)(0x80u >> ((x & 0x0e) >> 1));
-    const uint8_t* memory = state->memory;
-    uint8_t color = 0;
-    if (memory[0x8000 + offset] & mask) color |= 0x08;
-    if (memory[0xa000 + offset] & mask) color |= 0x04;
-    if (memory[0xc000 + offset] & mask) color |= 0x02;
-    if (memory[0xe000 + offset] & mask) color |= 0x01;
-    if (state->mode512)
-        color = (x & 1) ? (color & 0x0c) : (color & 0x03);
-    return vector_color_byte(state, color);
-}
-
-static void __not_in_flash_func(render_vector_active_pixels)(
-        uint8_t* output, int source_x, int count, int n_line,
-        const vector_video_state_t* state)
-{
-    const uint8_t roll_off =
-        (uint8_t)(state->line_offset - n_line + 40);
-    int x = source_x;
-    int remaining = count;
-
-    while (remaining && ((x & 15) || ((uintptr_t)output & 3u))) {
-        *output++ = vector_pixel_slow(state, x++, roll_off);
-        --remaining;
-    }
-
-    const uint8_t* memory = state->memory;
-    const uint32_t* lut = vector_pair_lut[state->lut_index];
-    uint32_t* out32 = (uint32_t*)output;
-    while (remaining >= 16) {
-        const int offset = ((x & 0x1f0) << 4) | roll_off;
-        const uint8_t by = memory[0x8000 + offset];
-        const uint8_t br = memory[0xa000 + offset];
-        const uint8_t bg = memory[0xc000 + offset];
-        const uint8_t bb = memory[0xe000 + offset];
-
-#define VECTOR_PAIR_INDEX(shift) \
-        (((((unsigned)by >> (shift)) & 3u) << 6) | \
-         ((((unsigned)br >> (shift)) & 3u) << 4) | \
-         ((((unsigned)bg >> (shift)) & 3u) << 2) | \
-          (((unsigned)bb >> (shift)) & 3u))
-        out32[0] = lut[VECTOR_PAIR_INDEX(6)];
-        out32[1] = lut[VECTOR_PAIR_INDEX(4)];
-        out32[2] = lut[VECTOR_PAIR_INDEX(2)];
-        out32[3] = lut[VECTOR_PAIR_INDEX(0)];
-#undef VECTOR_PAIR_INDEX
-        out32 += 4;
-        x += 16;
-        remaining -= 16;
-    }
-
-    output = (uint8_t*)out32;
-    while (remaining--)
-        *output++ = vector_pixel_slow(state, x++, roll_off);
-}
-
-static void __not_in_flash_func(render_vector_dvi_line)(
+static void __not_in_flash_func(render_korvet_dvi_line)(
         uint8_t* output, int source_y,
-        const vector_video_state_t* state)
+        const korvet_video_state_t* state)
 {
-    const int source_width = state->show_border ? 626 : 512;
-    int left = (DVI_FRAME_WIDTH - source_width) / 2 + pic_shift_x;
-    int source_x = 0;
-
-    if (left < 0) {
-        source_x = -left;
-        left = 0;
-    }
-    if (left > DVI_FRAME_WIDTH)
-        left = DVI_FRAME_WIDTH;
-
-    int drawable = source_width - source_x;
-    if (drawable < 0)
-        drawable = 0;
-    if (drawable > DVI_FRAME_WIDTH - left)
-        drawable = DVI_FRAME_WIDTH - left;
-
-    /*
-     * line_buf is cleared once at the beginning of the DVI frame.  Every
-     * source line overwrites the same drawable horizontal interval, so
-     * clearing all 800 bytes again here is redundant and was enough to push
-     * Korvet rendering + TMDS encoding beyond the RP2040 line budget.
-     */
-    output += left;
-
-    const int n_line = source_y + (state->show_border ? 24 : 40);
-    if (!state->show_border) {
-        render_vector_active_pixels(
-            output, source_x, drawable, n_line, state);
+    // RP2040 encodes an x=160..719 span. Put the 512-pixel Korvet raster
+    // at its beginning, leaving 128 black pixels on the right. This saves one
+    // 80-pixel TMDS block per line compared with the centered x=144 layout.
+    const int left = 160 + pic_shift_x;
+    if (left < 0 || left + KORVET_PICTURE_W > DVI_FRAME_WIDTH)
         return;
-    }
 
-    if (n_line < 40 || n_line >= 296) {
-        vector_fill32(
-            output, drawable,
-            vector_rotate_pattern(state->border_pattern, source_x));
-        return;
-    }
-
-    int x = source_x;
-    int remaining = drawable;
-    if (x < 57) {
-        int n = 57 - x;
-        if (n > remaining) n = remaining;
-        vector_fill32(
-            output, n,
-            vector_rotate_pattern(state->border_pattern, x));
-        output += n;
-        x += n;
-        remaining -= n;
-    }
-    if (remaining && x < 569) {
-        int n = 569 - x;
-        if (n > remaining) n = remaining;
-        render_vector_active_pixels(
-            output, x - 57, n, n_line, state);
-        output += n;
-        x += n;
-        remaining -= n;
-    }
-    if (remaining)
-        vector_fill32(
-            output, remaining,
-            vector_rotate_pattern(state->border_pattern, x));
+    render_korvet_active_line(output + left, source_y, state);
 }
+
 #endif
 
 // ---------------------------------------------------------------------------
@@ -747,17 +684,15 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
 #if HDMI_RP2040_DIAG_MODE != 1
                 video_fill_u8(line_buf, 0, sizeof(line_buf));
 #endif
-                vector_frame_state_valid =
-                    vector_video_snapshot(&vector_frame_state);
-                if (vector_frame_state_valid)
-                    vector_lut_in_use =
-                        vector_frame_state.lut_index;
+                korvet_frame_state_valid =
+                    korvet_video_snapshot(&korvet_frame_state);
+                if (korvet_frame_state_valid)
+                    korvet_lut_in_use =
+                        korvet_frame_state.lut_index;
             }
 
-            const int vector_height =
-                vector_frame_state.show_border ? 288 : 256;
             const int border_y =
-                (DVI_FRAME_HEIGHT - vector_height) / 2;
+                (DVI_FRAME_HEIGHT - KORVET_PICTURE_H) / 2;
             const int src = y - border_y - pic_shift_y;
 #else
             // Строка кадрового буфера, попадающая в эту строку кадра.
@@ -800,23 +735,21 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
              * Renderer-only test.  Build the same Korvet line as normal, but
              * do not encode it; enqueue the pre-encoded blank TMDS line.
              */
-            if (vector_frame_state_valid &&
-                src >= 0 && src < vector_height)
-                render_vector_dvi_line(
-                    line_buf, src, &vector_frame_state);
+            if (korvet_frame_state_valid &&
+                src >= 0 && src < KORVET_PICTURE_H)
+                render_korvet_dvi_line(
+                    line_buf, src, &korvet_frame_state);
             copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
 #else
-            if (!vector_frame_state_valid ||
-                src < 0 || src >= vector_height) {
+            if (!korvet_frame_state_valid ||
+                src < 0 || src >= KORVET_PICTURE_H) {
                 copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
             } else {
                 /*
-                 * Both Korvet layouts fit completely inside x=80..719:
+                 * Korvet has one 512x256 raster at x=160..671.
                  *
-                 *   border mode: 626 pixels at nominal x=87
-                 *   crop mode:   512 pixels at nominal x=144
-                 *
-                 * Encode one fixed 640-pixel span. The start and width are
+                 * Encode the minimum assembly-compatible span that contains
+                 * it: x=160..719, 560 pixels. Both start and width are
                  * both compatible with the assembly loop's 80-pixel
                  * granularity. The outer 80-pixel columns remain the
                  * pre-encoded black template.
@@ -826,8 +759,8 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                  * removing one more 80-pixel block is necessary to meet the
                  * scanline deadline.
                  */
-                const int encode_x = 80;
-                const int encode_width = 640;
+                const int encode_x = 160;
+                const int encode_width = 560;
 
                 if (encode_x != vector_span_x ||
                     encode_width != vector_span_width) {
@@ -836,8 +769,8 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
                     vector_reset_blank_buffer_cache();
                 }
 
-                render_vector_dvi_line(
-                    line_buf, src, &vector_frame_state);
+                render_korvet_dvi_line(
+                    line_buf, src, &korvet_frame_state);
 
                 if (encode_width > 0) {
                     vector_ensure_blank_tmds_buffer(tmdsbuf);
@@ -997,46 +930,59 @@ void graphics_init(void) {
 }
 
 void graphics_set_korvet_source(
-        const uint8_t* memory, const uint8_t* palette,
-        uint8_t vector_border_color, uint8_t line_offset,
-        bool mode512, bool show_border)
+        const uint8_t* plane0, const uint8_t* plane1,
+        const uint8_t* plane2, const uint8_t* symbols,
+        const uint8_t* attrs, const uint8_t* font,
+        const uint8_t* palette, const uint8_t* lut,
+        bool wide_char_mode, bool show_border)
 {
 #ifdef PICO_RP2040
-    vector_video_state_t next = vector_video_state;
-    next.memory = memory;
-    next.border_color = vector_border_color;
-    next.line_offset = line_offset;
-    next.mode512 = mode512;
-    next.show_border = show_border;
-    next.enabled = memory != NULL;
-
-    if (palette)
-        memcpy(next.palette, palette, sizeof(next.palette));
+    korvet_video_state_t next = korvet_video_state;
+    next.planes[0] = plane0;
+    next.planes[1] = plane1;
+    next.planes[2] = plane2;
+    next.symbols = symbols;
+    next.attrs = attrs;
+    if (font && font != korvet_font_source) {
+        video_copy_u8(korvet_font_sram, font, sizeof(korvet_font_sram));
+        korvet_font_source = font;
+    }
+    next.font = font ? korvet_font_sram : NULL;
+    next.wide_char_mode = wide_char_mode;
+    next.enabled = plane0 && plane1 && plane2 &&
+                   symbols && attrs && next.font && palette && lut;
 
     uint8_t lut_index = (uint8_t)(next.lut_index + 1u);
-    if (lut_index >= VECTOR_LUT_COUNT)
+    if (lut_index >= KORVET_LUT_COUNT)
         lut_index = 0;
-    if (lut_index == vector_lut_in_use) {
+    if (lut_index == korvet_lut_in_use) {
         ++lut_index;
-        if (lut_index >= VECTOR_LUT_COUNT)
+        if (lut_index >= KORVET_LUT_COUNT)
             lut_index = 0;
     }
     next.lut_index = lut_index;
-    vector_build_lut(&next, vector_pair_lut[lut_index]);
+    if (next.enabled) {
+        korvet_build_pair_lut(
+            palette, lut, korvet_pair_lut[lut_index]);
+    }
 
-    vector_video_seq++;
-    vector_video_barrier();
-    vector_video_state = next;
-    vector_video_barrier();
-    vector_video_seq++;
+    korvet_video_seq++;
+    korvet_video_barrier();
+    korvet_video_state = next;
+    korvet_video_barrier();
+    korvet_video_seq++;
 #else
-    (void)memory;
+    (void)plane0;
+    (void)plane1;
+    (void)plane2;
+    (void)symbols;
+    (void)attrs;
+    (void)font;
     (void)palette;
-    (void)vector_border_color;
-    (void)line_offset;
-    (void)mode512;
-    (void)show_border;
+    (void)lut;
+    (void)wide_char_mode;
 #endif
+    (void)show_border;
 }
 
 void graphics_set_buffer(uint8_t *buffer, const uint16_t width, const uint16_t height) {

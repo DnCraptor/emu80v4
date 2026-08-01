@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2019-2024
  *
@@ -718,12 +718,25 @@ void KorvetRenderer::applyFrameBuffer()
     // ширины с шагом 521, поэтому строки не разъезжаются.
 #if defined(PICO_RP2040) && \
     (defined(VGA_DRV) || defined(HDMI_DVI) || defined(SOFTTV))
-    // RP2040 has no room for the 626x288 frame buffer. The VGA driver reads
-    // Korvet video RAM directly on core1 and builds each scan line using a
-    // snapshot of the palette and current video registers. Mid-frame palette
-    // and mode changes are intentionally not cycle-accurate in this mode.
-    graphics_set_korvet_source(m_screenMemory, m_palette, m_borderColor,
-                               m_lineOffset, m_mode512px, m_showBorder);
+    // RP2040 has no room for the 521x288 frame buffer. Publish the actual
+    // Korvet graphics/text sources; core1 composes each scan line directly.
+    if (m_graphicsAdapter && m_textAdapter) {
+        const int page =
+            m_displayPage % m_graphicsAdapter->getPageCount();
+        const int pageOffset = page * 0x4000;
+
+        graphics_set_korvet_source(
+            m_graphicsAdapter->getPlane(0) + pageOffset,
+            m_graphicsAdapter->getPlane(1) + pageOffset,
+            m_graphicsAdapter->getPlane(2) + pageOffset,
+            m_textAdapter->getSymbols(),
+            m_textAdapter->getAttrs(),
+            korvet_font_bin + m_fontNumber * 4096,
+            m_colorPalette,
+            m_korvetLut,
+            m_wideCharMode,
+            m_showBorder);
+    }
 #else
     if (m_showBorder) {
 #ifndef PICO_RP2040
