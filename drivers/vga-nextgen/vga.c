@@ -59,6 +59,13 @@ static uint32_t bg_color[2];
 
 static uint16_t palette16_mask = 0;
 
+/*
+ * Framebuffer pixels are RGB222 values in the low six bits.  Keep the final
+ * VGA byte conversion in a small SRAM LUT so the scan-line IRQ pays only one
+ * indexed load per source pixel.  Bits 7..6 are the inactive sync levels.
+ */
+static uint8_t output_color_lut[64];
+
 #ifdef PICO_RP2040
 #define MENU_TEXT_COLS 100
 #define MENU_TEXT_ROWS 37
@@ -688,13 +695,15 @@ void __time_critical_func(dma_handler_VGA)() {
     }
     if (duplicatePixels) {
         for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
-            register uint8_t c = input_buffer_8bit[x] | 0xC0;
+            const uint8_t c =
+                output_color_lut[input_buffer_8bit[x] & 0x3fu];
             *output_buffer_8bit++ = c;
             *output_buffer_8bit++ = c;
         }
     } else {
         for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-            *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
+            *output_buffer_8bit++ =
+                output_color_lut[input_buffer_8bit[x] & 0x3fu];
         }
     }
     for  (register int x = 0; x < xoff2; ++x) {
@@ -929,6 +938,32 @@ void graphics_set_bgcolor(const uint32_t color888) {
                   ((c_lo << 8 | c_hi) & 0x3f3f | palette16_mask);
 }
 
+void graphics_set_color_mode(bool colorMode)
+{
+    for (unsigned color = 0; color < 64; ++color) {
+        uint8_t output = (uint8_t)color;
+
+        if (!colorMode) {
+            const unsigned r = (color >> 4) & 3u;
+            const unsigned g = (color >> 2) & 3u;
+            const unsigned b = color & 3u;
+
+            /*
+             * Rec.601 luma, directly in the 0..3 RGB222 range:
+             *
+             *   Y = 0.299 R + 0.587 G + 0.114 B
+             *
+             * Coefficients sum to 256, so no 8-bit expansion is needed.
+             */
+            const unsigned y =
+                (77u * r + 150u * g + 29u * b + 128u) >> 8;
+            output = (uint8_t)(y * 0x15u);
+        }
+
+        output_color_lut[color] = (uint8_t)(output | 0xc0u);
+    }
+}
+
 void graphics_set_palette(const uint8_t i, const uint32_t color888) {
     /**
     const uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
@@ -948,6 +983,7 @@ void graphics_set_palette(const uint8_t i, const uint32_t color888) {
 }
 
 void graphics_init() {
+    graphics_set_color_mode(true);
 #ifdef PICO_RP2040
     menu_text_init_palette();
     menu_text_clear_for_mode();

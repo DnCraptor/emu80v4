@@ -14,8 +14,8 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
-set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
-#set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
+#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
+set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
 set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 #set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
@@ -27,8 +27,8 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 
 #set(SOFTTV ON)
 #set(TV_NTSC ON)
-#set(VGA_DRV ON)
-set(HDMI_DVI ON)
+set(VGA_DRV ON)
+#set(HDMI_DVI ON)
 
 #ignored for HDMI
 #set(CPU_MHZ 366)
