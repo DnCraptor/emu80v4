@@ -7,6 +7,9 @@
 #include "hardware/pio.h"
 #include "font8x8.h"
 
+#define TV_RGB888(r, g, b) \
+    (((uint32_t)(r) << 16) | ((uint32_t)(g) << 8) | (uint32_t)(b))
+
 #define SCREEN_WIDTH (320)
 #define SCREEN_HEIGHT (240)
 
@@ -473,29 +476,29 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                     case GRAPHICSMODE_DEFAULT: {
                         //для 8-битного буфера
                         if (input_buffer != NULL) {
-                            int left = graphics_buffer.shift_x;
-                            if (left < 0)
-                                left = 0;
-
-                            int output_width =
-                                v_mode.img_size_x - left * 2;
-                            if (output_width < 0)
-                                output_width = 0;
-
-                            memset(output_buffer, 200, (size_t)left);
-                            output_buffer += left;
+                            /*
+                             * shift_x is a signed translation of the complete
+                             * scaled image. It must not change image width.
+                             */
+                            const int shift_x = graphics_buffer.shift_x;
+                            const int output_width = v_mode.img_size_x;
 
                             for (int x = 0; x < output_width; ++x) {
+                                const int image_x = x - shift_x;
+                                if ((unsigned)image_x >=
+                                    (unsigned)output_width) {
+                                    *output_buffer++ = 200;
+                                    continue;
+                                }
+
                                 const uint32_t source_x =
-                                    (uint32_t)x * graphics_buffer.width /
+                                    (uint32_t)image_x *
+                                    graphics_buffer.width /
                                     (uint32_t)output_width;
                                 const uint8_t c = input_buffer[source_x];
                                 *output_buffer++ =
                                     map64colors[c & 0x3fu];
                             }
-
-                            memset(output_buffer, 200, (size_t)left);
-                            output_buffer += left;
                         }
                         break;
                     }
@@ -841,98 +844,27 @@ void graphics_type(
 void graphics_init() {
     tv_init(TV_OUT_PAL);
 
-    for (uint8_t c = 0; c <= 0b00111111; ++c) {
-        switch (c)
-        {
-        case 0b000000: map64colors[c] = 200; break; // black
+    /*
+     * Use the same native RGB222 palette as VGA. Framebuffer pixels are
+     * RR GG BB and each two-bit component expands to 0, 85, 170 or 255.
+     */
+    static const uint8_t level[4] = {0, 85, 170, 255};
 
-        case 0b000001: map64colors[c] = 204; break; // red
-        case 0b000010: map64colors[c] = 204; break;
+    for (uint8_t color = 0; color < 64; ++color) {
+        const uint8_t r = level[(color >> 4) & 3u];
+        const uint8_t g = level[(color >> 2) & 3u];
+        const uint8_t b = level[color & 3u];
 
-        case 0b000011: map64colors[c] = 212; break; // light red
-        case 0b010011: map64colors[c] = 212; break;
-
-        case 0b000100: map64colors[c] = 202; break; // green
-        case 0b001000: map64colors[c] = 202; break;
-        case 0b001001: map64colors[c] = 202; break;
-
-        case 0b001100: map64colors[c] = 210; break; // light green
-
-        case 0b010000: map64colors[c] = 201; break; // blue
-        case 0b100000: map64colors[c] = 201; break;
-
-        case 0b110000: map64colors[c] = 209; break; // light blue
-
-        case 0b000101: map64colors[c] = 208; break; // yellow
-        case 0b000110: map64colors[c] = 208; break;
-        case 0b001010: map64colors[c] = 208; break;
-        case 0b001011: map64colors[c] = 208; break;
-        case 0b001110: map64colors[c] = 208; break;
-
-        case 0b001111: map64colors[c] = 214; break; // light tellow
-
-        case 0b010001: map64colors[c] = 205; break; // magenta
-        case 0b010010: map64colors[c] = 205; break;
-        case 0b100001: map64colors[c] = 205; break;
-        case 0b100010: map64colors[c] = 205; break;
-        case 0b110010: map64colors[c] = 205; break;
-        case 0b100011: map64colors[c] = 205; break;
-
-        case 0b110011: map64colors[c] = 213; break; // light magenta
-
-        case 0b010100: map64colors[c] = 203; break; // cyan
-        case 0b100100: map64colors[c] = 203; break;
-        case 0b011000: map64colors[c] = 203; break;
-        case 0b101000: map64colors[c] = 203; break;
-        case 0b111000: map64colors[c] = 203; break;
-        case 0b101100: map64colors[c] = 203; break;
-
-        case 0b111100: map64colors[c] = 211; break; // light cyan
-
-        case 0b010101: map64colors[c] = 207; break; // gray
-        case 0b010110: map64colors[c] = 207; break;
-        case 0b100101: map64colors[c] = 207; break;
-        case 0b100110: map64colors[c] = 207; break;
-        case 0b010111: map64colors[c] = 207; break;
-        case 0b011001: map64colors[c] = 207; break;
-        case 0b011111: map64colors[c] = 207; break;
-        case 0b111001: map64colors[c] = 207; break;
-        case 0b111010: map64colors[c] = 207; break;
-        case 0b101001: map64colors[c] = 207; break;
-        case 0b101010: map64colors[c] = 207; break;
-
-        case 0b111111: map64colors[c] = 215; break; // white
-
-        case 0b000111: map64colors[c] = 216; break; // orange
-
-        default: map64colors[c] = 215; break;
-        }
+        map64colors[color] = color;
+        graphics_set_palette(color, TV_RGB888(r, g, b));
     }
-    graphics_set_palette(200, RGB888(0x00, 0x00, 0x00)); //black
-    graphics_set_palette(201, RGB888(0x00, 0x00, 0xC4)); //blue
-    graphics_set_palette(202, RGB888(0x00, 0xC4, 0x00)); //green
-    graphics_set_palette(203, RGB888(0x00, 0xC4, 0xC4)); //cyan
-    graphics_set_palette(204, RGB888(0xC4, 0x00, 0x00)); //red
-    graphics_set_palette(205, RGB888(0xC4, 0x00, 0xC4)); //magenta
-    graphics_set_palette(206, RGB888(0xC4, 0x7E, 0x00)); //brown
-    graphics_set_palette(207, RGB888(0xC4, 0xC4, 0xC4)); //light gray
-//    graphics_set_palette(208, RGB888(0x4E, 0x4E, 0x4E)); //dark gray
-    graphics_set_palette(208, RGB888(0xC4, 0xC4, 0x00)); //yellow
-    graphics_set_palette(209, RGB888(0x4E, 0x4E, 0xDC)); //light blue
-    graphics_set_palette(210, RGB888(0x4E, 0xDC, 0x4E)); //light green
-    graphics_set_palette(211, RGB888(0x4E, 0xF3, 0xF3)); //light cyan
-    graphics_set_palette(212, RGB888(0xDC, 0x4E, 0x4E)); //light red
-    graphics_set_palette(213, RGB888(0xF3, 0x4E, 0xF3)); //light magenta
-    graphics_set_palette(214, RGB888(0xF3, 0xF3, 0x4E)); //light yellow
-    graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
-    graphics_set_palette(216, RGB888(0xFF, 0x7E, 0x00)); //orange
 
     memcpy(color_map64, map64colors, sizeof(color_map64));
 
-    graphics_set_palette(217, RGB888(0x00, 0x00, 0x00));
-    graphics_set_palette(218, RGB888(0x55, 0x55, 0x55));
-    graphics_set_palette(219, RGB888(0xAA, 0xAA, 0xAA));
-    graphics_set_palette(220, RGB888(0xFF, 0xFF, 0xFF));
+    graphics_set_palette(217, TV_RGB888(0x00, 0x00, 0x00));
+    graphics_set_palette(218, TV_RGB888(0x55, 0x55, 0x55));
+    graphics_set_palette(219, TV_RGB888(0xAA, 0xAA, 0xAA));
+    graphics_set_palette(220, TV_RGB888(0xFF, 0xFF, 0xFF));
 
     for (unsigned color = 0; color < 64; ++color) {
         const unsigned r = (color >> 4) & 3u;

@@ -15,7 +15,6 @@ static const uint8_t textmode_palette[16] = {
 #define TEXTMODE_COLS 53
 #define TEXTMODE_ROWS 30
 
-#define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
 typedef enum {
     TV_OUT_PAL,
