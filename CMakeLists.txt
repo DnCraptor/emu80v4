@@ -44,7 +44,7 @@ set(CPU_MHZ 400)
 #set(CPU_MHZ 500)
 #set(CPU_MHZ 520)
 
-set (PORT_VERSION "0.6.8")
+set (PORT_VERSION "0.6.9")
 
 # При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
 # системной, а 800x600@60 требует ровно 400 МГц.
@@ -53,6 +53,13 @@ IF(HDMI_DVI)
         message(STATUS ">>> HDMI_DVI: CPU_MHZ принудительно 400 (было ${CPU_MHZ})")
     ENDIF()
     SET(CPU_MHZ 400)
+ENDIF()
+# TODO: 2040
+IF(RGB_TV)
+    IF(NOT CPU_MHZ EQUAL 448)
+        message(STATUS ">>> RGB_TV: CPU_MHZ принудительно 448 (было ${CPU_MHZ})")
+    ENDIF()
+    SET(CPU_MHZ 448)
 ENDIF()
 
 

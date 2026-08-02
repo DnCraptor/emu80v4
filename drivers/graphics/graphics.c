@@ -7,6 +7,8 @@ volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_KORVET;
 const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
 #ifdef HDMI_DVI
     static const uint32_t clocks[] = {400};
+#elif defined(RGB_TV)
+    static const uint32_t clocks[] = {448};
 #elif defined(PICO_RP2040)
     static const uint32_t clocks[] = {400, 402, 404, 408, 412};
 #else

@@ -1031,7 +1031,11 @@ static const MenuPage videoPage {
     nullptr, nullptr, videoShiftStatus
 };
 
+#if defined(RGB_TV)
+static constexpr uint16_t coreVoltageValues[] = {1500, 1600, 1650};
+#else
 static constexpr uint16_t coreVoltageValues[] = {1300, 1400, 1500, 1600, 1650};
+#endif
 
 int systemClockGetValue()
 {
@@ -1075,6 +1079,8 @@ void coreVoltageSetValue(int value)
 static const MenuItem systemClockItems[] = {
 #if defined(HDMI_DVI)
     {"400 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#elif defined(RGB_TV)
+    {"448 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
 #elif defined(PICO_RP2040)
     {"400 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
     {"402 MHz", nullptr, nullptr, nullptr, systemClockItemEnabled, nullptr},
@@ -1098,6 +1104,10 @@ static const MenuPage systemClockPage {
 static const MenuItem coreVoltageItems[] = {
 #if defined(PICO_RP2040)
     {"1.30 V", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
+#elif defined(RGB_TV)
+    {"1.50 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.60 V", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"1.65 V", nullptr, nullptr, nullptr, nullptr, nullptr},
 #else
     {"1.30 V", nullptr, nullptr, nullptr, nullptr, nullptr},
     {"1.40 V", nullptr, nullptr, nullptr, nullptr, nullptr},
