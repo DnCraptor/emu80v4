@@ -241,7 +241,7 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                     ? (int)graphics_buffer.height
                     : 288;
             const int source_begin_line =
-                (v_mode.N_lines - source_height) / 2 + 12;
+                (v_mode.N_lines - source_height) / 2 + 11;
             const int y =
                 (int)line_active - source_begin_line;
 
