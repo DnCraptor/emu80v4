@@ -122,7 +122,6 @@ static int dma_chan_pal_conv = -1;
 static __aligned(512) __scratch_x("palette_conv") uint32_t conv_color[128];
 
 static enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
-static output_format_e active_output_format;
 static repeating_timer_t video_timer;
 
 
@@ -204,246 +203,18 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
 
         bool is_line_visible = true;
 
-        // if (false)
-        switch (active_output_format) {
-            case TV_OUT_PAL:
-                switch (line_active) {
-                    case 0:
-                    case 1:
-                        //|___|--|___|--| type=1
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-
-                    case 2:
-                        // ____|--|_|----type=2
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 3:
-                    case 4: //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-
-                    case 5: break; //шаблон как у видимой строки, но без изображения
-
-
-                    case 310:
-                    case 311:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 312:
-                        //|_|---|____|--| type=3
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-                    case 313:
-                    case 314:
-                        //|___|--|___|--| type=1
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-                    case 315:
-                    case 316:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 317:
-                        //|_|---------type=4
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 622:
-                        //|__|---|_|----type=5
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                }
-                break;
-            case TV_OUT_NTSC:
-                switch (line_active) {
-                    case 0:
-                    case 1:
-                    case 2:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 3:
-                    case 4:
-                    case 5:
-                        //|___|--|___|--| type=1
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-                    case 6:
-                    case 7:
-                    case 8:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-
-                    case 262:
-                        //|__|---|_|----type=5
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 263:
-                    case 264:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 265:
-
-                        //|_|---|____|--| type=3
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-                    case 266:
-                    case 267:
-                        //|___|--|___|--| type=1
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        is_line_visible = false;
-                        break;
-                    case 268:
-
-                        // ____|--|_|----type=2
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, (v_mode.H_len / 2) - v_mode.sync_size);
-                        output_buffer += (v_mode.H_len / 2) - v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.sync_size);
-                        output_buffer += v_mode.sync_size;
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 269:
-                    case 270:
-                        //|_|----|_|---- type=0
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        output_buffer += (v_mode.H_len / 2) - (v_mode.sync_size / 2);
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len / 2) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-                    case 271:
-
-                        //|_|---------type=4
-                        tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.sync_size / 2);
-                        output_buffer += v_mode.sync_size / 2;
-                        tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, (v_mode.H_len) - (v_mode.sync_size / 2));
-                        is_line_visible = false;
-                        break;
-
-
-                    default:
-                        break;
-                }
-
-
-                break;
+        /*
+         * Прогрессивный 312-строчный растр, близкий к аппаратному Вектору.
+         * Никаких полуст строк, уравнивающих импульсов и второго поля:
+         * строки 0..3 — кадровый синхроимпульс на всю строку;
+         * остальные строки имеют обычный HSync;
+         * framebuffer выводится 1:1 и центрируется по высоте.
+         */
+        if (line_active < 4) {
+            tv_fill8(output_buffer, v_mode.SYNC_TMPL, v_mode.H_len);
+            is_line_visible = false;
         }
+
 
         //ТВ строка с изображением
         if (is_line_visible) {
@@ -457,22 +228,25 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                        v_mode.img_size_x, v_mode.NO_SYNC_TMPL, post_img_clear);
             output_buffer += v_mode.begin_img_shx;
 
-            int y = -1;
-            switch (active_output_format) {
-                case TV_OUT_PAL:
-                    if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; };
-                    if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; };
-                    y -= 24;
-                    break;
-                case TV_OUT_NTSC:
-                    if ((line_active > 8) && (line_active < 262)) { y = line_active - 20; };
-                    if ((line_active > 271)) { y = line_active - 282; };
-                    break;
-            }
+            /*
+             * Центрируем текущий framebuffer внутри 312-строчного растра:
+             *   288 строк (с полями)  -> по 12 строк сверху и снизу;
+             *   256 строк (Alt+V)     -> по 28 строк сверху и снизу.
+             *
+             * Координата y=0 меню совпадает с первой выводимой строкой
+             * текущего framebuffer.
+             */
+            const int source_height =
+                graphics_buffer.height < 288
+                    ? (int)graphics_buffer.height
+                    : 288;
+            const int source_begin_line =
+                (v_mode.N_lines - source_height) / 2 + 12;
+            const int y =
+                (int)line_active - source_begin_line;
+
             int source_y = -1;
-            if (y >= 0 && y < SCREEN_HEIGHT && graphics_buffer.height) {
-                // Строка 0 framebuffer должна оставаться видимой:
-                // лишние строки обрезаются снизу, а не симметрично.
+            if (y >= 0 && y < source_height && graphics_buffer.height) {
                 source_y = y + graphics_buffer.shift_y;
                 input_buffer = getLineBuffer(source_y);
             }
@@ -553,7 +327,7 @@ static bool __not_in_flash_func(video_timer_callbackTV(repeating_timer_t *rt)) {
 
 //выделение и настройка общих ресурсов - 4 DMA канала, PIO программ и 2 SM
 void tv_init(const output_format_e output_format) {
-    active_output_format = output_format;
+    (void)output_format;
 
     /*
      * RGB TV не привязан к цветовой поднесущей PAL/NTSC. При 448 МГц
@@ -570,18 +344,16 @@ void tv_init(const output_format_e output_format) {
 
     v_mode.sync_size = 4.7 * v_mode.H_len / 64;
     v_mode.img_size_x = 626;
+
+    /*
+     * Базовая поправка по захвату: сдвигаем активную область вправо.
+     * При H_len=792 получаем porch 139 отсчётов слева и 27 справа.
+     */
     v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2;
+        (v_mode.H_len - v_mode.img_size_x) / 2 + 56;
 
-    switch (active_output_format) {
-        case TV_OUT_NTSC:
-            v_mode.N_lines = 525;
-            break;
-
-        case TV_OUT_PAL:
-            v_mode.N_lines = 625;
-            break;
-    }
+    // Единственный режим RGB TV: прогрессивный растр Вектора.
+    v_mode.N_lines = 312;
 
     //настройка PIO
     SM_video = pio_claim_unused_sm(PIO_VIDEO, true);
@@ -846,7 +618,7 @@ void graphics_type(
 }
 
 void graphics_init() {
-    tv_init(TV_OUT_PAL);
+    tv_init(TV_OUT_PAL); // параметр оставлен только для совместимости API
 
     /*
      * Use the same native RGB222 palette as VGA: framebuffer bits are
