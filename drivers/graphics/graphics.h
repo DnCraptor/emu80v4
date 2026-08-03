@@ -35,7 +35,7 @@ enum graphics_mode_t {
     GRAPHICSMODE_DEFAULT = 0,
     GMODE_640_480 = 0,
     GMODE_800_600 = 1,
-    GMODE_1024_768 = 2,
+//    GMODE_1024_768 = 1,
     UNSUPPORTED_MODE
 };
 

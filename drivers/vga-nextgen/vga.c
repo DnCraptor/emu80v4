@@ -73,7 +73,7 @@ void graphics_set_duplicateLines(bool v) {
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
-void __time_critical_func() dma_handler_VGA() {
+void __time_critical_func(dma_handler_VGA)() {
     dma_hw->ints0 = 1u << dma_chan_ctrl;
     static uint32_t frame_number = 0;
     static uint32_t screen_line = 0;
@@ -114,9 +114,9 @@ void __time_critical_func() dma_handler_VGA() {
 
     uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
     if (duplicateLines) {
-        if (screen_line % 2)
+        if (!(screen_line & 1))
             return;
-        line_number = screen_line / 2;
+        line_number = screen_line >> 1;
         y = line_number + graphics_buffer_shift_y;
     }
     else {
@@ -265,10 +265,12 @@ static void adjust_shift_x() {
         graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
 }
 static void adjust_shift_y() {
-    if (duplicateLines)
-        graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
-    else
+    if (duplicateLines) {
+        graphics_buffer_shift_y =
+            ((client_buffer_height - (graphics_buffer_height >> 1)) >> 1) - 4;
+    } else {
         graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
+    }
 }
 
 enum graphics_mode_t graphics_get_mode() {
@@ -326,22 +328,6 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             line_VS_end = 600 + 3 + 4; // ++ Sync pulse 2?
             N_lines_total = 628; // Whole frame
             fdiv = clock_get_hz(clk_sys) / 40000000;  // частота пиксельклока 40.0 MHz
-            break;
-        case GMODE_1024_768:
-            graphics_buffer_width = 1024;
-            graphics_buffer_height = 768;
-            TMPL_LINE8 = 0b11000000;
-            // XGA Signal 1024 x 768 @ 60 Hz timing
-            HS_SHIFT = 1024 + 24; // Front porch + Visible area
-            HS_SIZE = 160; // Back porch
-            line_size = 1344;
-            shift_picture = line_size - HS_SHIFT;
-            visible_line_size = 1024 / 2;
-            N_lines_visible = 768;
-            line_VS_begin = 768 + 3; // + Front porch
-            line_VS_end = 768 + 3 + 6; // ++ Sync pulse 2?
-            N_lines_total = 806; // Whole frame
-            fdiv = clock_get_hz(clk_sys) / 65000000;  // частота пиксельклока 65.0 MHz
             break;
         default:
             return;
@@ -619,7 +605,7 @@ void graphics_init() {
     );
 
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode(GMODE_640_480);
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);
