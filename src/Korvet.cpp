@@ -207,8 +207,6 @@ bool KorvetCore::setProperty(const string& propertyName, const EmuValuesList& va
     return false;
 }
 
-extern uint8_t* tmp_screen; // W/A
-
 KorvetRenderer::KorvetRenderer()
 {
     const int pixelFreq = 10; // MHz
@@ -221,8 +219,6 @@ KorvetRenderer::KorvetRenderer()
     m_sizeY = m_prevSizeY = 256;
 
     m_bufSize = m_sizeX * m_sizeY;
-    m_pixelData = tmp_screen; /// new uint8_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize);
 
     memset(m_lut, 0, sizeof(m_lut));
 
