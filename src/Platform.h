@@ -44,6 +44,7 @@ class Platform : public ParentObject
     public:
         virtual Platform* asPlatform() override { return this; }
         Platform(std::string configFileName, std::string name = "");
+        Platform();
         virtual ~Platform();
         void addChild(EmuObject* child) override;
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
@@ -69,6 +70,16 @@ class Platform : public ParentObject
         KbdLayout* getKbdLayout() {return m_kbdLayout;}
         CrtRenderer* getRenderer() {return m_renderer;}
         Keyboard* getKeyboard() {return m_keyboard;}
+
+        void attachWindow(EmuWindow* window) {m_window = window;}
+        void attachCpu(Cpu* cpu) {m_cpu = cpu;}
+        void attachCore(PlatformCore* core) {m_core = core;}
+        void attachKbdLayout(KbdLayout* layout) {m_kbdLayout = layout;}
+        void attachRenderer(CrtRenderer* renderer) {m_renderer = renderer;}
+        void attachLoader(FileLoader* loader) {m_loader = loader;}
+        void attachKeyboard(Keyboard* keyboard) {m_keyboard = keyboard;}
+        void setFastReset(bool enabled, int cpuTicks) {m_fastReset = enabled; m_fastResetCpuTicks = cpuTicks;}
+        void start();
 
         void showDebugger();
         void updateDebugger();

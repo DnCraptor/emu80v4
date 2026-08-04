@@ -55,6 +55,7 @@ class Ram : public AddressableDevice
         /*const*/ uint8_t* getDataPtr() {return m_buf ? m_buf : m_extBuf;}
         uint8_t& operator[](int nAddr) {return m_buf[nAddr];} // no check for borders, use with caution
         int getSize() {return m_size;}
+        void setTag(int tag) {m_tag = tag;}
 
         static EmuObject* create(const EmuValuesList& parameters) {
             return parameters[0].isInt() ? new Ram(parameters[0].asInt()) : nullptr;
@@ -75,6 +76,7 @@ class Rom : public AddressableDevice
     public:
        /// Rom();
         Rom(unsigned memSize, std::string fileName);
+        Rom(const uint8_t* data, unsigned memSize);
         virtual ~Rom();
         void writeByte(int, uint8_t)  override {}
         uint8_t readByte(int addr) override;

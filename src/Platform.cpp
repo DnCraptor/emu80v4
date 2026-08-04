@@ -37,6 +37,13 @@
 
 using namespace std;
 
+Platform::Platform()
+{
+    m_baseName = "lvov";
+    setName("lvov");
+}
+
+
 Platform::Platform(string configFileName, string name)
 {
     string::size_type slashPos = configFileName.find_last_of("\\/");
@@ -204,7 +211,19 @@ Platform::~Platform()
 
 void Platform::addChild(EmuObject* child)
 {
+    if (!child)
+        return;
+    child->setPlatform(this);
     m_objList.push_back(child);
+}
+
+
+void Platform::start()
+{
+    init();
+    reset();
+    if (m_window)
+        m_window->show();
 }
 
 

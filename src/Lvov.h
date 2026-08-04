@@ -30,6 +30,7 @@
 
 class GeneralSoundSource;
 class AddrSpaceMapper;
+class Platform;
 
 
 class LvovRenderer : public CrtRenderer, public IActive
@@ -146,6 +147,8 @@ class LvovPpi8255Circuit1 : public Ppi8255Circuit
         void attachRenderer(LvovRenderer* renderer) {m_renderer = renderer;}
 
         void attachAddrSpaceMapper(AddrSpaceMapper* addrSpaceMapper) {m_addrSpaceMapper = addrSpaceMapper;}
+        void attachTapeSoundSource(GeneralSoundSource* source) {m_tapeSoundSource = source;}
+        void attachBeepSoundSource(GeneralSoundSource* source) {m_beepSoundSource = source;}
 
         static EmuObject* create(const EmuValuesList&) {return new LvovPpi8255Circuit1();}
 
@@ -184,6 +187,8 @@ class LvovPpi8255Circuit2 : public Ppi8255Circuit
         void setPortC(uint8_t value) override;
 
         void attachLvovKeyboard(LvovKeyboard* kbd) {m_kbd = kbd;}
+
+        void attachKeyboard(LvovKeyboard* keyboard) {m_kbd = keyboard;}
 
         static EmuObject* create(const EmuValuesList&) {return new LvovPpi8255Circuit2();}
 
@@ -236,6 +241,9 @@ class LvovFileLoader : public FileLoader
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
+        void attachVideoAddrSpace(AddressableDevice* video) {m_video = video;}
+        void attachIoAddrSpace(AddressableDevice* io) {m_io = io;}
+
         static EmuObject* create(const EmuValuesList&) {return new LvovFileLoader();}
 
     private:
@@ -255,5 +263,7 @@ class LvovFileLoader : public FileLoader
         void setupMultiblock();
 };
 
+
+Platform* createLvovPlatform();
 
 #endif // LVOV_H

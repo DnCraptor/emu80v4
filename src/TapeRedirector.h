@@ -40,6 +40,9 @@ class TapeRedirector : public EmuObject
         void openFile();
         void closeFile();
         void setFilePos(unsigned pos);
+        void setFilter(const std::string& filter) {m_filter = filter;}
+        void setMode(const std::string& mode) {m_rwMode = mode;}
+        void setTimeout(int timeout) {m_timeout = timeout;}
 
         void assignFile(std::string fileName, std::string rwMode);
         uint8_t readByte();

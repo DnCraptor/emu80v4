@@ -94,8 +94,9 @@ void __time_critical_func(dma_handler_VGA)() {
         if (screen_line == N_lines_visible | screen_line == N_lines_visible + 3) {
             uint32_t* output_buffer_32bit = lines_pattern[2 + (screen_line & 1)];
             output_buffer_32bit += shift_picture / 4;
-            uint32_t p_i = (screen_line & is_flash_line) + (frame_number & is_flash_frame) & 1;
-            uint32_t color32 = bg_color[p_i];
+            // Строки вне выводимой области должны быть чёрными независимо
+            // от текущего цвета бордера эмулируемой машины.
+            const uint32_t color32 = 0xC0C0C0C0u;
             for (int i = visible_line_size / 2; i--;) {
                 *output_buffer_32bit++ = color32;
             }

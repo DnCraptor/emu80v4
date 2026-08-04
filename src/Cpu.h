@@ -54,6 +54,8 @@ class Cpu : public ActiveDevice
         void attachIoAddrSpace(AddressableDevice* as);
         void attachCore(PlatformCore* core);
         void setStartAddr(unsigned addr) {m_startAddr = addr;}
+        void attachCpuWaits(CpuWaits* waits) {m_waits = waits;}
+        void attachCpuCycleWaits(CpuCycleWaits* waits) {m_cycleWaits = waits;}
 
         //virtual int doInstruction() = 0;
         virtual void interrupt(int) {}

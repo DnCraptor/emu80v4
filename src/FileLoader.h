@@ -40,6 +40,8 @@ class FileLoader : public EmuObject
         void setFilter(const std::string& filter);
         void attachAddrSpace(AddressableDevice* as);
         void attachTapeRedirector(TapeRedirector* tapeRedirector);
+        void setSkipTicks(int ticks) {m_skipTicks = ticks;}
+        void setAllowMultiblock(bool allow) {m_allowMultiblock = allow;}
 
     protected:
         AddressableDevice* m_as = nullptr;

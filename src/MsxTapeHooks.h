@@ -60,6 +60,7 @@ class MsxTapeInHook : public CpuHook
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
 
         bool hookProc() override;
+        void setLvovFix(bool enabled) {m_lvovFix = enabled;}
 
         static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new MsxTapeInHook(parameters[0].asInt()) : nullptr;}
 

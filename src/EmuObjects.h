@@ -112,6 +112,7 @@ class AddressableDevice : public EmuObject
         void writeByteEx(int addr, uint8_t value, int& tag);
 
         void setAddrMask(int mask) {m_addrMask = mask;}
+        void setTag(int tag) {m_tag = tag; m_supportsTags = true;}
 
     protected:
         int m_addrMask = 0;

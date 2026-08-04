@@ -28,7 +28,7 @@
 #include "EmuObjects.h"
 #include "Emulation.h"
 #include "CmdLine.h"
-#include "ConfigReader.h"
+#include "Lvov.h"
 #include "Platform.h"
 #include "EmuWindow.h"
 #include "EmuConfig.h"
@@ -43,13 +43,8 @@ using namespace std;
 
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
-    m_fpsLimit = 0;
-    m_vsync = true;
-    m_sampleRate = 48000;
-
     g_emulation = this;
     setName("emulation");
-
     addObject(this);
 
     m_config = new EmuConfig();
@@ -57,6 +52,7 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 
     m_mixer = new SoundMixer;
     m_mixer->setName("soundMixer");
+    m_mixer->setVolume(6);
 
     m_wavReader = new WavReader;
     m_wavReader->setName("wavReader");
@@ -64,50 +60,13 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_prnWriter = new PrnWriter;
     m_prnWriter->setName("prnWriter");
 
-    ConfigReader cr("emu80.conf");
+    setFrameRate(100);
+    setVsync(true);
+    setSampleRate(96000);
+    setFrequency(1680000000);
 
-    if (!cr.processConfigFile(this)) {
-        palMsgBox("Error: emu80.conf not found!", true);
-        palRequestForQuit();
-        return;
-    }
-
-    getConfig()->updateConfig();
-
-    if (!m_platformList.empty()) {
-        emuLog << "!m_platformList.empty()\n";
-        checkPlatforms();
-        return;
-    }
-
-    // Platforms was not created via command line or run file (SDL version)
-    string defPlatformName = palGetDefaultPlatform();
-    emuLog << "defPlatformName: " << defPlatformName << "\n";
-    if (!defPlatformName.empty()) {
-        // default platform was stored in Qt options file
-        emuLog << "runPlatform: " << defPlatformName << "\n";
-        if (runPlatform(defPlatformName)) {
-            emuLog << "runPlatform: " << defPlatformName << " DONE\n";
-            return;
-        }
-    }
-
-    // first run (SDL or Qt), no default platform
-    PlatformInfo pi;
-    bool newWnd;
-    if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
-        emuLog << "PlatformName: '" << pi.configFileName << "' " << pi.objName << "\n";
-        Platform* platform = new Platform(pi.configFileName, pi.objName);
-        m_platformList.push_back(platform);
-        emuLog << "getConfig()->updateConfig()\n";
-        getConfig()->updateConfig();
-        m_activePlatform = platform;
-    } else {
-        emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
-        palRequestForQuit();
-        return;
-    }
-    emuLog << "Emulation::Emulation DONE\n";
+    m_activePlatform = createLvovPlatform();
+    addChild(m_activePlatform);
 }
 
 Emulation::~Emulation()
@@ -147,101 +106,16 @@ void Emulation::checkPlatforms()
 
 void Emulation::processCmdLine()
 {
-    m_cmdLine.processPlatforms(*m_config->getPlatformInfos());
-
-    string cmdLineFileName = m_cmdLine["run"];
+    std::string fileName = m_cmdLine["run"];
     bool loadOnly = m_cmdLine.checkParam("load");
     if (loadOnly)
-        cmdLineFileName = m_cmdLine["load"];
+        fileName = m_cmdLine["load"];
 
-    // Configuration file
-    string cfgFile = m_cmdLine["conf-file"];
-
-    // Command line platform options
-    string platformName = m_cmdLine["platform"];
-
-    if (!cfgFile.empty()) {
-        if (platformName.empty())
-            platformName = "userconfig";
-        Platform* newPlatform = new Platform(cfgFile, platformName);
-        addChild(newPlatform);
-        m_platformCreatedFromCmdLine = true;
-    } else {
-        // Extention based platform
-        string cmdLineFileExt = "";
-        if (platformName == "") {
-            string::size_type dotPos = cmdLineFileName.find_last_of(".");
-            if (dotPos != string::npos) {
-                cmdLineFileExt = cmdLineFileName.substr(dotPos + 1);
-                for (unsigned i = 0; i < cmdLineFileExt.size(); i++)
-                    cmdLineFileExt[i] = tolower(cmdLineFileExt[i]);
-            }
-        }
-        if (cmdLineFileExt != "") {
-            std::map<std::string, std::string>* extentionMap = m_config->getExtentionMap();
-            auto it = extentionMap->find(cmdLineFileExt);
-            if (it != extentionMap->end())
-                platformName = it->second;
-        }
-
-        if (platformName != "") {
-            m_platformCreatedFromCmdLine = runPlatform(platformName);
-        }
-    }
-
-    if (m_platformList.empty())
-        return; // Platform was not created
-
-    // Post-config file
-    string postCfgFile = m_cmdLine["post-conf"];
-    if (!postCfgFile.empty()) {
-        ConfigReader cr(postCfgFile, platformName);
-        cr.processConfigFile(this);
-        getConfig()->updateConfig();
-    }
-
-    // Load file
-    if (!cmdLineFileName.empty()) {
-        Platform* platform = *m_platformList.begin();
-        FileLoader* loader = platform->getLoader();
+    if (!fileName.empty() && m_activePlatform) {
+        FileLoader* loader = m_activePlatform->getLoader();
         if (loader)
-            loader->loadFile(cmdLineFileName, !loadOnly);
+            loader->loadFile(fileName, !loadOnly);
     }
-
-    // Disk A
-    string diskA = m_cmdLine["disk-a"];
-    if (!diskA.empty())
-        emuSetPropertyValue(platformName + ".diskA", "fileName", diskA);
-
-    // Disk B
-    string diskB = m_cmdLine["disk-b"];
-    if (!diskB.empty())
-        emuSetPropertyValue(platformName + ".diskB", "fileName", diskB);
-
-    // Disk C
-    string diskC = m_cmdLine["disk-c"];
-    if (!diskC.empty())
-        emuSetPropertyValue(platformName + ".diskC", "fileName", diskC);
-
-    // Disk D
-    string diskD = m_cmdLine["disk-d"];
-    if (!diskD.empty())
-        emuSetPropertyValue(platformName + ".diskD", "fileName", diskD);
-
-    // HDD
-    string hdd = m_cmdLine["hdd"];
-    if (!hdd.empty())
-        emuSetPropertyValue(platformName + ".hdd", "fileName", hdd);
-
-    // EDD
-    string edd = m_cmdLine["edd"];
-    if (!edd.empty())
-        emuSetPropertyValue(platformName + ".edd", "fileName", edd);
-
-    // EDD2
-    string edd2 = m_cmdLine["edd2"];
-    if (!edd2.empty())
-        emuSetPropertyValue(platformName + ".edd2", "fileName", edd2);
 }
 
 

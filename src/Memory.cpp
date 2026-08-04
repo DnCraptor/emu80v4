@@ -155,6 +155,13 @@ uint8_t Ram::readByte(int addr)
 
 #include "pico/palmbios.bin.h"
 
+Rom::Rom(const uint8_t* data, unsigned memSize)
+{
+    m_buf = data;
+    m_size = memSize;
+}
+
+
 Rom::Rom(unsigned memSize, string fileName)
 {
     if (fileName == "palmira/palmbios.bin") {
