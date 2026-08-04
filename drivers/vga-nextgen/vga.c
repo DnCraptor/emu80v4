@@ -266,8 +266,7 @@ static void adjust_shift_x() {
 }
 static void adjust_shift_y() {
     if (duplicateLines) {
-        graphics_buffer_shift_y =
-            ((client_buffer_height - (graphics_buffer_height >> 1)) >> 1) - 4;
+        graphics_buffer_shift_y = ((client_buffer_height - (graphics_buffer_height >> 1)) >> 1) - 20;
     } else {
         graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
     }

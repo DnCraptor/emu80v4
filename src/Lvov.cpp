@@ -65,8 +65,8 @@ LvovRenderer::LvovRenderer()
     const int pixelFreq = 5; // MHz
     const int maxBufSize = 261 * 288; // 626 = 704 / 13.5 * pixelFreq
 
-    m_sizeX = m_prevSizeX = 256;
-    m_sizeY = m_prevSizeY = 256;
+    m_sizeX = m_prevSizeX = 261;
+    m_sizeY = m_prevSizeY = 288;
     m_bufSize = m_sizeX * m_sizeY;
     m_pixelData = new uint8_t[maxBufSize];
     memset(m_pixelData, 0, m_bufSize);
@@ -76,22 +76,6 @@ LvovRenderer::LvovRenderer()
 void LvovRenderer::renderFrame()
 {
     swapBuffers();
-
-    int offsetX = 0;
-    int offsetY = 0;
-
-    if (m_showBorder) {
-        m_sizeX = 261;
-        m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY);
-        offsetX = 0;
-        offsetY = 25;
-    } else {
-        m_sizeX = 256;
-        m_sizeY = 256;
-        offsetX = offsetY = 0;
-    }
-
     for (int row = 0; row < 256; row++)
         for (int col = 0; col < 64; col++) {
             int addr = row * 64 + col;
@@ -127,7 +111,7 @@ void LvovRenderer::renderFrame()
                 } else
                     color = lvovBwPalette[colorBits];
                 bt <<= 1;
-                m_pixelData[(row + offsetY) * m_sizeX + col * 4 + p + offsetX] = color;
+                m_pixelData[row * m_sizeX + col * 4 + p] = color;
             }
         }
     graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
@@ -150,7 +134,7 @@ void LvovRenderer::toggleColorMode()
 
 void LvovRenderer::toggleCropping()
 {
-    m_showBorder = !m_showBorder;
+    // TODO:
 }
 
 
@@ -163,10 +147,7 @@ bool LvovRenderer::setProperty(const string& propertyName, const EmuValuesList& 
         attachScreenMemory(static_cast<Ram*>(g_emulation->findObject(values[0].asString())));
         return true;
     } else if (propertyName == "visibleArea") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_showBorder = values[0].asString() == "yes";
-            return true;
-        }
+        return true;
     } else if (propertyName == "colorMode") {
         if (values[0].asString() == "mono")
             m_colorMode = false;
@@ -189,7 +170,7 @@ string LvovRenderer::getPropertyStringValue(const string& propertyName)
         return res;
 
     if (propertyName == "visibleArea") {
-        return m_showBorder ? "yes" : "no";
+        return "yes";
     } else if (propertyName == "crtMode") {
         return u8"256\u00D7256@48.83Hz" ;
     } else if (propertyName == "colorMode") {

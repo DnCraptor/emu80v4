@@ -66,7 +66,6 @@ public:
 
     private:
         const uint8_t* m_screenMemory = nullptr;
-        bool m_showBorder = false;
         uint8_t m_paletteByte = 0;
         bool m_colorMode = true;
 
