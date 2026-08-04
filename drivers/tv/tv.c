@@ -347,10 +347,10 @@ void tv_init(const output_format_e output_format) {
 
     /*
      * Базовая поправка по захвату: сдвигаем активную область вправо.
-     * При H_len=792 получаем porch 139 отсчётов слева и 27 справа.
+     * При H_len=792 получаем porch 137 отсчётов слева и 29 справа.
      */
     v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2 + 56;
+        (v_mode.H_len - v_mode.img_size_x) / 2 + 54;
 
     // Единственный режим RGB TV: прогрессивный растр Вектора.
     v_mode.N_lines = 312;
