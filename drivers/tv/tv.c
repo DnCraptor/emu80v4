@@ -229,15 +229,15 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
 
             /*
              * Корвет имеет 512x256. Выводим пиксель в пиксель и строку
-             * в строку. Базовая вертикальная поправка +12 сохранена из
-             * проверенного RGB-тракта Вектора.
+             * в строку. Для Корвета базовая вертикальная поправка +2:
+             * она центрирует 256 строк в 312-строчном растре.
              */
             const int source_height =
                 graphics_buffer.height < 256
                     ? (int)graphics_buffer.height
                     : 256;
             const int source_begin_line =
-                (v_mode.N_lines - source_height) / 2 + 12;
+                (v_mode.N_lines - source_height) / 2 + 2;
             const int source_y =
                 (int)line_active - source_begin_line +
                 graphics_buffer.shift_y;
@@ -326,12 +326,12 @@ void tv_init(const output_format_e output_format) {
     v_mode.img_size_x = 512;
 
     /*
-     * Базовая поправка по аналоговому захвату: +56 отсчётов вправо.
-     * При H_len=792 и активной ширине 512 остаётся 196 отсчётов
-     * до изображения и 84 после него.
+     * Базовая поправка по аналоговому захвату: +55 отсчётов вправо.
+     * При H_len=792 и активной ширине 512 остаётся 195 отсчётов
+     * до изображения и 85 после него.
      */
     v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2 + 56;
+        (v_mode.H_len - v_mode.img_size_x) / 2 + 55;
 
     v_mode.N_lines = 312;
 
