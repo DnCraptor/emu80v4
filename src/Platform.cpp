@@ -38,44 +38,33 @@ using namespace std;
 Platform::Platform()
 {
     m_baseName = "lvov";
-    setName("lvov");
 }
 
 
 void Platform::init()
 {
-    for (int i = 0; i < m_objectCount; ++i)
-        m_objects[i]->init();
+    if (m_initCallback)
+        m_initCallback();
 }
 
 
 void Platform::shutdown()
 {
-    for (int i = 0; i < m_objectCount; ++i)
-        m_objects[i]->shutdown();
+    if (m_shutdownCallback)
+        m_shutdownCallback();
 }
 
 
 void Platform::reset()
 {
-    for (int i = 0; i < m_objectCount; ++i)
-        m_objects[i]->reset();
+    if (m_resetCallback)
+        m_resetCallback();
 }
 
 
 Platform::~Platform()
 {
     Platform::shutdown();
-}
-
-
-void Platform::addChild(EmuObject* child)
-{
-    if (!child || m_objectCount >= OBJECT_COUNT)
-        return;
-
-    child->setPlatform(this);
-    m_objects[m_objectCount++] = child;
 }
 
 
@@ -338,21 +327,6 @@ string Platform::getPropertyStringValue(const string& propertyName)
         return m_fastResetCpuTicks ? m_fastReset ? "yes" : "no" : "";
 
     return "";
-}
-
-
-string Platform::getAllDebugInfo()
-{
-    string res = "";
-    for (int i = 0; i < m_objectCount; ++i) {
-        string s = m_objects[i]->getDebugInfo();
-        if (s != "") {
-            if (res != "")
-                res += "\n\n";
-            res = res + s;
-        }
-    }
-    return res;
 }
 
 

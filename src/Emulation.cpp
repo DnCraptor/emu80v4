@@ -68,17 +68,13 @@ static EmulationStaticStorage g_emulationStorage;
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
     g_emulation = this;
-    setName("emulation");
 
     m_mixer = g_emulationStorage.mixer.construct();
-    m_mixer->setName("soundMixer");
     m_mixer->setVolume(6);
 
     m_wavReader = g_emulationStorage.wavReader.construct();
-    m_wavReader->setName("wavReader");
 
     m_prnWriter = g_emulationStorage.prnWriter.construct();
-    m_prnWriter->setName("prnWriter");
 
     setFrameRate(100);
     setVsync(true);

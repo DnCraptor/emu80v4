@@ -57,8 +57,8 @@ class EmuObject
         EmuObject();
         virtual ~EmuObject();
 
-        void setName(std::string name);
-        std::string getName();
+        void setName(const std::string& /*name*/) {}
+        std::string getName() const {return "";}
 
         int getKDiv() {return m_kDiv;}
 
@@ -82,8 +82,6 @@ class EmuObject
         Platform* m_platform = nullptr;
         static EmuObject* findObj(const std::string& objName);
 
-    private:
-        std::string m_name;
 };
 
 class Ram;

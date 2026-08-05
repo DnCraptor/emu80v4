@@ -75,22 +75,6 @@ CmdLine::CmdLine(int argc, char** argv)
 }
 
 
-void CmdLine::processPlatforms(const std::vector<PlatformInfo>& platforms)
-{
-    //m_warnings.clear();
-
-    if (m_parameters.find("platform") != m_parameters.end())
-        return;
-
-    for (const auto& pi: platforms) {
-        const char* opt = pi.cmdLineOption.c_str();
-        if (m_oldParameters.find(opt) != m_oldParameters.end()) {
-            m_parameters["platform"] = pi.objName.c_str(); // platforms should exist when using cmdLine
-        }
-    }
-}
-
-
 const std::string CmdLine::operator[](const std::string& key) const
 {
     auto it = m_parameters.find(key);

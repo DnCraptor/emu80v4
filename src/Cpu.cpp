@@ -34,14 +34,7 @@ Cpu::Cpu()
 }
 
 
-Cpu::~Cpu()
-{
-    for (int i = 0; i < m_nHooks; ++i) {
-        m_hooks[i]->setCpu(nullptr);
-        if (m_hooks[i]->getName() == "") // breakpoints
-            delete m_hooks[i];
-    }
-}
+Cpu::~Cpu() = default;
 
 
 void Cpu::attachAddrSpace(AddressableDevice* as)

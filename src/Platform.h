@@ -44,12 +44,12 @@ class Platform : public ParentObject
         virtual Platform* asPlatform() override { return this; }
         Platform();
         virtual ~Platform();
-        void addChild(EmuObject* child) override;
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
         void init() override;
         void shutdown() override;
         void reset() override;
+        void addChild(EmuObject* /*child*/) override {}
 
         void sysReq(SysReq sr);
         virtual void draw();
@@ -76,25 +76,35 @@ class Platform : public ParentObject
         void attachRenderer(CrtRenderer* renderer) {m_renderer = renderer;}
         void attachLoader(FileLoader* loader) {m_loader = loader;}
         void attachKeyboard(Keyboard* keyboard) {m_keyboard = keyboard;}
+        using LifecycleCallback = void (*)();
+
         void setFastReset(bool enabled, int cpuTicks) {m_fastReset = enabled; m_fastResetCpuTicks = cpuTicks;}
+        void setLifecycleCallbacks(
+            LifecycleCallback initCallback,
+            LifecycleCallback resetCallback,
+            LifecycleCallback shutdownCallback
+        ) {
+            m_initCallback = initCallback;
+            m_resetCallback = resetCallback;
+            m_shutdownCallback = shutdownCallback;
+        }
         void start();
 
         void showDebugger();
         void updateDebugger();
         void reqScreenUpdateForDebug();
-        std::string getAllDebugInfo();
         CodePage getCodePage() {return m_codePage;}
         bool getMuteTapeFlag() {return m_muteTape;}
 
         const std::string& getBaseName() {return m_baseName;}
 
     private:
-        static constexpr int OBJECT_COUNT = 31;
-
         std::string m_baseDir;
-        EmuObject* m_objects[OBJECT_COUNT] = {};
-        int m_objectCount = 0;
         std::string m_baseName;
+
+        LifecycleCallback m_initCallback = nullptr;
+        LifecycleCallback m_resetCallback = nullptr;
+        LifecycleCallback m_shutdownCallback = nullptr;
 
         PlatformCore* m_core = nullptr;
         Cpu* m_cpu = nullptr;

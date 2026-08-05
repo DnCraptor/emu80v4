@@ -39,12 +39,9 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
 void palUpdateConfig();
 #endif //!PAL_WASM
 
-bool palChoosePlatform(std::vector<PlatformInfo>& pi, int& pos, bool& newWnd, bool setDef = false, PalWindow* wnd = nullptr);
 bool palChooseConfiguration(std::string platformName, PalWindow* wnd);
 void palSetRunFileName(std::string runFileName);
 void palShowConfigWindow(int curTabId = 0);
-void palGetPalDefines(std::list<std::string>& difineList);
-void palGetPlatformDefines(std::string platformName, std::map<std::string, std::string>& definesMap);
 
 void palAddTabToConfigWindow(int tabId, std::string tabName);
 void palRemoveTabFromConfigWindow(int tabId);

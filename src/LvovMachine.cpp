@@ -31,6 +31,11 @@ struct StaticSlot {
     {
         return new (data) T(static_cast<Args&&>(args)...);
     }
+
+    T* get()
+    {
+        return reinterpret_cast<T*>(data);
+    }
 };
 
 struct LvovMachineStorage {
@@ -87,11 +92,70 @@ struct LvovMachineStorage {
 static LvovMachineStorage g_lvovStorage;
 
 template<class T>
-T* addObject(Platform* platform, T* object, const char* name)
+T* bindObject(Platform* platform, T* object)
 {
-    object->setName(std::string("lvov.") + name);
-    platform->addChild(object);
+    object->setPlatform(platform);
     return object;
+}
+
+template<class F>
+void forEachLvovObject(F&& f)
+{
+    auto& s = g_lvovStorage;
+
+    f(s.window.get());
+
+    f(s.ram0.get());
+    f(s.ram1.get());
+    f(s.ram2.get());
+    f(s.videoRam.get());
+    f(s.rom.get());
+
+    f(s.addrSpace0.get());
+    f(s.addrSpace1.get());
+    f(s.addrSpace.get());
+
+    f(s.renderer.get());
+    f(s.keyboard.get());
+    f(s.kbdLayout.get());
+    f(s.core.get());
+
+    f(s.ppi1.get());
+    f(s.ppi2.get());
+    f(s.beep.get());
+    f(s.tapeSound.get());
+    f(s.ppiCircuit1.get());
+    f(s.ppiCircuit2.get());
+    f(s.ioAddrSpace.get());
+
+    f(s.cpuWaits.get());
+    f(s.cpuCycleWaits.get());
+    f(s.cpu.get());
+
+    f(s.tapeOut.get());
+    f(s.tapeIn.get());
+    f(s.loader.get());
+
+    f(s.tapeOutHook.get());
+    f(s.tapeOutHeaderHook.get());
+    f(s.tapeInHook.get());
+    f(s.tapeInHeaderHook.get());
+    f(s.closeFileHook.get());
+}
+
+void initLvovObjects()
+{
+    forEachLvovObject([](EmuObject* object) { object->init(); });
+}
+
+void resetLvovObjects()
+{
+    forEachLvovObject([](EmuObject* object) { object->reset(); });
+}
+
+void shutdownLvovObjects()
+{
+    forEachLvovObject([](EmuObject* object) { object->shutdown(); });
 }
 
 }
@@ -144,8 +208,13 @@ Platform* createLvovPlatform()
     auto* closeFileHook = s.closeFileHook.construct(0xe800);
 
     platform->setFastReset(true, 12300000);
+    platform->setLifecycleCallbacks(
+        initLvovObjects,
+        resetLvovObjects,
+        shutdownLvovObjects
+    );
 
-    addObject(platform, window, "window");
+    bindObject(platform, window);
     window->setCaption("ПК-01 Львов");
     window->setDefaultWindowSize(800, 600);
     window->setWindowStyle(WS_AUTOSIZE);
@@ -156,68 +225,68 @@ Platform* createLvovPlatform()
     window->setCustomScreenFormat(true);
     window->setCustomScreenFormatValue(1.111);
 
-    addObject(platform, ram0, "ram0");
-    addObject(platform, ram1, "ram1");
-    addObject(platform, ram2, "ram2");
-    addObject(platform, videoRam, "videoRam");
+    bindObject(platform, ram0);
+    bindObject(platform, ram1);
+    bindObject(platform, ram2);
+    bindObject(platform, videoRam);
     ram0->setTag(kRamTag);
     ram1->setTag(kRamTag);
     ram2->setTag(kRamTag);
     videoRam->setTag(kRamTag);
 
-    addObject(platform, rom, "rom");
+    bindObject(platform, rom);
 
-    addObject(platform, addrSpace0, "addrSpace0");
+    bindObject(platform, addrSpace0);
     addrSpace0->addRange(0x0000, 0x3fff, ram2);
     addrSpace0->addRange(0x4000, 0x7fff, videoRam);
     addrSpace0->addRange(0x8000, 0xbfff, ram2);
     addrSpace0->addRange(0xc000, 0xffff, rom);
 
-    addObject(platform, addrSpace1, "addrSpace1");
+    bindObject(platform, addrSpace1);
     addrSpace1->addRange(0x0000, 0x3fff, ram0);
     addrSpace1->addRange(0x4000, 0x7fff, ram1);
     addrSpace1->addRange(0x8000, 0xbfff, ram2);
     addrSpace1->addRange(0xc000, 0xffff, rom);
 
-    addObject(platform, addrSpace, "addrSpace");
+    bindObject(platform, addrSpace);
     addrSpace->attachPage(0, addrSpace0);
     addrSpace->attachPage(1, addrSpace1);
 
-    addObject(platform, renderer, "crtRenderer");
+    bindObject(platform, renderer);
     renderer->attachScreenMemory(videoRam);
 
-    addObject(platform, keyboard, "keyboard");
-    addObject(platform, kbdLayout, "kbdLayout");
+    bindObject(platform, keyboard);
+    bindObject(platform, kbdLayout);
     kbdLayout->setQwertyMode();
 
-    addObject(platform, core, "core");
+    bindObject(platform, core);
     core->attachWindow(window);
     core->attachCrtRenderer(renderer);
 
-    addObject(platform, ppi1, "ppi1");
-    addObject(platform, ppi2, "ppi2");
-    addObject(platform, beep, "beepSoundSource");
-    addObject(platform, tapeSound, "tapeSoundSource");
+    bindObject(platform, ppi1);
+    bindObject(platform, ppi2);
+    bindObject(platform, beep);
+    bindObject(platform, tapeSound);
 
-    addObject(platform, ppiCircuit1, "ppiCircuit1");
+    bindObject(platform, ppiCircuit1);
     ppiCircuit1->attachRenderer(renderer);
     ppiCircuit1->attachTapeSoundSource(tapeSound);
     ppiCircuit1->attachBeepSoundSource(beep);
     ppiCircuit1->attachAddrSpaceMapper(addrSpace);
     ppi1->attachPpi8255Circuit(ppiCircuit1);
 
-    addObject(platform, ppiCircuit2, "ppiCircuit2");
+    bindObject(platform, ppiCircuit2);
     ppiCircuit2->attachKeyboard(keyboard);
     ppi2->attachPpi8255Circuit(ppiCircuit2);
 
-    addObject(platform, ioAddrSpace, "ioAddrSpace");
+    bindObject(platform, ioAddrSpace);
     ioAddrSpace->setAddrMask(0x13);
     ioAddrSpace->addRange(0x00, 0x03, ppi1);
     ioAddrSpace->addRange(0x10, 0x13, ppi2);
 
-    addObject(platform, cpuWaits, "cpuWaits");
-    addObject(platform, cpuCycleWaits, "cpuCycleWaits");
-    addObject(platform, cpu, "cpu");
+    bindObject(platform, cpuWaits);
+    bindObject(platform, cpuCycleWaits);
+    bindObject(platform, cpu);
     cpu->attachHookStorage(s.cpuHookStorage, 5);
     cpu->setFrequency(2222222);
     cpu->setStartAddr(0xc000);
@@ -227,16 +296,16 @@ Platform* createLvovPlatform()
     cpu->attachCpuWaits(cpuWaits);
     cpu->attachCpuCycleWaits(cpuCycleWaits);
 
-    addObject(platform, tapeOut, "msxTapeOutFile");
+    bindObject(platform, tapeOut);
     tapeOut->setMode("w");
     tapeOut->setFilter(".lvt|.cas");
     tapeOut->setTimeout(6000);
 
-    addObject(platform, tapeIn, "msxTapeInFile");
+    bindObject(platform, tapeIn);
     tapeIn->setMode("r");
     tapeIn->setFilter("Файлы Львова (*.lvt)|*.lvt;*.LVT|Все файлы Львова (*.lv?)|*.lv?;*.LV?|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
 
-    addObject(platform, loader, "loader");
+    bindObject(platform, loader);
     loader->setSkipTicks(15000000);
     loader->attachAddrSpace(addrSpace1);
     loader->attachVideoAddrSpace(videoRam);
@@ -245,24 +314,24 @@ Platform* createLvovPlatform()
     loader->setAllowMultiblock(true);
     loader->setFilter("Файлы Львова (*.lvt;*.sav)|*.lvt;*.LVT;*.sav;*.SAV|Все файлы Львова (*.lv?;*.sav)|*.lv?;*.LV?;*.sav;*.SAV|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
 
-    addObject(platform, tapeOutHook, "tapeOutHook");
+    bindObject(platform, tapeOutHook);
     tapeOutHook->setTapeRedirector(tapeOut);
     cpu->addHook(tapeOutHook);
 
-    addObject(platform, tapeOutHeaderHook, "tapeOutHeaderHook");
+    bindObject(platform, tapeOutHeaderHook);
     tapeOutHeaderHook->setTapeRedirector(tapeOut);
     cpu->addHook(tapeOutHeaderHook);
 
-    addObject(platform, tapeInHook, "tapeInHook");
+    bindObject(platform, tapeInHook);
     tapeInHook->setTapeRedirector(tapeIn);
     tapeInHook->setLvovFix(true);
     cpu->addHook(tapeInHook);
 
-    addObject(platform, tapeInHeaderHook, "tapeInHeaderHook");
+    bindObject(platform, tapeInHeaderHook);
     tapeInHeaderHook->setTapeRedirector(tapeIn);
     cpu->addHook(tapeInHeaderHook);
 
-    addObject(platform, closeFileHook, "closeFileHook");
+    bindObject(platform, closeFileHook);
     closeFileHook->addTapeRedirector(tapeIn);
     closeFileHook->addTapeRedirector(tapeOut);
     cpu->addHook(closeFileHook);

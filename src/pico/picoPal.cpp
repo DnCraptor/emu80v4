@@ -441,10 +441,6 @@ void palAddTabToConfigWindow(int tabId, string tabName)
 void palUpdateConfig() {
 }
 
-bool palChoosePlatform(std::vector<PlatformInfo>&, int&, bool&, bool, PalWindow*) {
-    return false;
-}
-
 bool palChooseConfiguration(std::string platformName, PalWindow* wnd) {
     return false;
 }
@@ -453,17 +449,6 @@ void palSetTabOptFileName(int, string) {
 }
 
 void palRemoveTabFromConfigWindow(int) {
-}
-
-void palGetPlatformDefines(std::string platformName, std::map<std::string, std::string>& definesMap)
-{
-
-}
-
-void palGetPalDefines(std::list<std::string>& defineList)
-{
-    /// TODO:
-    defineList.push_back("SDL");
 }
 
 void palRequestForQuit() {  while(true); } /// TODO:

@@ -37,7 +37,6 @@ public:
     const std::string operator[](const std::string& key) const;
     bool checkParam(const std::string& key) const;
     const std::string& getWarnings() {return m_warnings;}
-    void processPlatforms(const std::vector<PlatformInfo>& platforms);
 
 private:
     const std::map<std::string, bool> c_allowedParams = {

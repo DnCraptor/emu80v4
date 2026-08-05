@@ -116,15 +116,6 @@ enum SmoothingType {
     ST_SHARP
 };
 
-struct PlatformInfo
-{
-    std::string platformName;
-    std::string configFileName;
-    std::string objName;
-    std::string cmdLineOption;
-};
-
-
 struct SelectItem
 {
     std::string value;
