@@ -271,7 +271,7 @@ static void adjust_shift_x() {
 }
 static void adjust_shift_y() {
     if (duplicateLines) {
-        graphics_buffer_shift_y = ((client_buffer_height - (graphics_buffer_height >> 1)) >> 1) - 20;
+        graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
     } else {
         graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
     }
@@ -322,7 +322,7 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             line_size = 1056;
             shift_picture = line_size - HS_SHIFT;
             visible_line_size = 800 / 2;
-            N_lines_visible = 16 * 37;
+            N_lines_visible = 600;
             line_VS_begin = 600 + 1;
             line_VS_end = 600 + 3 + 4;
             N_lines_total = 628;

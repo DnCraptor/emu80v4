@@ -18,7 +18,7 @@
 namespace {
 
 constexpr int kRamSize = 0x4000;
-constexpr int kFrameBufferSize = 261 * 288;
+constexpr int kFrameBufferSize = 256 * 256;
 constexpr int kCpuHookCount = 5;
 constexpr int kRamTag = 1;
 

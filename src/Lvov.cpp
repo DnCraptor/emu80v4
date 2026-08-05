@@ -49,8 +49,8 @@ void LvovCore::attachCrtRenderer(CrtRenderer* crtRenderer)
 
 LvovRenderer::LvovRenderer(uint8_t* pixelData)
 {
-    m_sizeX = m_prevSizeX = 261;
-    m_sizeY = m_prevSizeY = 288;
+    m_sizeX = m_prevSizeX = 256;
+    m_sizeY = m_prevSizeY = 256;
     m_bufSize = m_sizeX * m_sizeY;
     m_pixelData = pixelData;
     memset(m_pixelData, 0, m_bufSize);
