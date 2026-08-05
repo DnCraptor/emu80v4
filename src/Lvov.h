@@ -48,7 +48,7 @@ class LvovRenderer : public CrtRenderer, public IActive
     };
 
 public:
-        LvovRenderer();
+        explicit LvovRenderer(uint8_t* pixelData);
         void renderFrame() override;
 
         void toggleColorMode() override;

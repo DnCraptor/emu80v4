@@ -27,147 +27,199 @@ T* addObject(Platform* platform, T* object, const char* name)
 
 Platform* createLvovPlatform()
 {
-    auto* platform = new Platform();
-    platform->setFastReset(true, 12300000);
-
-    auto* window = addObject(platform, new EmuWindow(), "window");
-    window->setCaption("ПК-01 Львов");
-    window->setDefaultWindowSize(800, 600);
-    window->setWindowStyle(WS_AUTOSIZE);
-    window->setFrameScale(FS_FIXED);
-    window->setFixedYScale(2.0);
-    window->setSmoothing(ST_SHARP);
-    window->setWideScreen(false);
-    window->setCustomScreenFormat(true);
-    window->setCustomScreenFormatValue(1.111);
-
     constexpr int ramSize = 0x4000;
     constexpr int ramTag = 1;
+    constexpr int frameBufferSize = 261 * 288;
 
-    auto* ram0 = addObject(platform, new Ram(ramSize), "ram0");
-    auto* ram1 = addObject(platform, new Ram(ramSize), "ram1");
-    auto* ram2 = addObject(platform, new Ram(ramSize), "ram2");
-    auto* videoRam = addObject(platform, new Ram(ramSize), "videoRam");
-    ram0->setTag(ramTag);
-    ram1->setTag(ramTag);
-    ram2->setTag(ramTag);
-    videoRam->setTag(ramTag);
+    alignas(32) static uint8_t ram0Data[ramSize] = {};
+    alignas(32) static uint8_t ram1Data[ramSize] = {};
+    alignas(32) static uint8_t ram2Data[ramSize] = {};
+    alignas(32) static uint8_t videoRamData[ramSize] = {};
+    alignas(32) static uint8_t frameBuffer[frameBufferSize] = {};
 
-    auto* rom = addObject(platform, new Rom(kLvovRom, sizeof(kLvovRom)), "rom");
+    static Platform platform;
+    static EmuWindow window;
 
-    auto* addrSpace0 = addObject(platform, new AddrSpace(), "addrSpace0");
-    addrSpace0->addRange(0x0000, 0x3fff, ram2);
-    addrSpace0->addRange(0x4000, 0x7fff, videoRam);
-    addrSpace0->addRange(0x8000, 0xbfff, ram2);
-    addrSpace0->addRange(0xc000, 0xffff, rom);
+    static Ram ram0(ram0Data, sizeof(ram0Data));
+    static Ram ram1(ram1Data, sizeof(ram1Data));
+    static Ram ram2(ram2Data, sizeof(ram2Data));
+    static Ram videoRam(videoRamData, sizeof(videoRamData));
+    static Rom rom(kLvovRom, sizeof(kLvovRom));
 
-    auto* addrSpace1 = addObject(platform, new AddrSpace(), "addrSpace1");
-    addrSpace1->addRange(0x0000, 0x3fff, ram0);
-    addrSpace1->addRange(0x4000, 0x7fff, ram1);
-    addrSpace1->addRange(0x8000, 0xbfff, ram2);
-    addrSpace1->addRange(0xc000, 0xffff, rom);
+    static AddrSpace addrSpace0;
+    static AddrSpace addrSpace1;
+    static AddrSpaceMapper addrSpace(2);
 
-    auto* addrSpace = addObject(platform, new AddrSpaceMapper(2), "addrSpace");
-    addrSpace->attachPage(0, addrSpace0);
-    addrSpace->attachPage(1, addrSpace1);
+    static LvovRenderer renderer(frameBuffer);
+    static LvovKeyboard keyboard;
+    static LvovKbdLayout kbdLayout;
+    static LvovCore core;
 
-    auto* renderer = addObject(platform, new LvovRenderer(), "crtRenderer");
-    renderer->attachScreenMemory(videoRam);
+    static Ppi8255 ppi1;
+    static Ppi8255 ppi2;
+    static GeneralSoundSource beep;
+    static GeneralSoundSource tapeSound;
+    static LvovPpi8255Circuit1 ppiCircuit1;
+    static LvovPpi8255Circuit2 ppiCircuit2;
+    static AddrSpace ioAddrSpace;
 
-    auto* keyboard = addObject(platform, new LvovKeyboard(), "keyboard");
-    auto* kbdLayout = addObject(platform, new LvovKbdLayout(), "kbdLayout");
-    kbdLayout->setQwertyMode();
+    static LvovCpuWaits cpuWaits;
+    static LvovCpuCycleWaits cpuCycleWaits;
+    static Cpu8080 cpu;
 
-    auto* core = addObject(platform, new LvovCore(), "core");
-    core->attachWindow(window);
-    core->attachCrtRenderer(renderer);
+    static TapeRedirector tapeOut;
+    static TapeRedirector tapeIn;
+    static LvovFileLoader loader;
 
-    auto* ppi1 = addObject(platform, new Ppi8255(), "ppi1");
-    auto* ppi2 = addObject(platform, new Ppi8255(), "ppi2");
-    auto* beep = addObject(platform, new GeneralSoundSource(), "beepSoundSource");
-    auto* tapeSound = addObject(platform, new GeneralSoundSource(), "tapeSoundSource");
+    static MsxTapeOutHook tapeOutHook(0xe437);
+    static MsxTapeOutHeaderHook tapeOutHeaderHook(0xe42b);
+    static MsxTapeInHook tapeInHook(0xe4be);
+    static MsxTapeInHeaderHook tapeInHeaderHook(0xe4d0);
+    static CloseFileHook closeFileHook(0xe800);
+    static EmuObjectGroup tapeGroup;
 
-    auto* ppiCircuit1 = addObject(platform, new LvovPpi8255Circuit1(), "ppiCircuit1");
-    ppiCircuit1->attachRenderer(renderer);
-    ppiCircuit1->attachTapeSoundSource(tapeSound);
-    ppiCircuit1->attachBeepSoundSource(beep);
-    ppiCircuit1->attachAddrSpaceMapper(addrSpace);
-    ppi1->attachPpi8255Circuit(ppiCircuit1);
+    static bool initialized = false;
+    if (initialized)
+        return &platform;
+    initialized = true;
 
-    auto* ppiCircuit2 = addObject(platform, new LvovPpi8255Circuit2(), "ppiCircuit2");
-    ppiCircuit2->attachKeyboard(keyboard);
-    ppi2->attachPpi8255Circuit(ppiCircuit2);
+    platform.setFastReset(true, 12300000);
 
-    auto* ioAddrSpace = addObject(platform, new AddrSpace(), "ioAddrSpace");
-    ioAddrSpace->setAddrMask(0x13);
-    ioAddrSpace->addRange(0x00, 0x03, ppi1);
-    ioAddrSpace->addRange(0x10, 0x13, ppi2);
+    addObject(&platform, &window, "window");
+    window.setCaption("ПК-01 Львов");
+    window.setDefaultWindowSize(800, 600);
+    window.setWindowStyle(WS_AUTOSIZE);
+    window.setFrameScale(FS_FIXED);
+    window.setFixedYScale(2.0);
+    window.setSmoothing(ST_SHARP);
+    window.setWideScreen(false);
+    window.setCustomScreenFormat(true);
+    window.setCustomScreenFormatValue(1.111);
 
-    auto* cpuWaits = addObject(platform, new LvovCpuWaits(), "cpuWaits");
-    auto* cpuCycleWaits = addObject(platform, new LvovCpuCycleWaits(), "cpuCycleWaits");
-    auto* cpu = addObject(platform, new Cpu8080(), "cpu");
-    cpu->setFrequency(2222222);
-    cpu->setStartAddr(0xc000);
-    cpu->attachAddrSpace(addrSpace);
-    cpu->attachIoAddrSpace(ioAddrSpace);
-    cpu->attachCore(core);
-    cpu->attachCpuWaits(cpuWaits);
-    cpu->attachCpuCycleWaits(cpuCycleWaits);
+    addObject(&platform, &ram0, "ram0");
+    addObject(&platform, &ram1, "ram1");
+    addObject(&platform, &ram2, "ram2");
+    addObject(&platform, &videoRam, "videoRam");
+    ram0.setTag(ramTag);
+    ram1.setTag(ramTag);
+    ram2.setTag(ramTag);
+    videoRam.setTag(ramTag);
 
-    auto* tapeOut = addObject(platform, new TapeRedirector(), "msxTapeOutFile");
-    tapeOut->setMode("w");
-    tapeOut->setFilter(".lvt|.cas");
-    tapeOut->setTimeout(6000);
+    addObject(&platform, &rom, "rom");
 
-    auto* tapeIn = addObject(platform, new TapeRedirector(), "msxTapeInFile");
-    tapeIn->setMode("r");
-    tapeIn->setFilter("Файлы Львова (*.lvt)|*.lvt;*.LVT|Все файлы Львова (*.lv?)|*.lv?;*.LV?|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+    addObject(&platform, &addrSpace0, "addrSpace0");
+    addrSpace0.addRange(0x0000, 0x3fff, &ram2);
+    addrSpace0.addRange(0x4000, 0x7fff, &videoRam);
+    addrSpace0.addRange(0x8000, 0xbfff, &ram2);
+    addrSpace0.addRange(0xc000, 0xffff, &rom);
 
-    auto* loader = addObject(platform, new LvovFileLoader(), "loader");
-    loader->setSkipTicks(15000000);
-    loader->attachAddrSpace(addrSpace1);
-    loader->attachVideoAddrSpace(videoRam);
-    loader->attachIoAddrSpace(ioAddrSpace);
-    loader->attachTapeRedirector(tapeIn);
-    loader->setAllowMultiblock(true);
-    loader->setFilter("Файлы Львова (*.lvt;*.sav)|*.lvt;*.LVT;*.sav;*.SAV|Все файлы Львова (*.lv?;*.sav)|*.lv?;*.LV?;*.sav;*.SAV|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+    addObject(&platform, &addrSpace1, "addrSpace1");
+    addrSpace1.addRange(0x0000, 0x3fff, &ram0);
+    addrSpace1.addRange(0x4000, 0x7fff, &ram1);
+    addrSpace1.addRange(0x8000, 0xbfff, &ram2);
+    addrSpace1.addRange(0xc000, 0xffff, &rom);
 
-    auto* tapeOutHook = addObject(platform, new MsxTapeOutHook(0xe437), "tapeOutHook");
-    tapeOutHook->setTapeRedirector(tapeOut);
-    cpu->addHook(tapeOutHook);
+    addObject(&platform, &addrSpace, "addrSpace");
+    addrSpace.attachPage(0, &addrSpace0);
+    addrSpace.attachPage(1, &addrSpace1);
 
-    auto* tapeOutHeaderHook = addObject(platform, new MsxTapeOutHeaderHook(0xe42b), "tapeOutHeaderHook");
-    tapeOutHeaderHook->setTapeRedirector(tapeOut);
-    cpu->addHook(tapeOutHeaderHook);
+    addObject(&platform, &renderer, "crtRenderer");
+    renderer.attachScreenMemory(&videoRam);
 
-    auto* tapeInHook = addObject(platform, new MsxTapeInHook(0xe4be), "tapeInHook");
-    tapeInHook->setTapeRedirector(tapeIn);
-    tapeInHook->setLvovFix(true);
-    cpu->addHook(tapeInHook);
+    addObject(&platform, &keyboard, "keyboard");
+    addObject(&platform, &kbdLayout, "kbdLayout");
+    kbdLayout.setQwertyMode();
 
-    auto* tapeInHeaderHook = addObject(platform, new MsxTapeInHeaderHook(0xe4d0), "tapeInHeaderHook");
-    tapeInHeaderHook->setTapeRedirector(tapeIn);
-    cpu->addHook(tapeInHeaderHook);
+    addObject(&platform, &core, "core");
+    core.attachWindow(&window);
+    core.attachCrtRenderer(&renderer);
 
-    auto* closeFileHook = addObject(platform, new CloseFileHook(0xe800), "closeFileHook");
-    closeFileHook->addTapeRedirector(tapeIn);
-    closeFileHook->addTapeRedirector(tapeOut);
-    cpu->addHook(closeFileHook);
+    addObject(&platform, &ppi1, "ppi1");
+    addObject(&platform, &ppi2, "ppi2");
+    addObject(&platform, &beep, "beepSoundSource");
+    addObject(&platform, &tapeSound, "tapeSoundSource");
 
-    auto* tapeGroup = addObject(platform, new EmuObjectGroup(), "tapeGrp");
-    tapeGroup->addItem(tapeOutHook);
-    tapeGroup->addItem(tapeInHook);
-    tapeGroup->addItem(tapeOutHeaderHook);
-    tapeGroup->addItem(tapeInHeaderHook);
-    tapeGroup->addItem(closeFileHook);
+    addObject(&platform, &ppiCircuit1, "ppiCircuit1");
+    ppiCircuit1.attachRenderer(&renderer);
+    ppiCircuit1.attachTapeSoundSource(&tapeSound);
+    ppiCircuit1.attachBeepSoundSource(&beep);
+    ppiCircuit1.attachAddrSpaceMapper(&addrSpace);
+    ppi1.attachPpi8255Circuit(&ppiCircuit1);
 
-    platform->attachWindow(window);
-    platform->attachCpu(cpu);
-    platform->attachCore(core);
-    platform->attachKbdLayout(kbdLayout);
-    platform->attachRenderer(renderer);
-    platform->attachLoader(loader);
-    platform->attachKeyboard(keyboard);
-    platform->start();
-    return platform;
+    addObject(&platform, &ppiCircuit2, "ppiCircuit2");
+    ppiCircuit2.attachKeyboard(&keyboard);
+    ppi2.attachPpi8255Circuit(&ppiCircuit2);
+
+    addObject(&platform, &ioAddrSpace, "ioAddrSpace");
+    ioAddrSpace.setAddrMask(0x13);
+    ioAddrSpace.addRange(0x00, 0x03, &ppi1);
+    ioAddrSpace.addRange(0x10, 0x13, &ppi2);
+
+    addObject(&platform, &cpuWaits, "cpuWaits");
+    addObject(&platform, &cpuCycleWaits, "cpuCycleWaits");
+    addObject(&platform, &cpu, "cpu");
+    cpu.setFrequency(2222222);
+    cpu.setStartAddr(0xc000);
+    cpu.attachAddrSpace(&addrSpace);
+    cpu.attachIoAddrSpace(&ioAddrSpace);
+    cpu.attachCore(&core);
+    cpu.attachCpuWaits(&cpuWaits);
+    cpu.attachCpuCycleWaits(&cpuCycleWaits);
+
+    addObject(&platform, &tapeOut, "msxTapeOutFile");
+    tapeOut.setMode("w");
+    tapeOut.setFilter(".lvt|.cas");
+    tapeOut.setTimeout(6000);
+
+    addObject(&platform, &tapeIn, "msxTapeInFile");
+    tapeIn.setMode("r");
+    tapeIn.setFilter("Файлы Львова (*.lvt)|*.lvt;*.LVT|Все файлы Львова (*.lv?)|*.lv?;*.LV?|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+
+    addObject(&platform, &loader, "loader");
+    loader.setSkipTicks(15000000);
+    loader.attachAddrSpace(&addrSpace1);
+    loader.attachVideoAddrSpace(&videoRam);
+    loader.attachIoAddrSpace(&ioAddrSpace);
+    loader.attachTapeRedirector(&tapeIn);
+    loader.setAllowMultiblock(true);
+    loader.setFilter("Файлы Львова (*.lvt;*.sav)|*.lvt;*.LVT;*.sav;*.SAV|Все файлы Львова (*.lv?;*.sav)|*.lv?;*.LV?;*.sav;*.SAV|Cas-файлы MSX (*.cas)|*.cas;*.CAS|Все файлы (*.*)|*");
+
+    addObject(&platform, &tapeOutHook, "tapeOutHook");
+    tapeOutHook.setTapeRedirector(&tapeOut);
+    cpu.addHook(&tapeOutHook);
+
+    addObject(&platform, &tapeOutHeaderHook, "tapeOutHeaderHook");
+    tapeOutHeaderHook.setTapeRedirector(&tapeOut);
+    cpu.addHook(&tapeOutHeaderHook);
+
+    addObject(&platform, &tapeInHook, "tapeInHook");
+    tapeInHook.setTapeRedirector(&tapeIn);
+    tapeInHook.setLvovFix(true);
+    cpu.addHook(&tapeInHook);
+
+    addObject(&platform, &tapeInHeaderHook, "tapeInHeaderHook");
+    tapeInHeaderHook.setTapeRedirector(&tapeIn);
+    cpu.addHook(&tapeInHeaderHook);
+
+    addObject(&platform, &closeFileHook, "closeFileHook");
+    closeFileHook.addTapeRedirector(&tapeIn);
+    closeFileHook.addTapeRedirector(&tapeOut);
+    cpu.addHook(&closeFileHook);
+
+    addObject(&platform, &tapeGroup, "tapeGrp");
+    tapeGroup.addItem(&tapeOutHook);
+    tapeGroup.addItem(&tapeInHook);
+    tapeGroup.addItem(&tapeOutHeaderHook);
+    tapeGroup.addItem(&tapeInHeaderHook);
+    tapeGroup.addItem(&closeFileHook);
+
+    platform.attachWindow(&window);
+    platform.attachCpu(&cpu);
+    platform.attachCore(&core);
+    platform.attachKbdLayout(&kbdLayout);
+    platform.attachRenderer(&renderer);
+    platform.attachLoader(&loader);
+    platform.attachKeyboard(&keyboard);
+    platform.start();
+    return &platform;
 }
