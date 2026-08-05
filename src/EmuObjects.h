@@ -21,32 +21,15 @@
 
 #include <cstdint>
 
-#include <vector>
-#include <list>
 #include <string>
 
 
 
 class Platform;
-class EmuWindow;
-class Cpu;
-class PlatformCore;
-class KbdLayout;
-class CrtRenderer;
-class FileLoader;
-class Keyboard;
 
 class EmuObject
 {
     public:
-        virtual Platform* asPlatform() { return nullptr; };
-        virtual EmuWindow* asEmuWindow() { return nullptr; }
-        virtual Cpu* asCpu() { return nullptr; }
-        virtual PlatformCore* asPlatformCore() { return nullptr; }
-        virtual KbdLayout* asKbdLayout() { return nullptr; }
-        virtual CrtRenderer* asCrtRenderer() { return nullptr; }
-        virtual FileLoader* asFileLoader() { return nullptr; }
-        virtual Keyboard* asKeyboard() { return nullptr; }
         EmuObject();
         virtual ~EmuObject();
 
@@ -63,8 +46,6 @@ class EmuObject
 
         virtual void setPlatform(Platform* platform) {m_platform = platform;}
         Platform* getPlatform() {return m_platform;}
-        virtual std::string getDebugInfo() {return "";}
-        virtual void notify(EmuObject* /*sender*/, int /*data*/) {}
 
     protected:
         int m_kDiv = 1;
@@ -72,14 +53,10 @@ class EmuObject
 
 };
 
-class Ram;
-class SRam;
 
 class AddressableDevice : public EmuObject
 {
     public:
-        virtual Ram* asRam() { return nullptr; }
-        virtual SRam* asSRam() { return nullptr; }
         //AddressableDevice();
         virtual ~AddressableDevice() {} // !!!
         virtual void writeByte(int addr, uint8_t value) = 0;

@@ -38,7 +38,6 @@ class Keyboard;
 class Platform : public EmuObject
 {
     public:
-        virtual Platform* asPlatform() override { return this; }
         Platform();
         virtual ~Platform();
         void init() override;
@@ -50,14 +49,7 @@ class Platform : public EmuObject
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
         bool loadFile(std::string fileName, bool run = true);
-        void mouseDrag(int x, int y);
         void updateScreenOnce();
-
-        const std::string& getBaseDir()
-        {
-            static const std::string empty;
-            return empty;
-        }
 
         EmuWindow* getWindow() {return m_window;}
         Cpu* getCpu() {return m_cpu;}
@@ -88,17 +80,6 @@ class Platform : public EmuObject
         }
         void start();
 
-        void showDebugger();
-        void updateDebugger();
-        void reqScreenUpdateForDebug();
-        CodePage getCodePage() {return m_codePage;}
-        bool getMuteTapeFlag() {return m_muteTape;}
-
-        const std::string& getBaseName()
-        {
-            static const std::string baseName = "lvov";
-            return baseName;
-        }
 
     private:
         LifecycleCallback m_initCallback = nullptr;
@@ -113,8 +94,6 @@ class Platform : public EmuObject
         FileLoader* m_loader = nullptr;
         Keyboard* m_keyboard = nullptr;
 
-        CodePage m_codePage = CP_RK;
-        bool m_muteTape = false;
         bool m_fastReset = false;
         int m_fastResetCpuTicks = 0;
 };

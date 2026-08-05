@@ -32,7 +32,6 @@ class Cpu : public ActiveDevice
 {
     public:
         virtual Cpu8080Compatible* asCpu8080Compatible() { return nullptr; }
-        virtual Cpu* asCpu() override { return this; }
         enum CpuType {
             CPU_8080,
             CPU_Z80
@@ -95,7 +94,6 @@ class Cpu8080Compatible : public Cpu
 {
     public:
         virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
-        virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
 
         virtual void intRst(int vect) = 0;

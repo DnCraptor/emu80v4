@@ -16,8 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sstream>
-
 #include "Globals.h"
 #include "Platform.h"
 #include "Emulation.h"
@@ -84,7 +82,6 @@ void Platform::sysReq(SysReq sr)
                 g_emulation->exec((int64_t)cpu->getKDiv() * m_fastResetCpuTicks); // no 2d parameter: no fast reset when debugger is active
                 cpu->enableHooks();
             }
-            updateDebugger();
             break;
         case SR_QUERTY:
             if (m_kbdLayout) {
@@ -152,7 +149,6 @@ void Platform::sysReq(SysReq sr)
 
 void Platform::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    emuLog << "Platform::processKey " << to_string(keyCode) << " / " << isPressed << "\n";
     if (m_kbdLayout)
         m_kbdLayout->processKey(keyCode, isPressed, unicodeKey);
 }
@@ -165,18 +161,10 @@ void Platform::resetKeys()
 }
 
 
-void Platform::mouseDrag(int x, int y)
-{
-    if (m_renderer)
-        m_renderer->mouseDrag(x, y);
-}
-
-
 bool Platform::loadFile(string fileName, bool run)
 {
     if (m_loader) {
         m_loader->loadFile(fileName, run);
-        updateDebugger();
         return true;
     }
     return false;
@@ -190,28 +178,8 @@ void Platform::draw()
 }
 
 
-void Platform::showDebugger()
-{
-}
-
-
-void Platform::updateDebugger()
-{
-}
-
-
-void Platform::reqScreenUpdateForDebug()
-{
-    if (m_renderer)
-        m_renderer->prepareDebugScreen();
-}
-
-
 void Platform::updateScreenOnce()
 {
     if (m_renderer)
         m_renderer->updateScreenOnce();
-//    if (m_renderer2)
-//        m_renderer2->updateScreenOnce();
-    updateDebugger();
 }

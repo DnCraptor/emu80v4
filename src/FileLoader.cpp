@@ -58,7 +58,6 @@ bool FileLoader::chooseAndLoadFile(bool run)
         return false;
     }
     m_lastFile = fileName;
-    m_platform->updateDebugger();
     return true;
 }
 

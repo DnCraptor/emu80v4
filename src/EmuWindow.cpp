@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -539,13 +539,6 @@ void EmuWindow::sysReq(SysReq sr)
         default:
             break;
     }
-}
-
-
-void EmuWindow::mouseDrag(int x, int y)
-{
-    if (translateCoords(x, y))
-        m_platform->mouseDrag(x, y);
 }
 
 

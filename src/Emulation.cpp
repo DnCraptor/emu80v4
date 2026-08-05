@@ -155,18 +155,6 @@ void Emulation::exec(uint64_t ticks, bool forced)
 
     m_clockOffset = m_curClock - toTime;
 
-    if (!forced && m_debugReqCpu) {
-        m_clockOffset = 0;
-        // show debugger
-        /**
-        for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        if ((*it)->getCpu() == m_debugReqCpu) {
-            (*it)->showDebugger();
-            break;
-        }
-        */
-    }
-
 }
 
 
