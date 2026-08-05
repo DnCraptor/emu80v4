@@ -34,10 +34,6 @@ class RamDisk : public EmuObject
         ~RamDisk();
 
         void attachPage(unsigned pageNo, AddressableDevice* as);
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void init() override;
         void shutdown() override;
 
@@ -48,8 +44,6 @@ class RamDisk : public EmuObject
         void saveFileAs();
 
         inline std::string getLabel() {return m_label;}
-
-        static EmuObject* create(const EmuValuesList& parameters) {return new RamDisk(parameters[0].asInt(), parameters[1].asInt());} // add checks !
 
     private:
         unsigned m_nPages;

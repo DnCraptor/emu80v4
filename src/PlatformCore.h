@@ -35,9 +35,6 @@ class PlatformCore : public EmuObject
         virtual PlatformCore* asPlatformCore() override { return this; }
         PlatformCore();
         virtual ~PlatformCore();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         void attachWindow(EmuWindow* win);
         void attachKeyboard(Keyboard* kbd);
         void attachKbdLayout(KbdLayout* lt);

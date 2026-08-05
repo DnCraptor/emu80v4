@@ -36,10 +36,6 @@ class SoundSource : public EmuObject
         // Получение текущего сэмпла
         virtual int calcValue() = 0;
         virtual void getSample(int& left, int& right); // default implementation for mono sound, uses calcValue, reimplement for stereo
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void setNegative(bool negative);
         void setMuted(bool muted);
 
@@ -63,8 +59,6 @@ class GeneralSoundSource : public SoundSource
 
         // Установка текущего значения источника звука
         void setValue(int value);
-
-        static EmuObject* create(const EmuValuesList&) {return new GeneralSoundSource();}
 
     private:
         int m_curValue = 0;

@@ -31,9 +31,6 @@ class CrtRenderer : public EmuObject
         virtual CrtRenderer* asCrtRenderer() override { return this; }
         CrtRenderer() {}
         virtual ~CrtRenderer();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         virtual void renderFrame() = 0;
         virtual EmuPixelData getPixelData();
         virtual void prepareDebugScreen();
@@ -87,10 +84,6 @@ class TextCrtRenderer : public CrtRenderer
 {
     public:
         virtual ~TextCrtRenderer();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void toggleRenderingMethod() override;
         void renderFrame() override;
 

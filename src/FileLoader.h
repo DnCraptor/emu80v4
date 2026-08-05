@@ -30,10 +30,6 @@ class FileLoader : public EmuObject
         virtual FileLoader* asFileLoader() override { return this; }
         //FileLoader();
         //~FileLoader();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         virtual bool loadFile(const std::string& fileName, bool run = false) = 0;
 
         bool chooseAndLoadFile(bool run = false);
@@ -61,8 +57,6 @@ class RkFileLoader : public FileLoader
     public:
         RkFileLoader() {m_multiblockAvailable = true;}
         bool loadFile(const std::string& fileName, bool run = false) override;
-
-        static EmuObject* create(const EmuValuesList&) {return new RkFileLoader();}
 
     private:
         virtual void afterReset() {}

@@ -33,17 +33,12 @@ class AddrSpace : public AddressableDevice
 {
     public:
         AddrSpace(uint8_t nullByte = 0xFF);
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         uint8_t readByte(int addr) override;
         void writeByte(int addr, uint8_t value) override;
 
         void addRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
         virtual void addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
         virtual void addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr = 0);
-
-        static EmuObject* create(const EmuValuesList&) {return new AddrSpace();}
 
 private:
         static constexpr int MAX_RANGES = 4;
@@ -68,8 +63,6 @@ class AddrSpaceMapper : public AddressableDevice
 {
     public:
         explicit AddrSpaceMapper(int nPages);
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override {m_curPage = 0;}
 
         void attachPage(int page, AddressableDevice* as);
@@ -77,8 +70,6 @@ class AddrSpaceMapper : public AddressableDevice
 
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
-
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new AddrSpaceMapper(parameters[0].asInt()) : nullptr;}
 
 protected:
         static constexpr int MAX_PAGES = 2;
@@ -97,8 +88,6 @@ class AddrSpaceShifter : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[1].isInt() ? new AddrSpaceShifter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())), parameters[1].asInt()) : nullptr;}
-
 private:
         AddressableDevice* m_as;
         int m_shift;
@@ -113,8 +102,6 @@ class AddrSpaceInverter : public AddressableDevice
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return new AddrSpaceInverter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())));}
-
 private:
         AddressableDevice* m_as;
 };
@@ -127,9 +114,6 @@ class AddrSpaceWriteSplitter : public AddressableDevice
 
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
-
-        static EmuObject* create(const EmuValuesList& parameters) {return new AddrSpaceWriteSplitter(static_cast<AddressableDevice*>(findObj(parameters[0].asString())),
-                                                                                                     static_cast<AddressableDevice*>(findObj(parameters[1].asString())));}
 
 private:
         AddressableDevice* m_as1;

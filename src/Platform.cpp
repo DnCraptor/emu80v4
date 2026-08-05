@@ -37,7 +37,6 @@ using namespace std;
 
 Platform::Platform()
 {
-    m_baseName = "lvov";
 }
 
 
@@ -272,61 +271,6 @@ void Platform::reqScreenUpdateForDebug()
         m_renderer->prepareDebugScreen();
     if (m_renderer2)
         m_renderer2->prepareDebugScreen();
-}
-
-
-bool Platform::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "helpFile") {
-        m_helpFile = values[0].asString();
-        return true;
-    } else if (propertyName == "codePage") {
-        if (values[0].asString() == "rk") {
-            m_codePage = CP_RK;
-            return true;
-        } else if (values[0].asString() == "koi8") {
-            m_codePage = CP_KOI8;
-            return true;
-        }
-    } else if (propertyName == "muteTape") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_muteTape = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "fastReset") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_fastReset = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "fastResetCpuTicks") {
-            m_fastResetCpuTicks = values[0].asInt();
-            return true;
-    }
-    return false;
-}
-
-
-string Platform::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "helpFile")
-        return m_helpFile;
-    else if (propertyName == "codePage")
-        return m_codePage == CP_RK ? "rk" : "koi8";
-    else if (propertyName == "muteTape")
-        return m_muteTape ? "yes" : "no";
-    else if (propertyName == "fastReset")
-        return m_fastResetCpuTicks ? m_fastReset ? "yes" : "no" : "";
-
-    return "";
 }
 
 

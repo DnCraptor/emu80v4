@@ -72,25 +72,6 @@ bool MsxTapeOutHook::hookProc()
 }
 
 
-bool MsxTapeOutHook::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CpuHook::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "outReg") {
-        if (values[0].asString() == "A" || values[0].asString() == "C") {
-            m_regC = values[0].asString() == "C";
-            return true;
-        }
-    } else if (propertyName == "leaveAddr") {
-        m_leaveAddr = values[0].asInt();
-        return true;
-    }
-
-    return false;
-}
-
-
 bool MsxTapeOutHeaderHook::hookProc()
 {
     if (!m_isEnabled || (m_hasSignature && !checkSignature()))
@@ -191,31 +172,6 @@ bool MsxTapeInHook::hookProc()
     static_cast<Cpu8080Compatible*>(m_cpu)->ret();
 
     return true;
-}
-
-
-bool MsxTapeInHook::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CpuHook::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "ignoreHeaders") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_ignoreHeaders = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "apogeyFix") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_apogeyFix = values[0].asString() == "yes";
-            return true;
-        }
-    } else if (propertyName == "lvovFix") {
-        if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_lvovFix = values[0].asString() == "yes";
-            return true;
-        }
-    }
-    return false;
 }
 
 

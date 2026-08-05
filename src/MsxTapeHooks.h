@@ -26,11 +26,7 @@ class MsxTapeOutHook : public CpuHook
     public:
         MsxTapeOutHook(uint16_t addr) : CpuHook(addr) {}
         virtual ~MsxTapeOutHook() {}
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         bool hookProc() override;
-
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new MsxTapeOutHook(parameters[0].asInt()) : nullptr;}
 
     private:
         bool m_regC = false;
@@ -48,7 +44,6 @@ class MsxTapeOutHeaderHook : public CpuHook
 
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new MsxTapeOutHeaderHook(parameters[0].asInt()) : nullptr;}
 };
 
 
@@ -57,12 +52,8 @@ class MsxTapeInHook : public CpuHook
     public:
         MsxTapeInHook(uint16_t addr) : CpuHook(addr) {}
         virtual ~MsxTapeInHook() {}
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         bool hookProc() override;
         void setLvovFix(bool enabled) {m_lvovFix = enabled;}
-
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new MsxTapeInHook(parameters[0].asInt()) : nullptr;}
 
     private:
         bool m_ignoreHeaders = false;
@@ -82,7 +73,6 @@ class MsxTapeInHeaderHook : public CpuHook
 
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new MsxTapeInHeaderHook(parameters[0].asInt()) : nullptr;}
 };
 
 

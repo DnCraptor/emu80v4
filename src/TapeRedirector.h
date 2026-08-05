@@ -34,9 +34,6 @@ class TapeRedirector : public EmuObject
         virtual ~TapeRedirector();
 
         void reset() override;
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void openFile();
         void closeFile();
         void setFilePos(unsigned pos);
@@ -59,8 +56,6 @@ class TapeRedirector : public EmuObject
         bool isTsx();
         void switchToNextLvt();
         void advanceToNextBlock();
-
-        static EmuObject* create(const EmuValuesList&) {return new TapeRedirector();}
 
     private:
         std::string m_fileName;

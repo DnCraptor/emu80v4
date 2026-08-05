@@ -44,8 +44,6 @@ class Platform : public ParentObject
         virtual Platform* asPlatform() override { return this; }
         Platform();
         virtual ~Platform();
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
         void init() override;
         void shutdown() override;
         void reset() override;
@@ -59,7 +57,11 @@ class Platform : public ParentObject
         void mouseDrag(int x, int y);
         void updateScreenOnce();
 
-        const std::string& getBaseDir() {return m_baseDir;}
+        const std::string& getBaseDir()
+        {
+            static const std::string empty;
+            return empty;
+        }
 
         EmuWindow* getWindow() {return m_window;}
         Cpu* getCpu() {return m_cpu;}
@@ -96,12 +98,13 @@ class Platform : public ParentObject
         CodePage getCodePage() {return m_codePage;}
         bool getMuteTapeFlag() {return m_muteTape;}
 
-        const std::string& getBaseName() {return m_baseName;}
+        const std::string& getBaseName()
+        {
+            static const std::string baseName = "lvov";
+            return baseName;
+        }
 
     private:
-        std::string m_baseDir;
-        std::string m_baseName;
-
         LifecycleCallback m_initCallback = nullptr;
         LifecycleCallback m_resetCallback = nullptr;
         LifecycleCallback m_shutdownCallback = nullptr;

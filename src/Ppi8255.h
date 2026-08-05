@@ -40,8 +40,6 @@ class Ppi8255 : public AddressableDevice
 
     public:
         Ppi8255();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override; // Chip reset
 
         // derived from AddressableDevice
@@ -50,8 +48,6 @@ class Ppi8255 : public AddressableDevice
 
         // Подключение объекта - обвязки ВВ55
         void attachPpi8255Circuit(Ppi8255Circuit* circuit);
-
-        static EmuObject* create(const EmuValuesList&) {return new Ppi8255();}
 
     private:
         // обвязка ВВ55

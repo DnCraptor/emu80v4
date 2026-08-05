@@ -25,7 +25,6 @@
 #include <list>
 #include <string>
 
-#include "Parameters.h"
 
 
 class Platform;
@@ -70,17 +69,12 @@ class EmuObject
 
         virtual void setPlatform(Platform* platform) {m_platform = platform;}
         Platform* getPlatform() {return m_platform;}
-
-        virtual bool setProperty(const std::string& propertyName, const EmuValuesList& values);
-        virtual std::string getPropertyStringValue(const std::string& propertyName);
-
         virtual std::string getDebugInfo() {return "";}
         virtual void notify(EmuObject* /*sender*/, int /*data*/) {}
 
     protected:
         int m_kDiv = 1;
         Platform* m_platform = nullptr;
-        static EmuObject* findObj(const std::string& objName);
 
 };
 
@@ -94,9 +88,6 @@ class AddressableDevice : public EmuObject
         virtual SRam* asSRam() { return nullptr; }
         //AddressableDevice();
         virtual ~AddressableDevice() {} // !!!
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         virtual void writeByte(int addr, uint8_t value) = 0;
         virtual uint8_t readByte(int) {return 0xFF;}
 

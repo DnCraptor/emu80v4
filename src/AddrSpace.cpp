@@ -110,27 +110,6 @@ void AddrSpace::writeByte(int addr, uint8_t value)
 }
 
 
-bool AddrSpace::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "range" && values[1].isInt() && values[2].isInt()) {
-        addRange(values[1].asInt(), values[2].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())), values[3].asInt());
-        return true;
-    } else if (propertyName == "readRange" && values[1].isInt() && values[2].isInt()) {
-        addReadRange(values[1].asInt(), values[2].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())), values[3].asInt());
-        return true;
-    } else if (propertyName == "writeRange" && values[1].isInt() && values[2].isInt()) {
-        addWriteRange(values[1].asInt(), values[2].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString())), values[3].asInt());
-        return true;
-    }
-
-    return false;
-}
-
-
-
 AddrSpaceMapper::AddrSpaceMapper(int nPages)
     : m_nPages(nPages > MAX_PAGES ? MAX_PAGES : nPages)
 {
@@ -165,21 +144,6 @@ void AddrSpaceMapper::writeByte(int addr, uint8_t value)
     if (m_pages[m_curPage])
         m_pages[m_curPage]->writeByte(addr, value);
 }
-
-
-bool AddrSpaceMapper::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (AddressableDevice::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "page" && values[0].isInt()) {
-            attachPage(values[0].asInt(), static_cast<AddressableDevice*>(g_emulation->findObject(values[1].asString())));
-            return true;
-    }
-
-    return false;
-}
-
 
 
 AddrSpaceShifter::AddrSpaceShifter(AddressableDevice* as, int shift)

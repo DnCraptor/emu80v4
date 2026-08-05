@@ -59,10 +59,6 @@ class EmuWindow : public EmuObject, public PalWindow
         virtual EmuWindow* asEmuWindow() override { return this; }
         EmuWindow();
         virtual ~EmuWindow();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void init() override;
 
         void calcDstRect(int srcWidth, int srcHeight, double srcAspectRatio, int wndWidth, int wndHeight, int& dstWidth, int& dstHeight, int& dstX, int& dstY) override;
@@ -102,8 +98,6 @@ class EmuWindow : public EmuObject, public PalWindow
         std::string getCaption();
 
         std::string getPlatformObjectName() override;
-
-        static EmuObject* create(const EmuValuesList&) {return new EmuWindow();}
 
     private:
         int m_defWindowWidth = 800;

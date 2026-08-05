@@ -30,14 +30,9 @@ class KbdTapper : public ActiveDevice
         KbdTapper();
         void operate() override;
         void reset() override;
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         void setDelayMs(uint64_t delay);
 
         void typeText(std::string str);
-
-        static EmuObject* create(const EmuValuesList&) {return new KbdTapper();}
 
     private:
         int m_pressTime = 80;   // key down time in ms

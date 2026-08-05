@@ -35,10 +35,6 @@ class CpuHook : public EmuObject
         CpuHook(int addr);
         //CpuHook(int addr, uint8_t memCheck);
         virtual ~CpuHook();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         virtual void setCpu(Cpu* cpu) {m_cpu = cpu;}
         virtual bool hookProc() = 0; // returns false if continue
 
@@ -72,7 +68,6 @@ class Ret8080Hook : public CpuHook
 
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new Ret8080Hook(parameters[0].asInt()) : nullptr;}
 };
 
 

@@ -111,17 +111,3 @@ void WavWriter::operate()
 }
 
 
-string WavWriter::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "currentFile" && m_open) {
-        return m_fileName;
-    }
-
-    return "";
-}

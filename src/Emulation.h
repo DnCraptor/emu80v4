@@ -55,12 +55,8 @@ class Emulation : public ParentObject
         Emulation(CmdLine& cmdLine); //: EmuObject();
 
         virtual ~Emulation();
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
         void addChild(EmuObject* child) override;
 
-        EmuObject* findObject(std::string obj);
 
         void registerActiveDevice(IActive* device);
         void unregisterActiveDevice(IActive* device);

@@ -53,10 +53,6 @@ public:
 
         void toggleColorMode() override;
         void toggleCropping() override;
-
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-
         // derived from ActiveDevice
         void operate() override;
 

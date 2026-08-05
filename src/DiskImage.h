@@ -33,10 +33,6 @@ public:
     virtual DiskImage* asDiskImage() override { return this; }
     DiskImage();
     virtual ~DiskImage();
-
-    bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-    std::string getPropertyStringValue(const std::string& propertyName) override;
-
     bool assignFileName(std::string fileName);
     void chooseFile();
     void close();
@@ -54,8 +50,6 @@ public:
     uint8_t read8();
 
     void setOwner(EmuObject* owner) {m_owner = owner;}
-
-    static EmuObject* create(const EmuValuesList&) {return new DiskImage();}
 
 protected:
     bool m_isWriteProtected = false;
@@ -95,8 +89,6 @@ class FdImage : public DiskImage
 
         int getSectors() {return m_nSectors;}
         int getSectorSize() {return m_sectorSize;}
-
-        static EmuObject* create(const EmuValuesList& parameters) {return new FdImage(parameters[0].asInt(), parameters[1].asInt(), parameters[2].asInt(), parameters[3].asInt());} // add check!
 
     private:
         int m_nTracks;

@@ -122,49 +122,6 @@ void LvovRenderer::toggleCropping()
 }
 
 
-bool LvovRenderer::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CrtRenderer::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "screenMemory") {
-        attachScreenMemory(static_cast<Ram*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "visibleArea") {
-        return true;
-    } else if (propertyName == "colorMode") {
-        if (values[0].asString() == "mono")
-            m_colorMode = false;
-        else if (values[0].asString() == "color")
-            m_colorMode = true;
-        else
-            return false;
-        return true;
-    }
-    return false;
-}
-
-
-string LvovRenderer::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (propertyName == "visibleArea") {
-        return "yes";
-    } else if (propertyName == "crtMode") {
-        return u8"256\u00D7256@48.83Hz" ;
-    } else if (propertyName == "colorMode") {
-        return m_colorMode ? "color" : "mono";
-    }
-
-    return "";
-}
-
-
 void LvovPpi8255Circuit1::setPortC(uint8_t value)
 {
     m_pc0 = value & 1;
