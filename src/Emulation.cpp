@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -31,7 +31,6 @@
 #include "Lvov.h"
 #include "Platform.h"
 #include "EmuWindow.h"
-#include "EmuConfig.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
 #include "PrnWriter.h"
@@ -46,9 +45,6 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     g_emulation = this;
     setName("emulation");
     addObject(this);
-
-    m_config = new EmuConfig();
-    m_config->setName("config");
 
     m_mixer = new SoundMixer;
     m_mixer->setName("soundMixer");
@@ -75,7 +71,6 @@ Emulation::~Emulation()
     for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
         delete (*it);
 
-    delete m_config;
     delete m_wavReader; // перед m_mixer!
     delete m_mixer;
 
@@ -281,15 +276,8 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             } else
                 wnd->closeRequest();
             break;
-        case SR_CONFIG: {
-                int tab = TABID_NONE;
-                if (platform)
-                    tab = platform->getDefConfigTabId();
-                m_config->showConfigWindow(tab);
-                break;
-            }
+        case SR_CONFIG:
         case SR_HELP:
-            m_config->showConfigWindow(TABID_HELP);
             break;
         case SR_CHPLATFORM:
         case SR_CHCONFIG:

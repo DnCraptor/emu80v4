@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -31,7 +31,6 @@ class CmdLine;
 class Cpu;
 class EmuWindow;
 class SoundMixer;
-class EmuConfig;
 class WavReader;
 class PrnWriter;
 class Platform;
@@ -90,7 +89,6 @@ class Emulation : public ParentObject
         //inline Platform* getPlatform() {return m_platform;} //!!!
         inline uint64_t getCurClock() {return m_curClock;}
         inline SoundMixer* getSoundMixer() {return m_mixer;}
-        inline EmuConfig* getConfig() {return m_config;}
         inline WavReader* getWavReader() {return m_wavReader;}
         inline PrnWriter* getPrnWriter() {return m_prnWriter;}
 
@@ -143,7 +141,6 @@ class Emulation : public ParentObject
 
         uint64_t m_curClock = 0;
 
-        EmuConfig* m_config;
         SoundMixer* m_mixer;
         WavReader* m_wavReader;
         PrnWriter* m_prnWriter;

@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -22,7 +22,6 @@
 #include "Platform.h"
 #include "Emulation.h"
 #include "EmuObjects.h"
-#include "EmuConfig.h"
 #include "EmuWindow.h"
 #include "Cpu.h"
 #include "PlatformCore.h"
@@ -106,37 +105,31 @@ void Platform::sysReq(SysReq sr)
         case SR_QUERTY:
             if (m_kbdLayout) {
                 m_kbdLayout->setQwertyMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_JCUKEN:
             if (m_kbdLayout) {
                 m_kbdLayout->setJcukenMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_SMART:
             if (m_kbdLayout) {
                 m_kbdLayout->setSmartMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_FONT:
             if (m_renderer) {
                 m_renderer->toggleRenderingMethod();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_CROPTOVISIBLE:
             if (m_renderer) {
                 m_renderer->toggleCropping();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_COLOR:
             if (m_renderer) {
                 m_renderer->toggleColorMode();
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_COPYTXT:
@@ -226,7 +219,6 @@ void Platform::sysReq(SysReq sr)
         case SR_FASTRESET:
             if (m_fastResetCpuTicks) {
                 m_fastReset = !m_fastReset;
-                g_emulation->getConfig()->updateConfig();
             }
             break;
         case SR_TAPEHOOK:
@@ -241,7 +233,6 @@ void Platform::sysReq(SysReq sr)
                     break;
 
                 m_tapeGrp->setProperty("enabled", val);
-                g_emulation->getConfig()->updateConfig();
             }
         default:
             break;

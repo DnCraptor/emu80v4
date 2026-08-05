@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -88,7 +88,6 @@ class Platform : public ParentObject
         bool getMuteTapeFlag() {return m_muteTape;}
 
         const std::string& getBaseName() {return m_baseName;}
-        int getDefConfigTabId() {return m_defConfigTabId;}
 
     private:
         std::string m_baseDir;
@@ -112,8 +111,6 @@ class Platform : public ParentObject
         RamDisk* m_ramDisk2 = nullptr;
         EmuObjectGroup* m_tapeGrp = nullptr;
         KbdTapper* m_kbdTapper = nullptr;
-
-        int m_defConfigTabId = 0;
 
         std::string m_helpFile = "";
         CodePage m_codePage = CP_RK;
