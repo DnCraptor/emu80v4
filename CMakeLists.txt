@@ -39,7 +39,7 @@ set(CPU_MHZ 440)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set (PORT_VERSION "0.4.8")
+set (PORT_VERSION "0.4.9")
 
 
 set(KBDUSB ON)

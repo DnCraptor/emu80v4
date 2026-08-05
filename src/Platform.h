@@ -43,7 +43,6 @@ class Platform : public ParentObject
 {
     public:
         virtual Platform* asPlatform() override { return this; }
-        Platform(std::string configFileName, std::string name = "");
         Platform();
         virtual ~Platform();
         void addChild(EmuObject* child) override;

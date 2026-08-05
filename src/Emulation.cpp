@@ -87,23 +87,6 @@ Emulation::~Emulation()
 }
 
 
-void Emulation::checkPlatforms()
-{
-    // Delete platforms without windows (missing conf files)
-    // and request for quit if no platform left
-    for (auto it = m_platformList.begin(); it != m_platformList.end();)
-        if (!(*it)->getWindow())
-            m_platformList.erase(it++);
-        else
-            it++;
-
-    if (m_platformList.empty()) {
-        palMsgBox("Error: Can't create platform, exiting.\nRun again to select another one.", true);
-        palRequestForQuit();
-    }
-}
-
-
 void Emulation::processCmdLine()
 {
     std::string fileName = m_cmdLine["run"];
@@ -118,34 +101,6 @@ void Emulation::processCmdLine()
     }
 }
 
-
-bool Emulation::runPlatform(const string& platformName)
-{
-    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-    for (unsigned i = 0; i < platformVector->size(); i++)
-        if ((*platformVector)[i].objName == platformName) {
-            m_activePlatform = new Platform((*platformVector)[i].configFileName, platformName);
-            if (!m_activePlatform->getWindow()) {
-                delete m_activePlatform;
-                m_activePlatform = nullptr;
-                return false;
-            }
-            addChild(m_activePlatform);
-            return true;
-        }
-    return false;
-}
-
-
-void Emulation::newPlatform(const string& platformName)
-{
-    // Удаляем все платформы
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        delete (*it);
-    m_platformList.clear();
-    runPlatform(platformName);
-    checkPlatforms();
-}
 
 void Emulation::registerActiveDevice(IActive* device)
 {
@@ -337,50 +292,7 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             m_config->showConfigWindow(TABID_HELP);
             break;
         case SR_CHPLATFORM:
-            {
-                PlatformInfo pi;
-                string curPlatformName = "";
-                if (!platform)
-                    platform = m_lastActivePlatform;
-                if (platform)
-                    curPlatformName = platform->getBaseName();
-                bool newWnd;
-                if (m_config->choosePlatform(pi, curPlatformName, newWnd, false, wnd)) {
-                    // Удяляем активную платформу (как опция можно все - закомментировано)
-                    if (!newWnd) {
-                        m_platformList.remove(platform);
-                        delete platform;
-                        //for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-                            //delete (*it);
-                        //m_platformList.clear();
-                    }
-                    Platform* newPlatform = new Platform(pi.configFileName, pi.objName);
-                    m_platformList.push_back(newPlatform);
-                    //m_activePlatform = platform;
-                    checkPlatforms();
-                }
-            }
-            break;
         case SR_CHCONFIG:
-            {
-                if (!platform)
-                break;
-
-                string curPlatformName = platform->getBaseName();
-                if (palChooseConfiguration(curPlatformName, wnd)) {
-                    m_platformList.remove(platform);
-                    delete platform;
-
-                    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-                    for (unsigned i = 0; i < platformVector->size(); i++)
-                        if ((*platformVector)[i].objName == curPlatformName) {
-                            Platform* newPlatform = new Platform((*platformVector)[i].configFileName, curPlatformName);
-                            m_platformList.push_back(newPlatform);
-                            checkPlatforms();
-                            break;
-                        }
-                }
-            }
             break;
         case SR_PAUSEON:
             m_isPaused = true;
@@ -635,10 +547,6 @@ bool Emulation::setProperty(const string& propertyName, const EmuValuesList& val
         return true;
     } else if (propertyName == "volume" && values[0].isInt()) {
         m_mixer->setVolume(values[0].asInt());
-        return true;
-    } else if (propertyName == "runPlatform") {
-        if (!m_platformCreatedFromCmdLine) // если уже было создано окно из командной строки, больше не создаем
-            runPlatform(values[0].asString());
         return true;
     } else if (propertyName == "processCmdLine") {
         processCmdLine();

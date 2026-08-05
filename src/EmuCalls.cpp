@@ -22,7 +22,6 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "EmuWindow.h"
-#include "EmuConfig.h"
 
 using namespace std;
 
@@ -92,15 +91,14 @@ string emuGetPropertyValue(const string& objName, const string& propName)
 // Get platform list
 const std::vector<PlatformInfo>* emuGetPlatforms()
 {
-    EmuConfig* config = g_emulation->getConfig();
-    return config->getPlatformInfos();
+    static const std::vector<PlatformInfo> noPlatforms;
+    return &noPlatforms;
 }
 
 
 // Run specified platform
-void emuSelectPlatform(const std::string& platform)
+void emuSelectPlatform(const std::string& /*platform*/)
 {
-    g_emulation->newPlatform(platform);
 }
 
 // Returns current emulation speed factor

@@ -63,8 +63,6 @@ public:
         inline void attachScreenMemory(Ram* videoMemory) {m_screenMemory = videoMemory->getDataPtr();}
         inline void setPaletteByte(uint8_t palette) {m_paletteByte = palette;}
 
-        static EmuObject* create(const EmuValuesList&) {return new LvovRenderer();}
-
     private:
         const uint8_t* m_screenMemory = nullptr;
         uint8_t m_paletteByte = 0;
@@ -76,13 +74,9 @@ public:
 class LvovCore : public PlatformCore
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         void draw() override;
 
         void attachCrtRenderer(CrtRenderer* crtRenderer);
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovCore();}
 
     private:
         CrtRenderer* m_crtRenderer = nullptr;
@@ -101,8 +95,6 @@ class LvovKeyboard : public Keyboard
         void setMatrix2Mask(uint8_t mask);
         uint8_t getMatrix1Data();
         uint8_t getMatrix2Data();
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovKeyboard();}
 
     private:
         const EmuKey m_keyMatrix1[8][8] = {
@@ -131,12 +123,10 @@ class LvovKeyboard : public Keyboard
 };
 
 
-// Обвязка основного ВВ55 в Специалисте
+// Обвязка основного ВВ55 ПК-01 Львов
 class LvovPpi8255Circuit1 : public Ppi8255Circuit
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         // derived from Ppi8255Circuit
         uint8_t getPortC() override;
         void setPortA(uint8_t value) override;
@@ -149,8 +139,6 @@ class LvovPpi8255Circuit1 : public Ppi8255Circuit
         void attachAddrSpaceMapper(AddrSpaceMapper* addrSpaceMapper) {m_addrSpaceMapper = addrSpaceMapper;}
         void attachTapeSoundSource(GeneralSoundSource* source) {m_tapeSoundSource = source;}
         void attachBeepSoundSource(GeneralSoundSource* source) {m_beepSoundSource = source;}
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovPpi8255Circuit1();}
 
     private:
         // Lvov renderer for palette setting
@@ -178,19 +166,13 @@ class LvovPpi8255Circuit1 : public Ppi8255Circuit
 class LvovPpi8255Circuit2 : public Ppi8255Circuit
 {
     public:
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         // derived from Ppi8255Circuit
         uint8_t getPortB() override;
         uint8_t getPortC() override;
         void setPortA(uint8_t value) override;
         void setPortC(uint8_t value) override;
 
-        void attachLvovKeyboard(LvovKeyboard* kbd) {m_kbd = kbd;}
-
         void attachKeyboard(LvovKeyboard* keyboard) {m_kbd = keyboard;}
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovPpi8255Circuit2();}
 
     private:
         LvovKeyboard* m_kbd = nullptr;
@@ -201,8 +183,6 @@ class LvovKbdLayout : public KbdLayout
 {
     public:
         LvovKbdLayout() {m_separateRusLat = true;}
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovKbdLayout();}
 
     protected:
         EmuKey translateKey(PalKeyCode keyCode) override;
@@ -215,7 +195,6 @@ class LvovCpuWaits : public CpuWaits
 public:
     int getCpuWaitStates(int memTag, int opcode, int normalClocks) override;
 
-    static EmuObject* create(const EmuValuesList&) {return new LvovCpuWaits();}
 };
 
 
@@ -223,8 +202,6 @@ class LvovCpuCycleWaits : public CpuCycleWaits
 {
 public:
     int getCpuCycleWaitStates(int memTag, bool write) override;
-
-    static EmuObject* create(const EmuValuesList&) {return new LvovCpuCycleWaits();}
 
 private:
     int m_curWaits = 0;
@@ -239,12 +216,8 @@ class LvovFileLoader : public FileLoader
 
         bool loadFile(const std::string& fileName, bool run = false) override;
 
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         void attachVideoAddrSpace(AddressableDevice* video) {m_video = video;}
         void attachIoAddrSpace(AddressableDevice* io) {m_io = io;}
-
-        static EmuObject* create(const EmuValuesList&) {return new LvovFileLoader();}
 
     private:
         AddressableDevice* m_video = nullptr;

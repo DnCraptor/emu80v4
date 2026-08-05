@@ -47,19 +47,6 @@ void LvovCore::attachCrtRenderer(CrtRenderer* crtRenderer)
 }
 
 
-bool LvovCore::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (PlatformCore::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "crtRenderer") {
-        attachCrtRenderer(static_cast<LvovRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-    return false;
-}
-
-
 LvovRenderer::LvovRenderer()
 {
     const int pixelFreq = 5; // MHz
@@ -181,29 +168,6 @@ string LvovRenderer::getPropertyStringValue(const string& propertyName)
 }
 
 
-bool LvovPpi8255Circuit1::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "renderer") {
-        attachRenderer(static_cast<LvovRenderer*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    } else if (propertyName == "tapeSoundSource") {
-        m_tapeSoundSource = static_cast<GeneralSoundSource*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    } else if (propertyName == "beepSoundSource") {
-        m_beepSoundSource = static_cast<GeneralSoundSource*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    } else if (propertyName == "mapper") {
-        attachAddrSpaceMapper(static_cast<AddrSpaceMapper*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
-}
-
-
 void LvovPpi8255Circuit1::setPortC(uint8_t value)
 {
     m_pc0 = value & 1;
@@ -271,20 +235,6 @@ void LvovPpi8255Circuit2::setPortC(uint8_t value)
 uint8_t LvovPpi8255Circuit2::getPortC()
 {
     return m_kbd->getMatrix2Data() << 4;
-}
-
-
-bool LvovPpi8255Circuit2::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "lvovKeyboard") {
-        attachLvovKeyboard(static_cast<LvovKeyboard*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
-
-    return false;
 }
 
 
@@ -782,18 +732,3 @@ void LvovFileLoader::setupMultiblock()
 }
 
 
-bool LvovFileLoader::setProperty(const std::string& propertyName, const EmuValuesList& values)
-{
-    if (FileLoader::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "ioAddrSpace") {
-        m_io = static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    } else if (propertyName == "videoAddrSpace") {
-        m_video = static_cast<AddressableDevice*>(g_emulation->findObject(values[0].asString()));
-        return true;
-    }
-
-    return false;
-}

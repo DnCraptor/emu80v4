@@ -82,7 +82,6 @@ class Emulation : public ParentObject
         void setWndFocus(EmuWindow* wnd);
         void dropFile(EmuWindow* wnd, const std::string& fileName);
         void restoreFocus();
-        void newPlatform(const std::string& platformName);
 
         void mainLoopCycle();
         void exec(uint64_t ticks, bool forced = false);
@@ -153,13 +152,10 @@ class Emulation : public ParentObject
 
         Platform* platformByWindow(EmuWindow* window);
 
-        void checkPlatforms();
 
         // параметры командной строки
         CmdLine& m_cmdLine;
 
-        bool m_platformCreatedFromCmdLine = false;
-        bool runPlatform (const std::string& platformName);
 
         DebuggerOptions m_debuggerOptions;
 
