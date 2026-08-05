@@ -30,14 +30,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_FULLSCREEN;
             case PK_F10:
                 return SR_CLOSE;
-            case PK_F8:
-                return SR_CHCONFIG;
-            case PK_F9:
-                return SR_CHPLATFORM;
-            case PK_F12:
-                return SR_CONFIG;
-            case PK_F1:
-                return SR_HELP;
             case PK_F3:
                 return SR_LOADRUN;
             case PK_L:
@@ -45,7 +37,7 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
             case PK_W:
                 return SR_LOADWAV;
             case PK_D:
-                return isShiftPressed ? SR_DISKD : SR_DEBUG;
+                return SR_DEBUG;
             case PK_X:
                 return SR_EXIT;
             case PK_Q:
@@ -57,17 +49,9 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
             case PK_F:
                 return SR_FONT;
             case PK_V:
-                return isShiftPressed ? SR_PASTE : SR_CROPTOVISIBLE;
+                return SR_CROPTOVISIBLE;
             case PK_C:
-                return isShiftPressed ? SR_DISKC : SR_COLOR;
-            case PK_A:
-                return SR_DISKA;
-            case PK_B:
-                return SR_DISKB;
-            case PK_E:
-                return isShiftPressed ? SR_OPENRAMDISK2 : SR_OPENRAMDISK;
-            case PK_O:
-                return isShiftPressed ? SR_SAVERAMDISK2AS : SR_SAVERAMDISKAS;
+                return SR_COLOR;
             case PK_1:
                 return SR_1X;
             case PK_2:
@@ -95,7 +79,7 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
             case PK_P:
                 return isShiftPressed ? SR_PRNCAPTURE : SR_PAUSE;
             case PK_H:
-                return isShiftPressed ? SR_HDD : SR_SCREENSHOT;
+                return SR_SCREENSHOT;
             case PK_U:
                 return SR_FASTRESET;
             case PK_INS:

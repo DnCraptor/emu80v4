@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -25,7 +25,6 @@
 #include "EmuTypes.h"
 #include "EmuObjects.h"
 
-class CmdLine;
 class Cpu;
 class EmuWindow;
 class SoundMixer;
@@ -49,14 +48,12 @@ struct DebuggerOptions {
     bool resetKeys = true;
 };
 
-class Emulation : public ParentObject
+class Emulation : public EmuObject
 {
     public:
-        Emulation(CmdLine& cmdLine); //: EmuObject();
+        Emulation();
 
         virtual ~Emulation();
-        void addChild(EmuObject* child) override;
-
 
         void registerActiveDevice(IActive* device);
         void unregisterActiveDevice(IActive* device);
@@ -99,8 +96,6 @@ class Emulation : public ParentObject
         bool getPausedState() {return m_isPaused;}
         bool getFullThrottleState() {return m_fullThrottle;}
 
-        void processCmdLine();
-
         const DebuggerOptions& getDebuggerOptions() {return m_debuggerOptions;}
 
     private:
@@ -141,7 +136,6 @@ class Emulation : public ParentObject
 
 
         // параметры командной строки
-        CmdLine& m_cmdLine;
 
 
         DebuggerOptions m_debuggerOptions;

@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -27,11 +27,8 @@
 #include "PlatformCore.h"
 #include "KbdLayout.h"
 #include "CrtRenderer.h"
-#include "DiskImage.h"
 #include "FileLoader.h"
 #include "Keyboard.h"
-#include "RamDisk.h"
-#include "KbdTapper.h"
 
 using namespace std;
 
@@ -126,36 +123,6 @@ void Platform::sysReq(SysReq sr)
                     palCopyTextToClipboard(text);
             }
             break;
-        case SR_PASTE:
-            if (m_kbdTapper && m_kbdLayout->getMode() == KbdLayout::KLM_SMART) {
-                m_kbdTapper->typeText(palGetTextFromClipboard());
-            }
-            break;
-        case SR_DISKA:
-            // open disk A image
-            if (m_diskA)
-                m_diskA->chooseFile();
-            break;
-        case SR_DISKB:
-            // open disk B image
-            if (m_diskB)
-                m_diskB->chooseFile();
-            break;
-        case SR_DISKC:
-            // open floppy disk C image
-            if (m_diskC)
-                m_diskC->chooseFile();
-            break;
-        case SR_DISKD:
-            // open floppy disk D image
-            if (m_diskD)
-                m_diskD->chooseFile();
-            break;
-        case SR_HDD:
-            // open HDD/CF image
-            if (m_hdd)
-                m_hdd->chooseFile();
-        break;
         case SR_LOAD:
             if (m_loader) {
                 m_loader->chooseAndLoadFile();
@@ -170,38 +137,6 @@ void Platform::sysReq(SysReq sr)
             // show debugger
             g_emulation->debugRequest(m_cpu);
             //showDebugger();
-            break;
-        case SR_LOADRAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->loadFromFile();
-            break;
-        case SR_SAVERAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->saveToFile();
-            break;
-        case SR_OPENRAMDISK:
-            if (m_ramDisk)
-                m_ramDisk->openFile();
-            break;
-        case SR_SAVERAMDISKAS:
-            if (m_ramDisk)
-                m_ramDisk->saveFileAs();
-            break;
-        case SR_LOADRAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->loadFromFile();
-            break;
-        case SR_SAVERAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->saveToFile();
-            break;
-        case SR_OPENRAMDISK2:
-            if (m_ramDisk2)
-                m_ramDisk2->openFile();
-            break;
-        case SR_SAVERAMDISK2AS:
-            if (m_ramDisk2)
-                m_ramDisk2->saveFileAs();
             break;
         case SR_FASTRESET:
             if (m_fastResetCpuTicks) {
@@ -269,8 +204,6 @@ void Platform::reqScreenUpdateForDebug()
 {
     if (m_renderer)
         m_renderer->prepareDebugScreen();
-    if (m_renderer2)
-        m_renderer2->prepareDebugScreen();
 }
 
 

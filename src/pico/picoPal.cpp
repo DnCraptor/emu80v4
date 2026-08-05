@@ -7,10 +7,6 @@
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 
-std::string palGetDefaultPlatform() {
-    return "";
-}
-
 uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
 {
     string fullFileName;
@@ -431,21 +427,7 @@ void palMsgBox(string msg, bool)
 #endif
 }
 
-void palSetRunFileName(std::string) {
-}
-
-void palAddTabToConfigWindow(int tabId, string tabName)
-{
-}
-
 void palUpdateConfig() {
-}
-
-bool palChooseConfiguration(std::string platformName, PalWindow* wnd) {
-    return false;
-}
-
-void palSetTabOptFileName(int, string) {
 }
 
 void palRemoveTabFromConfigWindow(int) {
@@ -453,5 +435,3 @@ void palRemoveTabFromConfigWindow(int) {
 
 void palRequestForQuit() {  while(true); } /// TODO:
 
-void palAddRadioSelectorToTab(int, int, std::string, std::string, std::string, SelectItem*, int) {
-}

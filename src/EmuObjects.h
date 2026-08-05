@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2023
  *
@@ -33,11 +33,8 @@ class Cpu;
 class PlatformCore;
 class KbdLayout;
 class CrtRenderer;
-class DiskImage;
 class FileLoader;
-class RamDisk;
 class Keyboard;
-class KbdTapper;
 
 class EmuObject
 {
@@ -48,11 +45,8 @@ class EmuObject
         virtual PlatformCore* asPlatformCore() { return nullptr; }
         virtual KbdLayout* asKbdLayout() { return nullptr; }
         virtual CrtRenderer* asCrtRenderer() { return nullptr; }
-        virtual DiskImage* asDiskImage() { return nullptr; }
         virtual FileLoader* asFileLoader() { return nullptr; }
-        virtual RamDisk* asRamDisk() { return nullptr; }
         virtual Keyboard* asKeyboard() { return nullptr; }
-        virtual KbdTapper* asKbdTapper() { return nullptr; }
         EmuObject();
         virtual ~EmuObject();
 
@@ -132,13 +126,6 @@ class IActive
 class ActiveDevice : public EmuObject, public IActive
 {
 
-};
-
-
-class ParentObject : public EmuObject
-{
-    public:
-        virtual void addChild(EmuObject* child) = 0;
 };
 
 

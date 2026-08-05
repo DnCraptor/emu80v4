@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -29,16 +29,13 @@
 class EmuWindow;
 class Cpu;
 class FileLoader;
-class RamDisk;
 class PlatformCore;
 class KbdLayout;
 class CrtRenderer;
 class Keyboard;
-class DiskImage;
-class KbdTapper;
 
 
-class Platform : public ParentObject
+class Platform : public EmuObject
 {
     public:
         virtual Platform* asPlatform() override { return this; }
@@ -47,7 +44,6 @@ class Platform : public ParentObject
         void init() override;
         void shutdown() override;
         void reset() override;
-        void addChild(EmuObject* /*child*/) override {}
 
         void sysReq(SysReq sr);
         virtual void draw();
@@ -114,19 +110,9 @@ class Platform : public ParentObject
         EmuWindow* m_window = nullptr;
         KbdLayout* m_kbdLayout = nullptr;
         CrtRenderer* m_renderer = nullptr;
-        CrtRenderer* m_renderer2 = nullptr;
-        DiskImage* m_diskA = nullptr;
-        DiskImage* m_diskB = nullptr;
-        DiskImage* m_diskC = nullptr;
-        DiskImage* m_diskD = nullptr;
-        DiskImage* m_hdd = nullptr;
         FileLoader* m_loader = nullptr;
         Keyboard* m_keyboard = nullptr;
-        RamDisk* m_ramDisk = nullptr;
-        RamDisk* m_ramDisk2 = nullptr;
-        KbdTapper* m_kbdTapper = nullptr;
 
-        std::string m_helpFile = "";
         CodePage m_codePage = CP_RK;
         bool m_muteTape = false;
         bool m_fastReset = false;

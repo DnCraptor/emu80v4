@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Emu80 v. 4.x
  *  © Viktor Pykhonin <pyk@mail.ru>, 2016-2024
  *
@@ -27,7 +27,6 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "CmdLine.h"
 #include "Lvov.h"
 #include "Platform.h"
 #include "EmuWindow.h"
@@ -65,7 +64,7 @@ static EmulationStaticStorage g_emulationStorage;
 
 }
 
-Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
+Emulation::Emulation()
 {
     g_emulation = this;
 
@@ -82,26 +81,10 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     setFrequency(1680000000);
 
     m_activePlatform = createLvovPlatform();
-    addChild(m_activePlatform);
 }
 
 Emulation::~Emulation()
 {
-}
-
-
-void Emulation::processCmdLine()
-{
-    std::string fileName = m_cmdLine["run"];
-    bool loadOnly = m_cmdLine.checkParam("load");
-    if (loadOnly)
-        fileName = m_cmdLine["load"];
-
-    if (!fileName.empty() && m_activePlatform) {
-        FileLoader* loader = m_activePlatform->getLoader();
-        if (loader)
-            loader->loadFile(fileName, !loadOnly);
-    }
 }
 
 
@@ -135,11 +118,7 @@ void Emulation::unregisterActiveDevice(IActive* device)
 }
 
 
-void Emulation::addChild(EmuObject* child)
-{
-    if (child && !m_activePlatform)
-        m_activePlatform = child->asPlatform();
-};
+;
 
 /// TODO: .h
 extern void processKeys();
@@ -271,12 +250,6 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             } else {
                 wnd->closeRequest();
             }
-            break;
-        case SR_CONFIG:
-        case SR_HELP:
-            break;
-        case SR_CHPLATFORM:
-        case SR_CHCONFIG:
             break;
         case SR_PAUSEON:
             m_isPaused = true;
