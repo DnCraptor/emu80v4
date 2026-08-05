@@ -25,16 +25,14 @@
 #include "Pal.h"
 #include "SoundMixer.h"
 
-using namespace std;
-
 // Вызывается 48000 (SAMPLE_RATE) раз в секунду для получения текущего сэмпла и его проигрывания
 void SoundMixer::operate()
 {
     int leftSample = 0;
     int rightSample = 0;
-    for(auto it = m_soundSources.begin(); it != m_soundSources.end(); it++) {
+    for (int i = 0; i < m_soundSourceCount; ++i) {
         int left, right;
-        (*it)->getSample(left, right);
+        m_soundSources[i]->getSample(left, right);
         leftSample += m_volume < 7 ? left : abs(left);
         rightSample += m_volume < 7 ? right : abs(right);
     }
@@ -55,13 +53,29 @@ void SoundMixer::operate()
 
 void SoundMixer::addSoundSource(SoundSource* snd)
 {
-    m_soundSources.push_back(snd);
+    if (!snd || m_soundSourceCount >= MAX_SOUND_SOURCES)
+        return;
+
+    for (int i = 0; i < m_soundSourceCount; ++i)
+        if (m_soundSources[i] == snd)
+            return;
+
+    m_soundSources[m_soundSourceCount++] = snd;
 }
 
 
 void SoundMixer::removeSoundSource(SoundSource* snd)
 {
-    m_soundSources.remove(snd);
+    for (int i = 0; i < m_soundSourceCount; ++i) {
+        if (m_soundSources[i] != snd)
+            continue;
+
+        for (int j = i + 1; j < m_soundSourceCount; ++j)
+            m_soundSources[j - 1] = m_soundSources[j];
+
+        m_soundSources[--m_soundSourceCount] = nullptr;
+        return;
+    }
 }
 
 

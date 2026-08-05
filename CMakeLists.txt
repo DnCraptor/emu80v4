@@ -150,6 +150,19 @@ endif()
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
 
+# MinSizeRel uses -Os by default. Keep size optimization for the bulk of the
+# firmware, but compile the permanent emulator hot path with speed optimization.
+set_source_files_properties(
+    "${CMAKE_SOURCE_DIR}/src/Cpu.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Cpu8080.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Emulation.cpp"
+    "${CMAKE_SOURCE_DIR}/src/AddrSpace.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Lvov.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Ppi8255.cpp"
+    "${CMAKE_SOURCE_DIR}/src/SoundMixer.cpp"
+    PROPERTIES COMPILE_OPTIONS "$<$<CONFIG:MinSizeRel>:-O3>"
+)
+
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
         -Wno-error=suggest-attribute=format

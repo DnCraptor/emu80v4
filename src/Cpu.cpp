@@ -16,7 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
 #include <cstring>
 
 #include "Globals.h"
@@ -37,10 +36,10 @@ Cpu::Cpu()
 
 Cpu::~Cpu()
 {
-    for (auto it = m_hookVector.begin(); it != m_hookVector.end(); it++) {
-        (*it)->setCpu(nullptr);
-        if ((*it)->getName() == "") // breakponts
-            delete (*it);
+    for (int i = 0; i < m_nHooks; ++i) {
+        m_hooks[i]->setCpu(nullptr);
+        if (m_hooks[i]->getName() == "") // breakpoints
+            delete m_hooks[i];
     }
 }
 
@@ -67,16 +66,27 @@ void Cpu::attachCore(PlatformCore* core)
 
 void Cpu::addHook(CpuHook* hook)
 {
-    m_hookVector.push_back(hook);
-    m_nHooks++;
+    if (!hook || !m_hooks || m_nHooks >= m_hookCapacity)
+        return;
+
+    m_hooks[m_nHooks++] = hook;
     hook->setCpu(this);
 }
 
 
 void Cpu::removeHook(CpuHook* hook)
 {
-    m_hookVector.erase(remove(m_hookVector.begin(), m_hookVector.end(), hook), m_hookVector.end());
-    m_nHooks--; // добавить проверку на существование!
+    for (int i = 0; i < m_nHooks; ++i) {
+        if (m_hooks[i] != hook)
+            continue;
+
+        for (int j = i + 1; j < m_nHooks; ++j)
+            m_hooks[j - 1] = m_hooks[j];
+
+        m_hooks[--m_nHooks] = nullptr;
+        hook->setCpu(nullptr);
+        return;
+    }
 }
 
 
@@ -172,31 +182,6 @@ std::string Cpu::getPropertyStringValue(const std::string& propertyName)
 
 Cpu8080Compatible::Cpu8080Compatible()
 {
-}
-
-
-void Cpu8080Compatible::addHook(CpuHook* hook)
-{
-    Cpu::addHook(hook);
-    uint16_t addr = hook->getHookAddr();
-    if (!m_hooksMap[addr])
-        m_hooksMap[addr] = new list<CpuHook*>;
-    m_hooksMap[addr]->push_back(hook);
-}
-
-
-void Cpu8080Compatible::removeHook(CpuHook* hook)
-{
-    Cpu::removeHook(hook);
-    uint16_t addr = hook->getHookAddr();
-    list<CpuHook*>* hookList = m_hooksMap[addr];
-    if (hookList) {
-        hookList->remove(hook);
-        if (hookList->empty()) {
-            delete hookList;
-            m_hooksMap.erase(addr);
-        }
-    }
 }
 
 

@@ -19,8 +19,6 @@
 #ifndef ADDRSPACE_H
 #define ADDRSPACE_H
 
-#include <vector>
-
 #include "EmuObjects.h"
 
 /*struct DeviceItem
@@ -48,37 +46,28 @@ class AddrSpace : public AddressableDevice
         static EmuObject* create(const EmuValuesList&) {return new AddrSpace();}
 
 private:
+        static constexpr int MAX_RANGES = 4;
+
         uint8_t m_nullByte;          // байт, считываемый из нераспределенного пространства
 
-        int m_itemCountR;            // количество элементов чтения
-        std::vector<AddressableDevice*> m_devicesRVector; // вектор устройств для чтения
-        std::vector<int> m_firstAddressesRVector;         // вектор начальных адресов устройств для чтения
-        std::vector<int> m_itemSizesRVector;              // вектор размеров устройств для чтения в байтах
-        std::vector<int> m_devFirstAddressesRVector;      // венктор смещений в области памяти устройств для чтения
-        // указатели на области данных вышеуказанных векторов
-        AddressableDevice** m_devicesR = nullptr;         // массив устройств для чтения
-        int* m_firstAddressesR = nullptr;                 // массив начальных адресов устройств для чтения
-        int* m_itemSizesR = nullptr;                      // массив размеров устройств для чтения в байтах
-        int* m_devFirstAddressesR = nullptr;              // массив смещений в области памяти устройства для чтения
+        int m_itemCountR = 0;
+        AddressableDevice* m_devicesR[MAX_RANGES] = {};
+        int m_firstAddressesR[MAX_RANGES] = {};
+        int m_itemSizesR[MAX_RANGES] = {};
+        int m_devFirstAddressesR[MAX_RANGES] = {};
 
-        int m_itemCountW;
-        std::vector<AddressableDevice*> m_devicesWVector; // вектор устройств для записи
-        std::vector<int> m_firstAddressesWVector;         // вектор начальных адресов устройств для записи
-        std::vector<int> m_itemSizesWVector;              // вектор размеров устройств для записи в байтах
-        std::vector<int> m_devFirstAddressesWVector;      // вектор смещений в области памяти устройств для записи
-        // указатели на области данных вышеуказанных векторов
-        AddressableDevice** m_devicesW = nullptr;         // массив устройств для чтения
-        int* m_firstAddressesW = nullptr;                 // массив начальных адресов устройств для чтения
-        int* m_itemSizesW = nullptr;                      // массив размеров устройств для чтения в байтах
-        int* m_devFirstAddressesW = nullptr;              // массив смещений в области памяти устройства для чтения
+        int m_itemCountW = 0;
+        AddressableDevice* m_devicesW[MAX_RANGES] = {};
+        int m_firstAddressesW[MAX_RANGES] = {};
+        int m_itemSizesW[MAX_RANGES] = {};
+        int m_devFirstAddressesW[MAX_RANGES] = {};
 };
 
 
 class AddrSpaceMapper : public AddressableDevice
 {
     public:
-        AddrSpaceMapper(int nPages);
-        ~AddrSpaceMapper();
+        explicit AddrSpaceMapper(int nPages);
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         void reset() override {m_curPage = 0;}
@@ -92,7 +81,9 @@ class AddrSpaceMapper : public AddressableDevice
         static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new AddrSpaceMapper(parameters[0].asInt()) : nullptr;}
 
 protected:
-        AddressableDevice** m_pages;
+        static constexpr int MAX_PAGES = 2;
+
+        AddressableDevice* m_pages[MAX_PAGES] = {};
         int m_nPages;
         int m_curPage = 0;
 };

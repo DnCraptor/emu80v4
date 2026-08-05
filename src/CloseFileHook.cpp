@@ -21,13 +21,16 @@
 #include "Emulation.h"
 #include "TapeRedirector.h"
 
-using namespace std;
-
 void CloseFileHook::addTapeRedirector(TapeRedirector* fr)
 {
-    m_frVector.push_back(fr);
-    m_nFr++;
-    m_frs = m_frVector.data();
+    if (!fr || m_nFr >= MAX_REDIRECTORS)
+        return;
+
+    for (int i = 0; i < m_nFr; ++i)
+        if (m_frs[i] == fr)
+            return;
+
+    m_frs[m_nFr++] = fr;
 }
 
 
@@ -38,20 +41,6 @@ bool CloseFileHook::hookProc()
 
     for (int i=0; i<m_nFr; i++)
         m_frs[i]->closeFile();
-
-    return false;
-}
-
-
-bool CloseFileHook::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (CpuHook::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addTapeRedirector") {
-        addTapeRedirector(static_cast<TapeRedirector*>(g_emulation->findObject(values[0].asString())));
-        return true;
-    }
 
     return false;
 }

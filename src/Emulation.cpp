@@ -38,22 +38,46 @@
 #include "EmuCalls.h"
 #include "Shortcuts.h"
 
+#include <new>
+
 using namespace std;
+
+namespace {
+
+template<class T>
+struct StaticSlot {
+    alignas(T) unsigned char data[sizeof(T)];
+
+    template<class... Args>
+    T* construct(Args&&... args)
+    {
+        return new (data) T(static_cast<Args&&>(args)...);
+    }
+};
+
+struct EmulationStaticStorage {
+    StaticSlot<SoundMixer> mixer;
+    StaticSlot<WavReader> wavReader;
+    StaticSlot<PrnWriter> prnWriter;
+};
+
+static EmulationStaticStorage g_emulationStorage;
+
+}
 
 Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
     g_emulation = this;
     setName("emulation");
-    addObject(this);
 
-    m_mixer = new SoundMixer;
+    m_mixer = g_emulationStorage.mixer.construct();
     m_mixer->setName("soundMixer");
     m_mixer->setVolume(6);
 
-    m_wavReader = new WavReader;
+    m_wavReader = g_emulationStorage.wavReader.construct();
     m_wavReader->setName("wavReader");
 
-    m_prnWriter = new PrnWriter;
+    m_prnWriter = g_emulationStorage.prnWriter.construct();
     m_prnWriter->setName("prnWriter");
 
     setFrameRate(100);
@@ -67,18 +91,6 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 
 Emulation::~Emulation()
 {
-    // Удяляем платформы с дочерними объектами
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        delete (*it);
-
-    delete m_wavReader; // перед m_mixer!
-    delete m_mixer;
-
-    // Удяляем оставшиеся объекты
-    list<EmuObject*> tempList = m_objectList; // второй список, так как в деструкторе удаление из основного списка
-    for (auto it = tempList.begin(); it != tempList.end(); it++)
-        if ((*it) != this)
-            delete (*it);
 }
 
 
@@ -99,48 +111,44 @@ void Emulation::processCmdLine()
 
 void Emulation::registerActiveDevice(IActive* device)
 {
-    m_activeDevVector.push_back(device);
-    nDevices++;
-    m_activeDevices = m_activeDevVector.data();
+    if (!device || nDevices >= MAX_ACTIVE_DEVICES)
+        return;
+
+    for (int i = 0; i < nDevices; ++i)
+        if (m_activeDevices[i] == device)
+            return;
+
+    m_activeDevices[nDevices++] = device;
     inCycle = false;
 }
 
 
 void Emulation::unregisterActiveDevice(IActive* device)
 {
-    m_activeDevVector.erase(remove(m_activeDevVector.begin(), m_activeDevVector.end(), device));
-    nDevices--;
-    m_activeDevices = m_activeDevVector.data();
-    inCycle = false;
+    for (int i = 0; i < nDevices; ++i) {
+        if (m_activeDevices[i] != device)
+            continue;
+
+        for (int j = i + 1; j < nDevices; ++j)
+            m_activeDevices[j - 1] = m_activeDevices[j];
+
+        m_activeDevices[--nDevices] = nullptr;
+        inCycle = false;
+        return;
+    }
 }
 
 
-void Emulation::addObject(EmuObject* obj)
+EmuObject* Emulation::findObject(string /*name*/)
 {
-    m_objectList.push_back(obj);
-}
-
-
-void Emulation::removeObject(EmuObject* obj)
-{
-    m_objectList.remove(obj);
-}
-
-
-EmuObject* Emulation::findObject(string name)
-{
-    for (auto it = m_objectList.begin(); it != m_objectList.end(); it++)
-        if ((*it)->getName() == name)
-            return *it;
     return nullptr;
 }
 
 
 void Emulation::addChild(EmuObject* child)
 {
-    if (child)
-        if (Platform* pl = child->asPlatform())
-            m_platformList.push_back(pl);
+    if (child && !m_activePlatform)
+        m_activePlatform = child->asPlatform();
 };
 
 /// TODO: .h
@@ -268,13 +276,11 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
             break;
         case SR_CLOSE:
             if (platform) {
-                m_platformList.remove(platform);
-                delete platform;
                 m_lastActivePlatform = nullptr;
-                if (m_platformList.empty())
-                    palRequestForQuit();
-            } else
+                palRequestForQuit();
+            } else {
                 wnd->closeRequest();
+            }
             break;
         case SR_CONFIG:
         case SR_HELP:
@@ -502,14 +508,10 @@ void Emulation::setSpeedByGrade(int speedGrade)
 
 Platform* Emulation::platformByWindow(EmuWindow* window)
 {
-    if (!window)
+    if (!window || !m_activePlatform)
         return nullptr;
 
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        if (window == (*it)->getWindow())
-            return (*it);
-
-    return nullptr;
+    return window == m_activePlatform->getWindow() ? m_activePlatform : nullptr;
 }
 
 

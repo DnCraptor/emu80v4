@@ -21,7 +21,6 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-#include <map>
 
 #include "PalKeys.h"
 #include "EmuTypes.h"
@@ -90,8 +89,11 @@ class Platform : public ParentObject
         const std::string& getBaseName() {return m_baseName;}
 
     private:
+        static constexpr int OBJECT_COUNT = 31;
+
         std::string m_baseDir;
-        std::list<EmuObject* >m_objList;
+        EmuObject* m_objects[OBJECT_COUNT] = {};
+        int m_objectCount = 0;
         std::string m_baseName;
 
         PlatformCore* m_core = nullptr;
@@ -109,7 +111,6 @@ class Platform : public ParentObject
         Keyboard* m_keyboard = nullptr;
         RamDisk* m_ramDisk = nullptr;
         RamDisk* m_ramDisk2 = nullptr;
-        EmuObjectGroup* m_tapeGrp = nullptr;
         KbdTapper* m_kbdTapper = nullptr;
 
         std::string m_helpFile = "";

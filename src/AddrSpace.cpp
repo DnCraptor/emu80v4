@@ -23,17 +23,8 @@
 using namespace std;
 
 AddrSpace::AddrSpace(uint8_t nullByte)
+    : m_nullByte(nullByte)
 {
-    m_nullByte = nullByte;
-    m_itemCountR = m_itemCountW = 0;
-    /*m_firstAddressesR = new int [m_maxAsItems];
-    m_firstAddressesW = new int [m_maxAsItems];
-    m_itemSizesR = new int [m_maxAsItems];
-    m_itemSizesW = new int [m_maxAsItems];
-    m_devFirstAddressesR = new int [m_maxAsItems];
-    m_devFirstAddressesW = new int [m_maxAsItems];
-    m_addrDevicesR = new AddressableDevice* [m_maxAsItems];
-    m_addrDevicesW = new AddressableDevice* [m_maxAsItems];*/
 }
 
 
@@ -46,55 +37,49 @@ void AddrSpace::addRange(int firstAddr, int lastAddr, AddressableDevice* addrDev
 
 void AddrSpace::addReadRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
 {
-    auto devIt = m_devicesRVector.begin();
-    auto firstIt = m_firstAddressesRVector.begin();
-    auto sizeIt = m_itemSizesRVector.begin();
-    auto devFirstIt = m_devFirstAddressesRVector.begin();
-    for (int i = 0; i < m_itemCountR && m_firstAddressesR[i] <= firstAddr; i++, devIt++, firstIt++, sizeIt++, devFirstIt++);
+    if (!addrDevice || m_itemCountR >= MAX_RANGES || lastAddr < firstAddr)
+        return;
 
-    m_devicesRVector.insert(devIt, addrDevice);
-    m_firstAddressesRVector.insert(firstIt, firstAddr);
-    m_itemSizesRVector.insert(sizeIt, lastAddr - firstAddr + 1);
-    m_devFirstAddressesRVector.insert(devFirstIt, devFirstAddr);
+    int pos = 0;
+    while (pos < m_itemCountR && m_firstAddressesR[pos] <= firstAddr)
+        ++pos;
 
-    m_itemCountR++;
+    for (int i = m_itemCountR; i > pos; --i) {
+        m_devicesR[i] = m_devicesR[i - 1];
+        m_firstAddressesR[i] = m_firstAddressesR[i - 1];
+        m_itemSizesR[i] = m_itemSizesR[i - 1];
+        m_devFirstAddressesR[i] = m_devFirstAddressesR[i - 1];
+    }
 
-    m_devicesRVector.resize(m_itemCountR);
-    m_firstAddressesRVector.resize(m_itemCountR);
-    m_itemSizesRVector.resize(m_itemCountR);
-    m_devFirstAddressesRVector.resize(m_itemCountR);
-
-    m_devicesR = m_devicesRVector.data();
-    m_firstAddressesR = m_firstAddressesRVector.data();
-    m_itemSizesR = m_itemSizesRVector.data();
-    m_devFirstAddressesR = m_devFirstAddressesRVector.data();
+    m_devicesR[pos] = addrDevice;
+    m_firstAddressesR[pos] = firstAddr;
+    m_itemSizesR[pos] = lastAddr - firstAddr + 1;
+    m_devFirstAddressesR[pos] = devFirstAddr;
+    ++m_itemCountR;
 }
 
 
 void AddrSpace::addWriteRange(int firstAddr, int lastAddr, AddressableDevice* addrDevice, int devFirstAddr)
 {
-    auto devIt = m_devicesWVector.begin();
-    auto firstIt = m_firstAddressesWVector.begin();
-    auto sizeIt = m_itemSizesWVector.begin();
-    auto devFirstIt = m_devFirstAddressesWVector.begin();
-    for (int i = 0; i < m_itemCountW && m_firstAddressesW[i] <= firstAddr; i++, devIt++, firstIt++, sizeIt++, devFirstIt++);
+    if (!addrDevice || m_itemCountW >= MAX_RANGES || lastAddr < firstAddr)
+        return;
 
-    m_devicesWVector.insert(devIt, addrDevice);
-    m_firstAddressesWVector.insert(firstIt, firstAddr);
-    m_itemSizesWVector.insert(sizeIt, lastAddr - firstAddr + 1);
-    m_devFirstAddressesWVector.insert(devFirstIt, devFirstAddr);
+    int pos = 0;
+    while (pos < m_itemCountW && m_firstAddressesW[pos] <= firstAddr)
+        ++pos;
 
-    m_itemCountW++;
+    for (int i = m_itemCountW; i > pos; --i) {
+        m_devicesW[i] = m_devicesW[i - 1];
+        m_firstAddressesW[i] = m_firstAddressesW[i - 1];
+        m_itemSizesW[i] = m_itemSizesW[i - 1];
+        m_devFirstAddressesW[i] = m_devFirstAddressesW[i - 1];
+    }
 
-    m_devicesWVector.resize(m_itemCountW);
-    m_firstAddressesWVector.resize(m_itemCountW);
-    m_itemSizesWVector.resize(m_itemCountW);
-    m_devFirstAddressesWVector.resize(m_itemCountW);
-
-    m_devicesW = m_devicesWVector.data();
-    m_firstAddressesW = m_firstAddressesWVector.data();
-    m_itemSizesW = m_itemSizesWVector.data();
-    m_devFirstAddressesW = m_devFirstAddressesWVector.data();
+    m_devicesW[pos] = addrDevice;
+    m_firstAddressesW[pos] = firstAddr;
+    m_itemSizesW[pos] = lastAddr - firstAddr + 1;
+    m_devFirstAddressesW[pos] = devFirstAddr;
+    ++m_itemCountW;
 }
 
 
@@ -147,17 +132,8 @@ bool AddrSpace::setProperty(const string& propertyName, const EmuValuesList& val
 
 
 AddrSpaceMapper::AddrSpaceMapper(int nPages)
+    : m_nPages(nPages > MAX_PAGES ? MAX_PAGES : nPages)
 {
-    m_nPages = nPages;
-    m_pages = new AddressableDevice* [nPages];
-    for (int i = 0; i < nPages; i++)
-        m_pages[i] = nullptr;
-}
-
-
-AddrSpaceMapper::~AddrSpaceMapper()
-{
-    delete[] m_pages;
 }
 
 

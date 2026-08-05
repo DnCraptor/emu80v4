@@ -21,8 +21,6 @@
 #ifndef EMULATION_H
 #define EMULATION_H
 
-#include <list>
-
 #include "PalKeys.h"
 #include "EmuTypes.h"
 #include "EmuObjects.h"
@@ -62,8 +60,6 @@ class Emulation : public ParentObject
         std::string getPropertyStringValue(const std::string& propertyName) override;
         void addChild(EmuObject* child) override;
 
-        void addObject(EmuObject* obj);
-        void removeObject(EmuObject* obj);
         EmuObject* findObject(std::string obj);
 
         void registerActiveDevice(IActive* device);
@@ -112,8 +108,8 @@ class Emulation : public ParentObject
         const DebuggerOptions& getDebuggerOptions() {return m_debuggerOptions;}
 
     private:
-        std::vector<IActive*> m_activeDevVector;
-        IActive** m_activeDevices = nullptr;
+        static constexpr int MAX_ACTIVE_DEVICES = 3;
+        IActive* m_activeDevices[MAX_ACTIVE_DEVICES] = {};
         int nDevices = 0;
         bool inCycle;
         uint64_t m_clockOffset = 0;
@@ -135,15 +131,13 @@ class Emulation : public ParentObject
         bool m_vsync = true;
         unsigned m_sampleRate = 48000;
 
-        std::list<EmuObject*> m_objectList;
-        std::list<Platform*> m_platformList;
         Platform* m_activePlatform = nullptr;
 
         uint64_t m_curClock = 0;
 
-        SoundMixer* m_mixer;
-        WavReader* m_wavReader;
-        PrnWriter* m_prnWriter;
+        SoundMixer* m_mixer = nullptr;
+        WavReader* m_wavReader = nullptr;
+        PrnWriter* m_prnWriter = nullptr;
 
         Platform* m_lastActivePlatform = nullptr;
 

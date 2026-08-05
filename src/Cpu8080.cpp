@@ -1723,14 +1723,11 @@ Cpu8080::Cpu8080() {
 
 void Cpu8080::operate() {
     if (!m_hooksDisabled) {
-        bool retFlag = false;
-        list<CpuHook*>* hookList = m_hooksMap[PC];
-        if (hookList) {
-            for (auto it = hookList->begin(); it != hookList->end(); it++)
-                retFlag = retFlag || (*it)->hookProc();
+        for (int i = 0; i < m_nHooks; ++i) {
+            CpuHook* hook = m_hooks[i];
+            if (hook->getHookAddr() == PC && hook->hookProc())
+                return;
         }
-        if (retFlag)
-            return;
     }
 
     if (m_waits) {

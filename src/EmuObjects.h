@@ -38,7 +38,6 @@ class DiskImage;
 class FileLoader;
 class RamDisk;
 class Keyboard;
-class EmuObjectGroup;
 class KbdTapper;
 
 class EmuObject
@@ -54,7 +53,6 @@ class EmuObject
         virtual FileLoader* asFileLoader() { return nullptr; }
         virtual RamDisk* asRamDisk() { return nullptr; }
         virtual Keyboard* asKeyboard() { return nullptr; }
-        virtual EmuObjectGroup* asEmuObjectGroup() { return nullptr; }
         virtual KbdTapper* asKbdTapper() { return nullptr; }
         EmuObject();
         virtual ~EmuObject();
@@ -154,19 +152,5 @@ class ParentObject : public EmuObject
         virtual void addChild(EmuObject* child) = 0;
 };
 
-
-class EmuObjectGroup : public EmuObject
-{
-    public:
-        virtual EmuObjectGroup* asEmuObjectGroup() override { return this; }
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-        std::string getPropertyStringValue(const std::string& propertyName) override;
-        void addItem(EmuObject* item);
-
-        static EmuObject* create(const EmuValuesList&) {return new EmuObjectGroup();}
-
-    private:
-        std::list<EmuObject*> m_objectList;
-};
 
 #endif // EMUOBJECTS_H

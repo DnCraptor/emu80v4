@@ -19,9 +19,6 @@
 #ifndef CPU_H
 #define CPU_H
 
-#include <map>
-#include <list>
-
 #include "EmuObjects.h"
 
 
@@ -61,6 +58,7 @@ class Cpu : public ActiveDevice
         virtual void interrupt(int) {}
         virtual void hrq(int) {}
 
+        void attachHookStorage(CpuHook** storage, int capacity) {m_hooks = storage; m_hookCapacity = capacity;}
         virtual void addHook(CpuHook* hook);
         virtual void removeHook(CpuHook* hook);
         void disableHooks() {m_hooksDisabled = true;}
@@ -80,7 +78,8 @@ class Cpu : public ActiveDevice
         PlatformCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
-        std::vector<CpuHook*> m_hookVector;
+        CpuHook** m_hooks = nullptr;
+        int m_hookCapacity = 0;
         int m_nHooks = 0;
         bool m_hooksDisabled = false;
 
@@ -101,9 +100,6 @@ class Cpu8080Compatible : public Cpu
         virtual Cpu8080Compatible* asCpu8080Compatible() override { return this; }
         virtual CpuZ80* asCpuZ80() { return nullptr; }
         Cpu8080Compatible();
-
-        void addHook(CpuHook* hook) override;
-        void removeHook(CpuHook* hook) override;
 
         virtual void intRst(int vect) = 0;
         virtual void intCall(uint16_t addr) = 0;
@@ -141,8 +137,6 @@ class Cpu8080Compatible : public Cpu
     protected:
         int io_input(int port);
         void io_output(int port, int value);
-
-        std::map<uint16_t, std::list<CpuHook*>*> m_hooksMap;
 };
 
 #endif // CPU_H

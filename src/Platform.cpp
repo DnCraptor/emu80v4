@@ -44,39 +44,38 @@ Platform::Platform()
 
 void Platform::init()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->init();
+    for (int i = 0; i < m_objectCount; ++i)
+        m_objects[i]->init();
 }
 
 
 void Platform::shutdown()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->shutdown();
+    for (int i = 0; i < m_objectCount; ++i)
+        m_objects[i]->shutdown();
 }
 
 
 void Platform::reset()
 {
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        (*it)->reset();
+    for (int i = 0; i < m_objectCount; ++i)
+        m_objects[i]->reset();
 }
 
 
 Platform::~Platform()
 {
     Platform::shutdown();
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++)
-        delete *it;
 }
 
 
 void Platform::addChild(EmuObject* child)
 {
-    if (!child)
+    if (!child || m_objectCount >= OBJECT_COUNT)
         return;
+
     child->setPlatform(this);
-    m_objList.push_back(child);
+    m_objects[m_objectCount++] = child;
 }
 
 
@@ -221,19 +220,6 @@ void Platform::sysReq(SysReq sr)
                 m_fastReset = !m_fastReset;
             }
             break;
-        case SR_TAPEHOOK:
-            if (m_tapeGrp) {
-                //EmuValuesList param;
-                string val = m_tapeGrp->getPropertyStringValue("enabled");
-                if (val == "yes")
-                    val = "no";
-                else if (val == "no")
-                    val = "yes";
-                else
-                    break;
-
-                m_tapeGrp->setProperty("enabled", val);
-            }
         default:
             break;
     }
@@ -358,8 +344,8 @@ string Platform::getPropertyStringValue(const string& propertyName)
 string Platform::getAllDebugInfo()
 {
     string res = "";
-    for (auto it = m_objList.begin(); it != m_objList.end(); it++) {
-        string s = (*it)->getDebugInfo();
+    for (int i = 0; i < m_objectCount; ++i) {
+        string s = m_objects[i]->getDebugInfo();
         if (s != "") {
             if (res != "")
                 res += "\n\n";

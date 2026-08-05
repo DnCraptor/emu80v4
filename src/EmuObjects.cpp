@@ -23,18 +23,10 @@
 
 using namespace std;
 
-EmuObject::EmuObject()
-{
-    if (g_emulation)
-        g_emulation->addObject(this);
-}
+EmuObject::EmuObject() = default;
 
 
-EmuObject::~EmuObject()
-{
-    if (this != g_emulation)
-        g_emulation->removeObject(this);
-}
+EmuObject::~EmuObject() = default;
 
 
 void EmuObject::setName(string name)
@@ -143,43 +135,4 @@ bool AddressableDevice::setProperty(const string& propertyName, const EmuValuesL
     }
 
     return false;
-}
-
-
-void EmuObjectGroup::addItem(EmuObject* item)
-{
-    m_objectList.push_back(item);
-}
-
-
-bool EmuObjectGroup::setProperty(const string& propertyName, const EmuValuesList& values)
-{
-    if (EmuObject::setProperty(propertyName, values))
-        return true;
-
-    if (propertyName == "addItem") {
-        addItem(g_emulation->findObject(values[0].asString()));
-        return true;
-    }
-
-    bool res = true;
-    for (auto it = m_objectList.begin(); it != m_objectList.end(); it++)
-        res = res && (*it)->setProperty(propertyName, values);
-
-    return res;
-}
-
-
-string EmuObjectGroup::getPropertyStringValue(const string& propertyName)
-{
-    string res;
-
-    res = EmuObject::getPropertyStringValue(propertyName);
-    if (res != "")
-        return res;
-
-    if (!m_objectList.empty())
-        return (*(m_objectList.begin()))->getPropertyStringValue(propertyName);
-
-    return "";
 }

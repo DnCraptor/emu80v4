@@ -19,8 +19,6 @@
 #ifndef CLOSEFILEHOOK_H
 #define CLOSEFILEHOOK_H
 
-#include <vector>
-
 #include "CpuHook.h"
 
 class TapeRedirector;
@@ -31,15 +29,11 @@ class CloseFileHook : public CpuHook
     public:
         CloseFileHook(uint16_t addr) : CpuHook(addr) {}
         void addTapeRedirector(TapeRedirector* fr);
-        bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
-
         bool hookProc() override;
 
-        static EmuObject* create(const EmuValuesList& parameters) {return parameters[0].isInt() ? new CloseFileHook(parameters[0].asInt()) : nullptr;}
-
     private:
-        std::vector<TapeRedirector*> m_frVector;
-        TapeRedirector** m_frs;
+        static constexpr int MAX_REDIRECTORS = 2;
+        TapeRedirector* m_frs[MAX_REDIRECTORS] = {};
         int m_nFr = 0;
 };
 
