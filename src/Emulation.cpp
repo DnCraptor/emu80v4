@@ -314,6 +314,8 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 
 void Emulation::mainLoopCycle()
 {
+    palInputTick();
+
     if (m_prevSysClock == 0) // first run
         m_prevSysClock = palGetCounter() - palGetCounterFreq() / 500;
 /**

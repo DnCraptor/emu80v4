@@ -60,3 +60,5 @@ bool palInit(int& argc, char** argv);
 void palQuit();
 void palIdle();
 
+
+void palInputTick();

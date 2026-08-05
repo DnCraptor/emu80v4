@@ -25,6 +25,9 @@ extern "C" {
 #ifdef TV
 #include "tv.h"
 #endif
+#ifdef HDMI_DVI
+#include "hdmi-dvi.h"
+#endif
 #ifdef SOFTTV
 #include "tv-software.h"
 #endif
@@ -46,6 +49,22 @@ void graphics_set_mode(enum graphics_mode_t mode);
 
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
+
+typedef enum {
+    GRAPHICS_VIDEO_VECTOR = 0,
+    GRAPHICS_VIDEO_TEXT = 1,
+    GRAPHICS_VIDEO_COMBINED = 2
+} graphics_video_content_mode_t;
+
+extern volatile graphics_video_content_mode_t menu_video_mode;
+
+static inline bool menu_text_active(void)
+{
+    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
+}
+
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
+void graphics_set_menu_text_mode(bool enabled);
 void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
 void graphics_set_4bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
 void graphics_set_1bit_buffer2(

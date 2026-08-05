@@ -1,5 +1,7 @@
 #include "graphics.h"
 #include <string.h>
+
+volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_VECTOR;
 /**
 void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
 if (!text_buffer) return;
