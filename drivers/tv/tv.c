@@ -330,11 +330,11 @@ void tv_init(const output_format_e output_format) {
     (void)output_format;
 
     /*
-     * RGB TV не связан с PAL/NTSC colour subcarrier. Use a fixed 6.0 MHz
-     * logical pixel/sample clock; at 432 MHz the PIO divider is exactly 36.
+     * RGB TV не связан с PAL/NTSC colour subcarrier. Use a fixed 5.0 MHz
+     * logical pixel/sample clock; at 440 the PIO divider is exactly 44.
      * Horizontal timing is derived from this clock below.
      */
-    v_mode.CLK_SPD = 6.0 * 1e6;
+    v_mode.CLK_SPD = 5.0 * 1e6;
     v_mode.H_len = v_mode.CLK_SPD / 1e6 * 63.9;
     v_mode.H_len &= 0xfffffffc;
 

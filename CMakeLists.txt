@@ -58,10 +58,10 @@ ENDIF()
 # RGB TV использует 6.0 MHz logical pixel/sample clock. 432 MHz gives
 # an exact integer PIO divider: 432 / (2 * 36) = 6 MHz.
 IF(RGB_TV)
-    IF(NOT CPU_MHZ EQUAL 432)
-        message(STATUS ">>> RGB_TV: CPU_MHZ forced to 432 (was ${CPU_MHZ})")
+    IF(NOT CPU_MHZ EQUAL 440)
+        message(STATUS ">>> RGB_TV: CPU_MHZ forced to 440 (was ${CPU_MHZ})")
     ENDIF()
-    SET(CPU_MHZ 432)
+    SET(CPU_MHZ 440)
 ENDIF()
 
 
