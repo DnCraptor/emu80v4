@@ -1,4 +1,4 @@
-#include <string.h>
+﻿#include <string.h>
 
 #include "graphics.h"
 #include "pico/stdlib.h"
@@ -330,27 +330,20 @@ void tv_init(const output_format_e output_format) {
     (void)output_format;
 
     /*
-     * RGB TV не привязан к цветовой поднесущей PAL/NTSC. При 448 МГц
-     * используем точный делитель PIO 18:
-     *
-     *   CLK_SPD = clk_sys / (2 * 18)
-     *
-     * После выравнивания получается 792 отсчёта на строку. Активная
-     * область Вектора занимает 626 отсчётов и выводится строго 1:1.
+     * RGB TV не связан с PAL/NTSC colour subcarrier. Use a fixed 6.0 MHz
+     * logical pixel/sample clock; at 432 MHz the PIO divider is exactly 36.
+     * Horizontal timing is derived from this clock below.
      */
-    v_mode.CLK_SPD = (double)clock_get_hz(clk_sys) / 36.0;
+    v_mode.CLK_SPD = 6.0 * 1e6;
     v_mode.H_len = v_mode.CLK_SPD / 1e6 * 63.9;
     v_mode.H_len &= 0xfffffffc;
 
     v_mode.sync_size = 4.7 * v_mode.H_len / 64;
-    v_mode.img_size_x = 626;
+    v_mode.img_size_x = 256;
 
-    /*
-     * Базовая поправка по захвату: сдвигаем активную область вправо.
-     * При H_len=792 получаем porch 138 отсчётов слева и 28 справа.
-     */
+    // Center the 256-pixel Lvov active area in the 6 MHz RGB scanline.
     v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2 + 55;
+        (v_mode.H_len - v_mode.img_size_x) / 2;
 
     // Единственный режим RGB TV: прогрессивный растр Вектора.
     v_mode.N_lines = 312;

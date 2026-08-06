@@ -1,4 +1,4 @@
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+﻿# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -30,9 +30,9 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 #set(AUDIO_FORCE_PWM ON)
 #set(AUDIO_FORCE_I2S ON)
 
-#set(RGB_TV ON)
-set(SOFTTV ON)
-set(TV_NTSC ON)
+set(RGB_TV ON)
+#set(SOFTTV ON)
+#set(TV_NTSC ON)
 #set(TFT ON)
 #set(ILI9341 ON)
 #set(VGA_DRV ON)
@@ -47,7 +47,7 @@ set(CPU_MHZ 440)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set (PORT_VERSION "0.5.0")
+set (PORT_VERSION "0.5.1")
 
 IF(HDMI_DVI)
     IF(NOT CPU_MHZ EQUAL 400)
@@ -55,13 +55,13 @@ IF(HDMI_DVI)
     ENDIF()
     SET(CPU_MHZ 400)
 ENDIF()
-# RGB TV привязан к цветовой поднесущей и требует фиксированной тактовой 448 МГц
-# (см. graphics_get_supported_system_clocks для RGB_TV).
+# RGB TV использует 6.0 MHz logical pixel/sample clock. 432 MHz gives
+# an exact integer PIO divider: 432 / (2 * 36) = 6 MHz.
 IF(RGB_TV)
-    IF(NOT CPU_MHZ EQUAL 448)
-        message(STATUS ">>> RGB_TV: CPU_MHZ forced to 448 (was ${CPU_MHZ})")
+    IF(NOT CPU_MHZ EQUAL 432)
+        message(STATUS ">>> RGB_TV: CPU_MHZ forced to 432 (was ${CPU_MHZ})")
     ENDIF()
-    SET(CPU_MHZ 448)
+    SET(CPU_MHZ 432)
 ENDIF()
 
 
