@@ -18,8 +18,16 @@ extern "C" {
 // с любым из них, кроме VGA, не проходила.
 enum graphics_mode_t {
     GRAPHICSMODE_DEFAULT = 0,
-    TEXTMODE_DEFAULT,
+    GMODE_640_480 = 0,   // синоним режима по умолчанию (VGA 640x480)
+    GMODE_800_600 = 1,   // альтернативный VGA-режим (переключается NumLock)
+    UNSUPPORTED_MODE = 2, // граница перебора VGA-режимов: NumLock гоняет 640<->800
+    TEXTMODE_DEFAULT = GRAPHICSMODE_DEFAULT, // совместимость; в живом коде не используется
 };
+
+// Переключение видеорежима. Реально многорежимен только VGA (640x480<->800x600 по
+// NumLock); у HDMI/композита это заглушки, возвращающие GRAPHICSMODE_DEFAULT.
+enum graphics_mode_t graphics_get_mode(void);
+void graphics_set_mode(enum graphics_mode_t mode);
 
 #ifdef TFT
 #include "st7789.h"

@@ -543,6 +543,7 @@ void ///__not_in_flash_func(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
+    static bool numlock = false; // состояние переключателя видеорежима (NumLock)
     for (uint8_t pkc: prev_report->keycode) {
         if (!pkc) continue;
         bool key_still_pressed = false;
@@ -571,13 +572,18 @@ void ///__not_in_flash_func(
                 }
                 // Клавиши малой цифровой клавиатуры сдвигают картинку по
                 // экрану (общий для всех видеодрайверов сервис graphics_*).
-                // Прежний переключатель видеорежима по NumLock убран: он
-                // опирался на снятое перечисление GMODE_* (единый контракт
-                // graphics.h выбирает режим по видеодрайверу и частоте).
+                // NumLock переключает видеорежим: у VGA гоняет 640x480<->800x600,
+                // у HDMI/композита это заглушка без видимого эффекта.
                 if (vk == PK_KP_PLUS) graphics_inc_y();
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
                 else if (vk == PK_KP_MUL) graphics_inc_x();
                 else if (vk == PK_KP_DIV) graphics_dec_x();
+                else if (vk == PK_NUMLOCK) {
+                    numlock = !numlock;
+                    uint8_t m = ((uint8_t)graphics_get_mode() + 1);
+                    if (m >= UNSUPPORTED_MODE) m = GRAPHICSMODE_DEFAULT;
+                    graphics_set_mode((enum graphics_mode_t)m);
+                }
             }
         }
     }

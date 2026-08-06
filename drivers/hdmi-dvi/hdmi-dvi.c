@@ -1219,6 +1219,12 @@ void graphics_set_offset(const int x, const int y) {
     pic_shift_y = y;
 }
 
+// HDMI однорежимен (единственный растр DVI). Заглушки под общий контракт:
+// NumLock переключение режима видимого эффекта не даёт.
+enum graphics_mode_t graphics_get_mode(void) {
+    return GRAPHICSMODE_DEFAULT;
+}
+
 void graphics_set_mode(const enum graphics_mode_t mode) {
     (void)mode;
 }

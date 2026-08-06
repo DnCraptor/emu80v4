@@ -10,3 +10,7 @@
 #define TEXTMODE_COLS 80
 #define TEXTMODE_ROWS 30
 
+// Пересчёт делителя PIO при смене системной частоты (единый контракт graphics.h,
+// вызывается из graphics_system_clock_changed()).
+void vga_system_clock_changed(void);
+

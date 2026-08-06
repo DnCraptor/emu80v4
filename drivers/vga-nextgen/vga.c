@@ -77,6 +77,18 @@ void graphics_set_duplicateLines(bool v) {
     duplicateLines = v;
 }
 
+// Пересчёт делителя PIO под новую системную частоту (вызывается из
+// graphics_system_clock_changed() при смене тактовой в меню). Пиксельная
+// частота зависит от текущего режима: 640x480 — 25.175 МГц, 800x600 — 40 МГц.
+void __not_in_flash_func(vga_system_clock_changed)(void) {
+    if (_SM_VGA < 0)
+        return;
+    const double pixel_hz = (graphics_mode == GMODE_800_600) ? 40000000.0 : 25175000.0;
+    const double divider = clock_get_hz(clk_sys) / pixel_hz;
+    const uint32_t div32 = (uint32_t)(divider * (1u << 16));
+    PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000;
+}
+
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
 void __time_critical_func(dma_handler_VGA)() {
