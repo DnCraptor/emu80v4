@@ -147,6 +147,18 @@ static uint8_t __attribute__((aligned(4))) line_buf[DVI_FRAME_WIDTH];
 // Полностью пустая строка в уже закодированном виде — для полей сверху и снизу
 static uint32_t __attribute__((aligned(4))) blank_tmds[TMDS_WORDS];
 
+#ifndef PICO_RP2040
+static uint32_t* lvov_blank_tmds_buffers[DVI_N_TMDS_BUFFERS];
+static uint8_t lvov_blank_tmds_count = 0;
+
+/*
+ * Built at run time into SRAM. A source RGB222 byte indexes the corresponding
+ * pair of identical output pixels, avoiding shifts and ORs in the scanline
+ * loop without placing a constant table in flash.
+ */
+static uint16_t lvov_duplicate_pixel[256];
+#endif
+
 #ifdef PICO_RP2040
 /*
  * tmds_palette_encode_loop_x/y is unrolled for 80 input pixels per
@@ -638,6 +650,42 @@ void video_copy_u32(uint32_t* dst, const uint32_t* src, size_t count)
         *dst++ = *src++;
 }
 
+#ifndef PICO_RP2040
+static inline __attribute__((always_inline))
+void lvov_ensure_blank_tmds_buffer(uint32_t* tmdsbuf)
+{
+    for (unsigned i = 0; i < lvov_blank_tmds_count; ++i)
+        if (lvov_blank_tmds_buffers[i] == tmdsbuf)
+            return;
+
+    video_copy_u32(tmdsbuf, blank_tmds, TMDS_WORDS);
+    if (lvov_blank_tmds_count < DVI_N_TMDS_BUFFERS)
+        lvov_blank_tmds_buffers[lvov_blank_tmds_count++] = tmdsbuf;
+}
+
+/*
+ * Expand one 256-pixel RGB222 source line to 512 pixels. The routine and all
+ * data it touches are in SRAM; no libc and no flash-resident lookup tables are
+ * used on the scanline-critical path.
+ */
+static void __not_in_flash_func(lvov_expand_line_2x)(
+        uint8_t* dst, const uint8_t* src)
+{
+    uint16_t* out = (uint16_t*)dst;
+
+    /*
+     * The Lvov source width is fixed at 256 pixels. Four source pixels are
+     * expanded per iteration; both the code and lookup table reside in SRAM.
+     */
+    for (unsigned x = 0; x < 256; x += 4) {
+        out[x + 0] = lvov_duplicate_pixel[src[x + 0]];
+        out[x + 1] = lvov_duplicate_pixel[src[x + 1]];
+        out[x + 2] = lvov_duplicate_pixel[src[x + 2]];
+        out[x + 3] = lvov_duplicate_pixel[src[x + 3]];
+    }
+}
+#endif
+
 static void __not_in_flash_func(render_menu_text_dvi_line)(
         uint8_t* output, unsigned logical_y)
 {
@@ -847,34 +895,62 @@ void __not_in_flash_func(hdmi_dvi_core_loop)(void) {
             }
 #endif
 #else
-            if (!fb_data || src < 0 || src >= (int)fb_h) {
-                copy_words(tmdsbuf, blank_tmds, TMDS_WORDS);
-            } else {
-                // Поля заполняются каждый раз: горизонтальный сдвиг может
-                // измениться между строками, а отдельно отслеживать это дороже,
-                // чем просто записать 800 байт.
-                video_fill_u8(line_buf, border_color, sizeof(line_buf));
+            /*
+             * libdvi already doubles every logical line vertically.
+             * Double 256 source pixels horizontally here, producing 512x512
+             * on the physical 800x600 display.
+             *
+             * The image occupies x=144..655. Encode a fixed x=80..719 span,
+             * leaving the outer 80 columns in the cached black TMDS template.
+             */
+            lvov_ensure_blank_tmds_buffer(tmdsbuf);
 
-                int len = fb_w < PICTURE_W ? fb_w : PICTURE_W;
-                // Центрируем по ширине от полезной ширины (fb_w), а не от
-                // константы: при обрезке fb_w меньше и картинка иначе не
-                // окажется по центру. Шаг строки в буфере — fb_stride.
-                int at = (DVI_FRAME_WIDTH - len) / 2 + pic_shift_x;
-                const uint8_t *from = fb_data + (size_t)src * fb_stride;
+            if (fb_data && src >= 0 && src < (int)fb_h) {
+                const int source_w = fb_w < 256 ? fb_w : 256;
+                const int output_w = source_w * 2;
+                const int at =
+                    (DVI_FRAME_WIDTH - output_w) / 2 + pic_shift_x;
+                const uint8_t* from =
+                    fb_data + (size_t)src * fb_stride;
 
-                // Обрезка по краям строки, чтобы сдвиг не вышел за буфер
-                if (at < 0) {
-                    from -= at;
-                    len += at;
-                    at = 0;
+                /*
+                 * Current Lvov geometry is 256 pixels and the normal shift
+                 * keeps the doubled line inside the fixed 640-pixel span.
+                 * Fall back to the generic clipped path only for abnormal
+                 * geometry or extreme manual shifts.
+                 */
+                if (source_w == 256 && at >= 80 &&
+                    at + output_w <= 720) {
+                    lvov_expand_line_2x(line_buf + at, from);
+                    /*
+                     * The doubled image occupies x=144..655. Encode only the
+                     * 560-pixel, 80-aligned span x=120..679; the remaining
+                     * columns retain the cached black TMDS template.
+                     */
+                    tmds_encode_palette_data_span(
+                        (const uint32_t*)(line_buf + 120),
+                        tmds_palette, tmdsbuf,
+                        DVI_FRAME_WIDTH, 120, 560, 6);
+                } else {
+                    video_fill_u8(
+                        line_buf, border_color, sizeof(line_buf));
+                    int dst = at;
+                    int first = 0;
+                    int len = output_w;
+                    if (dst < 0) {
+                        first = -dst;
+                        len += dst;
+                        dst = 0;
+                    }
+                    if (dst + len > DVI_FRAME_WIDTH)
+                        len = DVI_FRAME_WIDTH - dst;
+                    for (int x = 0; x < len; ++x)
+                        line_buf[dst + x] =
+                            from[(first + x) >> 1];
+                    tmds_encode_palette_data(
+                        (const uint32_t*)line_buf, tmds_palette,
+                        tmdsbuf, DVI_FRAME_WIDTH, 6);
                 }
-                if (at + len > DVI_FRAME_WIDTH)
-                    len = DVI_FRAME_WIDTH - at;
-                if (len > 0)
-                    video_copy_u8(line_buf + at, from, (size_t)len);
-
-                tmds_encode_palette_data((const uint32_t *)line_buf, tmds_palette,
-                                         tmdsbuf, DVI_FRAME_WIDTH, 6);
             }
 #endif
 
@@ -928,6 +1004,12 @@ void graphics_init(void) {
 #endif
     menu_text_build_pair_lut();
     menu_text_clear_for_mode();
+
+#ifndef PICO_RP2040
+    for (unsigned i = 0; i < 256; ++i)
+        lvov_duplicate_pixel[i] =
+            (uint16_t)i | ((uint16_t)i << 8);
+#endif
 
     build_palette();
     build_blank_line();

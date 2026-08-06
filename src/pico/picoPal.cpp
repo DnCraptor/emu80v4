@@ -1,4 +1,4 @@
-#include "picoPal.h"
+﻿#include "picoPal.h"
 #include "ffPalFile.h"
 
 #include <sstream>
@@ -266,6 +266,7 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     string res;
     while (1) {
         sleep_ms(100);
+        palInputTick();
         PalKeyCodeAction pk = getKey();
 
         if (write && pk.pressed) {
