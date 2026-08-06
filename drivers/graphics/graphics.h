@@ -13,6 +13,14 @@ extern "C" {
 #include "stdio.h"
 #include "stdint.h"
 
+// Режим вывода. Перечисление используют драйверы st7789, hdmi, tv и
+// tv-software, а также Main.cpp, но объявлено оно не было нигде — сборка
+// с любым из них, кроме VGA, не проходила.
+enum graphics_mode_t {
+    GRAPHICSMODE_DEFAULT = 0,
+    TEXTMODE_DEFAULT,
+};
+
 #ifdef TFT
 #include "st7789.h"
 #endif
@@ -22,40 +30,33 @@ extern "C" {
 #ifdef VGA_DRV
 #include "vga.h"
 #endif
-#ifdef TV
+#ifdef RGB_TV
 #include "tv.h"
 #endif
 #ifdef HDMI_DVI
 #include "hdmi-dvi.h"
 #endif
+
 #ifdef SOFTTV
 #include "tv-software.h"
 #endif
-//#include "font6x8.h"
-#include "font8x8.h"
-//#include "font8x16.h"
-enum graphics_mode_t {
-    GRAPHICSMODE_DEFAULT = 0,
-    GMODE_640_480 = 0,
-    GMODE_800_600 = 1,
-//    GMODE_1024_768 = 1,
-    UNSUPPORTED_MODE
-};
 
 void graphics_init();
 
-enum graphics_mode_t graphics_get_mode();
-void graphics_set_mode(enum graphics_mode_t mode);
+// Частоты системного тактирования, допустимые для текущего видеодрайвера.
+const uint32_t* graphics_get_supported_system_clocks(uint32_t* count);
+bool graphics_system_clock_can_change();
+void graphics_system_clock_changed();
 
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
 
+// RP2040/VGA scan-line source.
 typedef enum {
     GRAPHICS_VIDEO_VECTOR = 0,
     GRAPHICS_VIDEO_TEXT = 1,
     GRAPHICS_VIDEO_COMBINED = 2
 } graphics_video_content_mode_t;
-
 extern volatile graphics_video_content_mode_t menu_video_mode;
 
 static inline bool menu_text_active(void)
@@ -64,22 +65,49 @@ static inline bool menu_text_active(void)
 }
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
+inline static graphics_video_content_mode_t graphics_get_video_content_mode(void)
+{
+#ifdef PICO_RP2040
+    return menu_video_mode;
+#else
+    return GRAPHICS_VIDEO_VECTOR;
+#endif
+}
+
+// Clear the text menu surface. In COMBINED mode it is filled with the
+// transparent yellow-on-yellow marker; in TEXT mode with the blue background.
+void menu_text_clear_for_mode(void);
+inline static void graphics_clear_menu_text(void)
+{
+#ifdef PICO_RP2040
+    menu_text_clear_for_mode();
+#endif
+}
+
+// Compatibility wrapper used by older callers.
 void graphics_set_menu_text_mode(bool enabled);
-void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
-void graphics_set_4bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height);
-void graphics_set_1bit_buffer2(
-    uint8_t* buffer1,
-    uint8_t* buffer2,
-    const uint16_t width,
-    const uint16_t height
-);
-void graphics_set_1bit_buffer3(
-    uint8_t* buffer1,
-    uint8_t* buffer2,
-    uint8_t* buffer3,
-    const uint16_t width,
-    const uint16_t height
-);
+inline static bool graphics_get_menu_text_mode(void)
+{
+#ifdef PICO_RP2040
+    return menu_text_active();
+#else
+    return false;
+#endif
+}
+
+// Физический шаг строки кадрового буфера (в байтах), если он больше полезной
+// ширины. По умолчанию (после graphics_set_buffer) равен width. Используется
+// режимом «обрезки до видимой области»: буфер физически 626 в строке, а
+// показывается окно 512 — драйвер адресует строки с шагом stride, а width
+// остаётся полезной шириной для масштабирования/содержимого. Слабый пустой
+// вариант есть в graphics.c, чтобы неадаптированные драйверы линковались.
+void graphics_set_line_stride(uint16_t stride);
+
+// Текущий физический шаг строки кадрового буфера (в байтах). В обычном режиме
+// равен графической ширине, в режиме обрезки — физической (626). Нужен коду,
+// который адресует буфер напрямую (например, сохранение/восстановление области
+// под подменю), чтобы строки не разъезжались при stride != width.
+uint16_t graphics_get_line_stride(void);
 
 void graphics_inc_x(void);
 void graphics_dec_x(void);
@@ -102,6 +130,21 @@ void clrScr(uint8_t color);
 
 uint32_t graphics_get_width();
 uint32_t graphics_get_height();
+
+// Сколько строк кадрового буфера реально видно. Для VGA совпадает с высотой,
+// для композита меньше — растр короче буфера, особенно у NTSC.
+uint32_t graphics_get_visible_height();
+
+// На сколько точек картинка смещена по экрану вправо и вниз относительно
+// нулевого положения. Знак нормализован: у драйверов внутренние shift_x/shift_y
+// заданы в противоположных направлениях (у VGA строка экрана n показывает
+// строку буфера n + shift_y, у композита наоборот), и наружу этой разницы
+// быть не должно.
+//
+// Нужно для меню: оно рисуется в тот же кадровый буфер, поэтому сдвиг картинки
+// уносит его вместе с ней. Зная смещение, меню держится на своём месте экрана.
+int graphics_get_picture_shift_x();
+int graphics_get_picture_shift_y();
 uint32_t graphics_get_font_width();
 uint32_t graphics_get_font_height();
 uint8_t* graphics_get_frame();

@@ -23,7 +23,12 @@ set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
 
 #set(m1p2-launcher ON)
-#set(I2S ON)
+# Звук выбирается прозвонкой автоматически. Раскомментировать нужный ключ
+# только чтобы переопределить: CS4334 (I2S с чипом CS4334),
+# AUDIO_FORCE_PWM или AUDIO_FORCE_I2S (жёсткий выбор в обход прозвонки).
+#set(CS4334 ON)
+#set(AUDIO_FORCE_PWM ON)
+#set(AUDIO_FORCE_I2S ON)
 
 #set(SOFTTV ON)
 #set(TFT ON)
@@ -233,15 +238,29 @@ else()
 endif()
 
 
-IF(NOT I2S)
-    SET(BUILD_NAME "${BUILD_NAME}-PWM")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM)
-ELSEIF(I2S_CS4334)
+# Звук. Одна прошивка обслуживает и ШИМ-плату, и I2S-плату: тип выхода
+# определяется электрической прозвонкой выводов при старте (см.
+# palProbeAudioOutput). AUDIO_PWM определять НЕЛЬЗЯ — иначе в драйвере audio
+# включается ветка AUDIO_PWM_PIN и i2s_init() не настраивает PIO.
+IF(CS4334)
     target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
     SET(BUILD_NAME "${BUILD_NAME}-CS4334")
-ELSE()
+ENDIF()
+# Olimex RP2040-PICO-PC: PWM является единственным допустимым звуковым выходом.
+IF(${PICO_BOARD} MATCHES "olimex-pico-pc")
+    SET(AUDIO_FORCE_PWM ON)
+ENDIF()
+# Pimoroni Pico DV Demo Base несёт на борту ЦАП PCM5100A на GP26/27/28.
+IF(${PICO_BOARD} MATCHES "pimoroni-pico-dv")
+    SET(AUDIO_FORCE_I2S ON)
+ENDIF()
+# Принудительный выбор в обход прозвонки, если она ошибается на какой-то плате
+IF(AUDIO_FORCE_PWM)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_FORCE_PWM)
+    SET(BUILD_NAME "${BUILD_NAME}-PWM")
+ELSEIF(AUDIO_FORCE_I2S)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_FORCE_I2S)
     SET(BUILD_NAME "${BUILD_NAME}-I2S")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_SOUND=1)
 ENDIF()
 
 IF(TFT)

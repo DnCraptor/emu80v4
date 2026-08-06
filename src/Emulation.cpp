@@ -77,7 +77,9 @@ Emulation::Emulation()
 
     setFrameRate(100);
     setVsync(true);
-    setSampleRate(96000);
+    // 50 кГц: 20 мкс на отсчёт ровно (кольцевой таймер PWM/I2S), и это же
+    // значение ждёт ресемплер HDMI (50 кГц -> 48 кГц) в hdmi-dvi.c.
+    setSampleRate(50000);
     setFrequency(1680000000);
 
     m_activePlatform = createLvovPlatform();

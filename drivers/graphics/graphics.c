@@ -1,7 +1,43 @@
 #include "graphics.h"
 #include <string.h>
+#include <pico.h>
 
 volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+
+const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
+#ifdef HDMI_DVI
+    static const uint32_t clocks[] = {400};
+#elif defined(RGB_TV)
+    static const uint32_t clocks[] = {448};
+#elif defined(PICO_RP2040)
+    static const uint32_t clocks[] = {400, 402, 404, 408, 412};
+#else
+    static const uint32_t clocks[] = {400, 440, 480, 520, 540};
+#endif
+    if (count)
+        *count = sizeof(clocks) / sizeof(clocks[0]);
+    return clocks;
+}
+
+bool graphics_system_clock_can_change() {
+#if defined(HDMI_DVI) || defined(RGB_TV)
+    return false;
+#else
+    return true;
+#endif
+}
+
+void __not_in_flash_func(graphics_system_clock_changed)() {
+#ifdef VGA_DRV
+    vga_system_clock_changed();
+#endif
+#ifdef SOFTTV
+    // Композитный вывод так же привязан к системной частоте, как и VGA: делитель
+    // PIO задаёт частоту выборок относительно цветовой поднесущей. Без пересчёта
+    // после смены частоты RP2350 (в т.ч. TV_NTSC) ломается синхронизация.
+    tv_software_system_clock_changed();
+#endif
+}
 /**
 void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
 if (!text_buffer) return;
@@ -40,4 +76,18 @@ void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, ui
 
     snprintf(line, width - 1, " %s ", title);
     draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
+}
+
+
+// Слабая заглушка на случай видеодрайверов, ещё не поддерживающих отдельный
+// шаг строки (st7789/hdmi/tv). Адаптированные драйверы (tv-software, vga,
+// hdmi-dvi) предоставляют свою «сильную» реализацию, которая перекрывает эту.
+__attribute__((weak)) void graphics_set_line_stride(uint16_t stride) {
+    (void)stride;
+}
+
+// Слабый вариант для неадаптированных драйверов: у них шаг строки всегда равен
+// ширине. Адаптированные драйверы возвращают свой фактический stride.
+__attribute__((weak)) uint16_t graphics_get_line_stride(void) {
+    return (uint16_t)graphics_get_width();
 }

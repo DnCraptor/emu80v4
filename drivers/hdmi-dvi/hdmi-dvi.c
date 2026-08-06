@@ -1137,14 +1137,8 @@ void graphics_set_offset(const int x, const int y) {
     pic_shift_y = y;
 }
 
-static enum graphics_mode_t graphics_mode = GMODE_800_600;
-
-enum graphics_mode_t graphics_get_mode(void) {
-    return graphics_mode;
-}
-
 void graphics_set_mode(const enum graphics_mode_t mode) {
-    graphics_mode = mode;
+    (void)mode;
 }
 
 void graphics_set_duplicateLines(bool v) {

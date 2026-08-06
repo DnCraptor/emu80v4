@@ -543,7 +543,6 @@ void ///__not_in_flash_func(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
-    static bool numlock = false;
     for (uint8_t pkc: prev_report->keycode) {
         if (!pkc) continue;
         bool key_still_pressed = false;
@@ -570,16 +569,15 @@ void ///__not_in_flash_func(
                 if (g_emulation) {
                     addKey(vk, true);
                 }
+                // Клавиши малой цифровой клавиатуры сдвигают картинку по
+                // экрану (общий для всех видеодрайверов сервис graphics_*).
+                // Прежний переключатель видеорежима по NumLock убран: он
+                // опирался на снятое перечисление GMODE_* (единый контракт
+                // graphics.h выбирает режим по видеодрайверу и частоте).
                 if (vk == PK_KP_PLUS) graphics_inc_y();
                 else if (vk == PK_KP_MINUS) graphics_dec_y();
                 else if (vk == PK_KP_MUL) graphics_inc_x();
                 else if (vk == PK_KP_DIV) graphics_dec_x();
-                else if (vk == PK_NUMLOCK) {
-                    numlock = !numlock;
-                    uint8_t m = ((uint8_t)graphics_get_mode() + 1);
-                    if (m >= UNSUPPORTED_MODE) m = GRAPHICSMODE_DEFAULT;
-                    graphics_set_mode((enum graphics_mode_t)m);
-                }
             }
         }
     }
@@ -677,12 +675,15 @@ bool toggle_color() {
 }
 #endif
 
-#ifdef I2S_SOUND
+// Одно определение на обе платы: реальный тракт (ШИМ или I2S) выбирается
+// прозвонкой в palProbeAudioOutput(), а частота дискретизации выставляется
+// позже в palSetSampleRate(). Поэтому конфиг нужен всегда, а не только под
+// I2S_SOUND — на него ссылается picoPal.cpp в обоих режимах.
 i2s_config_t i2s_config = {
-		.sample_freq = I2S_FREQUENCY, 
+		.sample_freq = I2S_FREQUENCY,
 		.channel_count = 2,
-		.data_pin = PWM_PIN0,
-		.clock_pin_base = PWM_PIN1,
+		.data_pin = AUDIO_DATA_PIN,
+		.clock_pin_base = AUDIO_CLOCK_PIN,
 		.pio = pio1,
 		.sm = 0,
         .dma_channel = 0,
@@ -690,7 +691,6 @@ i2s_config_t i2s_config = {
         .dma_buf = NULL,
         .volume = 0
 	};
-#endif
 
 #ifdef LOAD_WAV_PIO
 inline static void inInit(uint gpio) {
@@ -700,30 +700,15 @@ inline static void inInit(uint gpio) {
 }
 #endif
 
-#ifdef AUDIO_PWM_PIN
 #include "hardware/pwm.h"
-#endif
+#include "pico/picoPal.h"
 
 void init_sound() {
-#ifndef I2S_SOUND
-    pwm_config config = pwm_get_default_config();
-    gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
-    gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
-    pwm_config_set_clkdiv(&config, 1.0f);
-    pwm_config_set_wrap(&config, (1 << 8) - 1); // MAX PWM value
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN1), &config, true);
-    #if BEEPER_PIN
-        gpio_set_function(BEEPER_PIN, GPIO_FUNC_PWM);
-        pwm_config_set_clkdiv(&config, 127);
-        pwm_init(pwm_gpio_to_slice_num(BEEPER_PIN), &config, true);
-    #endif
-#else
-    i2s_config.sample_freq = I2S_FREQUENCY;
-    i2s_config.channel_count = 2;
-    i2s_config.dma_trans_count = 1;
-    i2s_init(&i2s_config);
-#endif
+    // Тип выхода определяется электрически: одна прошивка работает и с
+    // ШИМ-платой, и с I2S-платой. Инициализация выбранного тракта (PIO/ШИМ
+    // и кольцевой таймер) отложена до palSetSampleRate(), который вызывается
+    // из конструктора Emulation, когда известна частота дискретизации.
+    palProbeAudioOutput();
 #ifdef LOAD_WAV_PIO
     //пин ввода звука
     inInit(LOAD_WAV_PIO);

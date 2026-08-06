@@ -33,6 +33,17 @@ void palCopyTextToClipboard(const char* text);
 std::string palGetTextFromClipboard();
 void palPlaySample(int16_t left, int16_t right); // stereo
 
+// Определение типа звукового выхода (ШИМ или I2S) при старте — одна прошивка
+// обслуживает и ШИМ-плату, и I2S-плату, тип выхода определяется электрической
+// прозвонкой пары DIN/BCK. См. palProbeAudioOutput() в picoPal.cpp.
+bool palProbeAudioOutput();
+bool palAudioIsI2S();
+bool palAudioOutputCanSwitch();
+bool palSetAudioOutputI2S(bool i2s);
+// Сырые результаты прозвонки для отладки: [0] пассивная сигнатура, [1] активная
+// проверка, [2] полный код (ненулевой — обнаружен I2S-модуль).
+uint32_t palAudioProbe(int i);
+
 #ifndef PAL_WASM
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window = nullptr);
 void palUpdateConfig();
