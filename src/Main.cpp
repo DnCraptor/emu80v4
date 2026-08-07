@@ -838,7 +838,7 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
         printf(fmt);
 }
 #else
-static uint8_t* PSRAM_DATA = (uint8_t*)0;
+volatile uint8_t* PSRAM_DATA = (uint8_t*)0;
 uint32_t butter_psram_size() { return 0; }
 #endif
 

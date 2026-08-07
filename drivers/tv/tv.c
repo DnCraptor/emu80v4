@@ -344,7 +344,7 @@ void tv_init(const output_format_e output_format) {
     // Center the image in the non-sync part of the scanline.
     v_mode.begin_img_shx =
         v_mode.sync_size +
-        (v_mode.H_len - v_mode.sync_size - v_mode.img_size_x) / 2;
+        (v_mode.H_len - v_mode.sync_size - v_mode.img_size_x) / 2 + 10;
 
     // Единственный режим RGB TV: прогрессивный растр Вектора.
     v_mode.N_lines = 312;
