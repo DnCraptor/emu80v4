@@ -341,9 +341,10 @@ void tv_init(const output_format_e output_format) {
     v_mode.sync_size = 4.7 * v_mode.H_len / 64;
     v_mode.img_size_x = 256;
 
-    // Center the 256-pixel Lvov active area in the 6 MHz RGB scanline.
+    // Center the image in the non-sync part of the scanline.
     v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2;
+        v_mode.sync_size +
+        (v_mode.H_len - v_mode.sync_size - v_mode.img_size_x) / 2;
 
     // Единственный режим RGB TV: прогрессивный растр Вектора.
     v_mode.N_lines = 312;
