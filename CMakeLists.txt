@@ -1,4 +1,4 @@
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+﻿# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -16,8 +16,8 @@ cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
 #set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
 set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
-#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
@@ -34,12 +34,12 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 366)
 #set(CPU_MHZ 372)
 #set(CPU_MHZ 378)
-set(CPU_MHZ 440)
+set(CPU_MHZ 390)
 #set(CPU_MHZ 444)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set (PORT_VERSION "0.4.7")
+set (PORT_VERSION "0.4.8")
 
 
 set(KBDUSB ON)
@@ -51,7 +51,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME emu80)
+SET(PROJECT_NAME rk86)
 set(FLASH_SIZE 4096)
 set(BUILD_NAME "${PROJECT_NAME}")
 
@@ -60,7 +60,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(emu80 C CXX ASM)
+project(rk86 C CXX ASM)
 
 message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
 message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
@@ -130,7 +130,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-        src
+    src
 )
 
 if (PICO_CYW43_SUPPORTED)
@@ -180,6 +180,7 @@ ENDIF()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PORT_VERSION="${PORT_VERSION}"
     CPU_MHZ=${CPU_MHZ}
+    USE_NESPAD=1
 )
 
 if(${PICO_PLATFORM} MATCHES "rp2040")
@@ -247,13 +248,13 @@ ELSE()
 ENDIF()
 
 if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for RP2350-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "rk86 for RP2350-PiZero")
 elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for Olimex RP2040-PICO-PC")
+    pico_set_program_name(${PROJECT_NAME} "rk86 for Olimex RP2040-PICO-PC")
 elseif(${PICO_BOARD} MATCHES "murmulator2")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 2.0")
+    pico_set_program_name(${PROJECT_NAME} "rk86 for MURMULATOR 2.0")
 else()
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 1.x")
+    pico_set_program_name(${PROJECT_NAME} "rk86 for MURMULATOR 1.x")
 endif()
 pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 

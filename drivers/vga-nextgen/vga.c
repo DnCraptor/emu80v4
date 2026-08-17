@@ -112,7 +112,6 @@ void __time_critical_func() dma_handler_VGA() {
 
     int y, line_number;
 
-    uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
     if (duplicateLines) {
         if (screen_line % 2)
             return;
@@ -129,6 +128,8 @@ void __time_critical_func() dma_handler_VGA() {
         dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
         return;
     };
+
+    uint32_t** output_buffer = &lines_pattern[2 + (line_number & 1)];
     //зона прорисовки изображения
     //начальные точки буферов
     uint8_t* input_buffer_8bit = input_buffer +
@@ -141,128 +142,83 @@ void __time_critical_func() dma_handler_VGA() {
     output_buffer_16bit += shift_picture >> 1; //смещение началы вывода на размер синхросигнала
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
-    int width = client_buffer_width;
-    bool duplicatePixels = false;
-    if (width <= (graphics_buffer_width >> 1)) {
-        width *= 2;
-        duplicatePixels = true;
-    }
+    int width = client_buffer_width << 1;
     int xoff1 = graphics_buffer_shift_x;
     int xoff2 = graphics_buffer_width - width - xoff1;
     if (xoff2 > graphics_buffer_width) xoff2 = graphics_buffer_width;
-            for  (register int x = 0; x < xoff1; ++x) {
-                *output_buffer_8bit++ = 0xC0;
+    for  (register int x = 0; x < xoff1; ++x) {
+        *output_buffer_8bit++ = 0xC0;
+    }
+    if (bitness == 1) {
+        if (graphics_buffer3) {
+            size_t shift = input_buffer_8bit - graphics_buffer;
+            register char* input_buffer_8bit2 = graphics_buffer2 + shift;
+            register char* input_buffer_8bit3 = graphics_buffer3 + shift;
+            for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                register size_t x8 = x >> 3;
+                register uint8_t x7 = x & 7;
+                register uint8_t c = 0xC0 |
+                    (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
+                    (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
+                    (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
+                *output_buffer_8bit++ = c;
+                *output_buffer_8bit++ = c;
             }
-            if (bitness == 1) {
-                if (graphics_buffer3) {
-                    size_t shift = input_buffer_8bit - graphics_buffer;
-                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
-                    register char* input_buffer_8bit3 = graphics_buffer3 + shift;
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            register uint8_t c = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
-                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            *output_buffer_8bit++ = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
-                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
-                        }
-                    }
-                } else if (graphics_buffer2) { // 2 slices graisale mode
-                    size_t shift = input_buffer_8bit - graphics_buffer;
-                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            register uint8_t c = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            *output_buffer_8bit++ = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
-                        }
-                    }
-                } else {
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            *output_buffer_8bit++ = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
-                        }
-                    }
-                }
-            } else if (bitness == 4) {
-                static uint8_t c[8] = {
-                    0b11000000, // 0b000 0
-                    0b11000011, // 0b001 1
-                    0b11001100, // 0b010 2
-                    0b11001111, // 0b011 3
-                    0b11110000, // 0b100 4
-                    0b11110011, // 0b101 5
-                    0b11111100, // 0b110 6
-                    0b11111111  // 0b111 7
-                };
-                if (duplicatePixels) {
-                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        register uint8_t v = input_buffer_8bit[x >> 1];
-                        register uint8_t cx = c[(v >> ((x & 1) << 2)) & 0b111];
-                        *output_buffer_8bit++ = cx;
-                        *output_buffer_8bit++ = cx;
-                    }
-                } else {
-                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        register uint8_t v = input_buffer_8bit[x >> 1];
-                        register uint8_t cx = c[(v >> ((x & 1) << 2)) & 0b111];
-                        *output_buffer_8bit++ = cx;
-                    }
-                }
-            } else {
-                if (duplicatePixels) {
-                    for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
-                        register uint8_t c = input_buffer_8bit[x] | 0xC0;
-                        *output_buffer_8bit++ = c;
-                        *output_buffer_8bit++ = c;
-                    }
-                } else {
-                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
-                    }
-                }
+        } else if (graphics_buffer2) { // 2 slices graisale mode
+            size_t shift = input_buffer_8bit - graphics_buffer;
+            register char* input_buffer_8bit2 = graphics_buffer2 + shift;
+            for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                register size_t x8 = x >> 3;
+                register uint8_t x7 = x & 7;
+                register uint8_t c = 0xC0 |
+                    (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
+                    (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
+                *output_buffer_8bit++ = c;
+                *output_buffer_8bit++ = c;
             }
-            for  (register int x = 0; x < xoff2; ++x) {
-                *output_buffer_8bit++ = 0xC0;
+        } else {
+            for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
+                register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
+                *output_buffer_8bit++ = c;
+                *output_buffer_8bit++ = c;
             }
+        }
+    }
+#if 0
+     else if (bitness == 4) {
+        static uint8_t c[8] = {
+            0b11000000, // 0b000 0
+            0b11000011, // 0b001 1
+            0b11001100, // 0b010 2
+            0b11001111, // 0b011 3
+            0b11110000, // 0b100 4
+            0b11110011, // 0b101 5
+            0b11111100, // 0b110 6
+            0b11111111  // 0b111 7
+        };
+        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
+            register uint8_t v = input_buffer_8bit[x >> 1];
+            register uint8_t cx = c[(v >> ((x & 1) << 2)) & 0b111];
+            *output_buffer_8bit++ = cx;
+            *output_buffer_8bit++ = cx;
+        }
+    }
+#endif
+    else {
+        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
+            register uint8_t c = input_buffer_8bit[x] | 0xC0;
+            *output_buffer_8bit++ = c;
+            *output_buffer_8bit++ = c;
+        }
+    }
+    for  (register int x = 0; x < xoff2; ++x) {
+        *output_buffer_8bit++ = 0xC0;
+    }
     dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
 }
 
 static void adjust_shift_x() {
-    if (client_buffer_width * 2 < graphics_buffer_width)
-        graphics_buffer_shift_x = (graphics_buffer_width - (client_buffer_width << 1)) >> 1;
-    else
-        graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
+    graphics_buffer_shift_x = (graphics_buffer_width - (client_buffer_width << 1)) / 2;
 }
 static void adjust_shift_y() {
     if (duplicateLines)
@@ -333,7 +289,7 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             TMPL_LINE8 = 0b11000000;
             // XGA Signal 1024 x 768 @ 60 Hz timing
             HS_SHIFT = 1024 + 24; // Front porch + Visible area
-            HS_SIZE = 160; // Back porch
+            HS_SIZE = 136; //160; // Back porch
             line_size = 1344;
             shift_picture = line_size - HS_SHIFT;
             visible_line_size = 1024 / 2;
@@ -619,7 +575,7 @@ void graphics_init() {
     );
 
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode(GMODE_1024_768);
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);
