@@ -38,8 +38,6 @@
 
 struct semaphore vga_start_semaphore;
 
-static FATFS fs;
-
 struct input_bits_t {
     bool a: true;
     bool b: true;
@@ -849,11 +847,15 @@ void __not_in_flash() flash_timings() {
 #endif
 
 int main() {
-    static FATFS fs;
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
+#if CPU_MHZ < 404
     vreg_set_voltage(VREG_VOLTAGE_1_50);
-//    vreg_set_voltage(VREG_VOLTAGE_1_60); // TODO: dynamic per CPU freq.
+#elif CPU_MHZ < 505
+    vreg_set_voltage(VREG_VOLTAGE_1_60); // TODO: dynamic per CPU freq.
+#else
+    vreg_set_voltage(VREG_VOLTAGE_1_65);
+#endif
     sleep_ms(33);
     bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
     flash_timings();
@@ -903,11 +905,11 @@ int main() {
 #ifndef KBDUSB
     keyboard_send(0xFF);
 #endif
-    f_mount(&fs, "SD", 1);
-    f_mkdir("/emu80");
+    if (palEnsureSdMounted()) {
 #if LOG
-    f_unlink("/emu80.log");
+        f_unlink("/emu80.log");
 #endif
+    }
     graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
     delete[] tmp_screen;
     tmp_screen = nullptr;

@@ -35,11 +35,12 @@ set(VGA_DRV ON)
 #set(CPU_MHZ 372)
 #set(CPU_MHZ 378)
 set(CPU_MHZ 390)
+#set(CPU_MHZ 488)
 #set(CPU_MHZ 444)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
-#set(CPU_MHZ 512)
-set (PORT_VERSION "0.4.8")
+#set(CPU_MHZ 520)
+set (PORT_VERSION "0.4.9")
 
 
 set(KBDUSB ON)
@@ -81,6 +82,14 @@ add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
 add_subdirectory(drivers/graphics)
 add_subdirectory(drivers/psram)
+
+file(READ "${CMAKE_SOURCE_DIR}/dist/emu80.conf" RK86_BUILTIN_EMU80_CONF)
+file(READ "${CMAKE_SOURCE_DIR}/dist/rk86/rk86.conf" RK86_BUILTIN_MACHINE_CONF)
+configure_file(
+    "${CMAKE_SOURCE_DIR}/src/pico/rk86BuiltinConfig.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/rk86BuiltinConfig.h"
+    @ONLY
+)
 
 #target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
 
@@ -131,6 +140,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
+    "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 if (PICO_CYW43_SUPPORTED)

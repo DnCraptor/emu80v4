@@ -1,0 +1,5 @@
+#pragma once
+
+static constexpr char kRk86BuiltinEmu80Config[] = R"RK86EMU80(@RK86_BUILTIN_EMU80_CONF@)RK86EMU80";
+
+static constexpr char kRk86BuiltinMachineConfig[] = R"RK86MACHINE(@RK86_BUILTIN_MACHINE_CONF@)RK86MACHINE";

@@ -33,6 +33,7 @@ bool palSetSampleRate(int sampleRate);
 void palCopyTextToClipboard(const char* text);
 std::string palGetTextFromClipboard();
 void palPlaySample(int16_t left, int16_t right); // stereo
+bool palEnsureSdMounted();
 
 #ifndef PAL_WASM
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window = nullptr);

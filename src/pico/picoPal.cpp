@@ -1,5 +1,6 @@
 #include "picoPal.h"
 #include "ffPalFile.h"
+#include "rk86BuiltinConfig.h"
 
 #include <sstream>
 #include <iostream>
@@ -7,12 +8,57 @@
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 
+namespace {
+
+FATFS sdFs;
+bool sdMounted = false;
+
+uint8_t* readBuiltinConfig(const string& fileName, int& fileSize)
+{
+    const char* data;
+    size_t size;
+
+    if (fileName == "emu80.conf") {
+        data = kRk86BuiltinEmu80Config;
+        size = sizeof(kRk86BuiltinEmu80Config) - 1;
+    } else if (fileName == "rk86/rk86.conf") {
+        data = kRk86BuiltinMachineConfig;
+        size = sizeof(kRk86BuiltinMachineConfig) - 1;
+    } else {
+        return nullptr;
+    }
+
+    fileSize = static_cast<int>(size);
+    auto* buffer = new uint8_t[size];
+    for (size_t i = 0; i < size; ++i)
+        buffer[i] = static_cast<uint8_t>(data[i]);
+    return buffer;
+}
+
+}
+
+bool palEnsureSdMounted()
+{
+    if (sdMounted)
+        return true;
+    sdMounted = f_mount(&sdFs, "SD", 1) == FR_OK;
+    if (sdMounted)
+        f_mkdir("/emu80");
+    return sdMounted;
+}
+
 std::string palGetDefaultPlatform() {
     return "";
 }
 
 uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
 {
+    if (uint8_t* buffer = readBuiltinConfig(fileName, fileSize))
+        return buffer;
+
+    if (!sdMounted)
+        return nullptr;
+
     string fullFileName;
     if (useBasePath)
         fullFileName = palMakeFullFileName(fileName);
@@ -35,6 +81,9 @@ uint8_t* palReadFile(const string& fileName, int &fileSize, bool useBasePath)
 
 int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t* buffer, bool useBasePath)
 {
+    if (!sdMounted)
+        return 0;
+
 #if LOG
     emuLog << "palReadFromFile: " << fileName << "\n";
 #endif
@@ -57,6 +106,9 @@ int palReadFromFile(const string& fileName, int offset, int sizeToRead, uint8_t*
 
 void palLog(std::string s) {
 #if LOG
+    if (!sdMounted)
+        return;
+
     static FIL pl;
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     f_open(&pl, "/emu80.log", FA_WRITE | FA_OPEN_APPEND);
@@ -147,6 +199,9 @@ extern PalKeyCode pressed_key[256];
 #include <algorithm>
 static std::string fdir = "/emu80";
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
+    if (!palEnsureSdMounted())
+        return "";
+
     uint32_t sw = graphics_get_width();
     uint32_t sh = graphics_get_height();
     uint32_t w = sw - 10;
