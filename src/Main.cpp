@@ -939,9 +939,20 @@ uint32_t __not_in_flash_func(butter_psram_size)() {
     for(register int i = 0; i < MB1; i += 4096)
         PSRAM_DATA[i] = 1;
     register uint32_t res = PSRAM_DATA[MB16 - 4096];
+    // Без микросхемы на месте PSRAM читается что попало (часто одно и то же
+    // значение по всем адресам), поэтому проверяем, что размер — один из
+    // возможных и что по адресам 0 и 1 МБ читаются разные записанные метки.
+    // Отрицательный результат запоминается: повторная проверка записала бы
+    // в окно, которое уже закрыто для записи.
+    if ((res != 4 && res != 8 && res != 16) || PSRAM_DATA[0] != 1 || PSRAM_DATA[MB1] != 4) {
+        BUTTER_PSRAM_SIZE = 0;
+        return 0;
+    }
     for (register int i = MB16 - MB1; i < MB16; i += 4096) {
-        if (res != PSRAM_DATA[i])
+        if (res != PSRAM_DATA[i]) {
+            BUTTER_PSRAM_SIZE = 0;
             return 0;
+        }
     }
     BUTTER_PSRAM_SIZE = res << 20;
     return BUTTER_PSRAM_SIZE;
@@ -1199,6 +1210,14 @@ int main() {
     uint BUTTER_PSRAM_GPIO = rp2350a ? BUTTER_PSRAM_GPIO_RP2350A
                                       : BUTTER_PSRAM_GPIO_RP2350B;
     psram_init_with_freq(BUTTER_PSRAM_GPIO, 133);
+#if PICO_PC
+    // PSRAM на PICO-PC необязательна. Если микросхемы нет, вывод CS (GPIO8)
+    // возвращается в исходное состояние, а окно PSRAM закрывается для записи.
+    if (!butter_psram_size()) {
+        gpio_set_function(BUTTER_PSRAM_GPIO, GPIO_FUNC_NULL);
+        hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
+    }
+#endif
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, sigbus);
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);

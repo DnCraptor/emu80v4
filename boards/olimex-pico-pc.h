@@ -18,8 +18,9 @@
 // PS2KBD
 #define PS2KBD_GPIO_FIRST 0
 
-// NES Gamepad
-#define NES_GPIO_CLK 8
+// NES Gamepad (UEXT). CLK on GPIO5 (UEXT pin 10): GPIO8 is the PSRAM CS
+// on this board, as in the other PCp2 builds of the pico-class kit.
+#define NES_GPIO_CLK 5
 #define NES_GPIO_LAT 9
 #define NES_GPIO_DATA 20
 #define NES_GPIO_DATA2 21
@@ -57,11 +58,14 @@
 // Emu80-specific peripherals
 #define KBD_CLOCK_PIN PS2KBD_GPIO_FIRST
 #define KBD_DATA_PIN (PS2KBD_GPIO_FIRST + 1)
-#define PWM_PIN0 AUDIO_DATA_PIN
-#define PWM_PIN1 AUDIO_CLOCK_PIN
+// Audio jack: left channel GPIO28, right channel GPIO27 (PWM_L / PWM_R on
+// the board). GPIO26 is DVI_CEC and is not wired to the jack.
+#define PWM_PIN0 28
+#define PWM_PIN1 27
 #define BEEPER_PIN 0
 #define SOUND_FREQUENCY 48000
 #define I2S_FREQUENCY 48000
-#define BUTTER_PSRAM_GPIO_RP2350A 19
+// Optional PSRAM chip on the PICO-PC: CS on GPIO8 (GPIO19 is HDMI here)
+#define BUTTER_PSRAM_GPIO_RP2350A 8
 #define BUTTER_PSRAM_GPIO_RP2350B 47
 #define DEFAULT_THROTTLING 0
