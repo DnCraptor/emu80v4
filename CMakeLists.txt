@@ -1,4 +1,4 @@
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+﻿# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -18,8 +18,8 @@ set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
 set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
 #set(PICO_BOARD "murmulator" CACHE STRING "Board type")
 #set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
-#set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
-set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
+set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
+#set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
 
@@ -45,6 +45,14 @@ set(CPU_MHZ 400)
 #set(CPU_MHZ 520)
 
 set (PORT_VERSION "0.7.6")
+
+# Olimex RP2040-PICO-PC: единственный видеовыход — HDMI (libdvi).
+IF(${PICO_BOARD} MATCHES "olimex-pico-pc")
+    SET(RGB_TV OFF)
+    SET(SOFTTV OFF)
+    SET(VGA_DRV OFF)
+    SET(HDMI_DVI ON)
+ENDIF()
 
 # При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
 # системной, а 800x600@60 требует ровно 400 МГц.
@@ -344,6 +352,11 @@ ELSEIF(HDMI_DVI)
         DVI_DEFAULT_SERIAL_CONFIG=${DVI_PIN_CFG}
         DVI_N_TMDS_BUFFERS=3
     )
+    IF(${PICO_BOARD} MATCHES "olimex-pico-pc")
+        # Такт HDMI (GPIO12/13) — от PIO, а не от ШИМ: блок ШИМ 6 этих
+        # выводов нужен левому каналу звука (GPIO28).
+        target_compile_definitions(${PROJECT_NAME} PRIVATE DVI_USE_PIO_CLOCK)
+    ENDIF()
     target_link_libraries(${PROJECT_NAME} PRIVATE hdmi-dvi)
     SET(BUILD_NAME "${BUILD_NAME}-HDMI-DVI-${PORT_VERSION}")
 ELSEIF(SOFTTV)
