@@ -14,11 +14,47 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
+# Leave one set(...) line active per group. For an existing CMake build
+# directory, change the cached value with -D or use a fresh build directory.
+
+# Chip
+#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
 set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
+set_property(CACHE PICO_PLATFORM PROPERTY STRINGS rp2040 rp2350)
+
+# Board (select the matching chip above)
+#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
-set(SPECIALIST_VIDEO "HDMI" CACHE STRING "HDMI, VGA, RGB, PAL or NTSC")
+#set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
+#set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
+#set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
+set_property(CACHE PICO_BOARD PROPERTY STRINGS
+    murmulator murmulator2 olimex-pico-pc pimoroni-pico-dv
+    waveshare_rp2040_pizero waveshare_rp2350_pizero)
+
+# Video (Olimex PICO-PC and Pimoroni Pico DV use HDMI)
+set(SPECIALIST_VIDEO "HDMI" CACHE STRING "Video output")
+#set(SPECIALIST_VIDEO "VGA" CACHE STRING "Video output")
+#set(SPECIALIST_VIDEO "RGB" CACHE STRING "Video output")
+#set(SPECIALIST_VIDEO "PAL" CACHE STRING "Video output")
+#set(SPECIALIST_VIDEO "NTSC" CACHE STRING "Video output")
 set_property(CACHE SPECIALIST_VIDEO PROPERTY STRINGS HDMI VGA RGB PAL NTSC)
-set(CPU_MHZ 400 CACHE STRING "System clock in MHz for VGA and composite video")
+
+# System clock in MHz for VGA and composite video. HDMI and RGB use 400 MHz.
+#set(CPU_MHZ 366 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 372 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 378 CACHE STRING "System clock in MHz")
+set(CPU_MHZ 400 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 440 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 444 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 456 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 460 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 500 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 512 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 520 CACHE STRING "System clock in MHz")
+
+#set(m1p2-launcher ON)
 set(PORT_VERSION "0.1.0")
 
 if(PICO_BOARD STREQUAL "olimex-pico-pc" OR PICO_BOARD STREQUAL "pimoroni-pico-dv")
