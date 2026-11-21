@@ -44,7 +44,8 @@ class RkTapeOutHook : public CpuHook
 class RkTapeInHook : public CpuHook
 {
     public:
-        RkTapeInHook(uint16_t addr) : CpuHook(addr) {}
+        RkTapeInHook(uint16_t addr, unsigned suspendMs = 0)
+            : CpuHook(addr), m_suspendPeriod(suspendMs) {}
         virtual ~RkTapeInHook() {}
 
         void reset() override;

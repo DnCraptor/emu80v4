@@ -5,6 +5,7 @@
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
+#include "hardware/sync.h"
 #include "font8x8.h"
 
 #define TV_RGB888(r, g, b) \
@@ -121,7 +122,6 @@ static int dma_chan_pal_conv = -1;
 //ДМА палитра для конвертации
 static __aligned(512) __scratch_x("palette_conv") uint32_t conv_color[128];
 
-static enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
 static repeating_timer_t video_timer;
 
 
@@ -157,11 +157,41 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
     conv_color16[i] = (c_hi << 8 | c_lo) & 0x3f3f | palette16_mask;
 }
 
-static inline uint8_t* getLineBuffer(int line)
+#ifdef SPECIALIST_SCANLINES
+#define RGB_MENU_COLS 48
+#define RGB_MENU_ROWS 32
+#define RGB_MENU_WIDTH (RGB_MENU_COLS * 8)
+#define RGB_MENU_HEIGHT (RGB_MENU_ROWS * 8)
+
+// A cell contains its character and RGB222 foreground/background colors.
+static uint32_t rgb_menu[RGB_MENU_ROWS][RGB_MENU_COLS];
+static uint8_t rgb_menu_line[RGB_MENU_WIDTH];
+
+static const uint8_t* __not_in_flash_func(renderRgbMenuLine)(unsigned line)
 {
-    if (!framebuffer || line < 0 || line >= (int)graphics_buffer.height)
+    const uint32_t* cells = rgb_menu[line >> 3];
+    uint8_t* out = rgb_menu_line;
+    for (unsigned col = 0; col < RGB_MENU_COLS; ++col) {
+        const uint32_t cell = cells[col];
+        const uint8_t glyph = font_8x8[(cell & 0xff) * 8 + (line & 7)];
+        const uint8_t background = (cell >> 8) & 0x3f;
+        const uint8_t foreground = (cell >> 16) & 0x3f;
+        for (unsigned x = 0; x < 8; ++x)
+            *out++ = glyph & (1u << x) ? foreground : background;
+    }
+    return rgb_menu_line;
+}
+#endif
+
+static inline const uint8_t* getLineBuffer(int line)
+{
+    if (line < 0 || line >= (int)graphics_buffer.height)
         return NULL;
-    return framebuffer + (size_t)line * framebuffer_stride;
+#ifdef SPECIALIST_SCANLINES
+    return graphics_read_scanline((unsigned)line);
+#else
+    return framebuffer ? framebuffer + (size_t)line * framebuffer_stride : NULL;
+#endif
 }
 
 // Заполнение строкового буфера из SRAM. Вызов libc memset() из
@@ -187,7 +217,6 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
     //uint n_loop=(N_LINE_BUF_DMA+dma_inx-dma_inx_out)%N_LINE_BUF_DMA;
 
     static uint32_t line_active = 0;
-    static uint8_t* input_buffer = NULL;
     static uint32_t frame_i = 0;
 
     //while(n_loop--)
@@ -204,7 +233,7 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
         bool is_line_visible = true;
 
         /*
-         * Прогрессивный 312-строчный растр, близкий к аппаратному Вектору.
+         * Прогрессивный 312-строчный растр, PAL.
          * Никаких полуст строк, уравнивающих импульсов и второго поля:
          * строки 0..3 — кадровый синхроимпульс на всю строку;
          * остальные строки имеют обычный HSync;
@@ -228,62 +257,28 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                        v_mode.img_size_x, v_mode.NO_SYNC_TMPL, post_img_clear);
             output_buffer += v_mode.begin_img_shx;
 
-            /*
-             * Центрируем текущий framebuffer внутри 312-строчного растра:
-             *   288 строк (с полями)  -> по 12 строк сверху и снизу;
-             *   256 строк (Alt+V)     -> по 28 строк сверху и снизу.
-             *
-             * Координата y=0 меню совпадает с первой выводимой строкой
-             * текущего framebuffer.
-             */
-            const int source_height =
-                graphics_buffer.height < 288
-                    ? (int)graphics_buffer.height
-                    : 288;
-            const int source_begin_line =
-                (v_mode.N_lines - source_height) / 2 + 11;
-            const int y =
-                (int)line_active - source_begin_line;
+            const bool menu = menu_text_active();
+            const int source_width = menu ? (int)graphics_get_width() : (int)graphics_buffer.width;
+            const int source_height = menu ? (int)graphics_get_height() : (int)graphics_buffer.height;
+            const int y = (int)line_active - ((v_mode.N_lines - source_height) / 2 + 11);
+            const uint8_t* input_buffer;
+#ifdef SPECIALIST_SCANLINES
+            if (menu)
+                input_buffer = (unsigned)y < (unsigned)source_height ? renderRgbMenuLine(y) : NULL;
+            else
+#endif
+                input_buffer = getLineBuffer(y - graphics_buffer.shift_y);
 
-            int source_y = -1;
-            if (y >= 0 && y < source_height && graphics_buffer.height) {
-                source_y = y + graphics_buffer.shift_y;
-                input_buffer = getLineBuffer(source_y);
-            }
-            if (source_y < 0 || input_buffer == NULL) {
-                //вне изображения
-                tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.H_len - v_mode.begin_img_shx);
-            }
-            else {
-                //зона изображения
-                switch (graphics_mode) {
-                    default:
-                    case GRAPHICSMODE_DEFAULT: {
-                        // Горизонталь выводится 1:1, без интерполяции.
-                        if (input_buffer != NULL) {
-                            const int output_width = v_mode.img_size_x;
-                            const int source_width =
-                                (int)graphics_buffer.width;
-                            const int source_left =
-                                (output_width - source_width) / 2;
-                            const int shift_x = graphics_buffer.shift_x;
-
-                            for (int x = 0; x < output_width; ++x) {
-                                const int source_x =
-                                    x - shift_x - source_left;
-                                if ((unsigned)source_x >=
-                                    (unsigned)source_width) {
-                                    *output_buffer++ = v_mode.NO_SYNC_TMPL;
-                                    continue;
-                                }
-
-                                const uint8_t c = input_buffer[source_x];
-                                *output_buffer++ =
-                                    map64colors[c & 0x3fu];
-                            }
-                        }
-                        break;
-                    }
+            const int output_width = v_mode.img_size_x;
+            if (!input_buffer) {
+                tv_fill8(output_buffer, v_mode.NO_SYNC_TMPL, output_width);
+            } else {
+                const int left = (output_width - source_width) / 2
+                    + (menu ? 0 : graphics_buffer.shift_x);
+                for (int x = 0; x < output_width; ++x) {
+                    const int source_x = x - left;
+                    *output_buffer++ = (unsigned)source_x < (unsigned)source_width
+                        ? map64colors[input_buffer[source_x] & 0x3f] : v_mode.NO_SYNC_TMPL;
                 }
             }
             // //test
@@ -329,30 +324,12 @@ static bool __not_in_flash_func(video_timer_callbackTV(repeating_timer_t *rt)) {
 void tv_init(const output_format_e output_format) {
     (void)output_format;
 
-    /*
-     * RGB TV не привязан к цветовой поднесущей PAL/NTSC. При 448 МГц
-     * используем точный делитель PIO 18:
-     *
-     *   CLK_SPD = clk_sys / (2 * 18)
-     *
-     * После выравнивания получается 792 отсчёта на строку. Активная
-     * область Вектора занимает 626 отсчётов и выводится строго 1:1.
-     */
-    v_mode.CLK_SPD = (double)clock_get_hz(clk_sys) / 36.0;
-    v_mode.H_len = v_mode.CLK_SPD / 1e6 * 63.9;
-    v_mode.H_len &= 0xfffffffc;
-
-    v_mode.sync_size = 4.7 * v_mode.H_len / 64;
-    v_mode.img_size_x = 626;
-
-    /*
-     * Базовая поправка по захвату: сдвигаем активную область вправо.
-     * При H_len=792 получаем porch 138 отсчётов слева и 28 справа.
-     */
-    v_mode.begin_img_shx =
-        (v_mode.H_len - v_mode.img_size_x) / 2 + 55;
-
-    // Единственный режим RGB TV: прогрессивный растр Вектора.
+    // 512 dots by 312 lines at 8 MHz, matching the emulated raster.
+    v_mode.CLK_SPD = 8000000.0;
+    v_mode.H_len = 512;
+    v_mode.sync_size = 38;
+    v_mode.img_size_x = 384;
+    v_mode.begin_img_shx = 80;
     v_mode.N_lines = 312;
 
     //настройка PIO
@@ -525,12 +502,29 @@ void graphics_set_color_mode(bool colorMode)
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
+#ifdef SPECIALIST_SCANLINES
+    menu_text_clear_for_mode();
+    __dmb();
+    menu_video_mode = mode;
+#else
     (void)mode;
-    menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+#endif
 }
 
-void graphics_set_menu_text_mode(bool enabled) { (void)enabled; }
-void menu_text_clear_for_mode(void) {}
+void graphics_set_menu_text_mode(bool enabled)
+{
+    graphics_set_video_content_mode(enabled ? GRAPHICS_VIDEO_TEXT : GRAPHICS_VIDEO_FRAMEBUFFER);
+}
+
+void menu_text_clear_for_mode(void)
+{
+#ifdef SPECIALIST_SCANLINES
+    const uint32_t background = ' ' | (uint32_t)RGB888(0, 0, 128) << 8;
+    for (unsigned y = 0; y < RGB_MENU_ROWS; ++y)
+        for (unsigned x = 0; x < RGB_MENU_COLS; ++x)
+            rgb_menu[y][x] = background;
+#endif
+}
 void graphics_set_duplicateLines(bool enabled) { (void)enabled; }
 
 void graphics_inc_x(void) { ++graphics_buffer.shift_x; }
@@ -541,9 +535,23 @@ void graphics_dec_y(void) { --graphics_buffer.shift_y; }
 int graphics_get_picture_shift_x(void) { return graphics_buffer.shift_x; }
 int graphics_get_picture_shift_y(void) { return graphics_buffer.shift_y; }
 
-uint32_t graphics_get_width(void) { return graphics_buffer.width; }
-uint32_t graphics_get_height(void) { return graphics_buffer.height; }
-uint32_t graphics_get_visible_height(void) { return graphics_buffer.height; }
+uint32_t graphics_get_width(void)
+{
+#ifdef SPECIALIST_SCANLINES
+    if (menu_text_active()) return RGB_MENU_WIDTH;
+#endif
+    return graphics_buffer.width;
+}
+
+uint32_t graphics_get_height(void)
+{
+#ifdef SPECIALIST_SCANLINES
+    if (menu_text_active()) return RGB_MENU_HEIGHT;
+#endif
+    return graphics_buffer.height;
+}
+
+uint32_t graphics_get_visible_height(void) { return graphics_get_height(); }
 uint8_t* graphics_get_frame(void) { return framebuffer; }
 uint32_t graphics_get_font_width(void) { return 8; }
 uint32_t graphics_get_font_height(void) { return 8; }
@@ -600,6 +608,17 @@ void graphics_fill(
         int32_t x, int32_t y, uint32_t width, uint32_t height,
         uint8_t color)
 {
+#ifdef SPECIALIST_SCANLINES
+    if (menu_text_active()) {
+        const int right = (x + (int)width) / 8;
+        const int bottom = (y + (int)height) / 8;
+        const uint32_t cell = ' ' | (uint32_t)color << 8;
+        for (int row = y < 0 ? 0 : y / 8; row <= bottom && row < RGB_MENU_ROWS; ++row)
+            for (int col = x < 0 ? 0 : x / 8; col <= right && col < RGB_MENU_COLS; ++col)
+                rgb_menu[row][col] = cell;
+        return;
+    }
+#endif
     for (uint32_t row = 0; row <= height; ++row)
         line(x, y + (int)row, x + (int)width, y + (int)row, color);
 }
@@ -607,6 +626,20 @@ void graphics_fill(
 void graphics_type(
         int x, int y, uint8_t color, const char* msg, size_t msg_len)
 {
+#ifdef SPECIALIST_SCANLINES
+    if (menu_text_active()) {
+        if (y < 0 || y >= RGB_MENU_HEIGHT)
+            return;
+        for (size_t i = 0; i < msg_len; ++i) {
+            const int at = x + (int)i * 8;
+            if (at < 0 || at >= RGB_MENU_WIDTH)
+                continue;
+            uint32_t* cell = &rgb_menu[y / 8][at / 8];
+            *cell = (*cell & 0xff00u) | (uint8_t)msg[i] | (uint32_t)color << 16;
+        }
+        return;
+    }
+#endif
     for (size_t i = 0; i < msg_len; ++i) {
         const uint8_t* glyph = font_8x8 + (uint8_t)msg[i] * 8;
         for (unsigned row = 0; row < 8; ++row)

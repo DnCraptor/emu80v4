@@ -4,12 +4,12 @@
 #include <sstream>
 #include <iostream>
 #include <memory>
+#include <strings.h>
 #include <new>
 
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 #include <hardware/watchdog.h>
-#include "hway.h"
 
 extern "C" FIL g_file = {};
 
@@ -95,14 +95,34 @@ string palMakeFullFileName(string fileName)
 {
     if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\')
         return fileName;
-    string fullFileName("/vector06c/");
+    string fullFileName("/specialist/");
     fullFileName += fileName;
     return fullFileName;
 }
 
 static constexpr int MAX_FILE_DIALOG_ITEMS = 256;
 
-static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems)
+static bool hasFileExtension(const char* name, const string& extensions)
+{
+    const char* suffix = std::strrchr(name, '.');
+    if (extensions.empty() || extensions == "*")
+        return true;
+    if (!suffix)
+        return false;
+
+    const size_t length = std::strlen(suffix);
+    for (size_t first = 0; first < extensions.size();) {
+        const size_t separator = extensions.find('|', first);
+        const size_t last = separator == string::npos ? extensions.size() : separator;
+        if (last - first == length && strncasecmp(suffix, extensions.c_str() + first, length) == 0)
+            return true;
+        first = last + 1;
+    }
+    return false;
+}
+
+static int palGetDirContent(const string& d, const string& extensions,
+                            PalFileInfo* fileList, int maxItems)
 {
     DIR dir;
     FILINFO entry;
@@ -111,9 +131,12 @@ static int palGetDirContent(const string& d, PalFileInfo* fileList, int maxItems
 
     int count = 0;
     while (count < maxItems && f_readdir(&dir, &entry) == FR_OK && entry.fname[0] != '\0') {
+        const bool isDir = (entry.fattrib & AM_DIR) != 0;
+        if (!isDir && !hasFileExtension(entry.fname, extensions))
+            continue;
         PalFileInfo& file = fileList[count++];
         file.fileName = entry.fname;
-        file.isDir = (entry.fattrib & AM_DIR) != 0;
+        file.isDir = isDir;
     }
     f_closedir(&dir);
     return count;
@@ -124,8 +147,11 @@ extern PalKeyCodeAction getKey();
 extern PalKeyCode pressed_key[256];
 #include "ps2kbd_mrmltr.h"
 #include "picoMenu.h"
+#include "../Specialist.h"
+#include "../Emulation.h"
+#include "../Globals.h"
 #include <algorithm>
-static std::string fdir = "/vector06c";
+static std::string fdir = "/specialist";
 
 // Состояние карты. Монтирование при старте могло не удаться (карта не
 // вставлена), поэтому результат запоминается, а повторная попытка делается
@@ -145,7 +171,7 @@ bool palEnsureSdMounted()
     if (f_mount(&s_sdFs, "SD", 1) != FR_OK)
         return false;
     s_sdMounted = true;
-    f_mkdir("/vector06c");
+    f_mkdir("/specialist");
     return true;
 }
 
@@ -162,6 +188,28 @@ void palModalMessage(const char* title, const char* text)
     }
 }
 std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, bool* readOnly) {
+    // The caller is either the paused OSD or a tape hook running on core 0.
+    struct RestoreVideo {
+        bool switchedToText = false;
+        RestoreVideo()
+        {
+#if defined(SPECIALIST_SCANLINES) || defined(HDMI_DVI)
+            if (!graphics_get_menu_text_mode()) {
+                graphics_set_menu_text_mode(true);
+                switchedToText = true;
+            }
+#endif
+        }
+        ~RestoreVideo()
+        {
+            if (switchedToText)
+                graphics_set_menu_text_mode(false);
+            if (!graphics_get_menu_text_mode() && g_emulation && g_emulation->getSpecialist())
+                g_emulation->getSpecialist()->redrawVideo();
+            if (switchedToText && g_emulation)
+                g_emulation->resetKeys();
+        }
+    } restoreVideo;
     const uint32_t sw = graphics_get_width();
     // Низ окна ограничивается последней реально видимой строкой, а не высотой
     // кадрового буфера: у композита растр короче буфера, особенно у NTSC.
@@ -181,13 +229,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
     uint32_t h = (uint32_t)hs;
     uint32_t fntw = graphics_get_font_width();
     uint32_t fnth = graphics_get_font_height();
-    const bool textMode =
-#if (defined(PICO_RP2040) && \
-     (defined(VGA_DRV) || defined(SOFTTV))) || defined(HDMI_DVI)
-        graphics_get_menu_text_mode();
-#else
-        false;
-#endif
+    const bool textMode = graphics_get_menu_text_mode();
     if (textMode) {
         x = 0;
         y = 0;
@@ -270,7 +312,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
             fileList[fileCount].isDir = true;
             fileCount++;
         }
-        fileCount += palGetDirContent(fdir, fileList + fileCount, MAX_FILE_DIALOG_ITEMS - fileCount);
+        fileCount += palGetDirContent(fdir, filter, fileList + fileCount, MAX_FILE_DIALOG_ITEMS - fileCount);
         const int first = (fileCount > 0 && fileList[0].fileName == "..") ? 1 : 0;
         sort(fileList + first, fileList + fileCount, [](const PalFileInfo& a, const PalFileInfo& b) {
             if (a.isDir == b.isDir) return a.fileName < b.fileName;
@@ -461,7 +503,10 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
         const bool enterPressed = (pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed;
         if (write && inputFocused && enterPressed) {
             if (t2.empty()) continue;
-            const string path = makePath(t2);
+            const string defaultExtension = filter.substr(0, filter.find('|'));
+            const string name = t2.find('.') == string::npos && !defaultExtension.empty()
+                && defaultExtension[0] == '.' ? t2 + defaultExtension : t2;
+            const string path = makePath(name);
             FILINFO existing;
             if (f_stat(path.c_str(), &existing) == FR_OK) {
                 if (existing.fattrib & AM_DIR) {
@@ -549,7 +594,7 @@ std::string palOpenFileDialog(const std::string& title, const std::string& filte
 
     // Строки имён держат блоки в куче; список статический, поэтому чистим сами
     for (int i = 0; i < fileCount; i++)
-        fileList[i].fileName.clear();
+        string().swap(fileList[i].fileName);
 
     return res;
 }
@@ -600,16 +645,11 @@ extern i2s_config_t i2s_config;
 //  при старте. Приём и обе поправки к нему взяты из pico-spec (pwm_audio.cpp).
 // ===========================================================================
 
-// Единственный признак текущей аппаратной конфигурации вывода. Два
-// независимых флага давали четыре состояния при трёх допустимых, и
-// ничто не мешало попасть в невозможную комбинацию.
-enum AudioOut : uint8_t { AUDIO_OUT_PWM = 0, AUDIO_OUT_I2S, AUDIO_OUT_HWAY };
+enum AudioOut : uint8_t { AUDIO_OUT_PWM = 0, AUDIO_OUT_I2S };
 static AudioOut s_audioOut = AUDIO_OUT_PWM;
 #define s_audioI2S  (s_audioOut == AUDIO_OUT_I2S)
-#define s_audioHwAy (s_audioOut == AUDIO_OUT_HWAY)
 static bool s_audioOutputInitialized = false;
 bool palAudioIsI2S() {return s_audioI2S;}
-bool palAudioIsHwAy() {return s_audioHwAy;}
 
 bool palAudioOutputCanSwitch()
 {
@@ -738,10 +778,6 @@ static int audioTestPins(unsigned pin0, unsigned pin1)
 // Возвращает true, если полный тест связи DIN/BCK обнаружил I2S-модуль.
 bool palProbeAudioOutput()
 {
-    // В режиме реального PSG прозвонка не нужна и вредна: она дёргает те
-    // же ноги, что заняты сдвиговым регистром.
-    if (s_audioHwAy)
-        return false;
 #if defined(AUDIO_FORCE_PWM)
     s_audioOut = AUDIO_OUT_PWM;
 #elif defined(AUDIO_FORCE_I2S)
@@ -818,10 +854,7 @@ static bool __not_in_flash_func(audioTimerCb)(repeating_timer_t*)
         int16_t(s_audioLast & 0xffffu),
         int16_t(s_audioLast >> 16));
     #endif
-    if (s_audioHwAy) {
-        hway_queue_drain();   // выдать записи AY, чьё время наступило
-        hway_dac_out(int16_t(s_audioLast & 0xFFFF), int16_t(s_audioLast >> 16));
-    } else if (s_audioI2S) {
+    if (s_audioI2S) {
         if (!pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
             pio_sm_put(i2s_config.pio, i2s_config.sm, s_audioLast);
     } else {
@@ -840,12 +873,6 @@ static void audioStopPacedOutput()
 
 static bool audioInitOutput(int sampleRate)
 {
-    if (s_audioHwAy) {
-        (void)sampleRate;          // вывод — реальный чип, не I2S/PWM
-        hway_init();
-        s_audioOutputInitialized = true;
-        return true;
-    }
     if (s_audioI2S) {
         i2s_config.sample_freq = sampleRate;
         i2s_config.dma_trans_count = 0;
@@ -868,11 +895,6 @@ static void audioDeinitOutput()
 {
     if (!s_audioOutputInitialized)
         return;
-    if (s_audioHwAy) {
-        hway_deinit();
-        s_audioOutputInitialized = false;
-        return;
-    }
     if (s_audioI2S) {
         i2s_deinit(&i2s_config);
     } else {
@@ -889,7 +911,6 @@ static void audioDeinitOutput()
 
 static bool audioStartPacedOutput(int sampleRate)
 {
-    // В HWAY таймер тоже нужен: он разбирает очередь записей в AY.
     if (sampleRate <= 0)
         return false;
 
@@ -919,9 +940,6 @@ void __not_in_flash_func(palPlaySample)(int16_t left, int16_t right) {
             if (s_audioOutputInitialized
                 && !pio_sm_is_tx_fifo_full(i2s_config.pio, i2s_config.sm))
                 pio_sm_put(i2s_config.pio, i2s_config.sm, sample);
-        } else if (s_audioHwAy) {
-            // весь не-AY звук -> ЦАП port B второго чипа
-            hway_dac_out(left, right);
         } else if (s_audioOutputInitialized) {
             audioWritePwm(sample);
         }
@@ -981,35 +999,8 @@ bool palSetAudioOutputI2S(bool i2s)
     return false;
 }
 
-bool palSetAudioOutputHwAy(bool hwAy)
-{
-    if (!palAudioOutputCanSwitch())
-        return hwAy == s_audioHwAy;
-    if (hwAy == s_audioHwAy)
-        return true;
-
-    const AudioOut previous = s_audioOut;
-    audioStopPacedOutput();
-    audioDeinitOutput();
-
-    s_audioOut = hwAy ? AUDIO_OUT_HWAY : AUDIO_OUT_PWM;
-    if (audioInitOutput(sampleRate) && audioStartPacedOutput(sampleRate))
-        return true;
-
-    audioStopPacedOutput();
-    audioDeinitOutput();
-    s_audioOut = previous;
-    if (audioInitOutput(sampleRate))
-        audioStartPacedOutput(sampleRate);
-    return false;
-}
-
 void palAudioSystemClockChanged()
 {
-    // Такт AY задаётся делителем от clk_sys: при смене системной частоты
-    // его надо пересчитать, иначе уедет высота звука.
-    if (s_audioHwAy)
-        hway_ayclk_refresh();
     audioStopPacedOutput();
     audioDeinitOutput();
     if (audioInitOutput(sampleRate))

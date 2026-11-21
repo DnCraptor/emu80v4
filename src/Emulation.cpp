@@ -25,7 +25,8 @@
 #include "Globals.h"
 #include "EmuObjects.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Specialist.h"
+#include <new>
 #include "Cpu.h"
 #include "SoundMixer.h"
 #include "WavReader.h"
@@ -61,7 +62,8 @@ void Emulation::init()
     m_mixer->setVolume(5);
     setVsync(true);
 
-    m_vector = new VectorCore();
+    alignas(SpecialistCore) static uint8_t machineStorage[sizeof(SpecialistCore)];
+    m_specialist = new (machineStorage) SpecialistCore();
 
     // Все объекты созданы — собираем активные устройства и источники звука.
     // Порядок обхода списков совпадает с порядком создания, то есть с прежним
@@ -69,7 +71,7 @@ void Emulation::init()
     registerActiveDevices();
     m_mixer->collectSoundSources();
 
-    m_vector->init();
+    m_specialist->init();
 }
 
 
@@ -82,7 +84,8 @@ void Emulation::registerActiveDevices()
 
 Emulation::~Emulation()
 {
-    delete m_vector;
+    if (m_specialist)
+        m_specialist->~SpecialistCore();
     delete m_prnWriter;
     delete m_wavReader;
     delete m_mixer;
@@ -151,11 +154,9 @@ extern void processKeys();
 void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 {
     m_lastExecDidWork = false;
-    processKeys();
-    // forced означает «выполнить несмотря ни на что»: так загрузчик .fdd
-    // прокручивает 25 млн тактов, чтобы ПЗУ успело загрузиться с дискеты.
-    // Пока меню держит эмуляцию на паузе, без этой оговорки exec() выходил
-    // сразу, и сценарий загрузки .fdd по Alt+F3 переставал работать.
+    // No nested input dispatch while the loader boots the monitor.
+    if (!forced)
+        processKeys();
     if (m_isPaused && !forced)
         return;
 
@@ -164,8 +165,8 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
     // Указатель на CPU нужен, чтобы не пересканировать массив на каждой его
     // команде. Состав активных устройств фиксирован с момента старта, поэтому
     // достаточно определить его один раз.
-    if (!m_cpuDev && m_vector)
-        m_cpuDev = m_vector->getCpu();   // Cpu -> ActiveDevice -> IActive
+    if (!m_cpuDev && m_specialist)
+        m_cpuDev = m_specialist->getCpu();   // Cpu -> ActiveDevice -> IActive
 
     while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
         // Ближайшее событие среди всех устройств, кроме CPU. Раньше этот проход
@@ -231,20 +232,18 @@ void __not_in_flash_func(Emulation::exec)(uint64_t ticks, bool forced)
 
 void Emulation::processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey)
 {
-    if (m_vector)
-        m_vector->processKey(keyCode, isPressed, unicodeKey);
+    if (m_specialist)
+        m_specialist->processKey(keyCode, isPressed, unicodeKey);
 }
 
 static bool isAltPressed = false;
 static bool isShiftPressed = false;
 static bool isCtrlPressed = false;
-static bool isLWinPressed = false;
-static bool isRWinPressed = false;
 void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
 #if LOG
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif
-    if (!m_vector)
+    if (!m_specialist)
         return;
 
     const bool altKey = keyCode == PK_LALT || keyCode == PK_RALT;
@@ -255,10 +254,6 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         isCtrlPressed = isPressed;
     else if (altKey)
         isAltPressed = isPressed;
-    else if (keyCode == PK_LWIN)
-        isLWinPressed = isPressed;
-    else if (keyCode == PK_RWIN)
-        isRWinPressed = isPressed;
 
     if (altKey && isPressed) {
         if (palMainMenuIsOpen())
@@ -268,8 +263,6 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         return;
     }
 
-    // Win — только модификатор снимков: машине он не нужен и в матрицу
-    // клавиатуры Вектора не входит.
     if (winKey)
         return;
 
@@ -303,7 +296,7 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         }
 
         // Разрушительные команды из меню не запускаем
-        if (keyCode == PK_F10 || keyCode == PK_F11 || keyCode == PK_F12)
+        if (keyCode == PK_F10 || keyCode == PK_F12)
             return;
 
         // Открытое меню само по себе означает «Alt нажат», поэтому сочетания
@@ -316,7 +309,7 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
 
         // Эмуляция остаётся на паузе, пока работает модальное окно: закрыв
         // меню раньше, мы бы отпустили рендерер, и он затёр бы диалог.
-        m_vector->sysReq(sr);
+        m_specialist->sysReq(sr);
 
         // Модальный диалог читает очередь клавиш сам, через getKey(), поэтому
         // отпускания Alt, Shift и Ctrl до machineKey не доходят и флаги
@@ -329,27 +322,15 @@ void Emulation::machineKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeK
         return;
     }
 
-    // ТЗ: Left Win+F1..F12 — сохранить снимок, Right Win+F1..F12 — загрузить.
-    // Разбирается до TranslateKeyToSysReq, иначе F-клавиши уйдут в sysReq.
-    if (isPressed && (isLWinPressed || isRWinPressed) &&
-        keyCode >= PK_F1 && keyCode <= PK_F12) {
-        const unsigned slot = unsigned(keyCode - PK_F1) + 1;
-        palSnapshotHotkey(slot, isLWinPressed);
-        // Модальное сообщение читает клавиши само, поэтому отпускания Win и
-        // F-клавиши до machineKey не доходят: снимаем модификаторы явно.
-        resetKeys();
-        return;
-    }
-
     // Ctrl+Alt+Del (аппаратный сброс через watchdog) обрабатывается на уровне
     // ввода в Main.cpp (addKey), до очереди клавиш и меню, поэтому здесь его
     // ловить не нужно: до machineKey это сочетание уже не доходит.
 
     const SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
     if (sr)
-        m_vector->sysReq(sr);
+        m_specialist->sysReq(sr);
     else
-        m_vector->processKey(keyCode, isPressed, unicodeKey);
+        m_specialist->processKey(keyCode, isPressed, unicodeKey);
 }
 
 
@@ -358,10 +339,8 @@ void Emulation::resetKeys()
     isAltPressed = false;
     isShiftPressed = false;
     isCtrlPressed = false;
-    isLWinPressed = false;
-    isRWinPressed = false;
-    if (m_vector)
-        m_vector->resetKeys();
+    if (m_specialist)
+        m_specialist->resetKeys();
 }
 
 
@@ -478,62 +457,3 @@ void Emulation::setTemporarySpeedUpFactor(unsigned speed)
 
     updateFrequency();
 }
-
-namespace {
-
-#pragma pack(push, 1)
-struct EmulationSnapshotStateV1 {
-    uint64_t curClock;
-    uint64_t clockOffset;
-    uint8_t paused;
-    uint8_t reserved[7];
-};
-#pragma pack(pop)
-
-}
-
-uint32_t Emulation::snapshotSectionId() const
-{
-    return makeSnapshotSectionId('T', 'I', 'M', 'E');
-}
-
-uint16_t Emulation::snapshotSectionVersion() const
-{
-    return 1;
-}
-
-bool Emulation::saveState(SnapshotWriter& writer) const
-{
-    EmulationSnapshotStateV1 state{};
-    state.curClock = m_curClock;
-    state.clockOffset = m_clockOffset;
-    state.paused = m_isPaused ? 1 : 0;
-    return writer.writeValue(state);
-}
-
-bool Emulation::loadState(SnapshotReader& reader, uint16_t version)
-{
-    if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(EmulationSnapshotStateV1))
-        return false;
-
-    EmulationSnapshotStateV1 state{};
-    if (!reader.readValue(state) || state.paused > 1)
-        return false;
-
-    m_curClock = state.curClock;
-    m_clockOffset = state.clockOffset;
-    m_isPaused = state.paused != 0;
-    return true;
-}
-
-void Emulation::postLoad()
-{
-    // Host wall-clock values are deliberately not serialized.  Restart the
-    // pacing window on the next mainLoopCycle() while preserving emulated time.
-    m_prevSysClock = 0;
-    m_sysClock = 0;
-    m_debugReqCpu = nullptr;
-    m_cpuDev = m_vector ? m_vector->getCpu() : nullptr;
-}
-

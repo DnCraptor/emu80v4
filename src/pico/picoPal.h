@@ -27,6 +27,7 @@ bool palSetSampleRate(int sampleRate);
 void palPlaySample(int16_t left, int16_t right); // stereo
 
 #ifndef PAL_WASM
+// Filter is a | separated list of case-insensitive extensions, e.g. ".wav|.csw".
 std::string palOpenFileDialog(const std::string& title, const std::string& filter, bool write, bool* readOnly = nullptr);
 #endif //!PAL_WASM
 
@@ -50,17 +51,12 @@ bool palProbeAudioOutput();
 bool palAudioIsI2S();
 bool palAudioOutputCanSwitch();
 bool palSetAudioOutputI2S(bool i2s);
-// Реальный PSG через 74595 — третий режим вывода, исключающий PWM и I2S.
-bool palAudioIsHwAy();
-bool palSetAudioOutputHwAy(bool hwAy);
 void palAudioSystemClockChanged();
 
 uint32_t palGetSystemClockMHz();
 bool palSetSystemClockMHz(uint32_t mhz);
 uint16_t palGetCoreVoltageMv();
 bool palSetCoreVoltageMv(uint16_t mv);
-int palGetPsramMaxFreqMHz();
-void palSetPsramMaxFreqMHz(int mhz);
 
 // Состояние SD-карты: монтирование при старте могло не удаться
 void palSetSdMounted(bool mounted);

@@ -73,7 +73,7 @@ const int parity_table[] = {
 const int half_carry_table[] = { 0, 0, 1, 0, 1, 0, 1, 1 };
 const int sub_half_carry_table[] = { 0, 1, 1, 1, 0, 0, 0, 1 };
 
-class Cpu8080 : public Cpu8080Compatible, public SnapshotSerializable
+class Cpu8080 : public Cpu8080Compatible
 {
     public:
         Cpu8080();
@@ -114,11 +114,6 @@ class Cpu8080 : public Cpu8080Compatible, public SnapshotSerializable
 
         uint8_t getStatusWord() {return m_statusWord;}
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
-        void postLoad() override;
 
 
 private:

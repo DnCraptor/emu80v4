@@ -14,14 +14,9 @@
 #include <hardware/regs/qmi.h>
 #include <hardware/exception.h>
 #include <hardware/structs/qmi.h>
-#include <hardware/structs/xip.h>
-#include <hardware/regs/sysinfo.h>
 #endif
 #include "audio.h"
 #include "ff.h"
-#if PSRAM
-    #include "psram_spi.h"
-#endif
 #ifdef KBDUSB
     #include "ps2kbd_mrmltr.h"
 #else
@@ -896,17 +891,6 @@ void init_sound() {
     // ШИМ-платой, и с I2S-платой. Сама инициализация выбранного тракта
     // отложена до palSetSampleRate(), когда известна частота дискретизации.
     palProbeAudioOutput();
-#if BEEPER_PIN
-    // В HWAY этого делать нельзя: на murmulator BEEPER_PIN (28) — это линия
-    // данных 595, а его PWM-слайс тот же, что у тактового выхода AY (29).
-    // Инициализация бипера отбирает ногу и переписывает делитель такта.
-    if (!palAudioIsHwAy()) {
-    pwm_config config = pwm_get_default_config();
-    gpio_set_function(BEEPER_PIN, GPIO_FUNC_PWM);
-    pwm_config_set_clkdiv(&config, 127);
-    pwm_init(pwm_gpio_to_slice_num(BEEPER_PIN), &config, true);
-    }
-#endif
 #ifdef LOAD_WAV_PIO
     //пин ввода звука
     inInit(LOAD_WAV_PIO);
@@ -918,140 +902,7 @@ static const char* argv[1] = {
     "emu80"
 };
 
-static int BUTTER_PSRAM_SIZE = -1;
-// Порог максимальной частоты QSPI-PSRAM (МГц), настраивается из меню и хранится
-// в конфиге. Из него psram_set_timing() считает делитель/rxdelay. По умолчанию
-// 133 (спека ESP-PSRAM64H). Значение переживает смену частоты RP2350.
-static int s_psram_max_freq_mhz = 133;
 #ifdef PICO_RP2350
-#define MB16 (16ul << 20)
-#define MB8 (8ul << 20)
-#define MB4 (4ul << 20)
-#define MB1 (1ul << 20)
-uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
-uint32_t __not_in_flash_func(butter_psram_size)() {
-    if (BUTTER_PSRAM_SIZE != -1) return BUTTER_PSRAM_SIZE;
-    for(register int i = MB8; i < MB16; i += 4096)
-        PSRAM_DATA[i] = 16;
-    for(register int i = MB4; i < MB8; i += 4096)
-        PSRAM_DATA[i] = 8;
-    for(register int i = MB1; i < MB4; i += 4096)
-        PSRAM_DATA[i] = 4;
-    for(register int i = 0; i < MB1; i += 4096)
-        PSRAM_DATA[i] = 1;
-    register uint32_t res = PSRAM_DATA[MB16 - 4096];
-    // Без микросхемы на месте PSRAM читается что попало (часто одно и то же
-    // значение по всем адресам), поэтому проверяем, что размер — один из
-    // возможных и что по адресам 0 и 1 МБ читаются разные записанные метки.
-    // Отрицательный результат запоминается: повторная проверка записала бы
-    // в окно, которое уже закрыто для записи.
-    if ((res != 4 && res != 8 && res != 16) || PSRAM_DATA[0] != 1 || PSRAM_DATA[MB1] != 4) {
-        BUTTER_PSRAM_SIZE = 0;
-        return 0;
-    }
-    for (register int i = MB16 - MB1; i < MB16; i += 4096) {
-        if (res != PSRAM_DATA[i]) {
-            BUTTER_PSRAM_SIZE = 0;
-            return 0;
-        }
-    }
-    BUTTER_PSRAM_SIZE = res << 20;
-    return BUTTER_PSRAM_SIZE;
-}
-
-/**
- * Recompute QMI PSRAM timing (divisor / rxdelay / select windows) for the
- * CURRENT system clock. These depend on clk_sys, so this must run not only at
- * init but on EVERY RP2350 frequency change: otherwise after overclock (e.g.
- * config 520 while the firmware starts at 400) the PSRAM keeps the divisor and
- * rxdelay computed for the boot clock and runs out of spec -> corrupted reads /
- * hardfault. Only the timing register is touched (no re-issue of QPI enable),
- * so it is safe to call on the live PSRAM. Runs from RAM.
- */
-void __not_in_flash_func(psram_set_timing)(int freq_mhz) {
-    const int clock_hz = clock_get_hz(clk_sys);
-    const int max_psram_freq = freq_mhz * 1000000;
-
-    int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
-    if (divisor == 1 && clock_hz > 100000000) {
-        divisor = 2;  // Minimum divisor of 2 at high system clocks
-    }
-
-    // RX delay compensation for high-speed operation
-    int rxdelay = divisor;
-    if (clock_hz / divisor > 100000000) {
-        rxdelay += 1;
-    }
-
-    // Calculate timing parameters
-    const int clock_period_fs = 1000000000000000ll / clock_hz;
-    const int max_select_val = (125 * 1000000) / clock_period_fs;
-    const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
-
-    // Configure M1 (PSRAM) timing
-    qmi_hw->m[1].timing =
-        1 << QMI_M1_TIMING_COOLDOWN_LSB |
-        QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
-        max_select_val << QMI_M1_TIMING_MAX_SELECT_LSB |
-        min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
-        rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
-        divisor << QMI_M1_TIMING_CLKDIV_LSB;
-}
-
-/**
- * Initialize PSRAM hardware with specified frequency.
- * This function MUST run from RAM, not flash, as it reconfigures the XIP controller.
- */
-void __no_inline_not_in_flash_func(psram_init_with_freq)(uint cs_pin, int freq_mhz) {
-    s_psram_max_freq_mhz = freq_mhz;   // порог по умолчанию (может переопределить конфиг)
-
-    // Configure GPIO for XIP CS1 function
-    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
-
-    // Enter direct mode with slow clock for initialization
-    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB |
-                        QMI_DIRECT_CSR_EN_BITS |
-                        QMI_DIRECT_CSR_AUTO_CS1N_BITS;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
-
-    // Send QPI enable command (0x35) to PSRAM
-    const uint CMD_QPI_EN = 0x35;
-    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS);
-
-    // Тайминги вынесены в psram_set_timing(), чтобы пересчитывать их и при
-    // смене частоты RP2350 (см. palSetSystemClockMHz), а не только здесь.
-    psram_set_timing(freq_mhz);
-
-    // Configure read format: Quad mode, 0xEB fast read command, 6 dummy cycles
-    qmi_hw->m[1].rfmt =
-        QMI_M0_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_PREFIX_WIDTH_LSB |
-        QMI_M0_RFMT_ADDR_WIDTH_VALUE_Q << QMI_M0_RFMT_ADDR_WIDTH_LSB |
-        QMI_M0_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_SUFFIX_WIDTH_LSB |
-        QMI_M0_RFMT_DUMMY_WIDTH_VALUE_Q << QMI_M0_RFMT_DUMMY_WIDTH_LSB |
-        QMI_M0_RFMT_DATA_WIDTH_VALUE_Q << QMI_M0_RFMT_DATA_WIDTH_LSB |
-        QMI_M0_RFMT_PREFIX_LEN_VALUE_8 << QMI_M0_RFMT_PREFIX_LEN_LSB |
-        6 << QMI_M0_RFMT_DUMMY_LEN_LSB;
-
-    qmi_hw->m[1].rcmd = 0xEB;  // Fast Read Quad I/O
-
-    // Configure write format: Quad mode, 0x38 write command
-    qmi_hw->m[1].wfmt =
-        QMI_M0_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_PREFIX_WIDTH_LSB |
-        QMI_M0_WFMT_ADDR_WIDTH_VALUE_Q << QMI_M0_WFMT_ADDR_WIDTH_LSB |
-        QMI_M0_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_SUFFIX_WIDTH_LSB |
-        QMI_M0_WFMT_DUMMY_WIDTH_VALUE_Q << QMI_M0_WFMT_DUMMY_WIDTH_LSB |
-        QMI_M0_WFMT_DATA_WIDTH_VALUE_Q << QMI_M0_WFMT_DATA_WIDTH_LSB |
-        QMI_M0_WFMT_PREFIX_LEN_VALUE_8 << QMI_M0_WFMT_PREFIX_LEN_LSB;
-
-    qmi_hw->m[1].wcmd = 0x38;  // Quad Write
-
-    // Exit direct mode
-    qmi_hw->direct_csr = 0;
-
-    // Enable writes to M1 (PSRAM) region
-    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
-}
 void __not_in_flash_func(sigbus)(void) {
     while(true) {
         sleep_ms(330);
@@ -1062,20 +913,6 @@ void __not_in_flash_func(sigbus)(void) {
 #endif
     }
 }
-void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused const char *fmt, ...) {
-    while (true) {
-        sleep_ms(33);
-#ifdef PICO_DEFAULT_LED_PIN
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-        sleep_ms(33);
-        gpio_put(PICO_DEFAULT_LED_PIN, false);
-#endif
-    }
-}
-#else
-uint8_t* PSRAM_DATA = (uint8_t*)0;
-uint32_t butter_psram_size() { return 0; }
-void psram_set_timing(int freq_mhz) { (void)freq_mhz; }
 #endif
 
 #ifndef PICO_RP2040
@@ -1129,30 +966,10 @@ bool palSetCoreVoltageMv(uint16_t mv)
     return true;
 }
 
-int palGetPsramMaxFreqMHz()
-{
-    return s_psram_max_freq_mhz;
-}
-
-void palSetPsramMaxFreqMHz(int mhz)
-{
-    if (mhz <= 0 || mhz == s_psram_max_freq_mhz)
-        return;
-    s_psram_max_freq_mhz = mhz;
-    // Применяем новый порог к таймингам PSRAM немедленно — в критической секции
-    // с локаутом второго ядра, как и при смене системной частоты.
-    const uint32_t irqState = save_and_disable_interrupts();
-    multicore_lockout_start_blocking();
-    psram_set_timing(s_psram_max_freq_mhz);
-    multicore_lockout_end_blocking();
-    restore_interrupts(irqState);
-}
 #else
 uint32_t palGetSystemClockMHz() { return clock_get_hz(clk_sys) / MHZ; }
 uint16_t palGetCoreVoltageMv() { return 1300; }
 bool palSetCoreVoltageMv(uint16_t) { return false; }
-int palGetPsramMaxFreqMHz() { return s_psram_max_freq_mhz; }
-void palSetPsramMaxFreqMHz(int mhz) { if (mhz > 0) s_psram_max_freq_mhz = mhz; }
 #endif
 
 bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
@@ -1174,24 +991,19 @@ bool __not_in_flash_func(palSetSystemClockMHz)(uint32_t mhz)
     const uint32_t irqState = save_and_disable_interrupts();
     multicore_lockout_start_blocking();
 #if !PICO_RP2040
-    flash_timings(mhz);
+    const auto oldMHz = palGetSystemClockMHz();
+    flash_timings(std::max(mhz, oldMHz));
+#endif
     const bool changed = set_sys_clock_khz(mhz * KHZ, false);
-    // Частота изменилась — пересчитываем тайминги PSRAM под новый clk_sys с
-    // текущим порогом (по умолчанию 133 МГц, может быть изменён в меню/конфиге).
-    // Иначе при разгоне PSRAM осталась бы с делителем/rxdelay под стартовую
-    // частоту и ушла бы за предел спецификации.
-    psram_set_timing(s_psram_max_freq_mhz);
-    graphics_system_clock_changed();
+#if !PICO_RP2040
+    flash_timings(changed ? mhz : oldMHz);
+#endif
+    if (changed)
+        graphics_system_clock_changed();
     multicore_lockout_end_blocking();
     restore_interrupts(irqState);
-
     if (changed)
         palAudioSystemClockChanged();
-#else
-    const bool changed = set_sys_clock_khz(mhz * KHZ, false);
-    multicore_lockout_end_blocking();
-    restore_interrupts(irqState);
-#endif
     return changed;
 }
 
@@ -1205,20 +1017,8 @@ int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_50);
 #endif
     sleep_ms(33);
-    bool rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
     flash_timings(CPU_MHZ);
     set_sys_clock_khz(CPU_MHZ * KHZ, 0);
-    uint BUTTER_PSRAM_GPIO = rp2350a ? BUTTER_PSRAM_GPIO_RP2350A
-                                      : BUTTER_PSRAM_GPIO_RP2350B;
-    psram_init_with_freq(BUTTER_PSRAM_GPIO, 133);
-#if PICO_PC
-    // PSRAM на PICO-PC необязательна. Если микросхемы нет, вывод CS (GPIO8)
-    // возвращается в исходное состояние, а окно PSRAM закрывается для записи.
-    if (!butter_psram_size()) {
-        gpio_set_function(BUTTER_PSRAM_GPIO, GPIO_FUNC_NULL);
-        hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
-    }
-#endif
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, sigbus);
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
@@ -1250,11 +1050,6 @@ int main() {
     sem_release(&vga_start_semaphore);
 
     init_sound();
-///    pcm_setup(SOUND_FREQUENCY, SOUND_FREQUENCY * 2 / 50); // 882 * 2  = 1764
-#ifdef PSRAM
-    if (BUTTER_PSRAM_SIZE <= 0)
-        init_psram();
-#endif
     // send kbd reset only after initial process passed
 #ifndef KBDUSB
     keyboard_send(0xFF);
@@ -1265,8 +1060,7 @@ int main() {
     bool res = f_mount(&fs, "SD", 1) == FR_OK;
     palSetSdMounted(res);
     if (res) {
-        f_mkdir("/vector06c");
-        f_mkdir("/tmp");
+        f_mkdir("/specialist");
         f_mkdir("/.config");
     }
 #if LOG

@@ -5,7 +5,7 @@
 
 
 // User-configurable gamepad-to-keyboard mapping. Controls are stored in this
-// fixed order in RAM and in /.config/vector06c.cfg.
+// fixed order in RAM and in /.config/specialist.cfg.
 enum PalJoystickControl {
     PAL_JOY_UP = 0,
     PAL_JOY_DOWN,
@@ -49,12 +49,7 @@ int palMainMenuOriginY();
 // Ожидание клавиши остаётся на вызывающем.
 void palMessageBox(const char* title, const char* text);
 
-// Горячие клавиши снимков: Left Win+F1..F12 — сохранить, Right Win+F1..F12 —
-// загрузить. По ТЗ операция идёт с паузой и заглушенным звуком, видеовыход
-// при этом продолжает работать. save=true — сохранение, иначе загрузка.
-void palSnapshotHotkey(unsigned slot, bool save);
-
-// Текстовые настройки /.config/vector06c.cfg. Файл создаётся автоматически,
+// Текстовые настройки /.config/specialist.cfg. Файл создаётся автоматически,
 // но остаётся обычным редактируемым пользователем key=value-файлом.
 void palLoadMenuState();
 void palSaveMenuState();

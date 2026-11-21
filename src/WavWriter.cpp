@@ -19,7 +19,7 @@
 #include "Pal.h"
 #include "Globals.h"
 #include "Emulation.h"
-#include "Vector.h"
+#include "Specialist.h"
 #include "WavWriter.h"
 
 using namespace std;
@@ -34,7 +34,7 @@ WavWriter::WavWriter()
 }
 
 
-bool WavWriter::open(VectorCore* core, const string& fileName, bool cswFormat)
+bool WavWriter::open(SpecialistCore* core, const string& fileName, bool cswFormat)
 {
     if (m_open)
         close();
@@ -99,18 +99,6 @@ void WavWriter::close()
     m_file.close();
 }
 
-
-void WavWriter::resynchronizeAfterSnapshotLoad()
-{
-    if (!m_open) {
-        pause();
-        return;
-    }
-
-    syncronize();
-    m_curClock += m_ticksPerSample;
-    resume();
-}
 
 
 void WavWriter::writeCswSequence()

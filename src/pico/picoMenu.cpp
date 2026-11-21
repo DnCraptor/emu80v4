@@ -15,26 +15,15 @@
 #include "graphics.h"
 #include "../Globals.h"
 #include "../Emulation.h"
-#include "../Vector.h"
+#include "../Specialist.h"
 #include "../SoundMixer.h"
-#include "../Memory.h"
-#include "hway.h"
 #include "pico/picoPal.h"
 
 extern PalKeyCodeAction getKey();
+extern "C" FIL g_file;
 
-#if defined(PICO_RP2040)
+#if defined(SPECIALIST_SCANLINES) || defined(HDMI_DVI)
 #define SCANLINE_TEXT_MENU 1
-#endif
-
-#ifdef SCANLINE_TEXT_MENU
-#ifndef SCANLINE_MENU_VIDEO_MODE
-#if defined(HDMI_DVI) || defined(SOFTTV)
-#define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_TEXT
-#else
-#define SCANLINE_MENU_VIDEO_MODE GRAPHICS_VIDEO_COMBINED
-#endif
-#endif
 #endif
 
 char* appendText(char* dst, const char* text)
@@ -87,7 +76,7 @@ struct MenuPage {
 
 // --- Persistent editable settings ------------------------------------------
 
-constexpr const char* c_stateFileName = "/.config/vector06c.cfg";
+constexpr const char* c_stateFileName = "/.config/specialist.cfg";
 // Промежуточного буфера на весь файл больше нет: конфиг пишется прямо в файл
 // по кускам, а читается построчно в маленький стековый буфер. SRAM дорога.
 
@@ -206,44 +195,6 @@ bool parseBoolValue(const char* text, bool& value)
     return false;
 }
 
-void setPictureShiftX(int target)
-{
-    target = std::max(-128, std::min(target, 128));
-    for (int guard = 0; guard < 256; ++guard) {
-        const int current = graphics_get_picture_shift_x();
-        if (current == target)
-            return;
-        graphics_inc_x();
-        const int increased = graphics_get_picture_shift_x();
-        if (std::abs(increased - target) < std::abs(current - target))
-            continue;
-        graphics_dec_x();
-        graphics_dec_x();
-    }
-}
-
-void setPictureShiftY(int target)
-{
-    target = std::max(-128, std::min(target, 128));
-    for (int guard = 0; guard < 256; ++guard) {
-        const int current = graphics_get_picture_shift_y();
-        if (current == target)
-            return;
-        graphics_inc_y();
-        const int increased = graphics_get_picture_shift_y();
-        if (std::abs(increased - target) < std::abs(current - target))
-            continue;
-        graphics_dec_y();
-        graphics_dec_y();
-    }
-}
-
-extern "C" FIL g_file;
-
-// Потоковая запись конфигурации прямо в g_file — без сборки всего файла в
-// памяти. Кусочные f_write буферизуются FatFS в секторном буфере FIL, поэтому
-// это не побайтный доступ к SD. Числа форматируются в крошечный локальный
-// буфер (не в общий буфер на весь файл).
 static void cfgPut(const char* s)
 {
     UINT bw = 0;
@@ -292,17 +243,17 @@ static bool readConfigLine(FIL* fp, char* buf, size_t size)
 
 int cpuGetValue()
 {
-    if (!g_emulation || !g_emulation->getVector())
+    if (!g_emulation || !g_emulation->getSpecialist())
         return 0;
-    return static_cast<int>(g_emulation->getVector()->getCpuType());
+    return static_cast<int>(g_emulation->getSpecialist()->getCpuType());
 }
 
 void cpuSetValue(int value)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (!core)
         return;
-    core->setCpuType(static_cast<VectorCpuType>(value));
+    core->setCpuType(static_cast<SpecCpuType>(value));
 }
 
 static const MenuItem processorItems[] = {
@@ -320,13 +271,12 @@ static const MenuPage processorPage {
 };
 
 static constexpr unsigned cpuClockValues[] = {
-    3000000, 3500000, 6000000, 7000000, 12000000,
-    14000000, 20000000, 24000000, 28000000
+    2000000, 3000000, 4000000, 6000000, 8000000
 };
 
 int cpuClockGetValue()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (!core)
         return 0;
 
@@ -339,7 +289,7 @@ int cpuClockGetValue()
 
 void cpuClockSetValue(int value)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (!core || value < 0
         || value >= static_cast<int>(sizeof(cpuClockValues) / sizeof(cpuClockValues[0])))
         return;
@@ -395,15 +345,11 @@ static const char* cpuClockStatus()
 }
 
 static const MenuItem cpuClockItems[] = {
-    {"3.0 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"3.5 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"6 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"7 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"12 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"14 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"20 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"24 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"28 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
+    {"2 MHz"},
+    {"3 MHz"},
+    {"4 MHz"},
+    {"6 MHz"},
+    {"8 MHz"},
     {nullptr, cpuFpsStatus, nullptr, nullptr, menuItemDisabled, nullptr},
     {nullptr, cpuLoadStatus, nullptr, nullptr, menuItemDisabled, nullptr},
     {nullptr, cpuClockStatus, nullptr, nullptr, menuItemDisabled, nullptr},
@@ -418,221 +364,28 @@ static const MenuPage cpuClockPage {
     cpuClockSetValue
 };
 
-// --- Storage / floppy drives ----------------------------------------------
-
-char driveTitleBuffer[2][96];
-
-const char* driveTitle(VectorFloppyDrive drive)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    const std::string fileName = core ? core->getFloppyFileName(drive) : std::string();
-    char* buffer = driveTitleBuffer[static_cast<int>(drive)];
-    constexpr char prefix[] = "Drive A: ";
-    std::memcpy(buffer, prefix, sizeof(prefix));
-    buffer[6] = drive == VectorFloppyDrive::A ? 'A' : 'B';
-    if (fileName.empty()) {
-        constexpr char empty[] = "empty";
-        std::memcpy(buffer + sizeof(prefix) - 1, empty, sizeof(empty));
-        return buffer;
-    }
-    const size_t slash = fileName.find_last_of("/\\");
-    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
-    const size_t prefixLen = sizeof(prefix) - 1;
-    constexpr char readOnlySuffix[] = " (ro)";
-    constexpr char readWriteSuffix[] = " (rw)";
-    const bool readOnly = core && core->floppyImageReadOnly(drive);
-    const char* suffix = readOnly ? readOnlySuffix : readWriteSuffix;
-    const size_t suffixLen = sizeof(readOnlySuffix) - 1;
-    const size_t baseLen = std::min(std::strlen(base), sizeof(driveTitleBuffer[0]) - prefixLen - suffixLen - 1);
-    std::memcpy(buffer + prefixLen, base, baseLen);
-    std::memcpy(buffer + prefixLen + baseLen, suffix, suffixLen);
-    buffer[prefixLen + baseLen + suffixLen] = '\0';
-    return buffer;
-}
-
-bool driveHasImage(VectorFloppyDrive drive)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->floppyImagePresent(drive);
-}
-void driveInsert(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseFloppyImage(drive); }
-void driveEject(VectorFloppyDrive drive) { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectFloppyImage(drive); }
-bool driveReadOnly(VectorFloppyDrive drive)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->floppyReadOnlyMode(drive);
-}
-bool driveReadOnlyEnabled(VectorFloppyDrive drive)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (!core)
-        return false;
-    return core->floppyReadOnlyMode(drive)
-        ? core->canSetFloppyReadOnly(drive, false)
-        : core->canSetFloppyReadOnly(drive, true);
-}
-void driveToggleReadOnly(VectorFloppyDrive drive)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setFloppyReadOnly(drive, !core->floppyReadOnlyMode(drive));
-}
-
-const char* driveATitle() { return driveTitle(VectorFloppyDrive::A); }
-const char* driveBTitle() { return driveTitle(VectorFloppyDrive::B); }
-bool driveAHasImage() { return driveHasImage(VectorFloppyDrive::A); }
-bool driveBHasImage() { return driveHasImage(VectorFloppyDrive::B); }
-void driveAInsert() { driveInsert(VectorFloppyDrive::A); }
-void driveBInsert() { driveInsert(VectorFloppyDrive::B); }
-void driveAEject() { driveEject(VectorFloppyDrive::A); }
-void driveBEject() { driveEject(VectorFloppyDrive::B); }
-bool driveAReadOnly() { return driveReadOnly(VectorFloppyDrive::A); }
-bool driveBReadOnly() { return driveReadOnly(VectorFloppyDrive::B); }
-bool driveAReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::A); }
-bool driveBReadOnlyEnabled() { return driveReadOnlyEnabled(VectorFloppyDrive::B); }
-void driveAToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::A); }
-void driveBToggleReadOnly() { driveToggleReadOnly(VectorFloppyDrive::B); }
-
-static const MenuItem driveAItems[] = {
-    {"Insert image [Alt+A]...", nullptr, nullptr, driveAInsert, nullptr, nullptr},
-    {"Read only", nullptr, nullptr, driveAToggleReadOnly, driveAReadOnlyEnabled, driveAReadOnly, true},
-    {"Eject", nullptr, nullptr, driveAEject, driveAHasImage, nullptr},
-};
-static const MenuItem driveBItems[] = {
-    {"Insert image [Alt+B]...", nullptr, nullptr, driveBInsert, nullptr, nullptr},
-    {"Read only", nullptr, nullptr, driveBToggleReadOnly, driveBReadOnlyEnabled, driveBReadOnly, true},
-    {"Eject", nullptr, nullptr, driveBEject, driveBHasImage, nullptr},
-};
-char hddTitleBuffer[96];
-
-const char* hddTitle()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    const std::string fileName = core ? core->getHddFileName() : std::string();
-    constexpr char prefix[] = "HDD: ";
-    std::memcpy(hddTitleBuffer, prefix, sizeof(prefix));
-    if (fileName.empty()) {
-        constexpr char empty[] = "empty";
-        std::memcpy(hddTitleBuffer + sizeof(prefix) - 1, empty, sizeof(empty));
-        return hddTitleBuffer;
-    }
-    const size_t slash = fileName.find_last_of("/\\");
-    const char* base = fileName.c_str() + (slash == std::string::npos ? 0 : slash + 1);
-    const size_t prefixLen = sizeof(prefix) - 1;
-    const size_t baseLen = std::min(std::strlen(base), sizeof(hddTitleBuffer) - prefixLen - 1);
-    std::memcpy(hddTitleBuffer + prefixLen, base, baseLen);
-    hddTitleBuffer[prefixLen + baseLen] = '\0';
-    return hddTitleBuffer;
-}
-
-bool hddHasImage()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->hddImagePresent();
-}
-bool hddEnabled()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getHddEnabled();
-}
-const char* hddToggleTitle() { return hddEnabled() ? "Disable" : "Enable"; }
-void toggleHdd()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setHddEnabled(!core->getHddEnabled());
-}
-void hddInsert() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->chooseHddImage(); }
-void hddEject() { if (g_emulation && g_emulation->getVector()) g_emulation->getVector()->ejectHddImage(); }
-
-static const MenuItem hddItems[] = {
-    {nullptr, hddToggleTitle, nullptr, toggleHdd, nullptr, nullptr, true},
-    {"Insert image [Alt+F4]...", nullptr, nullptr, hddInsert, nullptr, nullptr},
-    {"Eject", nullptr, nullptr, hddEject, hddHasImage, nullptr},
-};
-static const MenuPage driveAPage {"Drive A", driveATitle, driveAItems, static_cast<int>(sizeof(driveAItems) / sizeof(driveAItems[0])), nullptr, nullptr};
-static const MenuPage driveBPage {"Drive B", driveBTitle, driveBItems, static_cast<int>(sizeof(driveBItems) / sizeof(driveBItems[0])), nullptr, nullptr};
-static const MenuPage hddPage {"HDD", hddTitle, hddItems, static_cast<int>(sizeof(hddItems) / sizeof(hddItems[0])), nullptr, nullptr};
-
 void invokeSysReq(SysReq request)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->sysReq(request);
+    if (g_emulation && g_emulation->getSpecialist())
+        g_emulation->getSpecialist()->sysReq(request);
 }
 
-void eddOpen() { invokeSysReq(SR_OPENRAMDISK); }
-void eddSaveAs() { invokeSysReq(SR_SAVERAMDISKAS); }
-void edd2Open() { invokeSysReq(SR_OPENRAMDISK2); }
-void edd2SaveAs() { invokeSysReq(SR_SAVERAMDISK2AS); }
-
-bool ramDiskEnabled(int diskNum)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->ramDiskEnabled(diskNum);
-}
-
-bool eddEnabled() { return ramDiskEnabled(0); }
-bool edd2Enabled() { return ramDiskEnabled(1); }
-
-const char* eddToggleTitle() { return eddEnabled() ? "Disable" : "Enable"; }
-const char* edd2ToggleTitle() { return edd2Enabled() ? "Disable" : "Enable"; }
-
-void toggleRamDisk(int diskNum)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setRamDiskEnabled(diskNum, !core->ramDiskEnabled(diskNum));
-}
-
-void toggleEdd() { toggleRamDisk(0); }
-void toggleEdd2() { toggleRamDisk(1); }
-
-static const MenuItem eddItems[] = {
-    {nullptr, eddToggleTitle, nullptr, toggleEdd, nullptr, nullptr, true},
-    {"Load image [Alt+E]...", nullptr, nullptr, eddOpen, nullptr, nullptr},
-    {"Save image as [Alt+O]...", nullptr, nullptr, eddSaveAs, nullptr, nullptr},
+void programLoad() { invokeSysReq(SR_LOAD); }
+void programLoadAndRun() { invokeSysReq(SR_LOADRUN); }
+static const MenuItem programItems[] = {
+    {"Load [Alt+L]...", nullptr, nullptr, programLoad, nullptr, nullptr},
+    {"Load and run [Alt+F3]...", nullptr, nullptr, programLoadAndRun, nullptr, nullptr},
 };
-static const MenuItem edd2Items[] = {
-    {nullptr, edd2ToggleTitle, nullptr, toggleEdd2, nullptr, nullptr, true},
-    {"Load image [Alt+Shift+E]...", nullptr, nullptr, edd2Open, nullptr, nullptr},
-    {"Save image as [Alt+Shift+O]...", nullptr, nullptr, edd2SaveAs, nullptr, nullptr},
-};
-static const MenuPage eddPage {"EDD", nullptr, eddItems, static_cast<int>(sizeof(eddItems) / sizeof(eddItems[0])), nullptr, nullptr};
-static const MenuPage edd2Page {"EDD2", nullptr, edd2Items, static_cast<int>(sizeof(edd2Items) / sizeof(edd2Items[0])), nullptr, nullptr};
-void romLoad() { invokeSysReq(SR_LOAD); }
-void romLoadAndRun() { invokeSysReq(SR_LOADRUN); }
-static const MenuItem romItems[] = {
-    {"Load [Alt+L]...", nullptr, nullptr, romLoad, nullptr, nullptr},
-    {"Load and run [Alt+F3]...", nullptr, nullptr, romLoadAndRun, nullptr, nullptr},
-};
-static const MenuPage romPage {"ROM", nullptr, romItems, static_cast<int>(sizeof(romItems) / sizeof(romItems[0])), nullptr, nullptr};
-
-static const MenuItem storageItems[] = {
-    {"Drive A", driveATitle, &driveAPage, nullptr, nullptr, nullptr},
-    {"Drive B", driveBTitle, &driveBPage, nullptr, nullptr, nullptr},
-    {"HDD", hddTitle, &hddPage, nullptr, nullptr, nullptr},
-    {"EDD", nullptr, &eddPage, nullptr, nullptr, nullptr},
-    {"EDD2", nullptr, &edd2Page, nullptr, nullptr, nullptr},
-    {"ROM", nullptr, &romPage, nullptr, nullptr, nullptr},
-};
-static const MenuPage storagePage {"Storage", nullptr, storageItems, static_cast<int>(sizeof(storageItems) / sizeof(storageItems[0])), nullptr, nullptr};
+static const MenuPage programPage {"Programs (.RKS)", nullptr, programItems, static_cast<int>(sizeof(programItems) / sizeof(programItems[0])), nullptr, nullptr};
 
 const char* soundTitle()
 {
-    if (palAudioIsHwAy())
-        return "Sound (HWAY)";
     return palAudioIsI2S() ? "Sound (I2S)" : "Sound (PWM)";
 }
 
 const char* soundOutputTitle()
 {
-    // Порядок перебора: PWM -> I2S -> HWAY -> PWM
-    if (palAudioIsHwAy())
-        return "Output: HWAY (to PWM)";
-    if (palAudioIsI2S())
-        return "Output: I2S (to HWAY)";
-    return "Output: PWM (to I2S)";
+    return palAudioIsI2S() ? "Output: I2S (to PWM)" : "Output: PWM (to I2S)";
 }
 
 bool soundOutputEnabled()
@@ -642,15 +395,7 @@ bool soundOutputEnabled()
 
 void toggleSoundOutput()
 {
-    if (palAudioIsHwAy()) {            // HWAY -> PWM
-        palSetAudioOutputHwAy(false);
-        palSetAudioOutputI2S(false);
-    } else if (palAudioIsI2S()) {      // I2S -> HWAY
-        palSetAudioOutputI2S(false);
-        palSetAudioOutputHwAy(true);
-    } else {                           // PWM -> I2S
-        palSetAudioOutputI2S(true);
-    }
+    palSetAudioOutputI2S(!palAudioIsI2S());
 }
 
 bool s_userMuted = false;
@@ -686,174 +431,9 @@ static const MenuItem volumeItems[] = {
 };
 static const MenuPage volumePage {"Volume", nullptr, volumeItems, static_cast<int>(sizeof(volumeItems) / sizeof(volumeItems[0])), volumeGetValue, volumeSetValue};
 
-bool psgStereoChecked()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getPsgStereo();
-}
-
-void togglePsgStereo()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setPsgStereo(!core->getPsgStereo());
-}
-
-bool psgEnabled()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getPsgEnabled();
-}
-
-const char* psgToggleTitle() { return psgEnabled() ? "Disable" : "Enable"; }
-
-void togglePsg()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setPsgEnabled(!core->getPsgEnabled());
-}
-
-// Панорамирование каналов PSG выполняет программный микшер. При HWAY звук
-// формирует сама микросхема, разводка её каналов задана платой, поэтому
-// Stereo и порядок ABC/ACB на результат не влияют.
-bool psgOrderEnabled() { return psgEnabled() && !palAudioIsHwAy(); }
-bool psgStereoEnabled() { return !palAudioIsHwAy(); }
-
-// Вывод спикера/ковокса в port B второго чипа. Каждая запись занимает шину
-// 595, поэтому при подозрении на помехи звучанию PSG его можно отключить.
-bool hwayDacEnabled() { return palAudioIsHwAy(); }
-bool hwayDacChecked() { return hway_dac_enabled(); }
-void toggleHwayDac() { hway_set_dac_enabled(!hway_dac_enabled()); }
-
-// Диагностика: тон 440 Гц пишется в AY0 напрямую, минуя эмулятор.
-bool hwayToneChecked() { return hway_test_tone_on(); }
-void toggleHwayTone() { hway_test_tone(!hway_test_tone_on()); }
-
-
-// Проверка R-2R на port B: пила подаётся прямо в регистр, минуя эмуляцию.
-extern "C" { void psgTestSet(int); int psgTestGet(void); }
-
-bool psgTestSquareChecked() { return psgTestGet() == 1; }
-void togglePsgTestSquare()  { psgTestSet(psgTestGet() == 1 ? 0 : 1); }
-extern "C" { void psgStairSpeedNext(void); unsigned psgStairSpeed(void); }
-
-// Темп лестницы перебирается, чтобы найти порог, на котором поток
-// записей в регистр громкости перестаёт воспроизводиться верно.
-const char* psgStairSpeedTitle()
-{
-    switch (psgStairSpeed()) {
-        case 480: return "Stair step: 10 ms";
-        case 48:  return "Stair step: 1 ms";
-        case 5:   return "Stair step: 100 us";
-        default:  return "Stair step: 100 ms";
-    }
-}
-void doPsgStairSpeed() { psgStairSpeedNext(); }
-
-bool psgTestStairChecked()  { return psgTestGet() == 2; }
-extern "C" { void psgScaleMulNext(void); unsigned psgScaleMul(void); }
-
-const char* psgScaleMulTitle()
-{
-    switch (psgScaleMul()) {
-        case 2:  return "Scale period: x2";
-        case 4:  return "Scale period: x4";
-        case 8:  return "Scale period: x8";
-        default: return "Scale period: x1";
-    }
-}
-void doPsgScaleMul() { psgScaleMulNext(); }
-
-bool psgTestScaleChecked()  { return psgTestGet() == 3; }
-void togglePsgTestScale()   { psgTestSet(psgTestGet() == 3 ? 0 : 3); }
-void togglePsgTestStair()   { psgTestSet(psgTestGet() == 2 ? 0 : 2); }
-
-const char* hwayR7Title()
-{
-    switch (hway_r7_state()) {
-        case 1:  return "R7 step: next tone B";
-        case 2:  return "R7 step: next tone C";
-        case 3:  return "R7 step: next noise";
-        default: return "R7 step: next tone A";
-    }
-}
-void doHwayR7Step() { hway_r7_step(); }
-
-const char* hwayCsTitle()
-{
-    switch (hway_cs_state()) {
-        case 1:  return "595 CS step: CS0 only";
-        case 2:  return "595 CS step: CS1 only";
-        case 3:  return "595 CS step: both high";
-        default: return "595 CS step: both low";
-    }
-}
-void doHwayCsStep() { hway_cs_step(); }
-
-bool hwayCovoxTestChecked() { return hway_covox_test_on(); }
-void toggleHwayCovoxTest() { hway_covox_test(!hway_covox_test_on()); }
-
-// Нога тактового выхода AY: в PICO-BK их две на выбор (GP21 / GP29).
-const char* hwayAyClkTitle()
-{
-    switch (hway_ayclk_mode()) {
-        case 0:  return "AY clock: off (board xtal)";
-        case 2:  return "AY clock: alt pin";
-        default: return "AY clock: main pin";
-    }
-}
-void toggleHwayAyClk() { hway_set_ayclk_mode((hway_ayclk_mode() + 1) % 3); }
-
-bool psgAbcChecked()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && !core->getPsgAcbOrder();
-}
-
-bool psgAcbChecked()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getPsgAcbOrder();
-}
-
-void setPsgAbc()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setPsgAcbOrder(false);
-}
-
-void setPsgAcb()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core)
-        core->setPsgAcbOrder(true);
-}
-
-static const MenuItem psgItems[] = {
-    {nullptr, psgToggleTitle, nullptr, togglePsg, nullptr, nullptr, true},
-    {"ABC", nullptr, nullptr, setPsgAbc, psgOrderEnabled, psgAbcChecked, true},
-    {"ACB", nullptr, nullptr, setPsgAcb, psgOrderEnabled, psgAcbChecked, true},
-};
-static const MenuPage psgPage {"PSG", nullptr, psgItems, static_cast<int>(sizeof(psgItems) / sizeof(psgItems[0])), nullptr, nullptr};
-
 static const MenuItem soundItems[] = {
     {nullptr, soundOutputTitle, nullptr, toggleSoundOutput, soundOutputEnabled, nullptr, true},
     {"Volume", nullptr, &volumePage, nullptr, nullptr, nullptr},
-    {"Stereo", nullptr, nullptr, togglePsgStereo, psgStereoEnabled, psgStereoChecked, true},
-    {"Covox out (port B)", nullptr, nullptr, toggleHwayDac, hwayDacEnabled, hwayDacChecked, true},
-//    {"Test tone 440Hz (AY0)", nullptr, nullptr, toggleHwayTone, hwayDacEnabled, hwayToneChecked, true},
-//    {"Test: R9 square 4.4kHz", nullptr, nullptr, togglePsgTestSquare, nullptr, psgTestSquareChecked, true},
-//    {"Test: scale C major", nullptr, nullptr, togglePsgTestScale, nullptr, psgTestScaleChecked, true},
-//    {"Scale period", psgScaleMulTitle, nullptr, doPsgScaleMul, nullptr, nullptr, true},
-//    {"Stair step", psgStairSpeedTitle, nullptr, doPsgStairSpeed, nullptr, nullptr, true},
-//    {"Test: R9 staircase", nullptr, nullptr, togglePsgTestStair, nullptr, psgTestStairChecked, true},
-//    {"R7 step (data bits)", hwayR7Title, nullptr, doHwayR7Step, hwayDacEnabled, nullptr, true},
-//    {"595 CS step", hwayCsTitle, nullptr, doHwayCsStep, hwayDacEnabled, nullptr, true},
-//    {"Test covox ramp (port B)", nullptr, nullptr, toggleHwayCovoxTest, hwayDacEnabled, hwayCovoxTestChecked, true},
-    {"AY clock", hwayAyClkTitle, nullptr, toggleHwayAyClk, hwayDacEnabled, nullptr, true},
-    {"PSG", nullptr, &psgPage, nullptr, nullptr, nullptr},
 };
 static const MenuPage soundPage {"Sound", nullptr, soundItems, static_cast<int>(sizeof(soundItems) / sizeof(soundItems[0])), nullptr, nullptr};
 
@@ -879,54 +459,54 @@ const char* tapeStatus(char* buffer, const char* prefix, const std::string& file
 
 const char* tapeInputStatus()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     return tapeStatus(tapeInputStatusBuffer, "Input: ",
                       core ? core->getTapeInputFileName() : std::string());
 }
 
 const char* tapeOutputStatus()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     return tapeStatus(tapeOutputStatusBuffer, "Output: ",
                       core ? core->getTapeOutputFileName() : std::string());
 }
 
 bool tapeHooksChecked()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     return core && core->tapeHooksEnabled();
 }
 
 void toggleTapeHooks()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (core)
         core->setTapeHooksEnabled(!core->tapeHooksEnabled());
 }
 
 void tapeLoad()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (core)
         core->chooseTapeInput();
 }
 
 void tapeCreate()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (core)
         core->chooseTapeOutput();
 }
 
 bool tapeEjectEnabled()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     return core && core->tapeFilePresent();
 }
 
 void tapeEject()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     if (core)
         core->ejectTapeFiles();
 }
@@ -944,284 +524,6 @@ static const MenuPage tapePage {
     static_cast<int>(sizeof(tapeItems) / sizeof(tapeItems[0])),
     nullptr, nullptr, tapeInputStatus, tapeOutputStatus
 };
-void showSnapshotMessage(const char* title, const char* line1, const char* line2 = nullptr)
-{
-    const char* lines[3] = { line1, line2, "Enter / Esc - close" };
-    drawTextDialog(title, lines, line2 ? 3 : 2);
-
-    while (true) {
-        sleep_ms(100);
-        palInputTick();
-        const PalKeyCodeAction key = getKey();
-        if (key.pressed && (key.vk == PK_ESC || key.vk == PK_ENTER
-                         || key.vk == PK_KP_ENTER || key.vk == PK_SPACE))
-            return;
-    }
-}
-
-void saveSnapshotSlot(unsigned slot)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (!core || !core->saveSnapshot(slot))
-        showSnapshotMessage("Snapshot", "Unable to save snapshot.");
-}
-
-void loadSnapshotSlot(unsigned slot)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (!core)
-        return;
-
-    std::string firmwareVersion;
-    uint16_t fileFormatVersion = 0;
-    const VectorCore::SnapshotLoadResult result =
-        core->loadSnapshot(slot, &firmwareVersion, &fileFormatVersion);
-
-    switch (result) {
-    case VectorCore::SnapshotLoadResult::Ok:
-        return;
-    case VectorCore::SnapshotLoadResult::NotFound:
-        showSnapshotMessage("Snapshot", "Snapshot is empty.");
-        return;
-    case VectorCore::SnapshotLoadResult::IncompatibleFormat: {
-        char versions[64];
-        char* dst = appendText(versions, "Format: expected ");
-        dst = appendUnsigned(dst, VectorCore::snapshotFormatVersion());
-        dst = appendText(dst, ", file ");
-        dst = appendUnsigned(dst, fileFormatVersion);
-        *dst = '\0';
-
-        char firmware[64];
-        dst = appendText(firmware, "Created by: ");
-        dst = appendText(dst, firmwareVersion.empty() ? "unknown" : firmwareVersion.c_str());
-        *dst = '\0';
-        showSnapshotMessage("Incompatible snapshot", versions, firmware);
-        return;
-    }
-    case VectorCore::SnapshotLoadResult::InvalidFile:
-        showSnapshotMessage("Snapshot", "Invalid snapshot file.");
-        return;
-    default:
-        showSnapshotMessage("Snapshot", "Unable to load snapshot.");
-        return;
-    }
-}
-
-void removeSnapshotSlot(unsigned slot)
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (!core || !core->removeSnapshot(slot))
-        showSnapshotMessage("Snapshot", "Unable to remove snapshot.");
-}
-
-const char* snapshotSlotTitle(unsigned slot)
-{
-    static char titles[12][64];
-    char* dst = appendText(titles[slot - 1], "Snapshot ");
-    dst = appendUnsigned(dst, slot);
-    dst = appendText(dst, "  ");
-
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    VectorCore::SnapshotInfo info;
-    if (!core || !core->readSnapshotInfo(slot, info))
-        dst = appendText(dst, info.present ? "(invalid)" : "(error)");
-    else if (!info.present)
-        dst = appendText(dst, "(empty)");
-    else
-        dst = appendText(dst, info.firmwareVersion.empty()
-                              ? "unknown" : info.firmwareVersion.c_str());
-    *dst = '\0';
-    return titles[slot - 1];
-}
-
-const char* snapshotTitle1() { return snapshotSlotTitle(1); }
-const char* snapshotTitle2() { return snapshotSlotTitle(2); }
-const char* snapshotTitle3() { return snapshotSlotTitle(3); }
-const char* snapshotTitle4() { return snapshotSlotTitle(4); }
-const char* snapshotTitle5() { return snapshotSlotTitle(5); }
-const char* snapshotTitle6() { return snapshotSlotTitle(6); }
-const char* snapshotTitle7() { return snapshotSlotTitle(7); }
-const char* snapshotTitle8() { return snapshotSlotTitle(8); }
-const char* snapshotTitle9() { return snapshotSlotTitle(9); }
-const char* snapshotTitle10() { return snapshotSlotTitle(10); }
-const char* snapshotTitle11() { return snapshotSlotTitle(11); }
-const char* snapshotTitle12() { return snapshotSlotTitle(12); }
-
-void saveSnapshot1() { saveSnapshotSlot(1); }
-void loadSnapshot1() { loadSnapshotSlot(1); }
-void removeSnapshot1() { removeSnapshotSlot(1); }
-static const MenuItem snapshot1Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot1, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot1, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot1, nullptr, nullptr},
-};
-static const MenuPage snapshot1Page {
-    "Snapshot 1", nullptr, snapshot1Items,
-    static_cast<int>(sizeof(snapshot1Items) / sizeof(snapshot1Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot2() { saveSnapshotSlot(2); }
-void loadSnapshot2() { loadSnapshotSlot(2); }
-void removeSnapshot2() { removeSnapshotSlot(2); }
-static const MenuItem snapshot2Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot2, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot2, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot2, nullptr, nullptr},
-};
-static const MenuPage snapshot2Page {
-    "Snapshot 2", nullptr, snapshot2Items,
-    static_cast<int>(sizeof(snapshot2Items) / sizeof(snapshot2Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot3() { saveSnapshotSlot(3); }
-void loadSnapshot3() { loadSnapshotSlot(3); }
-void removeSnapshot3() { removeSnapshotSlot(3); }
-static const MenuItem snapshot3Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot3, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot3, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot3, nullptr, nullptr},
-};
-static const MenuPage snapshot3Page {
-    "Snapshot 3", nullptr, snapshot3Items,
-    static_cast<int>(sizeof(snapshot3Items) / sizeof(snapshot3Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot4() { saveSnapshotSlot(4); }
-void loadSnapshot4() { loadSnapshotSlot(4); }
-void removeSnapshot4() { removeSnapshotSlot(4); }
-static const MenuItem snapshot4Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot4, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot4, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot4, nullptr, nullptr},
-};
-static const MenuPage snapshot4Page {
-    "Snapshot 4", nullptr, snapshot4Items,
-    static_cast<int>(sizeof(snapshot4Items) / sizeof(snapshot4Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot5() { saveSnapshotSlot(5); }
-void loadSnapshot5() { loadSnapshotSlot(5); }
-void removeSnapshot5() { removeSnapshotSlot(5); }
-static const MenuItem snapshot5Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot5, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot5, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot5, nullptr, nullptr},
-};
-static const MenuPage snapshot5Page {
-    "Snapshot 5", nullptr, snapshot5Items,
-    static_cast<int>(sizeof(snapshot5Items) / sizeof(snapshot5Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot6() { saveSnapshotSlot(6); }
-void loadSnapshot6() { loadSnapshotSlot(6); }
-void removeSnapshot6() { removeSnapshotSlot(6); }
-static const MenuItem snapshot6Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot6, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot6, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot6, nullptr, nullptr},
-};
-static const MenuPage snapshot6Page {
-    "Snapshot 6", nullptr, snapshot6Items,
-    static_cast<int>(sizeof(snapshot6Items) / sizeof(snapshot6Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot7() { saveSnapshotSlot(7); }
-void loadSnapshot7() { loadSnapshotSlot(7); }
-void removeSnapshot7() { removeSnapshotSlot(7); }
-static const MenuItem snapshot7Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot7, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot7, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot7, nullptr, nullptr},
-};
-static const MenuPage snapshot7Page {
-    "Snapshot 7", nullptr, snapshot7Items,
-    static_cast<int>(sizeof(snapshot7Items) / sizeof(snapshot7Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot8() { saveSnapshotSlot(8); }
-void loadSnapshot8() { loadSnapshotSlot(8); }
-void removeSnapshot8() { removeSnapshotSlot(8); }
-static const MenuItem snapshot8Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot8, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot8, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot8, nullptr, nullptr},
-};
-static const MenuPage snapshot8Page {
-    "Snapshot 8", nullptr, snapshot8Items,
-    static_cast<int>(sizeof(snapshot8Items) / sizeof(snapshot8Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot9() { saveSnapshotSlot(9); }
-void loadSnapshot9() { loadSnapshotSlot(9); }
-void removeSnapshot9() { removeSnapshotSlot(9); }
-static const MenuItem snapshot9Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot9, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot9, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot9, nullptr, nullptr},
-};
-static const MenuPage snapshot9Page {
-    "Snapshot 9", nullptr, snapshot9Items,
-    static_cast<int>(sizeof(snapshot9Items) / sizeof(snapshot9Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot10() { saveSnapshotSlot(10); }
-void loadSnapshot10() { loadSnapshotSlot(10); }
-void removeSnapshot10() { removeSnapshotSlot(10); }
-static const MenuItem snapshot10Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot10, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot10, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot10, nullptr, nullptr},
-};
-static const MenuPage snapshot10Page {
-    "Snapshot 10", nullptr, snapshot10Items,
-    static_cast<int>(sizeof(snapshot10Items) / sizeof(snapshot10Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot11() { saveSnapshotSlot(11); }
-void loadSnapshot11() { loadSnapshotSlot(11); }
-void removeSnapshot11() { removeSnapshotSlot(11); }
-static const MenuItem snapshot11Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot11, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot11, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot11, nullptr, nullptr},
-};
-static const MenuPage snapshot11Page {
-    "Snapshot 11", nullptr, snapshot11Items,
-    static_cast<int>(sizeof(snapshot11Items) / sizeof(snapshot11Items[0])), nullptr, nullptr
-};
-
-void saveSnapshot12() { saveSnapshotSlot(12); }
-void loadSnapshot12() { loadSnapshotSlot(12); }
-void removeSnapshot12() { removeSnapshotSlot(12); }
-static const MenuItem snapshot12Items[] = {
-    {"Save", nullptr, nullptr, saveSnapshot12, nullptr, nullptr},
-    {"Load", nullptr, nullptr, loadSnapshot12, nullptr, nullptr},
-    {"Remove", nullptr, nullptr, removeSnapshot12, nullptr, nullptr},
-};
-static const MenuPage snapshot12Page {
-    "Snapshot 12", nullptr, snapshot12Items,
-    static_cast<int>(sizeof(snapshot12Items) / sizeof(snapshot12Items[0])), nullptr, nullptr
-};
-
-static const MenuItem snapshotItems[] = {
-    {"Snapshot 1", snapshotTitle1, &snapshot1Page, nullptr, nullptr, nullptr},
-    {"Snapshot 2", snapshotTitle2, &snapshot2Page, nullptr, nullptr, nullptr},
-    {"Snapshot 3", snapshotTitle3, &snapshot3Page, nullptr, nullptr, nullptr},
-    {"Snapshot 4", snapshotTitle4, &snapshot4Page, nullptr, nullptr, nullptr},
-    {"Snapshot 5", snapshotTitle5, &snapshot5Page, nullptr, nullptr, nullptr},
-    {"Snapshot 6", snapshotTitle6, &snapshot6Page, nullptr, nullptr, nullptr},
-    {"Snapshot 7", snapshotTitle7, &snapshot7Page, nullptr, nullptr, nullptr},
-    {"Snapshot 8", snapshotTitle8, &snapshot8Page, nullptr, nullptr, nullptr},
-    {"Snapshot 9", snapshotTitle9, &snapshot9Page, nullptr, nullptr, nullptr},
-    {"Snapshot 10", snapshotTitle10, &snapshot10Page, nullptr, nullptr, nullptr},
-    {"Snapshot 11", snapshotTitle11, &snapshot11Page, nullptr, nullptr, nullptr},
-    {"Snapshot 12", snapshotTitle12, &snapshot12Page, nullptr, nullptr, nullptr},
-};
-static const MenuPage snapshotPage {
-    "Snapshots", nullptr, snapshotItems,
-    static_cast<int>(sizeof(snapshotItems) / sizeof(snapshotItems[0])), nullptr, nullptr
-};
-// --- Video ----------------------------------------------------------------
 
 char videoShiftStatusBuffer[40];
 
@@ -1256,24 +558,27 @@ void videoMoveUp()    { graphics_dec_y(); }
 void videoMoveDown()  { graphics_inc_y(); }
 void videoCenter()    { graphics_set_offset(0, 0); }
 
-void videoToggleColor() { invokeSysReq(SR_COLOR); }
-void videoToggleCrop()  { invokeSysReq(SR_CROPTOVISIBLE); }
-
-bool videoColorChecked()
+int videoColorGetValue()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getColorMode();
+    auto* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
+    return core ? static_cast<int>(core->getColorMode()) : 2;
 }
 
-bool videoCropChecked()
+void videoColorSetValue(int value)
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    return core && core->getCroppedToVisible();
+    if (g_emulation && g_emulation->getSpecialist())
+        g_emulation->getSpecialist()->setColorMode(static_cast<SpecColorMode>(value));
 }
+
+static const MenuItem colorItems[] = {
+    {"Monochrome"},
+    {"4 colors"},
+    {"8 colors"},
+};
+static const MenuPage colorPage {"Colors", nullptr, colorItems, 3, videoColorGetValue, videoColorSetValue};
 
 static const MenuItem videoItems[] = {
-    {"Color [Alt+C]",            nullptr, nullptr, videoToggleColor, nullptr, videoColorChecked, true},
-    {"Crop to visible [Alt+V]",  nullptr, nullptr, videoToggleCrop,  nullptr, videoCropChecked,  true},
+    {"Colors [Alt+C]", nullptr, &colorPage, nullptr, nullptr, nullptr},
     {"Move left",  nullptr, nullptr, videoMoveLeft,  nullptr, nullptr, true},
     {"Move right", nullptr, nullptr, videoMoveRight, nullptr, nullptr, true},
     {"Move up",    nullptr, nullptr, videoMoveUp,    nullptr, nullptr, true},
@@ -1351,7 +656,7 @@ static const MenuItem systemClockItems[] = {
 #endif
 };
 static const MenuPage systemClockPage {
-    "RP2350 frequency", nullptr, systemClockItems,
+    "System clock", nullptr, systemClockItems,
     static_cast<int>(sizeof(systemClockItems) / sizeof(systemClockItems[0])),
     systemClockGetValue, systemClockSetValue
 };
@@ -1377,64 +682,13 @@ static const MenuPage coreVoltagePage {
     coreVoltageGetValue, coreVoltageSetValue
 };
 
-static constexpr int psramFreqValues[] = {166, 133, 100, 84, 66, 33};
-
-int psramFreqGetValue()
-{
-    const int current = palGetPsramMaxFreqMHz();
-    for (int i = 0; i < static_cast<int>(sizeof(psramFreqValues) / sizeof(psramFreqValues[0])); ++i)
-        if (psramFreqValues[i] == current)
-            return i;
-    return 1;   // по умолчанию 133 МГц
-}
-
-void psramFreqSetValue(int value)
-{
-    if (value >= 0 && value < static_cast<int>(sizeof(psramFreqValues) / sizeof(psramFreqValues[0])))
-        palSetPsramMaxFreqMHz(psramFreqValues[value]);
-}
-
-static const MenuItem psramFreqItems[] = {
-#if defined(PICO_RP2040)
-    {"133 MHz", nullptr, nullptr, nullptr, menuItemDisabled, nullptr},
-#else
-    {"166 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"133 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"100 MHz", nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"84 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"66 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
-    {"33 MHz",  nullptr, nullptr, nullptr, nullptr, nullptr},
-#endif
-};
-static const MenuPage psramFreqPage {
-    "QSPI PSRAM max freq.", nullptr, psramFreqItems,
-    static_cast<int>(sizeof(psramFreqItems) / sizeof(psramFreqItems[0])),
-    psramFreqGetValue, psramFreqSetValue
-};
-
 void machineReset() { invokeSysReq(SR_RESET); }
-
-void machineResetTurnOnRom()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core) core->resetTurnOnRom();
-}
-
-void machineResetTurnOffRom()
-{
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
-    if (core) core->resetTurnOffRom();
-}
-
 void rebootDevice() { palReboot(); }
 
 static const MenuItem systemItems[] = {
-    {"RP2350 frequency", nullptr, &systemClockPage, nullptr, nullptr, nullptr},
+    {"System clock", nullptr, &systemClockPage, nullptr, nullptr, nullptr},
     {"Core voltage", nullptr, &coreVoltagePage, nullptr, nullptr, nullptr},
-    {"QSPI PSRAM max freq.", nullptr, &psramFreqPage, nullptr, nullptr, nullptr},
     {"Reset [Alt+F11]", nullptr, nullptr, machineReset, nullptr, nullptr},
-    {"Turn on ROM and Reset [F11]", nullptr, nullptr, machineResetTurnOnRom, nullptr, nullptr},
-    {"Turn off ROM and Reset [F12]", nullptr, nullptr, machineResetTurnOffRom, nullptr, nullptr},
     {"Reboot device [Ctrl+Alt+Del]", nullptr, nullptr, rebootDevice, nullptr, nullptr},
 };
 static const MenuPage systemPage {
@@ -1445,17 +699,14 @@ static const MenuPage systemPage {
 
 void saveMenuStateImpl()
 {
-    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+    if (!g_emulation || !g_emulation->getSpecialist() || !palEnsureSdMounted())
         return;
     f_mkdir("/.config");
 
-    VectorCore* core = g_emulation->getVector();
+    SpecialistCore* core = g_emulation->getSpecialist();
     SoundMixer* mixer = g_emulation->getSoundMixer();
-    const char* output = palAudioIsHwAy() ? "hway" : (palAudioIsI2S() ? "i2s" : "pwm");
-    const char* cpu = core->getCpuType() == VECTOR_CPU_Z80 ? "z80" : "i8080";
-    const char* order = core->getPsgAcbOrder() ? "acb" : "abc";
-    const char* ayClock = hway_ayclk_mode() == 0 ? "off"
-                        : (hway_ayclk_mode() == 2 ? "alt" : "main");
+    const char* output = palAudioIsI2S() ? "i2s" : "pwm";
+    const char* cpu = core->getCpuType() == SpecCpuType::Z80 ? "z80" : "i8080";
     static const char* const keyboardLayouts[] = {"qwerty", "jcuken", "smart"};
     const int keyboardLayout = core->getKbdLayoutModeIndex();
     const int volume = s_userMuted ? 0 : (mixer ? mixer->getVolume() : 5);
@@ -1464,10 +715,10 @@ void saveMenuStateImpl()
     if (f_open(&g_file, c_stateFileName, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
         return;
 
-    cfgPut("# Vector-06C emulator settings. This is a plain text test file.\n"
+    cfgPut("# Specialist emulator settings. Plain text configuration.\n"
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
-           "version = 3\n\n"
+           "version = 1\n\n"
            "processor = ");
     cfgPut(cpu);
     cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
@@ -1485,32 +736,13 @@ void saveMenuStateImpl()
     }
     cfgPut("        # up,down,left,right,start,select,A,B");
 
-    cfgPut("\n\ndrive_a_read_only = ");
-    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::A));
-    cfgPut("\ndrive_b_read_only = ");
-    cfgPutBool(core->floppyReadOnlyMode(VectorFloppyDrive::B));
-    cfgPut("\nhdd_enabled = ");
-    cfgPutBool(core->getHddEnabled());
-    cfgPut("\nedd_enabled = ");
-    cfgPutBool(core->ramDiskEnabled(0));
-    cfgPut("\nedd2_enabled = ");
-    cfgPutBool(core->ramDiskEnabled(1));
-
     cfgPut("\n\nsound_output = ");
     cfgPut(output);
-    cfgPut("              # pwm | i2s | hway\nvolume = ");
+    cfgPut("              # pwm | i2s\nvolume = ");
     cfgPutSigned(volume);
-    cfgPut("                    # 0..7; 0 is mute\npsg_enabled = ");
-    cfgPutBool(core->getPsgEnabled());
-    cfgPut("\npsg_stereo = ");
-    cfgPutBool(core->getPsgStereo());
-    cfgPut("\npsg_order = ");
-    cfgPut(order);
-    cfgPut("                 # abc | acb\nhway_covox = ");
-    cfgPutBool(hway_dac_enabled());
-    cfgPut("\nay_clock = ");
-    cfgPut(ayClock);
-    cfgPut("                  # off | main | alt\n\ntape_redirect = ");
+    cfgPut("                    # 0..7; 0 is mute\ncolor_mode = ");
+    cfgPutUnsigned(static_cast<unsigned>(core->getColorMode()));
+    cfgPut("                # 0 mono | 1 four colors | 2 eight colors\ntape_redirect = ");
     cfgPutBool(core->tapeHooksEnabled());
 
     cfgPut("\n\n" VIDEO_OFFSET_X_KEY " = ");
@@ -1518,12 +750,10 @@ void saveMenuStateImpl()
     cfgPut("\n" VIDEO_OFFSET_Y_KEY " = ");
     cfgPutSigned(graphics_get_picture_shift_y());
 
-    cfgPut("\n\nrp2350_mhz = ");
+    cfgPut("\n\nsystem_clock_mhz = ");
     cfgPutUnsigned(static_cast<unsigned>(palGetSystemClockMHz()));
     cfgPut("\ncore_voltage_mv = ");
     cfgPutUnsigned(static_cast<unsigned>(palGetCoreVoltageMv()));
-    cfgPut("\npsram_max_freq_mhz = ");
-    cfgPutUnsigned(static_cast<unsigned>(palGetPsramMaxFreqMHz()));
     cfgPut("\n");
 
     f_sync(&g_file);
@@ -1532,7 +762,7 @@ void saveMenuStateImpl()
 
 void loadMenuStateImpl()
 {
-    if (!g_emulation || !g_emulation->getVector() || !palEnsureSdMounted())
+    if (!g_emulation || !g_emulation->getSpecialist() || !palEnsureSdMounted())
         return;
     f_mkdir("/.config");
 
@@ -1541,13 +771,12 @@ void loadMenuStateImpl()
         return;
     }
 
-    VectorCore* core = g_emulation->getVector();
+    SpecialistCore* core = g_emulation->getSpecialist();
     SoundMixer* mixer = g_emulation->getSoundMixer();
     int videoX = graphics_get_picture_shift_x();
     int videoY = graphics_get_picture_shift_y();
     unsigned systemClock = palGetSystemClockMHz();
     unsigned coreVoltage = palGetCoreVoltageMv();
-    int psramMaxFreq = palGetPsramMaxFreqMHz();
     char soundOutput[8] = {0};       // копия значения, а не указатель в буфер строки
     bool haveSoundOutput = false;
 
@@ -1569,8 +798,8 @@ void loadMenuStateImpl()
             int signedNumber = 0;
 
             if (textEquals(key, "processor")) {
-                if (textEquals(value, "z80")) core->setCpuType(VECTOR_CPU_Z80);
-                else if (textEquals(value, "i8080")) core->setCpuType(VECTOR_CPU_8080);
+                if (textEquals(value, "z80")) core->setCpuType(SpecCpuType::Z80);
+                else if (textEquals(value, "i8080")) core->setCpuType(SpecCpuType::I8080);
             } else if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
                 for (unsigned frequency : cpuClockValues)
                     if (frequency == number) core->setCpuFrequency(number);
@@ -1585,18 +814,8 @@ void loadMenuStateImpl()
                     for (unsigned control = 0; control < PAL_JOY_CONTROL_COUNT; ++control)
                         palSetJoystickMapping(joystick, control, mapping[control]);
                 }
-            } else if (textEquals(key, "drive_a_read_only") && parseBoolValue(value, boolean)) {
-                core->setFloppyReadOnly(VectorFloppyDrive::A, boolean);
-            } else if (textEquals(key, "drive_b_read_only") && parseBoolValue(value, boolean)) {
-                core->setFloppyReadOnly(VectorFloppyDrive::B, boolean);
-            } else if (textEquals(key, "hdd_enabled") && parseBoolValue(value, boolean)) {
-                core->setHddEnabled(boolean);
-            } else if (textEquals(key, "edd_enabled") && parseBoolValue(value, boolean)) {
-                core->setRamDiskEnabled(0, boolean);
-            } else if (textEquals(key, "edd2_enabled") && parseBoolValue(value, boolean)) {
-                core->setRamDiskEnabled(1, boolean);
             } else if (textEquals(key, "sound_output")) {
-                if (textEquals(value, "pwm") || textEquals(value, "i2s") || textEquals(value, "hway")) {
+                if (textEquals(value, "pwm") || textEquals(value, "i2s")) {
                     std::strncpy(soundOutput, value, sizeof(soundOutput) - 1);
                     soundOutput[sizeof(soundOutput) - 1] = '\0';
                     haveSoundOutput = true;
@@ -1607,31 +826,18 @@ void loadMenuStateImpl()
                     if (number != 0) mixer->setVolume(static_cast<int>(number));
                     mixer->setMuted(s_userMuted);
                 }
-            } else if (textEquals(key, "psg_enabled") && parseBoolValue(value, boolean)) {
-                core->setPsgEnabled(boolean);
-            } else if (textEquals(key, "psg_stereo") && parseBoolValue(value, boolean)) {
-                core->setPsgStereo(boolean);
-            } else if (textEquals(key, "psg_order")) {
-                if (textEquals(value, "abc")) core->setPsgAcbOrder(false);
-                else if (textEquals(value, "acb")) core->setPsgAcbOrder(true);
-            } else if (textEquals(key, "hway_covox") && parseBoolValue(value, boolean)) {
-                hway_set_dac_enabled(boolean);
-            } else if (textEquals(key, "ay_clock")) {
-                if (textEquals(value, "off")) hway_set_ayclk_mode(0);
-                else if (textEquals(value, "main")) hway_set_ayclk_mode(1);
-                else if (textEquals(value, "alt")) hway_set_ayclk_mode(2);
+            } else if (textEquals(key, "color_mode") && parseUnsignedValue(value, number) && number <= 2) {
+                core->setColorMode(static_cast<SpecColorMode>(number));
             } else if (textEquals(key, "tape_redirect") && parseBoolValue(value, boolean)) {
                 core->setTapeHooksEnabled(boolean);
             } else if (textEquals(key, VIDEO_OFFSET_X_KEY) && parseSignedValue(value, signedNumber)) {
                 videoX = signedNumber;
             } else if (textEquals(key, VIDEO_OFFSET_Y_KEY) && parseSignedValue(value, signedNumber)) {
                 videoY = signedNumber;
-            } else if (textEquals(key, "rp2350_mhz") && parseUnsignedValue(value, number)) {
+            } else if (textEquals(key, "system_clock_mhz") && parseUnsignedValue(value, number)) {
                 systemClock = number;
             } else if (textEquals(key, "core_voltage_mv") && parseUnsignedValue(value, number)) {
                 coreVoltage = number;
-            } else if (textEquals(key, "psram_max_freq_mhz") && parseUnsignedValue(value, number)) {
-                psramMaxFreq = static_cast<int>(number);
             }
         }
     }
@@ -1640,16 +846,6 @@ void loadMenuStateImpl()
     for (uint16_t voltage : coreVoltageValues)
         if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
 
-    // Порог PSRAM выставляем ДО применения частоты RP2350: последующий разгон
-    // пересчитает тайминги PSRAM уже с этим порогом.
-    for (int freq : psramFreqValues)
-        if (freq == psramMaxFreq) palSetPsramMaxFreqMHz(psramMaxFreq);
-
-    // В сборках, где видеодрайвер жёстко привязан к одной системной частоте
-    // (HDMI/DVI: libdvi поддерживает строго одну частоту на разрешение —
-    // 800x600@60 требует ровно 400 МГц), значение rp2350_mhz из конфига
-    // игнорируется. Менять частоту нельзя, поэтому даже не пытаемся: иначе
-    // сорвётся битовый поток TMDS. Для VGA/SOFTTV частота применяется как обычно.
     if (graphics_system_clock_can_change()) {
         uint32_t clockCount = 0;
         const uint32_t* clocks = graphics_get_supported_system_clocks(&clockCount);
@@ -1657,21 +853,10 @@ void loadMenuStateImpl()
             if (clocks[i] == systemClock) palSetSystemClockMHz(systemClock);
     }
 
-    setPictureShiftX(videoX);
-    setPictureShiftY(videoY);
+    graphics_set_offset(std::clamp(videoX, -128, 128), std::clamp(videoY, -128, 128));
 
-    if (haveSoundOutput) {
-        if (textEquals(soundOutput, "hway")) {
-            palSetAudioOutputI2S(false);
-            palSetAudioOutputHwAy(true);
-        } else if (textEquals(soundOutput, "i2s")) {
-            palSetAudioOutputHwAy(false);
-            palSetAudioOutputI2S(true);
-        } else {
-            palSetAudioOutputHwAy(false);
-            palSetAudioOutputI2S(false);
-        }
-    }
+    if (haveSoundOutput)
+        palSetAudioOutputI2S(textEquals(soundOutput, "i2s"));
 }
 
 // Общий модальный текстовый диалог (About, Help): рамка, заголовок и список
@@ -1768,12 +953,12 @@ static void showTextDialog(const char* title, const char* const* lines, int line
 void showAboutDialog()
 {
     static const char* const lines[] = {
-        "Vector-06C emulator for",
+        "Specialist emulator for",
         "Murmulator 1.x / Murmulator 2.0",
         "and Raspberry Pi Pico 2 (RP2350)",
         "",
         "This firmware is a port of the",
-        "Vector-06C platform from the",
+        "Specialist platform from the",
         "multi-system emulator emu80v4.",
         "",
         "Original emulator:",
@@ -1804,13 +989,9 @@ void showHelpDialog()
         "Ctrl+Alt+Del - hard reset (reboot)",
         "Alt+F11 - reset the machine",
         "Alt+L / Alt+F3 - load / load and run",
-        "Alt+A / Alt+B - mount disk A / B",
-        "Alt+F4 - mount HDD image",
-        "Alt+E / Alt+O - RAM-disk open / save",
         "Alt+T - tape redirect on / off",
-        "Alt+C / Alt+V - color / crop toggle",
+        "Alt+C - cycle color mode",
         "Alt+Q / Alt+J / Alt+K - kbd layouts",
-        "LWin+Fn / RWin+Fn - save / load snap",
         "",
         "Numpad * / move image horizontally",
         "Numpad + - move image vertically",
@@ -1827,7 +1008,7 @@ void showHelpDialog()
 
 int kbdLayoutGetValue()
 {
-    VectorCore* core = g_emulation ? g_emulation->getVector() : nullptr;
+    SpecialistCore* core = g_emulation ? g_emulation->getSpecialist() : nullptr;
     return core ? core->getKbdLayoutModeIndex() : 0;
 }
 
@@ -1852,13 +1033,11 @@ static const MenuPage keyboardPage {
 };
 
 void redrawMenu();
-void pushMessageBoxBackground(const char* title, const char* text);
-void popMessageBoxBackground();
+void relayoutMenu();
 
 void captureJoystickMapping(unsigned joystick, unsigned control, const char* title)
 {
     static constexpr const char* prompt = "Press desired key to map";
-    pushMessageBoxBackground(title, prompt);
     palMessageBox(title, prompt);
     while (true) {
         sleep_ms(20);
@@ -1866,9 +1045,10 @@ void captureJoystickMapping(unsigned joystick, unsigned control, const char* tit
         const PalKeyCodeAction key = getKey();
         if (!key.pressed || key.vk == PK_NONE)
             continue;
-        popMessageBoxBackground();
-        palSetJoystickMapping(joystick, control, key.vk);
-        redrawMenu();
+        if (key.vk != PK_ESC)
+            palSetJoystickMapping(joystick, control, key.vk);
+        g_emulation->resetKeys();
+        relayoutMenu();
         return;
     }
 }
@@ -1938,10 +1118,9 @@ static const MenuItem rootItems[] = {
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
     {"Joysticks", nullptr, &joysticksPage, nullptr, nullptr, nullptr},
-    {"Storage", nullptr, &storagePage, nullptr, nullptr, nullptr},
+    {"Programs (.RKS)", nullptr, &programPage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
-    {"Snapshots", nullptr, &snapshotPage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
     {"System", nullptr, &systemPage, nullptr, nullptr, nullptr},
     {"Help", nullptr, nullptr, showHelpDialog, nullptr, nullptr},
@@ -1951,14 +1130,14 @@ static const MenuItem rootItems[] = {
 // Заголовок корневой страницы отражает установленное ядро
 const char* rootTitle()
 {
-    if (g_emulation && g_emulation->getVector()
-        && g_emulation->getVector()->getCpuType() == VECTOR_CPU_Z80)
-        return "Vector-06C Z80";
-    return "Vector-06C 80A";
+    if (g_emulation && g_emulation->getSpecialist()
+        && g_emulation->getSpecialist()->getCpuType() == SpecCpuType::Z80)
+        return "Specialist Z80";
+    return "Specialist 80A";
 }
 
 static const MenuPage rootPage {
-    "Vector-06C 80A",
+    "Specialist 80A",
     rootTitle,
     rootItems,
     static_cast<int>(sizeof(rootItems) / sizeof(rootItems[0])),
@@ -1967,104 +1146,11 @@ static const MenuPage rootPage {
 };
 
 // ---------------------------------------------------------------------------
-//  Подложка под каскад подменю.
-//
-//  Главное меню фон не сохраняет: закрывается оно вместе со снятием паузы,
-//  и рендерер перерисовывает кадр целиком за один проход.
-//
-//  А вот подменю раскрываются вбок, вправо от родителя, поверх изображения
-//  машины, и по «влево» область под ними должна вернуться к прежнему виду.
-//  Поэтому фон запоминается для каждого уровня отдельно, стеком: вход на
-//  уровень кладёт прямоугольник в пул, возврат снимает его оттуда.
-// ---------------------------------------------------------------------------
 // Задержка до начала автоповтора и период повторов
 static constexpr uint64_t c_repeatDelayUs = 400000;
 static constexpr uint64_t c_repeatRateUs  = 60000;
 
 static constexpr int c_menuMaxDepth = 8;
-
-#ifndef SCANLINE_TEXT_MENU
-static constexpr int c_menuBackupPool = 65536;
-static SRam s_menuBackup{c_menuBackupPool};
-static int s_backupUsed = 0;
-
-struct BackupRec {
-    int x, y, w, h, offset;
-    bool valid;
-};
-static BackupRec s_backup[c_menuMaxDepth];
-
-void pushBackground(int depth, int x, int y, int w, int h)
-{
-    if (depth < 0 || depth >= c_menuMaxDepth)
-        return;
-
-    BackupRec& r = s_backup[depth];
-    r.valid = false;
-    uint8_t* frame = graphics_get_frame();
-    if (!frame)
-        return;
-
-    const int screenW = graphics_get_width();
-    const int screenH = graphics_get_height();
-    // Шаг строки В КАДРОВОМ БУФЕРЕ может быть больше видимой ширины (режим
-    // обрезки: буфер физически 626, показывается окно 512). Адресуем кадр по
-    // stride, а в пул складываем плотно по ширине прямоугольника w.
-    const int frameStride = graphics_get_line_stride();
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x + w > screenW) w = screenW - x;
-    if (y + h > screenH) h = screenH - y;
-    if (w <= 0 || h <= 0 || s_backupUsed + w * h > c_menuBackupPool)
-        return;   // не влезло — просто не восстановим, кадр всё равно перерисуется
-
-    r = {x, y, w, h, s_backupUsed, true};
-    for (int row = 0; row < h; ++row)
-        s_menuBackup.writeBlock(
-            r.offset + row * w,
-            frame + (y + row) * frameStride + x, w);
-    s_backupUsed += w * h;
-}
-
-void popBackground(int depth)
-{
-    if (depth < 0 || depth >= c_menuMaxDepth)
-        return;
-    BackupRec& r = s_backup[depth];
-    uint8_t* frame = graphics_get_frame();
-    if (r.valid && frame) {
-        const int frameStride = graphics_get_line_stride();
-        for (int row = 0; row < r.h; ++row)
-            s_menuBackup.readBlock(
-                r.offset + row * r.w,
-                frame + (r.y + row) * frameStride + r.x, r.w);
-        s_backupUsed = r.offset;
-    }
-    r.valid = false;
-}
-#else
-// В текстовом режиме RP2040 пиксели не сохраняются. При закрытии и
-// перемещении перерисовывается весь оставшийся каскад на чистом фоне.
-struct BackupRec {
-    int x, y, w, h, offset;
-    bool valid;
-};
-static BackupRec s_backup[c_menuMaxDepth];
-
-void pushBackground(int depth, int x, int y, int w, int h)
-{
-    if (depth < 0 || depth >= c_menuMaxDepth)
-        return;
-    s_backup[depth] = {x, y, w, h, 0, true};
-}
-
-void popBackground(int depth)
-{
-    if (depth < 0 || depth >= c_menuMaxDepth)
-        return;
-    s_backup[depth].valid = false;
-}
-#endif
 
 bool textMenuMode()
 {
@@ -2093,10 +1179,6 @@ int pageHeight(const MenuPage& page)
     const int fontH = graphics_get_font_height();
     return fontH + 6 + (rows + statusRows) * rowH + 2;
 }
-
-int backupW = 0;
-int backupH = 0;
-bool backupValid = false;
 
 // Геометрия строки списка внутри страницы
 int rowTop(int y, int index)
@@ -2325,8 +1407,8 @@ void layoutLevel(int d)
     if (d == 0) {
         const int marginX = textMenuMode() ? graphics_get_font_width() : 0;
         const int marginY = textMenuMode() ? graphics_get_font_height() : 0;
-        nx = marginX + s_menuScreenX - graphics_get_picture_shift_x();
-        ny = marginY + s_menuScreenY - graphics_get_picture_shift_y();
+        nx = marginX + palMainMenuOriginX();
+        ny = marginY + palMainMenuOriginY();
     } else {
         const int fontW = graphics_get_font_width();
         const int fontH = graphics_get_font_height();
@@ -2353,45 +1435,17 @@ void layoutLevel(int d)
     menu.pageH[d] = nh;
 }
 
-// Полная перекладка каскада: нужна при открытии меню и при его сдвиге.
-// Все уровни снимаются в обратном порядке, затем раскладываются заново
-// от нового начала и рисуются сверху вниз.
-//
-// Фон сохраняется и для корневого уровня. Раньше он не сохранялся, потому что
-// при закрытии кадр всё равно перерисовывается целиком, — но меню теперь можно
-// двигать, а без сохранённого фона сдвинутая страница оставляла бы за собой
-// след: стереть его нечем, эмуляция стоит на паузе.
 void relayoutMenu()
 {
-#ifdef SCANLINE_TEXT_MENU
-    if (graphics_get_menu_text_mode()) {
+    if (textMenuMode())
         graphics_clear_menu_text();
-        if (graphics_get_video_content_mode() == GRAPHICS_VIDEO_TEXT)
-            graphics_fill(0, 0, graphics_get_width() - 1,
-                          graphics_get_height() - 1, RGB888(0, 0, 128));
-        for (int d = 0; d <= menu.depth; ++d) {
-            layoutLevel(d);
-            drawPage(*menu.stack[d], menu.selected[d],
-                     menu.pageX[d], menu.pageY[d],
-                     menu.pageW[d], menu.pageH[d]);
-        }
-        return;
-    }
-#endif
-
-    for (int d = menu.depth; d >= 0; --d)
-        popBackground(d);
-#ifndef SCANLINE_TEXT_MENU
-    s_backupUsed = 0;
-#endif
+    else
+        g_emulation->getSpecialist()->redrawVideo();
 
     for (int d = 0; d <= menu.depth; ++d) {
         layoutLevel(d);
-        pushBackground(d, menu.pageX[d], menu.pageY[d],
-                       menu.pageW[d] + 5, menu.pageH[d] + 5);
         drawPage(*menu.stack[d], menu.selected[d],
-                 menu.pageX[d], menu.pageY[d],
-                 menu.pageW[d], menu.pageH[d]);
+                 menu.pageX[d], menu.pageY[d], menu.pageW[d], menu.pageH[d]);
     }
 }
 
@@ -2399,42 +1453,12 @@ void relayoutMenu()
 
 void palLoadMenuState()
 {
-#ifndef SCANLINE_TEXT_MENU
-    s_menuBackup.init();
-#endif
     loadMenuStateImpl();
 }
 
 void palSaveMenuState()
 {
     saveMenuStateImpl();
-}
-
-void palSnapshotHotkey(unsigned slot, bool save)
-{
-    if (!g_emulation || slot < 1 || slot > 12)
-        return;
-
-    // Тот же порядок, что при открытии меню: пауза и тишина на время
-    // блокирующей операции, затем возврат прежнего состояния. Снимок тоже
-    // содержит признак паузы, но приоритет остаётся за состоянием машины
-    // до нажатия — так же ведёт себя загрузка из меню.
-    SoundMixer* mixer = g_emulation->getSoundMixer();
-    const bool wasPaused = g_emulation->getPausedState();
-    const bool wasMuted = mixer && mixer->getMuted();
-
-    g_emulation->setPaused(true);
-    if (mixer)
-        mixer->setMuted(true);
-
-    if (save)
-        saveSnapshotSlot(slot);
-    else
-        loadSnapshotSlot(slot);
-
-    if (mixer)
-        mixer->setMuted(wasMuted);
-    g_emulation->setPaused(wasPaused);
 }
 
 void palOpenMainMenu()
@@ -2452,17 +1476,11 @@ void palOpenMainMenu()
         menu.mixer->setMuted(true);
 
 #ifdef SCANLINE_TEXT_MENU
-    graphics_set_video_content_mode(SCANLINE_MENU_VIDEO_MODE);
+    graphics_set_video_content_mode(GRAPHICS_VIDEO_TEXT);
 #endif
 
     const int screenW = graphics_get_width();
     menu.screenH = graphics_get_height();
-
-#ifndef SCANLINE_TEXT_MENU
-    s_backupUsed = 0;
-    for (int i = 0; i < c_menuMaxDepth; ++i)
-        s_backup[i].valid = false;
-#endif
 
     menu.menuW = std::min(pageWidth(rootPage), screenW - 4);
     menu.stack[0] = &rootPage;
@@ -2477,20 +1495,19 @@ void palCloseMainMenu()
     if (!menu.open)
         return;
 
-    // Уровни снимаются в обратном порядке, чтобы фон вернулся на место.
-    // Корневой уровень тоже: его фон теперь сохраняется, потому что меню
-    // можно двигать.
-    for (int d = menu.depth; d >= 0; --d)
-        popBackground(d);
     menu.open = false;
 #ifdef SCANLINE_TEXT_MENU
-    graphics_set_video_content_mode(GRAPHICS_VIDEO_VECTOR);
+    graphics_set_video_content_mode(GRAPHICS_VIDEO_FRAMEBUFFER);
 #endif
+    if (g_emulation && g_emulation->getSpecialist())
+        g_emulation->getSpecialist()->redrawVideo();
     saveMenuStateImpl();
     if (menu.mixer)
         menu.mixer->setMuted(s_userMuted);
-    if (g_emulation)
+    if (g_emulation) {
+        g_emulation->resetKeys();
         g_emulation->setPaused(menu.wasPaused);
+    }
     menu.mixer = nullptr;
 }
 
@@ -2525,13 +1542,8 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
                 palCloseMainMenu();
             return true;
         }
-        // Фон под закрываемым подменю возвращается на место
-        popBackground(menu.depth);
         --menu.depth;
-#ifdef SCANLINE_TEXT_MENU
-        if (graphics_get_menu_text_mode())
-            relayoutMenu();
-#endif
+        relayoutMenu();
         return true;
     } else if (page->itemCount > 0 && (keyCode == PK_UP || keyCode == PK_DOWN)) {
         moveSelection(keyCode == PK_UP ? -1 : 1);
@@ -2561,9 +1573,7 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         if (item.action) {
             item.action();
             if (item.keepOpen) {
-                if (item.action == driveAToggleReadOnly || item.action == driveBToggleReadOnly
-                    || item.action == toggleSoundOutput || item.action == togglePsgStereo
-                    || item.action == tapeEject)
+                if (item.action == toggleSoundOutput || item.action == tapeEject)
                     redrawMenuAndParentItem();
                 else
                     redrawMenu();
@@ -2581,11 +1591,6 @@ bool palMainMenuHandleKey(PalKeyCode keyCode, bool isPressed)
         menu.stack[menu.depth + 1] = submenu;
         ++menu.depth;
         layoutLevel(menu.depth);
-        // graphics_fill и graphics_rect работают по включительным границам,
-        // а тень уходит на 4 пикселя вправо и вниз, поэтому сохраняем
-        // на пиксель больше по каждой оси
-        pushBackground(menu.depth, menu.pageX[menu.depth], menu.pageY[menu.depth],
-                       menu.pageW[menu.depth] + 5, menu.pageH[menu.depth] + 5);
         // В радиогруппе изначально выделено текущее значение
         menu.selected[menu.depth] = submenu->getValue ? submenu->getValue() : 0;
         if (menu.selected[menu.depth] < 0 || menu.selected[menu.depth] >= submenu->itemCount)
@@ -2618,67 +1623,6 @@ void messageBoxRect(const char* title, const char* text,
     h = fontH * 2 + 12;
     x = (screenW - w) / 2;
     y = (screenH - h) / 2;
-}
-
-#ifndef SCANLINE_TEXT_MENU
-BackupRec s_messageBackup{};
-#endif
-
-} // namespace
-
-namespace {
-
-void pushMessageBoxBackground(const char* title, const char* text)
-{
-#ifndef SCANLINE_TEXT_MENU
-    int x, y, w, h;
-    messageBoxRect(title, text, x, y, w, h);
-    w += 5;
-    h += 5;
-    s_messageBackup.valid = false;
-
-    uint8_t* frame = graphics_get_frame();
-    if (!frame)
-        return;
-
-    const int screenW = graphics_get_width();
-    const int screenH = graphics_get_height();
-    const int frameStride = graphics_get_line_stride();
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    if (x + w > screenW) w = screenW - x;
-    if (y + h > screenH) h = screenH - y;
-    if (w <= 0 || h <= 0 || s_backupUsed + w * h > c_menuBackupPool)
-        return;
-
-    s_messageBackup = {x, y, w, h, s_backupUsed, true};
-    for (int row = 0; row < h; ++row)
-        s_menuBackup.writeBlock(
-            s_messageBackup.offset + row * w,
-            frame + (y + row) * frameStride + x, w);
-    s_backupUsed += w * h;
-#else
-    (void)title;
-    (void)text;
-#endif
-}
-
-void popMessageBoxBackground()
-{
-#ifndef SCANLINE_TEXT_MENU
-    uint8_t* frame = graphics_get_frame();
-    if (s_messageBackup.valid && frame) {
-        const int frameStride = graphics_get_line_stride();
-        for (int row = 0; row < s_messageBackup.h; ++row)
-            s_menuBackup.readBlock(
-                s_messageBackup.offset + row * s_messageBackup.w,
-                frame + (s_messageBackup.y + row) * frameStride
-                    + s_messageBackup.x,
-                s_messageBackup.w);
-        s_backupUsed = s_messageBackup.offset;
-    }
-    s_messageBackup.valid = false;
-#endif
 }
 
 } // namespace
@@ -2742,5 +1686,5 @@ void palMainMenuShift(int dx, int dy)
 }
 
 // Наружу отдаются координаты буфера: файловый диалог рисуется туда же
-int palMainMenuOriginX() {return s_menuScreenX - graphics_get_picture_shift_x();}
-int palMainMenuOriginY() {return s_menuScreenY - graphics_get_picture_shift_y();}
+int palMainMenuOriginX() {return s_menuScreenX - (textMenuMode() ? 0 : graphics_get_picture_shift_x());}
+int palMainMenuOriginY() {return s_menuScreenY - (textMenuMode() ? 0 : graphics_get_picture_shift_y());}

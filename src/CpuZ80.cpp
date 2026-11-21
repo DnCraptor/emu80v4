@@ -24,7 +24,6 @@
 #include "CpuZ80.h"
 #include "CpuHook.h"
 #include "Emulation.h"
-#include "Vector.h"
 
 using namespace std;
 
@@ -2465,7 +2464,6 @@ unsigned __not_in_flash_func(CpuZ80::simz80)(unsigned op, uint8_t& secondOp)
         break;
     case 0xF3:          /* DI */
         IFF = 0;
-        m_core->inte(false);
         break;
     case 0xF4:          /* CALL P,nnnn */
         CALLC(!TSTFLAG(S));
@@ -2493,7 +2491,6 @@ unsigned __not_in_flash_func(CpuZ80::simz80)(unsigned op, uint8_t& secondOp)
     case 0xFB:          /* EI */
         m_iffPendingCnt = 2;
         IFF = 0;
-        m_core->inte(true);  // there is no INTE output in Z80 though
         break;
     case 0xFC:          /* CALL M,nnnn */
         CALLC(TSTFLAG(S));
@@ -2521,7 +2518,6 @@ unsigned __not_in_flash_func(CpuZ80::simz80)(unsigned op, uint8_t& secondOp)
     if (m_iffPendingCnt)
         if (!--m_iffPendingCnt) {
             IFF = 3;
-            m_core->inte(true);
         }
 
     return cycles;
@@ -2622,7 +2618,6 @@ void CpuZ80::reset() {
     m_iffPendingCnt = 0;
 
     IFF = 0;
-    m_core->inte(false);
 }
 
 
@@ -2630,7 +2625,6 @@ void CpuZ80::intRst(int vect)
 {
     if (IFF != 0) {
         IFF = 0;
-        m_core->inte(false);
         if (GetBYTE(PC) == 0x76) {
             PC++;
             m_curClock = g_emulation->getCurClock();
@@ -2651,7 +2645,6 @@ void CpuZ80::intCall(uint16_t addr)
 {
     if (IFF != 0) {
         IFF = 0;
-        m_core->inte(false);
         if (GetBYTE(PC) == 0x76) {
             PC++;
             m_curClock = g_emulation->getCurClock();
@@ -2743,111 +2736,4 @@ void CpuZ80::setAF(uint16_t value)
 void CpuZ80::setIFF(bool iff)
 {
     IFF = iff ? 3 : 0;
-}
-
-
-namespace {
-
-#pragma pack(push, 1)
-struct CpuZ80SnapshotStateV1 {
-    uint64_t curClock;
-    uint16_t af[2];
-    uint16_t bc[2];
-    uint16_t de[2];
-    uint16_t hl[2];
-    uint16_t ir;
-    uint16_t ix;
-    uint16_t iy;
-    uint16_t sp;
-    uint16_t pc;
-    uint16_t iff;
-    uint16_t im;
-    int32_t iffPendingCnt;
-    uint8_t afSel;
-    uint8_t regsSel;
-    uint8_t stackOperation;
-    uint8_t paused;
-};
-#pragma pack(pop)
-
-constexpr uint32_t c_cpuSnapshotSection =
-    makeSnapshotSectionId('C', 'P', 'U', ' ');
-
-} // namespace
-
-
-uint32_t CpuZ80::snapshotSectionId() const
-{
-    return c_cpuSnapshotSection;
-}
-
-uint16_t CpuZ80::snapshotSectionVersion() const
-{
-    return 1;
-}
-
-bool CpuZ80::saveState(SnapshotWriter& writer) const
-{
-    CpuZ80SnapshotStateV1 state{};
-    state.curClock = m_curClock;
-    state.af[0] = af[0];
-    state.af[1] = af[1];
-    state.bc[0] = regs[0].bc;
-    state.bc[1] = regs[1].bc;
-    state.de[0] = regs[0].de;
-    state.de[1] = regs[1].de;
-    state.hl[0] = regs[0].hl;
-    state.hl[1] = regs[1].hl;
-    state.ir = ir;
-    state.ix = ix;
-    state.iy = iy;
-    state.sp = sp;
-    state.pc = pc;
-    state.iff = IFF;
-    state.im = IM;
-    state.iffPendingCnt = m_iffPendingCnt;
-    state.afSel = static_cast<uint8_t>(af_sel);
-    state.regsSel = static_cast<uint8_t>(regs_sel);
-    state.stackOperation = m_stackOperation ? 1 : 0;
-    state.paused = m_isPaused ? 1 : 0;
-    return writer.writeValue(state);
-}
-
-bool CpuZ80::loadState(SnapshotReader& reader, uint16_t version)
-{
-    if (version != snapshotSectionVersion() ||
-        reader.remaining() != sizeof(CpuZ80SnapshotStateV1))
-        return false;
-
-    CpuZ80SnapshotStateV1 state{};
-    if (!reader.readValue(state) || state.afSel > 1 || state.regsSel > 1)
-        return false;
-
-    m_curClock = state.curClock;
-    m_isPaused = state.paused != 0;
-    af[0] = state.af[0];
-    af[1] = state.af[1];
-    regs[0].bc = state.bc[0];
-    regs[1].bc = state.bc[1];
-    regs[0].de = state.de[0];
-    regs[1].de = state.de[1];
-    regs[0].hl = state.hl[0];
-    regs[1].hl = state.hl[1];
-    ir = state.ir;
-    ix = state.ix;
-    iy = state.iy;
-    sp = state.sp;
-    pc = state.pc;
-    IFF = state.iff;
-    IM = state.im;
-    m_iffPendingCnt = state.iffPendingCnt;
-    af_sel = state.afSel;
-    regs_sel = state.regsSel;
-    m_stackOperation = state.stackOperation != 0;
-    return true;
-}
-
-void CpuZ80::postLoad()
-{
-    m_core->inte(IFF != 0);
 }

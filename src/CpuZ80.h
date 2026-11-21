@@ -29,7 +29,7 @@ struct ddregs {
     uint16_t hl;
 };
 
-class CpuZ80 : public Cpu8080Compatible, public SnapshotSerializable
+class CpuZ80 : public Cpu8080Compatible
 {
     public:
         CpuZ80();
@@ -62,11 +62,6 @@ class CpuZ80 : public Cpu8080Compatible, public SnapshotSerializable
 
         bool checkForStackOperation() override {return m_stackOperation;}
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
-        void postLoad() override;
 
 
     private:

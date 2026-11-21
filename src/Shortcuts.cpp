@@ -30,8 +30,6 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_CLOSE;
             case PK_F3:
                 return SR_LOADRUN;
-            case PK_F4:
-                return SR_HDD;
             case PK_L:
                 return SR_LOAD;
             case PK_W:
@@ -46,18 +44,8 @@ SysReq TranslateKeyToSysReq(PalKeyCode key, bool isKeyDown, bool isAltPressed, b
                 return SR_JCUKEN;
             case PK_K:
                 return SR_SMART;
-            case PK_V:
-                return isShiftPressed ? SR_NONE : SR_CROPTOVISIBLE;
             case PK_C:
                 return SR_COLOR;
-            case PK_A:
-                return SR_DISKA;
-            case PK_B:
-                return SR_DISKB;
-            case PK_E:
-                return isShiftPressed ? SR_OPENRAMDISK2 : SR_OPENRAMDISK;
-            case PK_O:
-                return isShiftPressed ? SR_SAVERAMDISK2AS : SR_SAVERAMDISKAS;
             case PK_M:
                 return SR_MUTE;
             case PK_P:

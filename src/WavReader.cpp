@@ -41,7 +41,7 @@ bool WavReader::chooseAndLoadFile()
         return false;
     }
 
-    string fileName = palOpenFileDialog("Open wave file", "Wav and csw files|*.wav;*.WAV;*.csw;*.CSW", false);
+    string fileName = palOpenFileDialog("Open wave file", ".wav|.csw", false);
     if (fileName == "")
         return true;
 

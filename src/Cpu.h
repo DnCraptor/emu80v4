@@ -24,9 +24,7 @@
 
 
 class CpuHook;
-class VectorCore;
 class Cpu8080Compatible;
-class VectorRenderer;
 
 class Cpu : public ActiveDevice
 {
@@ -37,7 +35,6 @@ class Cpu : public ActiveDevice
 
         void attachAddrSpace(AddressableDevice* as);
         void attachIoAddrSpace(AddressableDevice* as);
-        void attachCore(VectorCore* core);
         void setStartAddr(unsigned addr) {m_startAddr = addr;}
 
         virtual void interrupt(int) {}
@@ -49,54 +46,30 @@ class Cpu : public ActiveDevice
         AddressableDevice* getAddrSpace() {return m_addrSpace;}
         AddressableDevice* getIoAddrSpace() {return m_ioAddrSpace;}
 
-        // Быстрая карта гостевой памяти: 256 страниц по 256 байт.
-        // Значение — база блока, в котором адрес лежит по своему собственному
-        // смещению, то есть доступ выполняется как base[addr] без маскирования
-        // (у Вектора и ОЗУ, и ПЗУ отображаются с адреса 0). nullptr означает
-        // «идти прежним путём через m_addrSpace».
-        // Карту строит VectorAddrSpace::rebuildPageMap().
-        void clearPageMap();
-        void setReadPage(int page, const uint8_t* base) {m_rdPage[page & 0xFF] = base;}
-        void setWritePage(int page, uint8_t* base) {m_wrPage[page & 0xFF] = base;}
-        void attachCrtRenderer(VectorRenderer* crt) {m_crt = crt;}
+        // Entries are real pointers to the start of a 256-byte page.
+        void setReadPage(unsigned page, const uint8_t* data) {m_rdPage[page] = data;}
+        void setWritePage(unsigned page, uint8_t* data) {m_wrPage[page] = data;}
 
     protected:
-        // Обращение к гостевой памяти. Прежде это была цепочка из трёх
-        // виртуальных вызовов (m_addrSpace->readByte -> VectorAddrSpace::readByte
-        // -> Ram::readByte) с проверками страниц и границ на каждый байт.
-        // Теперь в типовом случае это загрузка указателя страницы и загрузка
-        // байта; всё, что не ложится в статическую карту, уходит на прежний путь.
-        inline int as_input(int addr)
+        int as_input(int addr)
         {
-            const uint8_t* p = m_rdPage[(addr >> 8) & 0xFF];
-            if (__builtin_expect(p != nullptr, 1))
-                return p[addr & 0xFFFF];
-            return m_addrSpace->readByte(addr);
+            const auto* page = m_rdPage[(addr >> 8) & 0xff];
+            return page ? page[addr & 0xff] : m_addrSpace->readByte(addr & 0xffff);
         }
 
-        inline void as_output(int addr, int value)
+        void as_output(int addr, int value)
         {
-            uint8_t* p = m_wrPage[(addr >> 8) & 0xFF];
-            if (__builtin_expect(p != nullptr, 1)) {
-                // Вся верхняя половина адресного пространства Вектора — экран
-                if (addr >= 0x8000)
-                    vidWriteNotify();
-                p[addr & 0xFFFF] = uint8_t(value);
-                return;
-            }
-            m_addrSpace->writeByte(addr, value);
+            auto* page = m_wrPage[(addr >> 8) & 0xff];
+            if (page)
+                page[addr & 0xff] = uint8_t(value);
+            else
+                m_addrSpace->writeByte(addr & 0xffff, uint8_t(value));
         }
-
-        // Определён в Cpu.cpp: заголовку не нужен полный тип VectorRenderer
-        void vidWriteNotify();
 
         const uint8_t* m_rdPage[256] = {};
         uint8_t* m_wrPage[256] = {};
-        VectorRenderer* m_crt = nullptr;
-
         AddressableDevice* m_addrSpace = nullptr;
         AddressableDevice* m_ioAddrSpace = nullptr;
-        VectorCore* m_core = nullptr;
         unsigned m_startAddr = 0;
 
         bool m_hooksDisabled = false;

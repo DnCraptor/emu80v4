@@ -41,7 +41,6 @@
 
 // Насколько приподнимается картинка в NTSC: верхняя рамка 16 строк плюс
 // половина от нехватки (256 - 242) / 2 = 7.
-#define c_ntscShiftY 23
 #pragma GCC optimize("Ofast")
 
 
@@ -284,8 +283,8 @@ void menu_text_clear_for_mode(void) {}
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
 {
-    if (mode < GRAPHICS_VIDEO_VECTOR || mode > GRAPHICS_VIDEO_COMBINED)
-        mode = GRAPHICS_VIDEO_VECTOR;
+    if (mode < GRAPHICS_VIDEO_FRAMEBUFFER || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_FRAMEBUFFER;
 
     __asm volatile ("" ::: "memory");
     menu_video_mode = mode;
@@ -363,8 +362,6 @@ void tv_copy_u8(void* dst_void, const void* src_void, size_t count)
 static uint8_t map64colors[64] = { 0 };
 
 //параметры по умолчанию
-// Вектор-06Ц выдаёт PAL, и кадровый буфер эмулятора повторяет его развёртку,
-// поэтому PAL здесь основной режим. NTSC остаётся собираемым по ключу TV_NTSC.
 tv_out_mode_t tv_out_mode = {
 #if defined(TV_NTSC)
     .tv_system = g_TV_OUT_NTSC,
@@ -459,442 +456,6 @@ static G_BUFFER graphics_buffer = {
 // строки через внешний getLineBuffer() из порта ZX Spectrum.
 static uint8_t* graphics_framebuffer = NULL;
 
-#ifdef PICO_RP2040
-#define VECTOR_TV_LUT_COUNT 3
-#define VECTOR_TV_MAX_WIDTH 626
-
-typedef struct {
-    const uint8_t* memory;
-    uint8_t palette[16];
-    uint8_t border_color;
-    uint8_t line_offset;
-    uint8_t lut_index;
-    bool mode512;
-    bool show_border;
-    bool enabled;
-    uint32_t border_pattern;
-} vector_tv_state_t;
-
-static vector_tv_state_t vector_tv_state;
-static volatile uint32_t vector_tv_seq = 0;
-static vector_tv_state_t vector_tv_frame_state;
-static bool vector_tv_frame_state_valid = false;
-static uint32_t vector_tv_pair_lut[VECTOR_TV_LUT_COUNT][256];
-static volatile uint8_t vector_tv_lut_in_use = 0xff;
-
-/*
- * Final composite samples for four Vector pixels. Variants:
- * 0/1 = normal PAL/NTSC phase tables, 2/3 = inverted phase tables.
- * Built on core0 together with the palette LUT, read from SRAM by DMA IRQ.
- */
-static uint32_t vector_tv_composite_lut[4][256][4];
-
-/*
- * Horizontal scaler plan. Each entry tells how many composite samples to emit
- * for one source pixel. It replaces the per-output fixed-point accumulator in
- * the hot scanline loop.
- */
-static uint8_t vector_tv_runs[VECTOR_TV_MAX_WIDTH];
-static int vector_tv_runs_source_width = -1;
-static int vector_tv_runs_output_width = -1;
-
-static inline __attribute__((always_inline))
-void vector_tv_barrier(void)
-{
-    __asm volatile ("" ::: "memory");
-}
-
-static bool __not_in_flash_func(vector_tv_snapshot)(
-        vector_tv_state_t* state)
-{
-    for (;;) {
-        const uint32_t seq0 = vector_tv_seq;
-        if (seq0 & 1u)
-            continue;
-        vector_tv_barrier();
-        *state = vector_tv_state;
-        vector_tv_barrier();
-        const uint32_t seq1 = vector_tv_seq;
-        if (seq0 == seq1 && !(seq1 & 1u))
-            return state->enabled && state->memory;
-    }
-}
-
-static inline __attribute__((always_inline))
-uint8_t vector_tv_color(
-        const vector_tv_state_t* state, uint8_t color)
-{
-    return state->palette[color];
-}
-
-static void vector_tv_build_lut(
-        vector_tv_state_t* state, uint32_t* lut)
-{
-    for (unsigned i = 0; i < 256; ++i) {
-        const unsigned y = i >> 6;
-        const unsigned r = (i >> 4) & 3u;
-        const unsigned g = (i >> 2) & 3u;
-        const unsigned b = i & 3u;
-        const uint8_t c0 = (uint8_t)(((y & 2u) << 2) |
-                                     ((r & 2u) << 1) |
-                                     (g & 2u) | (b >> 1));
-        const uint8_t c1 = (uint8_t)(((y & 1u) << 3) |
-                                     ((r & 1u) << 2) |
-                                     ((g & 1u) << 1) | (b & 1u));
-        uint8_t p0, p1, p2, p3;
-
-        if (state->mode512) {
-            p0 = vector_tv_color(state, c0 & 0x03u);
-            p1 = vector_tv_color(state, c0 & 0x0cu);
-            p2 = vector_tv_color(state, c1 & 0x03u);
-            p3 = vector_tv_color(state, c1 & 0x0cu);
-        } else {
-            p0 = p1 = vector_tv_color(state, c0);
-            p2 = p3 = vector_tv_color(state, c1);
-        }
-
-        lut[i] = (uint32_t)p0 | ((uint32_t)p1 << 8) |
-                 ((uint32_t)p2 << 16) | ((uint32_t)p3 << 24);
-    }
-
-    const uint8_t border = state->border_color;
-    if (state->mode512) {
-        const uint8_t p0 =
-            vector_tv_color(state, border & 0x03u);
-        const uint8_t p1 =
-            vector_tv_color(state, border & 0x0cu);
-        state->border_pattern =
-            (uint32_t)p0 | ((uint32_t)p1 << 8) |
-            ((uint32_t)p0 << 16) | ((uint32_t)p1 << 24);
-    } else {
-        const uint8_t p = vector_tv_color(state, border);
-        state->border_pattern = (uint32_t)p * 0x01010101u;
-    }
-}
-
-static void vector_tv_build_composite_lut(
-        const uint32_t* pixel_lut)
-{
-    const uint32_t* tables[4] = {
-        conv_colorNORM[0], conv_colorNORM[1],
-        conv_colorINV[0],  conv_colorINV[1]
-    };
-
-    for (unsigned index = 0; index < 256; ++index) {
-        const uint32_t pixels = pixel_lut[index];
-        for (unsigned variant = 0; variant < 4; ++variant) {
-            const uint32_t* table = tables[variant];
-            vector_tv_composite_lut[variant][index][0] =
-                table[map64colors[(uint8_t)pixels & 0x3fu]];
-            vector_tv_composite_lut[variant][index][1] =
-                table[map64colors[(uint8_t)(pixels >> 8) & 0x3fu]];
-            vector_tv_composite_lut[variant][index][2] =
-                table[map64colors[(uint8_t)(pixels >> 16) & 0x3fu]];
-            vector_tv_composite_lut[variant][index][3] =
-                table[map64colors[(uint8_t)(pixels >> 24) & 0x3fu]];
-        }
-    }
-}
-
-static inline __attribute__((always_inline))
-uint32_t vector_tv_rotate_pattern(uint32_t pattern, unsigned bytes)
-{
-    bytes &= 3u;
-    return bytes ? (pattern >> (bytes * 8u)) |
-                   (pattern << ((4u - bytes) * 8u)) : pattern;
-}
-
-static inline __attribute__((always_inline))
-void vector_tv_fill_pattern(
-        uint8_t* dst, int count, uint32_t pattern)
-{
-    while (count && ((uintptr_t)dst & 3u)) {
-        *dst++ = (uint8_t)pattern;
-        pattern = vector_tv_rotate_pattern(pattern, 1);
-        --count;
-    }
-
-    uint32_t* dst32 = (uint32_t*)dst;
-    while (count >= 16) {
-        dst32[0] = pattern;
-        dst32[1] = pattern;
-        dst32[2] = pattern;
-        dst32[3] = pattern;
-        dst32 += 4;
-        count -= 16;
-    }
-    while (count >= 4) {
-        *dst32++ = pattern;
-        count -= 4;
-    }
-
-    dst = (uint8_t*)dst32;
-    while (count--) {
-        *dst++ = (uint8_t)pattern;
-        pattern = vector_tv_rotate_pattern(pattern, 1);
-    }
-}
-
-static inline __attribute__((always_inline))
-uint32_t vector_tv_plane_indices4(
-        const vector_tv_state_t* state,
-        int active_x, int n_line)
-{
-    /*
-     * One byte from every Vector plane contains all 16 pixels of the source
-     * block. Decode its four 4-pixel groups at once. The previous code called
-     * vector_tv_plane_index() four times and re-read the same four SRAM bytes
-     * on every call.
-     */
-    const uint8_t roll_off =
-        (uint8_t)(state->line_offset - n_line + 40);
-    const int offset = ((active_x & 0x1f0) << 4) | roll_off;
-    const uint8_t* memory = state->memory;
-    const unsigned by = memory[0x8000 + offset];
-    const unsigned br = memory[0xa000 + offset];
-    const unsigned bg = memory[0xc000 + offset];
-    const unsigned bb = memory[0xe000 + offset];
-
-#define VECTOR_TV_INDEX_AT(shift) \
-    (((((by >> (shift)) & 3u) << 6) | \
-      (((br >> (shift)) & 3u) << 4) | \
-      (((bg >> (shift)) & 3u) << 2) | \
-       ((bb >> (shift)) & 3u)))
-
-    const uint32_t result =
-        (uint32_t)VECTOR_TV_INDEX_AT(6) |
-        ((uint32_t)VECTOR_TV_INDEX_AT(4) << 8) |
-        ((uint32_t)VECTOR_TV_INDEX_AT(2) << 16) |
-        ((uint32_t)VECTOR_TV_INDEX_AT(0) << 24);
-
-#undef VECTOR_TV_INDEX_AT
-    return result;
-}
-
-static inline __attribute__((always_inline))
-void vector_tv_emit_run(
-        uint8_t** dst_ptr, uint32_t waveform,
-        unsigned* phase_ptr, unsigned run)
-{
-    uint8_t* dst = *dst_ptr;
-    unsigned phase = *phase_ptr;
-
-    if (run >= 1) {
-        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
-        ++phase;
-    }
-    if (run >= 2) {
-        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
-        ++phase;
-    }
-    if (run >= 3) {
-        *dst++ = (uint8_t)(waveform >> ((phase & 3u) * 8u));
-        ++phase;
-    }
-
-    *dst_ptr = dst;
-    *phase_ptr = phase;
-}
-
-static void vector_tv_build_runs(int source_width, int output_width)
-{
-    tv_fill_u8(vector_tv_runs, 0, sizeof(vector_tv_runs));
-
-    if (source_width <= 0 || output_width <= 0)
-        return;
-
-    uint16_t di =
-        (uint16_t)((0x100u * (uint)source_width) /
-                   (uint)output_width);
-    if (di == 0)
-        di = 1;
-
-    int next_source = 0x100;
-    int source_x = 0;
-
-    for (int out_x = 0;
-         out_x < output_width && source_x < source_width;
-         ++out_x) {
-        ++vector_tv_runs[source_x];
-        next_source -= di;
-        if (next_source <= 0) {
-            ++source_x;
-            next_source += 0x100;
-        }
-    }
-
-    vector_tv_runs_source_width = source_width;
-    vector_tv_runs_output_width = output_width;
-}
-
-typedef struct {
-    int block_x;
-    uint32_t pixels[4];
-} vector_tv_pixel_cache_t;
-
-static inline __attribute__((always_inline))
-void vector_tv_load_active_block(
-        vector_tv_pixel_cache_t* cache,
-        const vector_tv_state_t* state,
-        int active_x, int n_line)
-{
-    const int block_x = active_x & ~15;
-    const uint8_t roll_off =
-        (uint8_t)(state->line_offset - n_line + 40);
-    const int offset = ((block_x & 0x1f0) << 4) | roll_off;
-    const uint8_t* memory = state->memory;
-    const uint8_t by = memory[0x8000 + offset];
-    const uint8_t br = memory[0xa000 + offset];
-    const uint8_t bg = memory[0xc000 + offset];
-    const uint8_t bb = memory[0xe000 + offset];
-    const uint32_t* lut =
-        vector_tv_pair_lut[state->lut_index];
-
-#define VECTOR_TV_CACHE_INDEX(shift) \
-    (((((unsigned)by >> (shift)) & 3u) << 6) | \
-     ((((unsigned)br >> (shift)) & 3u) << 4) | \
-     ((((unsigned)bg >> (shift)) & 3u) << 2) | \
-      (((unsigned)bb >> (shift)) & 3u))
-
-    cache->pixels[0] = lut[VECTOR_TV_CACHE_INDEX(6)];
-    cache->pixels[1] = lut[VECTOR_TV_CACHE_INDEX(4)];
-    cache->pixels[2] = lut[VECTOR_TV_CACHE_INDEX(2)];
-    cache->pixels[3] = lut[VECTOR_TV_CACHE_INDEX(0)];
-    cache->block_x = block_x;
-
-#undef VECTOR_TV_CACHE_INDEX
-}
-
-static inline __attribute__((always_inline))
-uint8_t vector_tv_cached_source_pixel(
-        vector_tv_pixel_cache_t* cache,
-        const vector_tv_state_t* state,
-        int source_x, int source_y)
-{
-    const int n_line =
-        source_y + (state->show_border ? 24 : 40);
-
-    if (state->show_border) {
-        if (n_line < 40 || n_line >= 296 ||
-            source_x < 57 || source_x >= 569) {
-            return (uint8_t)(
-                state->border_pattern >>
-                ((source_x & 3) * 8));
-        }
-        source_x -= 57;
-    }
-
-    const int block_x = source_x & ~15;
-    if (cache->block_x != block_x)
-        vector_tv_load_active_block(
-            cache, state, source_x, n_line);
-
-    const uint32_t word =
-        cache->pixels[(source_x & 15) >> 2];
-    return (uint8_t)(word >> ((source_x & 3) * 8));
-}
-
-static inline __attribute__((always_inline))
-uint8_t vector_tv_pixel_slow(
-        const vector_tv_state_t* state, int x, uint8_t roll_off)
-{
-    const int offset = ((x & 0x1f0) << 4) | roll_off;
-    const uint8_t mask =
-        (uint8_t)(0x80u >> ((x & 0x0eu) >> 1));
-    const uint8_t* memory = state->memory;
-    uint8_t color = 0;
-
-    if (memory[0x8000 + offset] & mask) color |= 0x08;
-    if (memory[0xa000 + offset] & mask) color |= 0x04;
-    if (memory[0xc000 + offset] & mask) color |= 0x02;
-    if (memory[0xe000 + offset] & mask) color |= 0x01;
-
-    if (state->mode512)
-        color = (x & 1) ? (color & 0x0cu) : (color & 0x03u);
-
-    return vector_tv_color(state, color);
-}
-
-static void __not_in_flash_func(vector_tv_render_active)(
-        uint8_t* output, int source_x, int count, int n_line,
-        const vector_tv_state_t* state)
-{
-    const uint8_t roll_off =
-        (uint8_t)(state->line_offset - n_line + 40);
-    int x = source_x;
-    int remaining = count;
-
-    while (remaining &&
-           ((x & 15) || ((uintptr_t)output & 3u))) {
-        *output++ =
-            vector_tv_pixel_slow(state, x++, roll_off);
-        --remaining;
-    }
-
-    const uint8_t* memory = state->memory;
-    const uint32_t* lut =
-        vector_tv_pair_lut[state->lut_index];
-    uint32_t* out32 = (uint32_t*)output;
-
-    while (remaining >= 16) {
-        const int offset = ((x & 0x1f0) << 4) | roll_off;
-        const uint8_t by = memory[0x8000 + offset];
-        const uint8_t br = memory[0xa000 + offset];
-        const uint8_t bg = memory[0xc000 + offset];
-        const uint8_t bb = memory[0xe000 + offset];
-
-#define VECTOR_TV_PAIR_INDEX(shift) \
-        (((((unsigned)by >> (shift)) & 3u) << 6) | \
-         ((((unsigned)br >> (shift)) & 3u) << 4) | \
-         ((((unsigned)bg >> (shift)) & 3u) << 2) | \
-          (((unsigned)bb >> (shift)) & 3u))
-
-        out32[0] = lut[VECTOR_TV_PAIR_INDEX(6)];
-        out32[1] = lut[VECTOR_TV_PAIR_INDEX(4)];
-        out32[2] = lut[VECTOR_TV_PAIR_INDEX(2)];
-        out32[3] = lut[VECTOR_TV_PAIR_INDEX(0)];
-
-#undef VECTOR_TV_PAIR_INDEX
-        out32 += 4;
-        x += 16;
-        remaining -= 16;
-    }
-
-    output = (uint8_t*)out32;
-    while (remaining--)
-        *output++ =
-            vector_tv_pixel_slow(state, x++, roll_off);
-}
-
-static void __not_in_flash_func(vector_tv_render_line)(
-        uint8_t* output, int source_y,
-        const vector_tv_state_t* state)
-{
-    const int source_width = state->show_border ? 626 : 512;
-    const int n_line =
-        source_y + (state->show_border ? 24 : 40);
-
-    if (!state->show_border) {
-        vector_tv_render_active(
-            output, 0, source_width, n_line, state);
-        return;
-    }
-
-    if (n_line < 40 || n_line >= 296) {
-        vector_tv_fill_pattern(
-            output, source_width, state->border_pattern);
-        return;
-    }
-
-    vector_tv_fill_pattern(
-        output, 57, state->border_pattern);
-    vector_tv_render_active(
-        output + 57, 0, 512, n_line, state);
-    vector_tv_fill_pattern(
-        output + 569, 57,
-        vector_tv_rotate_pattern(state->border_pattern, 569));
-}
-#endif
 
 // Частота цветовой поднесущей (Гц) для текущего режима: NTSC 3.579545 МГц,
 // PAL 4.43361875 МГц. Вынесено в отдельную функцию, чтобы одна и та же таблица
@@ -1208,10 +769,14 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 
 // Строка кадрового буфера. Шаг строки берётся из stride (в обычном режиме он
 // равен width; в режиме обрезки буфер физически шире полезной строки).
-static inline uint8_t* getLineBuffer(int line) {
+static inline const uint8_t* getLineBuffer(int line) {
+#ifdef SPECIALIST_SCANLINES
+    return graphics_read_scanline((unsigned)line);
+#else
     if (!graphics_framebuffer || line < 0 || line >= (int)graphics_buffer.height)
         return NULL;
     return graphics_framebuffer + (uint)line * graphics_buffer.stride;
+#endif
 }
 
 //основная функция заполнения буферов видеоданных
@@ -1251,19 +816,6 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
         if (line_active >= video_mode.N_lines) {
             line_active = 0;
             frame_i++;
-#ifdef PICO_RP2040
-            vector_tv_frame_state_valid =
-                vector_tv_snapshot(&vector_tv_frame_state);
-            if (vector_tv_frame_state_valid) {
-                vector_tv_lut_in_use =
-                    vector_tv_frame_state.lut_index;
-                graphics_buffer.width =
-                    vector_tv_frame_state.show_border ? 626u : 512u;
-                graphics_buffer.height =
-                    vector_tv_frame_state.show_border ? 288u : 256u;
-                graphics_buffer.stride = graphics_buffer.width;
-            }
-#endif
         }
 
         lines_buf_inx = (lines_buf_inx + 1) % N_LINE_BUF;
@@ -1668,6 +1220,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
             int d_end = 0;
             int buffer_shift = 0;
             int y = -1;
+            const bool text = menu_video_mode == GRAPHICS_VIDEO_TEXT;
 
             switch (tv_out_mode.N_lines) {
                 case _624_lines:
@@ -1679,7 +1232,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     // почти вся активная область, и подгонять нечего.
                     if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; };
                     if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; };
-                    if (y >= 0) y -= graphics_buffer.shift_y;
+                    if (y >= 0 && !text) y -= graphics_buffer.shift_y;
                     break;
                 case _524_lines:
                 case _525_lines:
@@ -1687,23 +1240,14 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
                     if ((line_active > 8) && (line_active < 262)) { y = line_active - 20; };
                     if ((line_active > 271)) { y = line_active - 282; };
-                    if (y >= 0) y -= graphics_buffer.shift_y;
+                    if (y >= 0 && !text) y -= graphics_buffer.shift_y;
                     break;
             }
-            // Высота берётся из кадрового буфера: у Вектора это 288 строк PAL,
-            // а не 240, как было жёстко записано в наброске
-            const int img_H = (int)graphics_buffer.height;
-            uint8_t* input_buffer = NULL;
-#ifndef PICO_RP2040
-            if (y < img_H && y >= 0)
-                input_buffer = getLineBuffer(y);
-            const bool source_valid = input_buffer != NULL;
-#else
-            const bool source_valid =
-                y >= 0 && y < img_H &&
-                (menu_text_active() ||
-                 vector_tv_frame_state_valid);
-#endif
+            const int tv_height = tv_out_mode.tv_system == g_TV_OUT_NTSC ? 242 : 287;
+            const int img_H = text ? tv_height : (int)graphics_buffer.height;
+            const bool visible = y >= 0 && y < img_H;
+            const uint8_t* input_buffer = visible && !text ? getLineBuffer(y) : NULL;
+            const bool source_valid = visible && (text || input_buffer);
 
             if (!source_valid) {
                 // вне изображения
@@ -1711,8 +1255,6 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                            video_mode.img_W);
             }
             else {
-                int next_ibuf = 0x100;
-
                 {
                     int shx = buffer_shift + graphics_buffer.shift_x;
                     const int room =
@@ -1736,7 +1278,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                 }
 
 #ifdef PICO_RP2040
-                if (menu_video_mode == GRAPHICS_VIDEO_TEXT) {
+                if (text) {
                     const int output_width =
                         video_mode.img_W - d_end;
                     tv_fill_u8(output_buffer8,
@@ -1751,185 +1293,20 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
                 switch (tv_out_mode.mode_bpp) {
                     case GRAPHICSMODE_DEFAULT: {
-#ifdef PICO_RP2040
-                        const int source_width =
-                            (int)graphics_buffer.width;
-                        const int output_width =
-                            video_mode.img_W - d_end;
-
-                        if (vector_tv_runs_source_width != source_width ||
-                            vector_tv_runs_output_width != output_width) {
-                            vector_tv_build_runs(
-                                source_width, output_width);
-                        }
-
-                        const unsigned variant =
-                            (conv_color[li] == conv_colorINV[li])
-                                ? (unsigned)(2 + li)
-                                : (unsigned)li;
+                        const unsigned output_width = video_mode.img_W - d_end;
+                        const unsigned source_width = graphics_buffer.width;
+                        unsigned source = 0;
                         unsigned phase = 0;
-                        int x = 0;
-                        const int n_line =
-                            y + (vector_tv_frame_state.show_border
-                                 ? 24 : 40);
-
-                        /*
-                         * Outside active Vector lines 40..295 only the border
-                         * must be emitted. Without this clipping roll_off wraps
-                         * as uint8_t and the top of VRAM is repeated below.
-                         */
-                        if (vector_tv_frame_state.show_border &&
-                            (n_line < 40 || n_line >= 296)) {
-                            const uint8_t border_rgb =
-                                (uint8_t)vector_tv_frame_state.border_pattern;
-                            const uint32_t border_wave =
-                                conv_color[li][
-                                    map64colors[border_rgb & 0x3fu]];
-
-                            for (int bx = 0; bx < source_width; ++bx) {
-                                vector_tv_emit_run(
-                                    &output_buffer8, border_wave, &phase,
-                                    vector_tv_runs[bx]);
-                            }
-                            break;
-                        }
-
-                        if (vector_tv_frame_state.show_border) {
-                            const uint8_t border_rgb =
-                                (uint8_t)vector_tv_frame_state.border_pattern;
-                            const uint32_t border_wave =
-                                conv_color[li][
-                                    map64colors[border_rgb & 0x3fu]];
-                            for (; x < 57; ++x)
-                                vector_tv_emit_run(
-                                    &output_buffer8, border_wave, &phase,
-                                    vector_tv_runs[x]);
-                        }
-
-                        const int active_end =
-                            vector_tv_frame_state.show_border ? 569 : 512;
-                        int active_x =
-                            vector_tv_frame_state.show_border ? 0 : x;
-
-                        for (; x + 15 < active_end;
-                             x += 16, active_x += 16) {
-                            const uint32_t indices =
-                                vector_tv_plane_indices4(
-                                    &vector_tv_frame_state,
-                                    active_x, n_line);
-
-#define VECTOR_TV_EMIT_GROUP(group, shift) do {                         \
-    const uint32_t* waves =                                             \
-        vector_tv_composite_lut[variant]                                \
-                               [(uint8_t)(indices >> (shift))];          \
-    vector_tv_emit_run(                                                 \
-        &output_buffer8, waves[0], &phase,                              \
-        vector_tv_runs[x + (group) * 4 + 0]);                           \
-    vector_tv_emit_run(                                                 \
-        &output_buffer8, waves[1], &phase,                              \
-        vector_tv_runs[x + (group) * 4 + 1]);                           \
-    vector_tv_emit_run(                                                 \
-        &output_buffer8, waves[2], &phase,                              \
-        vector_tv_runs[x + (group) * 4 + 2]);                           \
-    vector_tv_emit_run(                                                 \
-        &output_buffer8, waves[3], &phase,                              \
-        vector_tv_runs[x + (group) * 4 + 3]);                           \
-} while (0)
-
-                            VECTOR_TV_EMIT_GROUP(0, 0);
-                            VECTOR_TV_EMIT_GROUP(1, 8);
-                            VECTOR_TV_EMIT_GROUP(2, 16);
-                            VECTOR_TV_EMIT_GROUP(3, 24);
-
-#undef VECTOR_TV_EMIT_GROUP
-                        }
-
-                        /*
-                         * Only the 512-pixel active area is normally handled
-                         * above. Keep a small generic tail for unusual clipping
-                         * or future geometry changes.
-                         */
-                        for (; x + 3 < active_end;
-                             x += 4, active_x += 4) {
-                            const uint32_t indices =
-                                vector_tv_plane_indices4(
-                                    &vector_tv_frame_state,
-                                    active_x, n_line);
-                            const uint32_t* waves =
-                                vector_tv_composite_lut[variant]
-                                                       [(uint8_t)indices];
-
-                            vector_tv_emit_run(
-                                &output_buffer8, waves[0], &phase,
-                                vector_tv_runs[x + 0]);
-                            vector_tv_emit_run(
-                                &output_buffer8, waves[1], &phase,
-                                vector_tv_runs[x + 1]);
-                            vector_tv_emit_run(
-                                &output_buffer8, waves[2], &phase,
-                                vector_tv_runs[x + 2]);
-                            vector_tv_emit_run(
-                                &output_buffer8, waves[3], &phase,
-                                vector_tv_runs[x + 3]);
-                        }
-
-                        for (; x < active_end; ++x, ++active_x) {
-                            vector_tv_pixel_cache_t cache;
-                            cache.block_x = -1;
-                            const uint8_t rgb =
-                                vector_tv_cached_source_pixel(
-                                    &cache, &vector_tv_frame_state,
-                                    x, y);
-                            const uint32_t wave =
-                                conv_color[li][
-                                    map64colors[rgb & 0x3fu]];
-                            vector_tv_emit_run(
-                                &output_buffer8, wave, &phase,
-                                vector_tv_runs[x]);
-                        }
-
-                        if (vector_tv_frame_state.show_border) {
-                            const uint8_t border_rgb =
-                                (uint8_t)vector_tv_frame_state.border_pattern;
-                            const uint32_t border_wave =
-                                conv_color[li][
-                                    map64colors[border_rgb & 0x3fu]];
-                            for (; x < source_width; ++x)
-                                vector_tv_emit_run(
-                                    &output_buffer8, border_wave, &phase,
-                                    vector_tv_runs[x]);
-                        }
-#else
-                        const int output_width =
-                            video_mode.img_W - d_end;
-                        uint16_t di =
-                            (uint16_t)((0x100u *
-                                        (uint)graphics_buffer.width) /
-                                       (uint)output_width);
-                        if (di == 0)
-                            di = 1;
-
-                        register int x = 0;
-                        register uint8_t c = input_buffer[x++];
-                        uint8_t color =
-                            map64colors[c & 0x3fu];
-                        uint32_t cout32 = conv_color[li][color];
-                        uint8_t* c_4 = (uint8_t*)&cout32;
-
-#pragma unroll(640)
-                        for (int i = 0;
-                             i < output_width;
-                             ++i) {
-                            *output_buffer8++ = c_4[i & 3];
-                            next_ibuf -= di;
-                            if (next_ibuf <= 0) {
-                                c = input_buffer[x++];
-                                color = map64colors[c & 0x3fu];
-                                cout32 = conv_color[li][color];
-                                next_ibuf += 0x100;
+                        uint32_t wave = conv_color[li][map64colors[input_buffer[0] & 0x3f]];
+                        for (unsigned x = 0; x < output_width; ++x) {
+                            *output_buffer8++ = wave >> ((x & 3) * 8);
+                            phase += source_width;
+                            if (phase >= output_width && source + 1 < source_width) {
+                                phase -= output_width;
+                                wave = conv_color[li][map64colors[input_buffer[++source] & 0x3f]];
                             }
                         }
-#endif
+
                     }
                     break;
                 }
@@ -1968,50 +1345,9 @@ static void __time_critical_func(tv_soft_dma_handler)(void)
 }
 #endif
 
-void graphics_set_vector_source(
-        const uint8_t* memory, const uint8_t* palette,
-        uint8_t border_color, uint8_t line_offset,
-        bool mode512, bool show_border)
+void graphics_set_menu_text_mode(bool enabled)
 {
-#ifdef PICO_RP2040
-    vector_tv_state_t next = vector_tv_state;
-    next.memory = memory;
-    next.border_color = border_color;
-    next.line_offset = line_offset;
-    next.mode512 = mode512;
-    next.show_border = show_border;
-    next.enabled = memory != NULL;
-
-    if (palette)
-        tv_copy_u8(next.palette, palette, sizeof(next.palette));
-
-    uint8_t lut_index = (uint8_t)(next.lut_index + 1u);
-    if (lut_index >= VECTOR_TV_LUT_COUNT)
-        lut_index = 0;
-    if (lut_index == vector_tv_lut_in_use) {
-        ++lut_index;
-        if (lut_index >= VECTOR_TV_LUT_COUNT)
-            lut_index = 0;
-    }
-    next.lut_index = lut_index;
-    vector_tv_build_lut(
-        &next, vector_tv_pair_lut[lut_index]);
-    vector_tv_build_composite_lut(
-        vector_tv_pair_lut[lut_index]);
-
-    vector_tv_seq++;
-    vector_tv_barrier();
-    vector_tv_state = next;
-    vector_tv_barrier();
-    vector_tv_seq++;
-#else
-    (void)memory;
-    (void)palette;
-    (void)border_color;
-    (void)line_offset;
-    (void)mode512;
-    (void)show_border;
-#endif
+    graphics_set_video_content_mode(enabled ? GRAPHICS_VIDEO_TEXT : GRAPHICS_VIDEO_FRAMEBUFFER);
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
@@ -2078,11 +1414,9 @@ void graphics_init() {
     graphics_set_modeTV(tv_out_mode);
 
     // У NTSC в растр попадает 242 строки из 288, снизу срезается 46.
-    // Активная часть кадра Вектора занимает строки 16..271 буфера, поэтому
-    // по умолчанию приподнимаем картинку, чтобы обрезка легла симметрично.
-    // Меню компенсирует этот сдвиг своим началом и остаётся на месте экрана.
+    // Center the 256-line picture in NTSC’s 242-line active region.
     if (tv_out_mode.N_lines == _524_lines || tv_out_mode.N_lines == _525_lines)
-        graphics_buffer.shift_y = -c_ntscShiftY;
+        graphics_buffer.shift_y = -7;
 
     //настройки DMA
 
@@ -2274,16 +1608,10 @@ uint32_t graphics_get_height() {
 // Строка буфера y попадает на строку растра y + 23 + shift_y, то есть рост
 // shift_y опускает картинку вниз — знак уже такой, какой нужен наружу.
 int graphics_get_picture_shift_y() {
-#ifdef PICO_RP2040
-    if (menu_text_active()) return 0;
-#endif
     return graphics_buffer.shift_y;
 }
 
 int graphics_get_picture_shift_x() {
-#ifdef PICO_RP2040
-    if (menu_text_active()) return 0;
-#endif
     return graphics_buffer.shift_x;
 }
 

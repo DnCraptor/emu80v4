@@ -50,10 +50,17 @@ void graphics_system_clock_changed();
 
 void graphics_set_duplicateLines(bool v);
 void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
+#ifdef SPECIALIST_SCANLINES
+// The callback runs on the video core. Its returned row is valid until the
+// next call. The context and callback are installed once at boot.
+typedef const uint8_t* (*graphics_scanline_source_t)(void* context, unsigned row);
+void graphics_set_scanline_source(graphics_scanline_source_t source, void* context);
+const uint8_t* graphics_read_scanline(unsigned row);
+#endif
 
 // RP2040/VGA scan-line source.
 typedef enum {
-    GRAPHICS_VIDEO_VECTOR = 0,
+    GRAPHICS_VIDEO_FRAMEBUFFER = 0,
     GRAPHICS_VIDEO_TEXT = 1,
     GRAPHICS_VIDEO_COMBINED = 2
 } graphics_video_content_mode_t;
@@ -61,16 +68,16 @@ extern volatile graphics_video_content_mode_t menu_video_mode;
 
 static inline bool menu_text_active(void)
 {
-    return menu_video_mode != GRAPHICS_VIDEO_VECTOR;
+    return menu_video_mode != GRAPHICS_VIDEO_FRAMEBUFFER;
 }
 
 void graphics_set_video_content_mode(graphics_video_content_mode_t mode);
 inline static graphics_video_content_mode_t graphics_get_video_content_mode(void)
 {
-#ifdef PICO_RP2040
+#if defined(SPECIALIST_SCANLINES) || defined(HDMI_DVI)
     return menu_video_mode;
 #else
-    return GRAPHICS_VIDEO_VECTOR;
+    return GRAPHICS_VIDEO_FRAMEBUFFER;
 #endif
 }
 
@@ -79,7 +86,7 @@ inline static graphics_video_content_mode_t graphics_get_video_content_mode(void
 void menu_text_clear_for_mode(void);
 inline static void graphics_clear_menu_text(void)
 {
-#ifdef PICO_RP2040
+#if defined(SPECIALIST_SCANLINES) || defined(HDMI_DVI)
     menu_text_clear_for_mode();
 #endif
 }
@@ -88,7 +95,7 @@ inline static void graphics_clear_menu_text(void)
 void graphics_set_menu_text_mode(bool enabled);
 inline static bool graphics_get_menu_text_mode(void)
 {
-#ifdef PICO_RP2040
+#if defined(SPECIALIST_SCANLINES) || defined(HDMI_DVI)
     return menu_text_active();
 #else
     return false;

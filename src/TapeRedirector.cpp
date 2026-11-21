@@ -20,7 +20,7 @@
 #include "Globals.h"
 #include "Emulation.h"
 #include "WavReader.h"
-#include "Vector.h"
+#include "Specialist.h"
 
 #include "TapeRedirector.h"
 

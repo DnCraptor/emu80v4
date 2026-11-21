@@ -36,7 +36,7 @@ void PrnWriter::startPrinting()
 {
     stopPrinting();
 
-    m_fileName = palOpenFileDialog("Save printer file", "TXT files (*.txt)|*.txt;*.TXT|PRN files (*.prn)|*.prn;*.PRN", true);
+    m_fileName = palOpenFileDialog("Save printer file", ".txt|.prn", true);
     if (m_fileName.empty())
         return;
 

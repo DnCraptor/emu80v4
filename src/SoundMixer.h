@@ -61,7 +61,7 @@ class SoundSource : public EmuObject
 
 
 // Простой источник звука
-class GeneralSoundSource : public SoundSource, public SnapshotSerializable
+class GeneralSoundSource : public SoundSource
 {
     public:
         // derived from SoundSOurce
@@ -70,10 +70,6 @@ class GeneralSoundSource : public SoundSource, public SnapshotSerializable
         // Установка текущего значения источника звука
         void setValue(int value);
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
 
 
     private:
@@ -86,7 +82,7 @@ class GeneralSoundSource : public SoundSource, public SnapshotSerializable
 };
 
 // Звуковой микшер
-class SoundMixer : public ActiveDevice, public SnapshotSerializable
+class SoundMixer : public ActiveDevice
 {
     public:
         // Добавление источника звука
@@ -117,11 +113,6 @@ class SoundMixer : public ActiveDevice, public SnapshotSerializable
         // возвращает текущий уровень громкости
         int getVolume();
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
-        void postLoad() override;
 
     private:
         static constexpr int MAX_SOUND_SOURCES = 8;

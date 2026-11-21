@@ -29,7 +29,7 @@ class Ppi8255Circuit;
 
 
 // Контроллер i8255
-class Ppi8255 : public AddressableDevice, public SnapshotSerializable
+class Ppi8255 : public AddressableDevice
 {
     enum PpiChMode
     {
@@ -50,13 +50,7 @@ class Ppi8255 : public AddressableDevice, public SnapshotSerializable
         // Подключение объекта - обвязки ВВ55
         void attachPpi8255Circuit(Ppi8255Circuit* circuit);
         void setNoReset(bool noReset) {m_noReset = noReset;}
-        void setSnapshotIndex(unsigned index) {m_snapshotIndex = index;}
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
-        void postLoad() override;
 
 
     private:
@@ -75,7 +69,6 @@ class Ppi8255 : public AddressableDevice, public SnapshotSerializable
         PpiChMode m_chCLoMode;
 
         bool m_noReset = false; // true if RESET input is not used
-        unsigned m_snapshotIndex = 0;
 };
 
 #endif // PPI8255_H

@@ -198,7 +198,7 @@ class KbdLayout : public EmuObject
         void setSmartMode()  {m_mode = KLM_SMART;}
         void processKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys();
-        KbdLayoutMode getMode() {return m_mode;}
+        KbdLayoutMode getMode() const {return m_mode;}
 
         bool getNumpadJoystickMode() {return m_numpadJoystick;}
 

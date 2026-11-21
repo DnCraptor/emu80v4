@@ -32,7 +32,7 @@ class Cpu;
 class SoundMixer;
 class WavReader;
 class PrnWriter;
-class VectorCore;
+class SpecialistCore;
 
 
 /*struct DevListItem
@@ -42,7 +42,7 @@ class VectorCore;
     DevListItem* next;
 };*/
 
-class Emulation : public SnapshotSerializable
+class Emulation
 {
     public:
         Emulation(); //: EmuObject();
@@ -52,7 +52,7 @@ class Emulation : public SnapshotSerializable
         void init();
 
         // Однократный сбор всех созданных активных устройств
-        VectorCore* getVector() {return m_vector;}
+        SpecialistCore* getSpecialist() {return m_specialist;}
 
         void registerActiveDevices();
 
@@ -101,11 +101,6 @@ class Emulation : public SnapshotSerializable
         void setPaused(bool paused) {m_isPaused = paused;}
         bool getFullThrottleState() {return m_fullThrottle;}
 
-        uint32_t snapshotSectionId() const override;
-        uint16_t snapshotSectionVersion() const override;
-        bool saveState(SnapshotWriter& writer) const override;
-        bool loadState(SnapshotReader& reader, uint16_t version) override;
-        void postLoad() override;
 
 
     private:
@@ -144,7 +139,7 @@ class Emulation : public SnapshotSerializable
         SoundMixer* m_mixer = nullptr;
         WavReader* m_wavReader = nullptr;
         PrnWriter* m_prnWriter = nullptr;
-        VectorCore* m_vector = nullptr;
+        SpecialistCore* m_specialist = nullptr;
 
 };
 

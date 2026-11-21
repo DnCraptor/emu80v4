@@ -14,60 +14,40 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards)
-#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
 set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
-#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
-#set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
-#set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
-#set(PICO_BOARD "waveshare_rp2350_pizero" CACHE STRING "Board type")
+set(SPECIALIST_VIDEO "HDMI" CACHE STRING "HDMI, VGA, RGB, PAL or NTSC")
+set_property(CACHE SPECIALIST_VIDEO PROPERTY STRINGS HDMI VGA RGB PAL NTSC)
+set(CPU_MHZ 400 CACHE STRING "System clock in MHz for VGA and composite video")
+set(PORT_VERSION "0.1.0")
 
-#set(m1p2-launcher ON)
+if(PICO_BOARD STREQUAL "olimex-pico-pc" OR PICO_BOARD STREQUAL "pimoroni-pico-dv")
+    if(NOT SPECIALIST_VIDEO STREQUAL "HDMI")
+        message(FATAL_ERROR "${PICO_BOARD} requires SPECIALIST_VIDEO=HDMI")
+    endif()
+endif()
 
-#set(RGB_TV ON)
-#set(SOFTTV ON)
-#set(TV_NTSC ON)
-#set(VGA_DRV ON)
-set(HDMI_DVI ON)
+if(SPECIALIST_VIDEO STREQUAL "HDMI")
+    set(HDMI_DVI ON)
+elseif(SPECIALIST_VIDEO STREQUAL "VGA")
+    set(VGA_DRV ON)
+elseif(SPECIALIST_VIDEO STREQUAL "RGB")
+    set(RGB_TV ON)
+elseif(SPECIALIST_VIDEO STREQUAL "PAL" OR SPECIALIST_VIDEO STREQUAL "NTSC")
+    set(SOFTTV ON)
+    if(SPECIALIST_VIDEO STREQUAL "NTSC")
+        set(TV_NTSC ON)
+    endif()
+else()
+    message(FATAL_ERROR "Unknown SPECIALIST_VIDEO: ${SPECIALIST_VIDEO}")
+endif()
 
-#ignored for HDMI and RGB_TV
-#set(CPU_MHZ 366)
-#set(CPU_MHZ 372)
-#set(CPU_MHZ 378)
-set(CPU_MHZ 400)
-#set(CPU_MHZ 440)
-#set(CPU_MHZ 444)
-#set(CPU_MHZ 456)
-#set(CPU_MHZ 460)
-#set(CPU_MHZ 512)
-#set(CPU_MHZ 500)
-#set(CPU_MHZ 520)
-
-set (PORT_VERSION "0.7.6")
-
-# Olimex RP2040-PICO-PC: единственный видеовыход — HDMI (libdvi).
-IF(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    SET(RGB_TV OFF)
-    SET(SOFTTV OFF)
-    SET(VGA_DRV OFF)
-    SET(HDMI_DVI ON)
-ENDIF()
-
-# При HDMI частота ядра задаётся видеорежимом: битовая частота TMDS равна
-# системной, а 800x600@60 требует ровно 400 МГц.
-IF(HDMI_DVI)
+# HDMI uses a 400 MHz TMDS clock. RGB divides 400 MHz to 8 MHz exactly.
+IF(HDMI_DVI OR RGB_TV)
     IF(NOT CPU_MHZ EQUAL 400)
-        message(STATUS ">>> HDMI_DVI: CPU_MHZ принудительно 400 (было ${CPU_MHZ})")
+        message(STATUS ">>> Video: CPU_MHZ принудительно 400 (было ${CPU_MHZ})")
     ENDIF()
     SET(CPU_MHZ 400)
-ENDIF()
-# TODO: 2040
-IF(RGB_TV)
-    IF(NOT CPU_MHZ EQUAL 448)
-        message(STATUS ">>> RGB_TV: CPU_MHZ принудительно 448 (было ${CPU_MHZ})")
-    ENDIF()
-    SET(CPU_MHZ 448)
 ENDIF()
 
 
@@ -80,16 +60,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME v06c)
+SET(PROJECT_NAME specialist)
 set(FLASH_SIZE 4096)
 set(BUILD_NAME "${PROJECT_NAME}")
 
-set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(v06c C CXX ASM)
+project(specialist C CXX ASM)
 
 message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
 message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
@@ -104,18 +84,13 @@ add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/vga-nextgen)
-add_subdirectory(drivers/st7789)
-add_subdirectory(drivers/hdmi)
 add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
 add_subdirectory(drivers/graphics)
 IF(HDMI_DVI)
-    # libdvi берётся из PICO-BK: скопировать drivers/libdvi в дерево,
-    # убрав из его CMakeLists строку с bk.c (это склейка под БК-0010)
     add_subdirectory(drivers/libdvi)
     add_subdirectory(drivers/hdmi-dvi)
 ENDIF()
-add_subdirectory(drivers/psram)
 
 #target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
 
@@ -128,19 +103,10 @@ file(GLOB SRC
     "src/pico/**.c"
 )
 
-# The firmware contains a single statically constructed Vector-06C machine.
-# Keep shared device implementations, but do not compile other platform models.
-message(STATUS "Add source files:")
-foreach (SRC_FILE IN LISTS SRC)
-    message(STATUS "${SRC_FILE}")
-endforeach ()
-message(STATUS "")
-
 add_executable(${PROJECT_NAME} ${SRC})
 
 # pull in common dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    psram
     audio
     graphics
     picomp3lib
@@ -186,6 +152,9 @@ if (m1p2-launcher)
 endif()
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
+if(PICO_PLATFORM STREQUAL "rp2040")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SPECIALIST_SCANLINES)
+endif()
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
@@ -239,9 +208,6 @@ ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE KBDPS2)
 ENDIF()
 
-add_subdirectory(drivers/hway)
-target_link_libraries(${PROJECT_NAME} PRIVATE hway)
-target_compile_definitions(${PROJECT_NAME} PRIVATE HWAY)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     PORT_VERSION="${PORT_VERSION}"
@@ -308,26 +274,12 @@ ELSEIF(AUDIO_FORCE_I2S)
     SET(BUILD_NAME "${BUILD_NAME}-I2S")
 ENDIF()
 
-IF(TFT)
-    target_link_libraries(${PROJECT_NAME} PRIVATE st7789)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)
-    IF(ILI9341)
-        SET(BUILD_NAME "${BUILD_NAME}-ILI9341-${PORT_VERSION}")
-        target_compile_definitions(${PROJECT_NAME} PRIVATE ILI9341)
-    ELSE()
-        SET(BUILD_NAME "${BUILD_NAME}-ST7789-${PORT_VERSION}")
-    ENDIF()
-ELSEIF(HDMI)
-    target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HDMI)
-    SET(BUILD_NAME "${BUILD_NAME}-HDMI-${PORT_VERSION}")
-ELSEIF(RGB_TV)
+IF(RGB_TV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE RGB_TV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv)
     SET(BUILD_NAME "${BUILD_NAME}-TV-RGB-${PORT_VERSION}")
 ELSEIF(HDMI_DVI)
-    # VESA DMT 800x600@72: пиксельная 50.0 МГц ровно, битовая 500 МГц,
-    # делитель PIO единичный.
+    # VESA DMT 800x600@60: 40 MHz pixel clock and 400 MHz TMDS bit clock.
     #
     # Конфигурация выводов берётся по плате: у murmulator 1.x разъём HDMI
     # начинается с GPIO 6 (данные 8/10/12, такт 6), у murmulator 2.0 —
@@ -362,8 +314,6 @@ ELSEIF(HDMI_DVI)
 ELSEIF(SOFTTV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE SOFTTV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv-software)
-    # По умолчанию PAL: Вектор-06Ц выдаёт именно его, и кадровый буфер
-    # эмулятора повторяет ту же развёртку. NTSC — по отдельному ключу.
     IF(TV_NTSC)
         target_compile_definitions(${PROJECT_NAME} PRIVATE TV_NTSC)
         SET(BUILD_NAME "${BUILD_NAME}-TV-SOFT-NTSC-${PORT_VERSION}")
@@ -377,17 +327,17 @@ ELSE()
 ENDIF()
 
 if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for RP2350-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for RP2350-PiZero")
 elseif(${PICO_BOARD} MATCHES "waveshare_rp2040_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for RP2040-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for RP2040-PiZero")
 elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for Olimex RP2040-PICO-PC")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for Olimex RP2040-PICO-PC")
 elseif(${PICO_BOARD} MATCHES "pimoroni-pico-dv")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for Pimoroni Pico DV Demo Base")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for Pimoroni Pico DV Demo Base")
 elseif(${PICO_BOARD} MATCHES "murmulator2")
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 2.0")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for MURMULATOR 2.0")
 else()
-    pico_set_program_name(${PROJECT_NAME} "Vector-06C for MURMULATOR 1.x")
+    pico_set_program_name(${PROJECT_NAME} "Specialist for MURMULATOR 1.x")
 endif()
 pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 

@@ -2,13 +2,11 @@
 #include <string.h>
 #include <pico.h>
 
-volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_VECTOR;
+volatile graphics_video_content_mode_t menu_video_mode = GRAPHICS_VIDEO_FRAMEBUFFER;
 
 const uint32_t* graphics_get_supported_system_clocks(uint32_t* count) {
-#ifdef HDMI_DVI
+#if defined(HDMI_DVI) || defined(RGB_TV)
     static const uint32_t clocks[] = {400};
-#elif defined(RGB_TV)
-    static const uint32_t clocks[] = {448};
 #elif defined(PICO_RP2040)
     static const uint32_t clocks[] = {400, 402, 404, 408, 412};
 #else
@@ -91,3 +89,26 @@ __attribute__((weak)) void graphics_set_line_stride(uint16_t stride) {
 __attribute__((weak)) uint16_t graphics_get_line_stride(void) {
     return (uint16_t)graphics_get_width();
 }
+
+#ifdef SPECIALIST_SCANLINES
+#include "hardware/sync.h"
+
+static graphics_scanline_source_t volatile scanline_source;
+static void* scanline_context;
+
+void graphics_set_scanline_source(graphics_scanline_source_t source, void* context)
+{
+    scanline_context = context;
+    __dmb();
+    scanline_source = source;
+}
+
+const uint8_t* __not_in_flash_func(graphics_read_scanline)(unsigned row)
+{
+    graphics_scanline_source_t source = scanline_source;
+    if (!source)
+        return NULL;
+    __dmb();
+    return source(scanline_context, row);
+}
+#endif

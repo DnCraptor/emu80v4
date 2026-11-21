@@ -22,7 +22,6 @@
 #include "Cpu.h"
 #include "CpuHook.h"
 #include "Emulation.h"
-#include "Vector.h"
 
 using namespace std;
 
@@ -46,29 +45,6 @@ void Cpu::attachAddrSpace(AddressableDevice* as)
 void Cpu::attachIoAddrSpace(AddressableDevice* as)
 {
     m_ioAddrSpace = as;
-}
-
-
-
-void Cpu::attachCore(VectorCore* core)
-{
-    m_core = core;
-}
-
-
-void Cpu::clearPageMap()
-{
-    for (int i = 0; i < 256; i++) {
-        m_rdPage[i] = nullptr;
-        m_wrPage[i] = nullptr;
-    }
-}
-
-
-void __not_in_flash_func(Cpu::vidWriteNotify)()
-{
-    if (m_crt)
-        m_crt->vidMemWriteNotify();
 }
 
 
