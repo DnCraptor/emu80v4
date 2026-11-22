@@ -140,7 +140,7 @@ void SpecPitSound::setMode(SpecModel model)
     m_model = model;
     m_total = m_high = 0;
     m_gate = false;
-    m_pit->getCounter(2)->setExtClockMode(model == SpecModel::Mx);
+    m_pit->getCounter(2)->setExtClockMode(model != SpecModel::Classic);
 }
 
 void SpecPitSound::updateMx()
@@ -165,8 +165,21 @@ int SpecPitSound::calcValue()
 {
     if (m_model == SpecModel::Classic)
         return 0;
-    if (m_model == SpecModel::Sp580)
-        return Pit8253SoundSource::calcValue();
+    if (m_model == SpecModel::Sp580) {
+        // SP-580 uses the RK sound circuit: OUT1 clocks counter 2,
+        // and OUT2 gates the inverted OUT0 signal.
+        auto* tone = m_pit->getCounter(0);
+        auto* clock = m_pit->getCounter(1);
+        auto* gate = m_pit->getCounter(2);
+        tone->updateState();
+        clock->updateState();
+        gate->operateForTicks(clock->getSumOutTicks());
+        const int level = gate->getOut() ? 0 : MAX_SND_AMP - tone->getAvgOut();
+        tone->resetStats();
+        clock->resetStats();
+        gate->resetStats();
+        return level * m_ampFactor;
+    }
     updateMx();
     const int level = m_total ? m_high * MAX_SND_AMP / m_total : 0;
     m_total = m_high = 0;
