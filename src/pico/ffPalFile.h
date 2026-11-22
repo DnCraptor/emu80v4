@@ -29,6 +29,7 @@ class PalFile
                 m_isOpen = false;
             }
         }
+        bool sync() {return m_isOpen && f_sync(&m_file) == FR_OK;}
         bool isOpen() { return m_isOpen; }
         bool eof() { return !m_isOpen || f_eof(&m_file); }
         UINT read(void* buf, UINT btr) {
@@ -45,21 +46,21 @@ class PalFile
         }
         uint8_t read8() {
             if (!m_isOpen) return 0;
-            uint8_t res;
+            uint8_t res = 0;
             UINT br;
             f_read(&m_file, &res, 1, &br);
             return res;
         }
         uint16_t read16() {
             if (!m_isOpen) return 0;
-            uint16_t res;
+            uint16_t res = 0;
             UINT br;
             f_read(&m_file, &res, 2, &br);
             return res;
         }
         uint32_t read32() {
             if (!m_isOpen) return 0;
-            uint32_t res;
+            uint32_t res = 0;
             UINT br;
             f_read(&m_file, &res, 4, &br);
             return res;

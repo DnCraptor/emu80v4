@@ -1,0 +1,18 @@
+.section .rodata.specialist_roms, "a", %progbits
+
+.balign 4
+.global specSp580Boot
+specSp580Boot:
+.incbin "@SPECIALIST_ROMS_DIR@/sp580_boot.bin"
+
+.balign 4
+.global specSp580High
+specSp580High:
+.incbin "@SPECIALIST_ROMS_DIR@/sp580_high.bin"
+
+.balign 4
+.global specMxRamfos
+specMxRamfos:
+.incbin "@SPECIALIST_ROMS_DIR@/mx_ramfos.rom"
+
+.section .note.GNU-stack, "", %progbits

@@ -34,6 +34,9 @@ class TapeRedirector : public EmuObject
         void reset() override;
 
         void openFile();
+        bool openFile(const std::string& path, int position = 0);
+        bool isCas() const {return m_cas;}
+        bool isTsx() const {return m_tsx;}
         void closeFile();
         void ejectFile();
         const std::string& getFileName() const {return m_fileName;}
@@ -50,6 +53,7 @@ class TapeRedirector : public EmuObject
         bool isCancelled();
         void switchToNextLvt();
         void advanceToNextBlock();
+        static bool nextTsxDataBlock(PalFile& file, int& end);
 
 
     private:
@@ -60,14 +64,12 @@ class TapeRedirector : public EmuObject
         PalFile m_file;
         bool m_isOpen = false;
         bool m_cancelled = false;
+        bool m_cas = false;
         bool m_lvt = false;
         bool m_tsx = false;
 
 
         // TSX related
-        bool bytesAvailable(int n);
-        void skipBytes(int n);
-        void readBuffer(uint8_t* buf, int n);
         int64_t m_bytesLeftInBlock = 0;
 };
 

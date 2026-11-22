@@ -21,6 +21,8 @@
 #include "Emulation.h"
 #include "WavReader.h"
 #include "Specialist.h"
+#include <strings.h>
+#include <cstring>
 
 #include "TapeRedirector.h"
 
@@ -47,45 +49,41 @@ void TapeRedirector::reset()
 
 void TapeRedirector::openFile()
 {
-    if (m_isOpen)
-        closeFile();
-
-    m_fileName = palOpenFileDialog(
+    openFile(palOpenFileDialog(
         m_rwMode == "w" ? "Save tape file" : "Open tape file",
-        m_filter + "|.wav|.csw",
-        m_rwMode == "w"
-    );
+        m_filter + "|.wav|.csw", m_rwMode == "w"));
+}
 
-    string ext;
-    if (m_fileName.size() >= 4)
-        ext = m_fileName.substr(m_fileName.size() - 4, 4);
-    if (ext == ".wav" || ext == ".WAV" || ext == ".csw" || ext == ".CSW") {
+
+bool TapeRedirector::openFile(const std::string& path, int position)
+{
+    if (m_rwMode == "r" && g_emulation->getWavReader()->isPlaying())
+        g_emulation->getWavReader()->stop();
+    closeFile();
+    m_fileName = path;
+    const string ext = path.size() >= 4 ? path.substr(path.size() - 4) : string();
+    const bool csw = strcasecmp(ext.c_str(), ".csw") == 0;
+    if (csw || strcasecmp(ext.c_str(), ".wav") == 0) {
         m_cancelled = true;
         if (m_rwMode == "r")
-            g_emulation->getWavReader()->loadFile(m_fileName, this);
-        else if (m_rwMode == "w" && m_machine->getWavWriter()) {
-            m_machine->getWavWriter()->open(m_machine, m_fileName,
-                                            ext == ".csw" || ext == ".CSW");
-        }
-        return;
+            g_emulation->getWavReader()->loadFile(path, this);
+        else if (m_machine->getWavWriter())
+            m_machine->getWavWriter()->open(m_machine, path, csw);
+        return false;
     }
 
-    ext = ext.substr(0, 4);
-    m_lvt = (ext == ".lv" || ext == ".LV");
-    m_tsx = (ext == ".tsx" || ext == ".TSX");
-
-    if (m_fileName == "") {
-        m_cancelled = true;
-        return;
-    }
-
-    m_file.open(m_fileName, m_rwMode);
-    m_isOpen = m_file.isOpen();
-
-    m_cancelled = !m_isOpen;
-
+    m_lvt = ext.compare(0, 3, ".lv") == 0 || ext.compare(0, 3, ".LV") == 0;
+    m_tsx = strcasecmp(ext.c_str(), ".tsx") == 0;
+    m_cas = strcasecmp(ext.c_str(), ".cas") == 0;
     m_bytesLeftInBlock = 0;
-
+    if (!path.empty() && m_file.open(path, m_rwMode)) {
+        m_file.seek(position);
+        m_isOpen = m_file.getPos() == position;
+        if (!m_isOpen)
+            m_file.close();
+    }
+    m_cancelled = !m_isOpen;
+    return m_isOpen;
 }
 
 
@@ -114,13 +112,11 @@ void TapeRedirector::closeFile()
 
 uint8_t TapeRedirector::readByte()
 {
+    if (!m_isOpen && !m_cancelled)
+        openFile();
     if (m_tsx && m_isOpen && !m_bytesLeftInBlock)
         advanceToNextBlock();
-
-    if (!m_isOpen && !m_cancelled)
-    openFile();
-
-    if (!m_isOpen)
+    if (!m_isOpen || isEof())
         return 0;
 
     uint8_t buf = m_file.read8();
@@ -131,7 +127,7 @@ uint8_t TapeRedirector::readByte()
         }
     }
 
-    if (m_tsx)
+    if (m_tsx && m_bytesLeftInBlock)
         --m_bytesLeftInBlock;
 
 
@@ -205,7 +201,7 @@ bool TapeRedirector::waitForSequence(const uint8_t* seq, int len)
         if (inByte != seq[i++])
             i = 0;
     }
-    return isEof();
+    return i == len;
 }
 
 
@@ -239,131 +235,55 @@ void TapeRedirector::switchToNextLvt()
 }
 
 
-bool TapeRedirector::bytesAvailable(int n)
+bool TapeRedirector::nextTsxDataBlock(PalFile& file, int& end)
 {
-    if (!m_isOpen)
-        return false;
-
-    return ((m_file.getSize() - m_file.getPos()) >= n);
+    uint8_t id;
+    while (file.read(&id, 1) == 1) {
+        uint8_t length[4] = {};
+        unsigned field = 0;
+        if (id == 0x4b) field = 4;
+        else if (id == 0x30) field = 1;
+        else if (id == 0x32) field = 2;
+        else if (id == 0x5a) {
+            constexpr uint8_t signature[] = {'X','T','a','p','e','!',0x1a};
+            uint8_t glue[9];
+            if (file.read(glue, sizeof(glue)) != sizeof(glue) ||
+                memcmp(glue, signature, sizeof(signature)))
+                return false;
+            continue;
+        } else if (id == 0x35) {
+            if (file.getSize() - file.getPos() < 20) return false;
+            file.skip(16);
+            field = 4;
+        } else return false;
+        if (file.read(length, field) != field)
+            return false;
+        const uint32_t n = length[0] | (uint32_t(length[1]) << 8) |
+            (uint32_t(length[2]) << 16) | (uint32_t(length[3]) << 24);
+        if (n > file.getSize() - file.getPos() || file.getPos() + n > INT32_MAX)
+            return false;
+        if (id == 0x4b) {
+            if (n <= 12) return false;
+            end = file.getPos() + n;
+            file.skip(12);
+            return true;
+        }
+        file.skip(n);
+    }
+    return false;
 }
-
-
-void TapeRedirector::skipBytes(int n)
-{
-    for (int i = 0; i < n; i++)
-        m_file.read8();
-}
-
-
-void TapeRedirector::readBuffer(uint8_t* buf, int n)
-{
-    for (int i = 0; i < n; i++)
-        *buf++ = m_file.read8();
-}
-
-
-static const uint8_t tsxHeader[8] = {0x5A, 0x58, 0x54, 0x61, 0x70, 0x65, 0x21, 0x1A};
 
 void TapeRedirector::advanceToNextBlock()
 {
-    if (!m_tsx)
+    if (!m_tsx || !m_isOpen)
         return;
-
     if (m_bytesLeftInBlock) {
-        skipBytes(m_bytesLeftInBlock);
+        m_file.skip(m_bytesLeftInBlock);
         m_bytesLeftInBlock = 0;
     }
-
-    if (isEof())
-        return;
-
-    while (!m_bytesLeftInBlock) {
-        uint8_t blockId = m_file.read8();
-        switch (blockId) {
-        case 0x5A: {
-            // TZX Header or Glue block
-            if (!bytesAvailable(9)) {
-                closeFile();
-                return;
-            }
-            uint8_t buf[7];
-
-            readBuffer(buf, 7);
-
-            if (memcmp(buf, tsxHeader + 1, 6)) {
-                closeFile();
-                return;
-            }
-            skipBytes(2); // version: 2 bytes
-            break;
-        }
-        case 0x32: {
-            // Archive info block
-            if (!bytesAvailable(2)) {
-                closeFile();
-                return;
-            }
-            uint16_t blockSize = m_file.read16();
-            if (!bytesAvailable(blockSize)) {
-                closeFile();
-                return;
-            }
-            skipBytes(blockSize);
-            break;
-        }
-        case 0x35: {
-            // Custom info block
-            if (!bytesAvailable(20)) {
-                closeFile();
-                return;
-            }
-            skipBytes(16);
-            uint32_t blockSize = m_file.read32();
-            if (!bytesAvailable(blockSize)) {
-                closeFile();
-                return;
-            }
-            skipBytes(blockSize);
-            break;
-        }
-        case 0x30: {
-            // Text description
-            if (!bytesAvailable(1)) {
-                closeFile();
-                return;
-            }
-            uint8_t blockSize = m_file.read8();
-            if (!bytesAvailable(blockSize)) {
-                closeFile();
-                return;
-            }
-            skipBytes(blockSize);
-            break;
-        }
-        case 0x4B: {
-            // Kansas City (MSX) block
-            if (!bytesAvailable(4)) {
-                closeFile();
-                return;
-            }
-            uint32_t blockSize = m_file.read32();
-            if (!bytesAvailable(blockSize)) {
-                closeFile();
-                return;
-            }
-
-            skipBytes(12);
-
-            // todo: check last 2 bytes for bitmapped options
-
-            m_bytesLeftInBlock = blockSize - 12;
-
-            break;
-        }
-        default:
-            // unknown block, close file
-            closeFile();
-            return;
-        }
-    }
+    int end;
+    if (nextTsxDataBlock(m_file, end))
+        m_bytesLeftInBlock = end - m_file.getPos();
+    else if (!isEof())
+        closeFile();
 }

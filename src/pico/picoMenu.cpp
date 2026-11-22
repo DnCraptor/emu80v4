@@ -270,6 +270,30 @@ static const MenuPage processorPage {
     cpuSetValue
 };
 
+static const char* const modelKeys[] = {"classic", "sp580", "mx"};
+
+int modelGetValue()
+{
+    return static_cast<int>(g_emulation->getSpecialist()->getModel());
+}
+
+void modelSetValue(int value)
+{
+    if (!g_emulation->getSpecialist()->setModel(static_cast<SpecModel>(value)))
+        palModalMessage("Model change failed", "Check the SD card and MX RAM disk");
+}
+
+bool isMx() { return modelGetValue() == static_cast<int>(SpecModel::Mx); }
+bool isSp580() { return modelGetValue() == static_cast<int>(SpecModel::Sp580); }
+bool hasColorSelection() { return !isMx(); }
+
+static const MenuItem modelItems[] = {
+    {"Specialist"},
+    {"SP-580"},
+    {"MX (RAMFOS)"},
+};
+static const MenuPage modelPage {"Model", nullptr, modelItems, 3, modelGetValue, modelSetValue};
+
 static constexpr unsigned cpuClockValues[] = {
     2000000, 3000000, 4000000, 6000000, 8000000
 };
@@ -372,11 +396,29 @@ void invokeSysReq(SysReq request)
 
 void programLoad() { invokeSysReq(SR_LOAD); }
 void programLoadAndRun() { invokeSysReq(SR_LOADRUN); }
+void loadBootRom() { g_emulation->getSpecialist()->chooseRom(false); }
+void loadHighRom() { g_emulation->getSpecialist()->chooseRom(true); }
+void restoreRoms() { g_emulation->getSpecialist()->restoreRom(); }
+void mountDriveA() { g_emulation->getSpecialist()->mountFloppy(0); }
+void mountDriveB() { g_emulation->getSpecialist()->mountFloppy(1); }
+void ejectDriveA() { g_emulation->getSpecialist()->ejectFloppy(0); }
+void ejectDriveB() { g_emulation->getSpecialist()->ejectFloppy(1); }
+static const MenuItem floppyItems[] = {
+    {"Mount drive A...", nullptr, nullptr, mountDriveA},
+    {"Eject drive A", nullptr, nullptr, ejectDriveA},
+    {"Mount drive B...", nullptr, nullptr, mountDriveB},
+    {"Eject drive B", nullptr, nullptr, ejectDriveB},
+};
+static const MenuPage floppyPage {"Floppy disks", nullptr, floppyItems, 4};
 static const MenuItem programItems[] = {
     {"Load [Alt+L]...", nullptr, nullptr, programLoad, nullptr, nullptr},
     {"Load and run [Alt+F3]...", nullptr, nullptr, programLoadAndRun, nullptr, nullptr},
+    {"Boot ROM...", nullptr, nullptr, loadBootRom},
+    {"High ROM...", nullptr, nullptr, loadHighRom, isSp580},
+    {"Restore built-in ROMs", nullptr, nullptr, restoreRoms},
+    {"Floppy disks", nullptr, &floppyPage, nullptr, isMx},
 };
-static const MenuPage programPage {"Programs (.RKS)", nullptr, programItems, static_cast<int>(sizeof(programItems) / sizeof(programItems[0])), nullptr, nullptr};
+static const MenuPage programPage {"Programs and media", nullptr, programItems, static_cast<int>(sizeof(programItems) / sizeof(programItems[0])), nullptr, nullptr};
 
 const char* soundTitle()
 {
@@ -578,7 +620,7 @@ static const MenuItem colorItems[] = {
 static const MenuPage colorPage {"Colors", nullptr, colorItems, 3, videoColorGetValue, videoColorSetValue};
 
 static const MenuItem videoItems[] = {
-    {"Colors [Alt+C]", nullptr, &colorPage, nullptr, nullptr, nullptr},
+    {"Colors [Alt+C]", nullptr, &colorPage, nullptr, hasColorSelection, nullptr},
     {"Move left",  nullptr, nullptr, videoMoveLeft,  nullptr, nullptr, true},
     {"Move right", nullptr, nullptr, videoMoveRight, nullptr, nullptr, true},
     {"Move up",    nullptr, nullptr, videoMoveUp,    nullptr, nullptr, true},
@@ -706,6 +748,7 @@ void saveMenuStateImpl()
     SpecialistCore* core = g_emulation->getSpecialist();
     SoundMixer* mixer = g_emulation->getSoundMixer();
     const char* output = palAudioIsI2S() ? "i2s" : "pwm";
+    core->flushStorage();
     const char* cpu = core->getCpuType() == SpecCpuType::Z80 ? "z80" : "i8080";
     static const char* const keyboardLayouts[] = {"qwerty", "jcuken", "smart"};
     const int keyboardLayout = core->getKbdLayoutModeIndex();
@@ -719,7 +762,9 @@ void saveMenuStateImpl()
            "# Edit it on a PC while the emulator is not running.\n"
            "# Unknown keys are ignored; invalid values keep the current setting.\n"
            "version = 1\n\n"
-           "processor = ");
+           "machine = ");
+    cfgPut(modelKeys[static_cast<unsigned>(core->getModel())]);
+    cfgPut("                 # classic | sp580 | mx\nprocessor = ");
     cfgPut(cpu);
     cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
     cfgPutUnsigned(core->getCpuFrequency());
@@ -779,6 +824,8 @@ void loadMenuStateImpl()
     unsigned coreVoltage = palGetCoreVoltageMv();
     char soundOutput[8] = {0};       // копия значения, а не указатель в буфер строки
     bool haveSoundOutput = false;
+    SpecModel model = core->getModel();
+    int colorMode = -1;
 
     // Строки конфига короткие (key = value [# comment]); читаем по одной в
     // маленький стековый буфер и сразу разбираем. Буфера на весь файл нет.
@@ -797,7 +844,10 @@ void loadMenuStateImpl()
             unsigned number = 0;
             int signedNumber = 0;
 
-            if (textEquals(key, "processor")) {
+            if (textEquals(key, "machine")) {
+                for (unsigned i = 0; i < sizeof(modelKeys) / sizeof(*modelKeys); ++i)
+                    if (textEquals(value, modelKeys[i])) model = static_cast<SpecModel>(i);
+            } else if (textEquals(key, "processor")) {
                 if (textEquals(value, "z80")) core->setCpuType(SpecCpuType::Z80);
                 else if (textEquals(value, "i8080")) core->setCpuType(SpecCpuType::I8080);
             } else if (textEquals(key, "cpu_clock_hz") && parseUnsignedValue(value, number)) {
@@ -827,7 +877,7 @@ void loadMenuStateImpl()
                     mixer->setMuted(s_userMuted);
                 }
             } else if (textEquals(key, "color_mode") && parseUnsignedValue(value, number) && number <= 2) {
-                core->setColorMode(static_cast<SpecColorMode>(number));
+                colorMode = static_cast<int>(number);
             } else if (textEquals(key, "tape_redirect") && parseBoolValue(value, boolean)) {
                 core->setTapeHooksEnabled(boolean);
             } else if (textEquals(key, VIDEO_OFFSET_X_KEY) && parseSignedValue(value, signedNumber)) {
@@ -842,6 +892,8 @@ void loadMenuStateImpl()
         }
     }
     f_close(&g_file);
+    if (core->setModel(model) && colorMode >= 0)
+        core->setColorMode(static_cast<SpecColorMode>(colorMode));
 
     for (uint16_t voltage : coreVoltageValues)
         if (voltage == coreVoltage) palSetCoreVoltageMv(voltage);
@@ -1115,10 +1167,11 @@ static const MenuPage joysticksPage {
 
 static const MenuItem rootItems[] = {
     {"Processor", nullptr, &processorPage, nullptr, nullptr, nullptr},
+    {"Model", nullptr, &modelPage},
     {"CPU-Clock", nullptr, &cpuClockPage, nullptr, nullptr, nullptr},
     {"Keyboard", nullptr, &keyboardPage, nullptr, nullptr, nullptr},
     {"Joysticks", nullptr, &joysticksPage, nullptr, nullptr, nullptr},
-    {"Programs (.RKS)", nullptr, &programPage, nullptr, nullptr, nullptr},
+    {"Programs and media", nullptr, &programPage, nullptr, nullptr, nullptr},
     {"Sound", soundTitle, &soundPage, nullptr, nullptr, nullptr},
     {"Tape", nullptr, &tapePage, nullptr, nullptr, nullptr},
     {"Video", nullptr, &videoPage, nullptr, nullptr, nullptr},
@@ -1127,13 +1180,14 @@ static const MenuItem rootItems[] = {
     {"About", nullptr, nullptr, showAboutDialog, nullptr, nullptr},
 };
 
-// Заголовок корневой страницы отражает установленное ядро
 const char* rootTitle()
 {
-    if (g_emulation && g_emulation->getSpecialist()
-        && g_emulation->getSpecialist()->getCpuType() == SpecCpuType::Z80)
-        return "Specialist Z80";
-    return "Specialist 80A";
+    static const char* const titles[][2] = {
+        {"Specialist 80A", "Specialist Z80"},
+        {"SP-580 80A", "SP-580 Z80"},
+        {"Specialist MX 80A", "Specialist MX Z80"},
+    };
+    return titles[modelGetValue()][cpuGetValue()];
 }
 
 static const MenuPage rootPage {

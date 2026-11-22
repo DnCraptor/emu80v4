@@ -141,6 +141,14 @@ file(GLOB SRC
 
 add_executable(${PROJECT_NAME} ${SRC})
 
+# Keep the original Emu80 ROM dumps in roms/ and embed them in XIP flash.
+set(SPECIALIST_ROMS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/roms")
+configure_file(src/SpecialistRoms.S.in "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S" @ONLY)
+target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S")
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S" PROPERTY OBJECT_DEPENDS
+    "${SPECIALIST_ROMS_DIR}/sp580_boot.bin;${SPECIALIST_ROMS_DIR}/sp580_high.bin;${SPECIALIST_ROMS_DIR}/mx_ramfos.rom")
+
+
 # pull in common dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
     audio
