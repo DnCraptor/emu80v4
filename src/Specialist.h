@@ -39,7 +39,7 @@
 
 enum class SpecCpuType { I8080, Z80 };
 enum class SpecColorMode { Mono, Color4, Color8, Mx };
-enum class SpecModel { Classic, Sp580, Mx };
+enum class SpecModel { Classic, Sp580, Mx, Lik };
 
 class SpecRamDisk
 {

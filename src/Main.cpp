@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cstdarg>
 #include <algorithm>
+#include <atomic>
 
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -466,12 +467,12 @@ static void checkHardResetCombo(PalKeyCode vk, bool pressed) {
     }
 }
 
-#if 1
+// PS/2, USB and joysticks are polled on one producer core (core 1 on
+// VGA, core 0 on HDMI). The menu and emulation consume on core 0.
 static constexpr unsigned KEY_ACTION_QUEUE_SIZE = 64;
 static PalKeyCodeAction keyActions[KEY_ACTION_QUEUE_SIZE];
-static unsigned keyActionHead = 0;
-static unsigned keyActionTail = 0;
-static unsigned keyActionCount = 0;
+static std::atomic<unsigned> keyActionHead{0};
+static std::atomic<unsigned> keyActionTail{0};
 
 inline static void addKey(PalKeyCode vk, bool pressed) {
     // Ctrl+Alt+Del — аппаратный сброс через watchdog. Ловится на самом нижнем
@@ -480,19 +481,22 @@ inline static void addKey(PalKeyCode vk, bool pressed) {
     // независимо от того, что сейчас на экране, и Alt/меню не рвут цепочку.
     checkHardResetCombo(vk, pressed);
 
-    if (keyActionCount >= KEY_ACTION_QUEUE_SIZE)
+    const unsigned tail = keyActionTail.load(std::memory_order_relaxed);
+    if (tail - keyActionHead.load(std::memory_order_acquire) == KEY_ACTION_QUEUE_SIZE)
         return;
-    keyActions[keyActionTail] = PalKeyCodeAction(vk, pressed);
-    keyActionTail = (keyActionTail + 1) % KEY_ACTION_QUEUE_SIZE;
-    keyActionCount++;
+    auto& action = keyActions[tail % KEY_ACTION_QUEUE_SIZE];
+    action.vk = vk;
+    action.pressed = pressed;
+    keyActionTail.store(tail + 1, std::memory_order_release);
 }
 
 static PalKeyCodeAction __not_in_flash_func(popKeyAction)() {
-    if (keyActionCount == 0)
-        return PalKeyCodeAction();
-    PalKeyCodeAction action = keyActions[keyActionHead];
-    keyActionHead = (keyActionHead + 1) % KEY_ACTION_QUEUE_SIZE;
-    keyActionCount--;
+    const unsigned head = keyActionHead.load(std::memory_order_relaxed);
+    if (head == keyActionTail.load(std::memory_order_acquire))
+        return {};
+    const auto& slot = keyActions[head % KEY_ACTION_QUEUE_SIZE];
+    PalKeyCodeAction action(slot.vk, slot.pressed);
+    keyActionHead.store(head + 1, std::memory_order_release);
     return action;
 }
 
@@ -501,31 +505,12 @@ PalKeyCodeAction getKey() {
 }
 
 void __not_in_flash_func(processKeys)() {
-    if (keyActionCount == 0 || !g_emulation)
+    if (!g_emulation)
         return;
-    PalKeyCodeAction action = popKeyAction();
-    g_emulation->machineKey(action.vk, action.pressed);
+    const auto action = popKeyAction();
+    if (action.vk != PK_NONE)
+        g_emulation->machineKey(action.vk, action.pressed);
 }
-#else
-volatile static PalKeyCodeAction lastKey;
-volatile static bool isLastKey;
-inline static void addKey(PalKeyCode vk, bool pressed) {
-    lastKey.vk = vk;
-    lastKey.pressed = pressed;
-    isLastKey = true;
-}
-PalKeyCodeAction getKey() {
-    if (!isLastKey) return PalKeyCodeAction();
-    isLastKey = false;
-    return lastKey;
-}
-void processKeys() {
-    if (isLastKey && g_emulation) {
-        isLastKey = false;
-        g_emulation->machineKey(lastKey.vk, lastKey.pressed);
-    }
-}
-#endif
 
 void repeat_handler() {
     /// TODO

@@ -140,7 +140,7 @@ void SpecPitSound::setMode(SpecModel model)
     m_model = model;
     m_total = m_high = 0;
     m_gate = false;
-    m_pit->getCounter(2)->setExtClockMode(model != SpecModel::Classic);
+    m_pit->getCounter(2)->setExtClockMode(model == SpecModel::Sp580 || model == SpecModel::Mx);
 }
 
 void SpecPitSound::updateMx()
@@ -163,7 +163,7 @@ void SpecPitSound::updateMx()
 
 int SpecPitSound::calcValue()
 {
-    if (m_model == SpecModel::Classic)
+    if (m_model == SpecModel::Classic || m_model == SpecModel::Lik)
         return 0;
     if (m_model == SpecModel::Sp580) {
         // SP-580 uses the RK sound circuit: OUT1 clocks counter 2,

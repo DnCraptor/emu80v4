@@ -270,7 +270,7 @@ static const MenuPage processorPage {
     cpuSetValue
 };
 
-static const char* const modelKeys[] = {"classic", "sp580", "mx"};
+static const char* const modelKeys[] = {"classic", "sp580", "mx", "lik"};
 
 int modelGetValue()
 {
@@ -291,8 +291,9 @@ static const MenuItem modelItems[] = {
     {"Specialist"},
     {"SP-580"},
     {"MX (RAMFOS)"},
+    {"Lik"},
 };
-static const MenuPage modelPage {"Model", nullptr, modelItems, 3, modelGetValue, modelSetValue};
+static const MenuPage modelPage {"Model", nullptr, modelItems, static_cast<int>(sizeof(modelItems) / sizeof(modelItems[0])), modelGetValue, modelSetValue};
 
 static constexpr unsigned cpuClockValues[] = {
     2000000, 3000000, 4000000, 6000000, 8000000
@@ -764,7 +765,7 @@ void saveMenuStateImpl()
            "version = 1\n\n"
            "machine = ");
     cfgPut(modelKeys[static_cast<unsigned>(core->getModel())]);
-    cfgPut("                 # classic | sp580 | mx\nprocessor = ");
+    cfgPut("                 # classic | sp580 | mx | lik\nprocessor = ");
     cfgPut(cpu);
     cfgPut("                 # i8080 | z80\ncpu_clock_hz = ");
     cfgPutUnsigned(core->getCpuFrequency());
@@ -1044,6 +1045,7 @@ void showHelpDialog()
         "Alt+T - tape redirect on / off",
         "Alt+C - cycle color mode",
         "Alt+Q / Alt+J / Alt+K - kbd layouts",
+        "PROGRAM ? (Monitor 2): F1, then Enter",
         "",
         "Numpad * / move image horizontally",
         "Numpad + - move image vertically",
@@ -1186,6 +1188,7 @@ const char* rootTitle()
         {"Specialist 80A", "Specialist Z80"},
         {"SP-580 80A", "SP-580 Z80"},
         {"Specialist MX 80A", "Specialist MX Z80"},
+        {"Lik 80A", "Lik Z80"},
     };
     return titles[modelGetValue()][cpuGetValue()];
 }

@@ -23,8 +23,8 @@ set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
 set_property(CACHE PICO_PLATFORM PROPERTY STRINGS rp2040 rp2350)
 
 # Board (select the matching chip above)
-#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(PICO_BOARD "olimex-pico-pc" CACHE STRING "Board type")
 #set(PICO_BOARD "pimoroni-pico-dv" CACHE STRING "Board type")
 #set(PICO_BOARD "waveshare_rp2040_pizero" CACHE STRING "Board type")
@@ -34,8 +34,8 @@ set_property(CACHE PICO_BOARD PROPERTY STRINGS
     waveshare_rp2040_pizero waveshare_rp2350_pizero)
 
 # Video (Olimex PICO-PC and Pimoroni Pico DV use HDMI)
-set(SPECIALIST_VIDEO "HDMI" CACHE STRING "Video output")
-#set(SPECIALIST_VIDEO "VGA" CACHE STRING "Video output")
+#set(SPECIALIST_VIDEO "HDMI" CACHE STRING "Video output")
+set(SPECIALIST_VIDEO "VGA" CACHE STRING "Video output")
 #set(SPECIALIST_VIDEO "RGB" CACHE STRING "Video output")
 #set(SPECIALIST_VIDEO "PAL" CACHE STRING "Video output")
 #set(SPECIALIST_VIDEO "NTSC" CACHE STRING "Video output")
@@ -46,6 +46,7 @@ set_property(CACHE SPECIALIST_VIDEO PROPERTY STRINGS HDMI VGA RGB PAL NTSC)
 #set(CPU_MHZ 372 CACHE STRING "System clock in MHz")
 #set(CPU_MHZ 378 CACHE STRING "System clock in MHz")
 set(CPU_MHZ 400 CACHE STRING "System clock in MHz")
+#set(CPU_MHZ 432 CACHE STRING "System clock in MHz") # for PAL?
 #set(CPU_MHZ 440 CACHE STRING "System clock in MHz")
 #set(CPU_MHZ 444 CACHE STRING "System clock in MHz")
 #set(CPU_MHZ 456 CACHE STRING "System clock in MHz")
@@ -55,7 +56,7 @@ set(CPU_MHZ 400 CACHE STRING "System clock in MHz")
 #set(CPU_MHZ 520 CACHE STRING "System clock in MHz")
 
 #set(m1p2-launcher ON)
-set(PORT_VERSION "0.5.0")
+set(PORT_VERSION "0.5.1")
 
 if(PICO_BOARD STREQUAL "olimex-pico-pc" OR PICO_BOARD STREQUAL "pimoroni-pico-dv")
     if(NOT SPECIALIST_VIDEO STREQUAL "HDMI")
@@ -146,7 +147,7 @@ set(SPECIALIST_ROMS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/roms")
 configure_file(src/SpecialistRoms.S.in "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S" @ONLY)
 target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S")
 set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/SpecialistRoms.S" PROPERTY OBJECT_DEPENDS
-    "${SPECIALIST_ROMS_DIR}/sp580_boot.bin;${SPECIALIST_ROMS_DIR}/sp580_high.bin;${SPECIALIST_ROMS_DIR}/mx_ramfos.rom")
+    "${SPECIALIST_ROMS_DIR}/sp580_boot.bin;${SPECIALIST_ROMS_DIR}/sp580_high.bin;${SPECIALIST_ROMS_DIR}/mx_ramfos.rom;${SPECIALIST_ROMS_DIR}/lik.rom")
 
 
 # pull in common dependencies

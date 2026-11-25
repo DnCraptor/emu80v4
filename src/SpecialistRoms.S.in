@@ -15,4 +15,9 @@ specSp580High:
 specMxRamfos:
 .incbin "@SPECIALIST_ROMS_DIR@/mx_ramfos.rom"
 
+.balign 4
+.global specLik
+specLik:
+.incbin "@SPECIALIST_ROMS_DIR@/lik.rom"
+
 .section .note.GNU-stack, "", %progbits

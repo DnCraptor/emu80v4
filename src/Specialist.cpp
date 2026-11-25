@@ -102,6 +102,7 @@ extern "C" {
 extern const uint8_t specSp580Boot[0x800];
 extern const uint8_t specSp580High[0x800];
 extern const uint8_t specMxRamfos[0xb800];
+extern const uint8_t specLik[0x3000];
 }
 
 void SpecMemory::setBuiltInRom()
@@ -111,6 +112,7 @@ void SpecMemory::setBuiltInRom()
         case SpecModel::Classic: m_rom = specMonitor; m_romSize = sizeof(specMonitor); break;
         case SpecModel::Sp580: m_rom = specSp580Boot; m_romSize = sizeof(specSp580Boot); break;
         case SpecModel::Mx: m_rom = specMxRamfos; m_romSize = sizeof(specMxRamfos); break;
+        case SpecModel::Lik: m_rom = specLik; m_romSize = sizeof(specLik); break;
     }
 }
 
@@ -446,6 +448,13 @@ void SpecKeyboard::processKey(EmuKey key, bool isPressed)
         return;
     }
 
+    if (m_model == SpecModel::Lik) {
+        if (key == EK_TAB)
+            return;
+        if (key == EK_ESC)
+            key = EK_F1;
+    }
+
     const auto& matrix = m_model == SpecModel::Sp580 ? m_keyMatrixSp580
         : m_model == SpecModel::Mx ? m_keyMatrixMx : m_keyMatrix;
     for (unsigned col = 0; col < 12; ++col) {
@@ -779,14 +788,15 @@ int SpecialistCore::getKbdLayoutModeIndex() const
 
 void SpecialistCore::configureTape()
 {
-    const bool classic = getModel() == SpecModel::Classic;
+    const bool lik = getModel() == SpecModel::Lik;
+    const bool classic = getModel() == SpecModel::Classic || lik;
     const bool sp = getModel() == SpecModel::Sp580;
     const bool mx = getModel() == SpecModel::Mx;
     m_tapeIn.setFilter(classic ? rksFilter : sp ? ".spt|.cas|.tsx" : ".rfs");
     m_tapeOut.setFilter(classic ? ".rks" : sp ? ".cas|.spt" : ".rfs");
     m_tapeInHook.setEnabled(classic && m_tapeHooksEnabled);
     m_tapeOutHook.setEnabled(classic && m_tapeHooksEnabled);
-    m_closeHook.setSignature(sp ? "E5C5D5219EC1" : "C5D5E5CDC8C2");
+    m_closeHook.setSignature(sp ? "E5C5D5219EC1" : lik ? "C5D5E5CD83C2" : "C5D5E5CDC8C2");
     m_closeHook.setEnabled((classic || sp) && m_tapeHooksEnabled);
     for (auto* hook : {&m_spInHead, &m_spIn, &m_spOutHead, &m_spOut})
         hook->setEnabled(sp && m_tapeHooksEnabled);
