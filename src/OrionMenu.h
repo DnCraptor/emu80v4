@@ -12,6 +12,7 @@ struct OrionSettings {
 };
 extern OrionSettings orionSettings;
 void orionLoadSettings();
+void orionApplyMenuSettings();
 void orionMenu();
 // Exactly 2 KiB, mapped at F800-FFFF. Null selects the model's built-in ROM.
 const uint8_t* orionMonitorData();

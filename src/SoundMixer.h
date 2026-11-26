@@ -95,6 +95,8 @@ class SoundMixer : public ActiveDevice
 
         // переключает беззвучный режим
         void toggleMute();
+        bool getMuted() const {return m_muted;}
+        void setMuted(bool muted) {m_muted = muted;}
 
         // устанавливает громкость (1-5, 5 - max)
         void setVolume(int volume);

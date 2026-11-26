@@ -30,6 +30,9 @@ void palDelay(uint64_t time);
 std::string palGetDefaultPlatform();
 bool palSetVsync(bool vsync);
 bool palSetSampleRate(int sampleRate);
+bool palAudioIsI2S();
+bool palAudioOutputCanSwitch();
+bool palSetAudioOutputI2S(bool i2s);
 void palCopyTextToClipboard(const char* text);
 std::string palGetTextFromClipboard();
 void palPlaySample(int16_t left, int16_t right); // stereo

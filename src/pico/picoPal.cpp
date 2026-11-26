@@ -1,4 +1,5 @@
 #include "picoPal.h"
+#include "OrionOsd.h"
 #include "../OrionMenu.h"
 #include "../Emulation.h"
 #include "../Globals.h"
@@ -143,9 +144,6 @@ void palGetDirContent(const string& d, vector<PalFileInfo*>& fileList)
     f_closedir(&dir);
 }
 
-/// TODO: .h
-extern PalKeyCodeAction getKey();
-#include <algorithm>
 // File browser: the text-mode layout, scrollbar and incremental row redraw
 // follow the Specialist/Vector PAL file dialog. Keep Orion's PalWindow API.
 namespace {
@@ -189,9 +187,6 @@ std::vector<std::string> filePatterns(const std::string& filter)
     return result;
 }
 
-bool browserCloseKey(PalKeyCode k) {
-    return k == PK_ESC || k == PK_F12 || k == PK_LALT || k == PK_RALT;
-}
 }
 
 static std::string fdir = "/orion";
@@ -205,15 +200,17 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         }
     } restore;
     graphics_set_menu_text_mode(true);
-    const int fw = graphics_get_font_width(), fh = graphics_get_font_height();
-    const int cols = graphics_get_width()/fw, rows = graphics_get_visible_height()/fh;
-    if (cols < 12 || rows < 8) return "";
-    const int w = cols-2, h = rows-2, x = 1, y = 1;
-    const int top = y+1, bottom = y+h-1;
-    const int listTop = top+(write ? 1 : 0), visibleRows = bottom-listTop;
-    const int listW = w-1, scrollX = x+listW;
-    const uint8_t white = RGB(0xffffff), black = RGB(0), titleBg = RGB(0x003080);
-    const uint8_t selectedBg = RGB(0x40c0ff), gray = RGB(0x808080);
+    using namespace OrionOsd;
+    Screen screen;
+    if (screen.cols < 12 || screen.rows < 8) return "";
+    const int w = std::min(68, screen.cols - 2), h = std::min(24, screen.rows - 2);
+    const int x = (screen.cols - w) / 2, y = (screen.rows - h) / 2;
+    const int top = y + 2, bottom = y + h - 1;
+    const int listTop = top + (write ? 1 : 0), visibleRows = bottom - listTop;
+    const int listW = w - 3, scrollX = x + w - 2;
+    NavigationKeys keys;
+    // The modal browser is only used on core 0 and does not nest.
+    static FILINFO entry;
     const auto masks = filePatterns(filter);
     bool allFiles = masks.empty(), truncated = false;
     bool inputFocused = write;
@@ -225,12 +222,6 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
     entries.reserve(32);
     int selected = 0, scroll = 0;
 
-    auto fill = [&](int cx,int cy,int cw,int ch,uint8_t color) {
-        graphics_fill(cx*fw,cy*fh,cw*fw,ch*fh,color);
-    };
-    auto text = [&](int cx,int cy,const std::string& value,int width,uint8_t color) {
-        graphics_type(cx*fw,cy*fh,color,value.c_str(),std::min(value.size(),size_t(std::max(0,width))));
-    };
     auto pathFor = [&](const std::string& name) { return fdir == "/" ? "/"+name : fdir+"/"+name; };
     auto loadDirectory = [&]() -> bool {
         DIR dir;
@@ -239,7 +230,6 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         size_t nameBytes = 0;
         if (fdir != "/") entries.push_back({"..",true});
         const size_t first = entries.size();
-        FILINFO entry;
         FRESULT result;
         while ((result=f_readdir(&dir,&entry)) == FR_OK && entry.fname[0]) {
             if (!strcmp(entry.fname,".") || !strcmp(entry.fname,"..")) continue;
@@ -265,92 +255,88 @@ std::string palOpenFileDialog(std::string title, std::string filter, bool write,
         fdir = "/";
         if (!loadDirectory()) { orionConfirm("File manager","Cannot read SD card"); return ""; }
     }
-    auto drawTitle = [&]() {
-        fill(x,y,w,1,titleBg);
-        std::string prefix = title+": ";
-        std::string path = fdir;
-        const int room = w-2-int(prefix.size());
-        if (room >= 4 && int(path.size()) > room) path = "..."+path.substr(path.size()-room+3);
-        text(x+1,y,prefix+path,w-2,white);
-    };
     auto drawInput = [&]() {
         if (!write) return;
-        fill(x,top,w,1,inputFocused ? RGB(0xcfffff) : RGB(0xd0d0d0));
-        const size_t space = size_t(std::max(1,w-8));
-        const auto shown = filename.size() >= space ? filename.substr(filename.size()-space+1) : filename;
-        text(x+1,top,"Name: "+shown+(inputFocused ? "_" : ""),w-2,black);
+        screen.fill(x + 1, top, w - 2, 1, inputFocused ? selection : panel);
+        const size_t space = size_t(w - 9);
+        const auto shown = filename.size() > space ? filename.substr(filename.size() - space) : filename;
+        screen.text(x + 1, top, "Name: " + shown + (inputFocused ? "_" : ""), w - 2);
     };
     auto drawRow = [&](int index) {
-        if (index < scroll || index >= scroll+visibleRows) return;
-        const int yy = listTop+index-scroll;
-        fill(x,yy,listW,1,index == selected && !entries.empty() ? (inputFocused ? RGB(0xd0d0d0) : selectedBg) : white);
+        if (index < scroll || index >= scroll + visibleRows) return;
+        const int yy = listTop + index - scroll;
+        const bool active = index == selected && !entries.empty() && !inputFocused;
+        screen.fill(x + 1, yy, listW, 1, active ? selection : panel);
         if (index < int(entries.size())) {
             const auto& item = entries[index];
-            text(x+1,yy,item.dir ? "<"+item.name+">" : item.name,listW-2,black);
+            screen.text(x + 1, yy, item.dir ? "<" + item.name + ">" : item.name, listW - 1);
         }
     };
     auto drawScrollbar = [&]() {
-        fill(scrollX,listTop,1,visibleRows,gray);
+        screen.fill(scrollX, listTop, 1, visibleRows, gray);
         if (entries.size() <= size_t(visibleRows)) return;
-        const int thumb = std::max(1,visibleRows*visibleRows/int(entries.size()));
-        const int offset = (visibleRows-thumb)*scroll/(int(entries.size())-visibleRows);
-        fill(scrollX,listTop+offset,1,thumb,white);
+        const int thumb = std::max(1, visibleRows * visibleRows / int(entries.size()));
+        const int offset = (visibleRows - thumb) * scroll / (int(entries.size()) - visibleRows);
+        screen.fill(scrollX, listTop + offset, 1, thumb, white);
     };
     auto drawList = [&]() {
-        for (int i=0;i<visibleRows;++i) drawRow(scroll+i);
-        if (entries.empty()) text(x+1,listTop,"(No matching files)",listW-2,gray);
+        for (int i = 0; i < visibleRows; ++i) drawRow(scroll + i);
+        if (entries.empty()) screen.text(x + 1, listTop, "(No matching files)", listW - 1, gray);
         drawScrollbar();
     };
-    auto drawFooter = [&]() {
-        fill(x,bottom,w,1,black);
-        std::string footer = write ? "Tab: name/list  Enter: save" : (allFiles ? "F4: filter" : "F4: all files");
-        footer += "  Esc: cancel";
-        if (truncated) footer = "List truncated; narrow filter";
-        text(x+1,bottom,footer,w-2,white);
+    auto redraw = [&]() {
+        screen.window(x, y, w, h, title);
+        const size_t room = w - 2;
+        const std::string path = fdir.size() > room ? "..." + fdir.substr(fdir.size() - room + 3) : fdir;
+        screen.text(x + 1, y + 1, path, w - 2);
+        drawInput();
+        drawList();
+        const char* footer = write ? "Tab: name/list  Enter: save  Esc: cancel"
+            : masks.empty() ? "Enter: open  Esc: cancel"
+            : allFiles ? "F4: filter  Esc: cancel" : "F4: all files  Esc: cancel";
+        screen.text(x + 1, bottom, truncated ? "List truncated; narrow filter" : footer, w - 2);
     };
-    auto redraw = [&]() { fill(x,y,w,h,white); drawTitle(); drawInput(); drawList(); drawFooter(); };
     redraw();
     while (true) {
-        const auto key = getKey();
-        if (!key.pressed) { sleep_ms(2); continue; }
-        if (browserCloseKey(key.vk)) return "";
-        if (key.vk == PK_F4 && !write) {
+        const auto key = keys.next();
+        if (key == PK_NONE) { sleep_ms(2); continue; }
+        if (key == PK_ESC || closeKey(key)) return "";
+        if (key == PK_F4 && !write && !masks.empty()) {
             allFiles = !allFiles;
             if (!loadDirectory()) { orionConfirm("File manager","Cannot read directory"); return ""; }
             redraw(); continue;
         }
-        if (write && key.vk == PK_TAB) {
+        if (write && key == PK_TAB) {
             inputFocused = !inputFocused; drawInput(); drawRow(selected); continue;
         }
-        const bool enter = key.vk == PK_ENTER || key.vk == PK_KP_ENTER;
+        const bool enter = enterKey(key);
         if (inputFocused) {
             if (enter && !filename.empty()) {
                 const auto path = pathFor(filename);
-                FILINFO existing;
-                if (f_stat(path.c_str(),&existing) == FR_OK) {
-                    if (existing.fattrib & AM_DIR) { orionConfirm("Cannot save","A directory has this name"); redraw(); continue; }
+                if (f_stat(path.c_str(), &entry) == FR_OK) {
+                    if (entry.fattrib & AM_DIR) { orionConfirm("Cannot save","A directory has this name"); redraw(); continue; }
                     if (!orionConfirm("Overwrite file","Replace existing file?",true)) { redraw(); continue; }
                 }
                 return path;
             }
             char ch = 0;
-            if (key.vk >= PK_1 && key.vk <= PK_0) ch = key.vk == PK_0 ? '0' : '1'+key.vk-PK_1;
-            else if (key.vk >= PK_A && key.vk <= PK_Z) ch = 'a'+key.vk-PK_A;
-            else if (key.vk == PK_SPACE) ch = ' ';
-            else if (key.vk == PK_PERIOD) ch = '.';
-            else if (key.vk == PK_MINUS) ch = '-';
-            else if (key.vk == PK_BSP && !filename.empty()) filename.pop_back();
+            if (key >= PK_1 && key <= PK_0) ch = key == PK_0 ? '0' : '1'+key-PK_1;
+            else if (key >= PK_A && key <= PK_Z) ch = 'a'+key-PK_A;
+            else if (key == PK_SPACE) ch = ' ';
+            else if (key == PK_PERIOD) ch = '.';
+            else if (key == PK_MINUS) ch = '-';
+            else if (key == PK_BSP && !filename.empty()) filename.pop_back();
             if (ch && filename.size() < 127) filename += ch;
             drawInput(); continue;
         }
         if (entries.empty()) continue;
         const int previous = selected, previousScroll = scroll, count = int(entries.size());
-        if (key.vk == PK_UP || key.vk == PK_KP_8) selected = (selected+count-1)%count;
-        else if (key.vk == PK_DOWN || key.vk == PK_KP_2) selected = (selected+1)%count;
-        else if (key.vk == PK_PGUP || key.vk == PK_KP_9) selected = std::max(0,selected-visibleRows);
-        else if (key.vk == PK_PGDN || key.vk == PK_KP_3) selected = std::min(count-1,selected+visibleRows);
-        else if (key.vk == PK_HOME || key.vk == PK_KP_7) selected = 0;
-        else if (key.vk == PK_END || key.vk == PK_KP_1) selected = count-1;
+        if (key == PK_UP || key == PK_KP_8) selected = (selected+count-1)%count;
+        else if (key == PK_DOWN || key == PK_KP_2) selected = (selected+1)%count;
+        else if (key == PK_PGUP || key == PK_KP_9) selected = std::max(0,selected-visibleRows);
+        else if (key == PK_PGDN || key == PK_KP_3) selected = std::min(count-1,selected+visibleRows);
+        else if (key == PK_HOME || key == PK_KP_7) selected = 0;
+        else if (key == PK_END || key == PK_KP_1) selected = count-1;
         else if (enter) {
             const auto item = entries[selected];
             if (item.dir) {
@@ -729,6 +715,33 @@ bool palSetSampleRate(int newSampleRate)
         return false;
     }
     return true;
+}
+
+bool palAudioIsI2S() { return s_audioI2S; }
+
+bool palAudioOutputCanSwitch()
+{
+#if defined(AUDIO_FORCE_PWM) || defined(AUDIO_FORCE_I2S)
+    return false;
+#else
+    return true;
+#endif
+}
+
+bool palSetAudioOutputI2S(bool i2s)
+{
+    if (!palAudioOutputCanSwitch()) return i2s == s_audioI2S;
+    if (s_audioOutputInitialized && i2s == s_audioI2S) return true;
+
+    const AudioOut previous = s_audioOut;
+    audioStopPacedOutput();
+    audioDeinitOutput();
+    s_audioOut = i2s ? AUDIO_OUT_I2S : AUDIO_OUT_PWM;
+    if (palSetSampleRate(sampleRate)) return true;
+
+    s_audioOut = previous;
+    palSetSampleRate(sampleRate);
+    return false;
 }
 
 int palGetSampleRate()

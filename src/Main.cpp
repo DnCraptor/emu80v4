@@ -858,6 +858,7 @@ int main() {
     palInit(argc, (char**)argv);
     CmdLine cmdLine(argc, (char**)argv);
     new Emulation(cmdLine); // g_emulation присваивается в конструкторе
+    orionApplyMenuSettings();
     palExecute();
     __unreachable();
 }
