@@ -5,6 +5,15 @@ void PalWindow::bringToFront() {
 // TODO:
 }
 
+void PalWindow::maximize() {
+    // The Pico video backend already occupies the entire physical display.
+}
+
+void PalWindow::screenshotRequest(const std::string& ssFileName) {
+    // Desktop screenshot capture is not implemented by the Pico PAL.
+    (void)ssFileName;
+}
+
 void PalWindow::applyParams() {
     /// TODO:
 }
