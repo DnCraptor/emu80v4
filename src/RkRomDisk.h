@@ -40,6 +40,7 @@ class RkRomDisk : public Ppi8255Circuit
 
     protected:
         FIL* m_romDisk = nullptr;
+        const uint8_t* m_embedded = nullptr;
         int m_fileSize = 0;
         unsigned m_curAddr = 0;
 };

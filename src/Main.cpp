@@ -33,6 +33,8 @@
 #include "Pal.h"
 #include "CmdLine.h"
 #include "Emulation.h"
+#include "OrionMenu.h"
+#include "pico/util/queue.h"
 
 #pragma GCC optimize("Ofast")
 
@@ -359,54 +361,30 @@ PalKeyCode pressed_key[256] = { PalKeyCode::PK_NONE };
 
 Emulation* g_emulation = nullptr;
 
-#if 1
-#include <queue>
-static std::queue<PalKeyCodeAction*> actions;
+static queue_t actions;
 
 inline static void addKey(PalKeyCode vk, bool pressed) {
-    actions.push(new PalKeyCodeAction(vk, pressed));
+    PalKeyCodeAction action(vk, pressed);
+    queue_try_add(&actions, &action);
 }
 
 PalKeyCodeAction getKey() {
-    if (actions.empty()) return PalKeyCodeAction();
-    PalKeyCodeAction* p = actions.front();
-    actions.pop();
-    if (!p) return PalKeyCodeAction();
-    PalKeyCodeAction res = *p;
-    delete p;
-    return res;
+    PalKeyCodeAction action;
+    queue_try_remove(&actions, &action);
+    return action;
 }
 
 void processKeys() {
-    if (!actions.empty()) {
-        PalKeyCodeAction* p = actions.front();
-        actions.pop();
-        if (p && g_emulation) {
-            g_emulation->activePlatformKey(p->vk, p->pressed);
-            delete p;
+    PalKeyCodeAction action;
+    while (queue_try_remove(&actions, &action)) {
+        if (!g_emulation) continue;
+        if (action.vk == PK_F12) {
+            if (action.pressed) orionMenu();
+        } else {
+            g_emulation->activePlatformKey(action.vk, action.pressed);
         }
     }
 }
-#else
-volatile static PalKeyCodeAction lastKey;
-volatile static bool isLastKey;
-inline static void addKey(PalKeyCode vk, bool pressed) {
-    lastKey.vk = vk;
-    lastKey.pressed = pressed;
-    isLastKey = true;
-}
-PalKeyCodeAction getKey() {
-    if (!isLastKey) return PalKeyCodeAction();
-    isLastKey = false;
-    return lastKey;
-}
-void processKeys() {
-    if (isLastKey && g_emulation) {
-        isLastKey = false;
-        g_emulation->activePlatformKey(lastKey.vk, lastKey.pressed);
-    }
-}
-#endif
 
 void repeat_handler() {
     /// TODO
@@ -539,9 +517,17 @@ void ///__not_in_flash_func(
     hid_keyboard_report_t const *report,
     hid_keyboard_report_t const *prev_report
 ) {
+    static const PalKeyCode modifiers[8] = {
+        PK_LCTRL, PK_LSHIFT, PK_LALT, PK_NONE,
+        PK_RCTRL, PK_RSHIFT, PK_RALT, PK_NONE
+    };
     static bool numlock = false;
+    unsigned changed = report->modifier ^ prev_report->modifier;
+    for (unsigned i = 0; i < 8; ++i)
+        if ((changed & (1u << i)) && modifiers[i] != PK_NONE && g_emulation)
+            addKey(modifiers[i], (report->modifier & (1u << i)) != 0);
     for (uint8_t pkc: prev_report->keycode) {
-        if (!pkc) continue;
+        if (!pkc || (pkc >= 0xe0 && pkc <= 0xe7)) continue;
         bool key_still_pressed = false;
         for (uint8_t kc: report->keycode) {
             if (kc == pkc) {
@@ -557,7 +543,7 @@ void ///__not_in_flash_func(
         }
     }
     for (uint8_t kc: report->keycode) {
-        if (!kc) continue;
+        if (!kc || (kc >= 0xe0 && kc <= 0xe7)) continue;
         PalKeyCode vk = pressed_key[kc];
         if (vk == PalKeyCode::PK_NONE) { // it was not yet pressed
             vk = map_key(kc);
@@ -572,9 +558,7 @@ void ///__not_in_flash_func(
                 else if (vk == PK_KP_DIV) graphics_dec_x();
                 else if (vk == PK_NUMLOCK) {
                     numlock = !numlock;
-                    uint8_t m = ((uint8_t)graphics_get_mode() + 1);
-                    if (m >= UNSUPPORTED_MODE) m = GRAPHICSMODE_DEFAULT;
-                    graphics_set_mode((enum graphics_mode_t)m);
+
                 }
             }
         }
@@ -618,15 +602,14 @@ void /// __scratch_x("render")
 #endif
 }
 
-uint8_t* tmp_screen = nullptr;
 
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
-    graphics_set_buffer((uint8_t*)tmp_screen, DISP_WIDTH, DISP_HEIGHT);
+    graphics_set_4bit_buffer(nullptr, 384, 256);
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
-    sem_acquire_blocking(&vga_start_semaphore);
+    sem_release(&vga_start_semaphore);
     while (true) {
         repeat_me_for_input();
         tight_loop_contents();
@@ -714,154 +697,7 @@ void init_sound() {
 #endif
 }
 
-static const char* const platforms[] = {
-    "vector",
-    "vector.z80",
-    "spec.m1",
-    "spec",
-    "sp580",
-    "spec.z80",
-    "spec.lik",
-    "spmx",
-    "spmx.turbo",
-    "spmx.mxos",
-    "spmx.com",
-    "korvet",
-    "partner",
-    "bashkiria",
-    "lvov",
-    "mikro80",
-    "mikro80.rk",
-    "orion.1",
-    "orion",
-    "orion.dsdos",
-    "orion.31",
-    "orion.32",
-    "apogey",
-    "apogey.sd",
-    "mikrosha",
-    "mikrosha.krista",
-    "rk86",
-    "rk86.sd",
-    "rk86.sdos",
-    "rk86.z80",
-    "palmira",
-    "rk86.kr03",
-    "kr04",
-    "eureka",
-    "ut88"
-#if PK8000
-    "pk8000",
-    "pk8000.fdc",
-    "pk8000.hdd",
-#endif
-};
-/**
-Вектор-06Ц
-Вектор-06Ц Z80 CPU
-Специалист (Монитор 1)
-Специалист (Монитор 2)
-Специалист SP580
-Специалист Z80 CPU
-Лик (промышленный вариант "Специалиста")
-Специалист-MX (RAMFOS)
-Специалист-MX Turbo Z80 CPU (RAMFOS)
-Специалист-MX (MXOS)
-Специалист-MX (Commander)
-ПК8020 Корвет
-Партнер-01.01
-Башкирия-2М
-ПК-01 Львов
-Микро-80
-Микро-80 (Монитор РК)
-Орион-128 (Монитор 1)
-Орион-128 (Монитор 2)
-Орион-128 (Монитор 2) DSDOS
-Орион-128 (Монитор 3.1)
-Орион-128 (Монитор 3.2) Z80 CPU (Московский вариант)
-Апогей БК-01
-Апогей БК-01 (SD card)
-Микроша
-Криста
-Радио-86РК
-Радио-86РК (SD card / vinxru)
-Радио-86РК (SDOS)
-Радио-86РК Z80 CPU
-Северная Пальмира
-Электроника КР-02/03
-Электроника КР-04
-Эврика
-ЮТ-88
- */
-static const unsigned char platforms_list_cp866[] = {
-	0x82, 0xa5, 0xaa, 0xe2, 0xae, 0xe0, 0x2d, 0x30, 0x36, 0x96, 0x00, 0x0a,
-	0x82, 0xa5, 0xaa, 0xe2, 0xae, 0xe0, 0x2d, 0x30, 0x36, 0x96, 0x20, 0x5a,
-	0x38, 0x30, 0x20, 0x43, 0x50, 0x55, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6,
-	0xa8, 0xa0, 0xab, 0xa8, 0xe1, 0xe2, 0x20, 0x28, 0x8c, 0xae, 0xad, 0xa8,
-	0xe2, 0xae, 0xe0, 0x20, 0x31, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6,
-	0xa8, 0xa0, 0xab, 0xa8, 0xe1, 0xe2, 0x20, 0x28, 0x8c, 0xae, 0xad, 0xa8,
-	0xe2, 0xae, 0xe0, 0x20, 0x32, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6,
-	0xa8, 0xa0, 0xab, 0xa8, 0xe1, 0xe2, 0x20, 0x53, 0x50, 0x35, 0x38, 0x30,
-	0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0, 0xab, 0xa8, 0xe1, 0xe2,
-	0x20, 0x5a, 0x38, 0x30, 0x20, 0x43, 0x50, 0x55, 0x00, 0x0a, 0x8b, 0xa8,
-	0xaa, 0x20, 0x28, 0xaf, 0xe0, 0xae, 0xac, 0xeb, 0xe8, 0xab, 0xa5, 0xad,
-	0xad, 0xeb, 0xa9, 0x20, 0xa2, 0xa0, 0xe0, 0xa8, 0xa0, 0xad, 0xe2, 0x20,
-	0x22, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0, 0xab, 0xa8, 0xe1, 0xe2, 0xa0,
-	0x22, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0, 0xab, 0xa8,
-	0xe1, 0xe2, 0x2d, 0x4d, 0x58, 0x20, 0x28, 0x52, 0x41, 0x4d, 0x46, 0x4f,
-	0x53, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0, 0xab, 0xa8,
-	0xe1, 0xe2, 0x2d, 0x4d, 0x58, 0x20, 0x54, 0x75, 0x72, 0x62, 0x6f, 0x20,
-	0x5a, 0x38, 0x30, 0x20, 0x43, 0x50, 0x55, 0x20, 0x28, 0x52, 0x41, 0x4d,
-	0x46, 0x4f, 0x53, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0,
-	0xab, 0xa8, 0xe1, 0xe2, 0x2d, 0x4d, 0x58, 0x20, 0x28, 0x4d, 0x58, 0x4f,
-	0x53, 0x29, 0x00, 0x0a, 0x91, 0xaf, 0xa5, 0xe6, 0xa8, 0xa0, 0xab, 0xa8,
-	0xe1, 0xe2, 0x2d, 0x4d, 0x58, 0x20, 0x28, 0x43, 0x6f, 0x6d, 0x6d, 0x61,
-	0x6e, 0x64, 0x65, 0x72, 0x29, 0x00, 0x0a, 0x8f, 0x8a, 0x38, 0x30, 0x32,
-	0x30, 0x20, 0x8a, 0xae, 0xe0, 0xa2, 0xa5, 0xe2, 0x00, 0x0a, 0x8f, 0xa0,
-	0xe0, 0xe2, 0xad, 0xa5, 0xe0, 0x2d, 0x30, 0x31, 0x2e, 0x30, 0x31, 0x00,
-	0x0a, 0x81, 0xa0, 0xe8, 0xaa, 0xa8, 0xe0, 0xa8, 0xef, 0x2d, 0x32, 0x8c,
-	0x00, 0x0a, 0x8f, 0x8a, 0x2d, 0x30, 0x31, 0x20, 0x8b, 0xec, 0xa2, 0xae,
-	0xa2, 0x00, 0x0a, 0x8c, 0xa8, 0xaa, 0xe0, 0xae, 0x2d, 0x38, 0x30, 0x00,
-	0x0a, 0x8c, 0xa8, 0xaa, 0xe0, 0xae, 0x2d, 0x38, 0x30, 0x20, 0x28, 0x8c,
-	0xae, 0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x90, 0x8a, 0x29, 0x00, 0x0a,
-	0x8e, 0xe0, 0xa8, 0xae, 0xad, 0x2d, 0x31, 0x32, 0x38, 0x20, 0x28, 0x8c,
-	0xae, 0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x31, 0x29, 0x00, 0x0a, 0x8e,
-	0xe0, 0xa8, 0xae, 0xad, 0x2d, 0x31, 0x32, 0x38, 0x20, 0x28, 0x8c, 0xae,
-	0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x32, 0x29, 0x00, 0x0a, 0x8e, 0xe0,
-	0xa8, 0xae, 0xad, 0x2d, 0x31, 0x32, 0x38, 0x20, 0x28, 0x8c, 0xae, 0xad,
-	0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x32, 0x29, 0x20, 0x44, 0x53, 0x44, 0x4f,
-	0x53, 0x00, 0x0a, 0x8e, 0xe0, 0xa8, 0xae, 0xad, 0x2d, 0x31, 0x32, 0x38,
-	0x20, 0x28, 0x8c, 0xae, 0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x33, 0x2e,
-	0x31, 0x29, 0x00, 0x0a, 0x8e, 0xe0, 0xa8, 0xae, 0xad, 0x2d, 0x31, 0x32,
-	0x38, 0x20, 0x28, 0x8c, 0xae, 0xad, 0xa8, 0xe2, 0xae, 0xe0, 0x20, 0x33,
-	0x2e, 0x32, 0x29, 0x20, 0x5a, 0x38, 0x30, 0x20, 0x43, 0x50, 0x55, 0x20,
-	0x28, 0x8c, 0xae, 0xe1, 0xaa, 0xae, 0xa2, 0xe1, 0xaa, 0xa8, 0xa9, 0x20,
-	0xa2, 0xa0, 0xe0, 0xa8, 0xa0, 0xad, 0xe2, 0x29, 0x00, 0x0a, 0x80, 0xaf,
-	0xae, 0xa3, 0xa5, 0xa9, 0x20, 0x81, 0x8a, 0x2d, 0x30, 0x31, 0x00, 0x0a,
-	0x80, 0xaf, 0xae, 0xa3, 0xa5, 0xa9, 0x20, 0x81, 0x8a, 0x2d, 0x30, 0x31,
-	0x20, 0x28, 0x53, 0x44, 0x20, 0x63, 0x61, 0x72, 0x64, 0x29, 0x00, 0x0a,
-	0x8c, 0xa8, 0xaa, 0xe0, 0xae, 0xe8, 0xa0, 0x00, 0x0a, 0x8a, 0xe0, 0xa8,
-	0xe1, 0xe2, 0xa0, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38,
-	0x36, 0x90, 0x8a, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38,
-	0x36, 0x90, 0x8a, 0x20, 0x28, 0x53, 0x44, 0x20, 0x63, 0x61, 0x72, 0x64,
-	0x20, 0x2f, 0x20, 0x76, 0x69, 0x6e, 0x78, 0x72, 0x75, 0x29, 0x00, 0x0a,
-	0x90, 0xa0, 0xa4, 0xa8, 0xae, 0x2d, 0x38, 0x36, 0x90, 0x8a, 0x20, 0x28,
-	0x53, 0x44, 0x4f, 0x53, 0x29, 0x00, 0x0a, 0x90, 0xa0, 0xa4, 0xa8, 0xae,
-	0x2d, 0x38, 0x36, 0x90, 0x8a, 0x20, 0x5a, 0x38, 0x30, 0x20, 0x43, 0x50,
-	0x55, 0x00, 0x0a, 0x91, 0xa5, 0xa2, 0xa5, 0xe0, 0xad, 0xa0, 0xef, 0x20,
-	0x8f, 0xa0, 0xab, 0xec, 0xac, 0xa8, 0xe0, 0xa0, 0x00, 0x0a, 0x9d, 0xab,
-	0xa5, 0xaa, 0xe2, 0xe0, 0xae, 0xad, 0xa8, 0xaa, 0xa0, 0x20, 0x8a, 0x90,
-	0x2d, 0x30, 0x32, 0x2f, 0x30, 0x33, 0x00, 0x0a, 0x9d, 0xab, 0xa5, 0xaa,
-	0xe2, 0xe0, 0xae, 0xad, 0xa8, 0xaa, 0xa0, 0x20, 0x8a, 0x90, 0x2d, 0x30,
-	0x34, 0x00, 0x0a, 0x9d, 0xa2, 0xe0, 0xa8, 0xaa, 0xa0, 0x00, 0x0a, 0x9e,
-	0x92, 0x2d, 0x38, 0x38, 0x00
-};
-
-static const char* argv[3] = {
-    "emu80",
-    "--platform",
-    0
-};
+static const char* argv[] = {"orion128"};
 
 static int BUTTER_PSRAM_SIZE = -1;
 #ifdef PICO_RP2350
@@ -974,7 +810,7 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
         printf(fmt);
 }
 #else
-static uint8_t* PSRAM_DATA = (uint8_t*)0;
+volatile uint8_t* PSRAM_DATA = nullptr;
 uint32_t butter_psram_size() { return 0; }
 #endif
 
@@ -1017,13 +853,12 @@ int main() {
 #endif
 
 #ifdef KBDUSB
+    queue_init(&actions, sizeof(PalKeyCodeAction), 128);
     tuh_init(BOARD_TUH_RHPORT);
     ps2kbd.init_gpio();
 #else
     keyboard_init();
 #endif
-    tmp_screen = new uint8_t[DISP_WIDTH*DISP_HEIGHT];
-    memset((void*)tmp_screen, RGB(0xFFFF00), DISP_WIDTH*DISP_HEIGHT);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -1039,7 +874,7 @@ int main() {
 #endif
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
-    sem_release(&vga_start_semaphore);
+    sem_acquire_blocking(&vga_start_semaphore);
 
     init_sound();
 ///    pcm_setup(SOUND_FREQUENCY, SOUND_FREQUENCY * 2 / 50); // 882 * 2  = 1764
@@ -1056,121 +891,8 @@ int main() {
 #if LOG
     f_unlink("/emu80.log");
 #endif
-    {
-        int selected_file_n = 0;
-        int shift_j = 0;
-        uint32_t sw = graphics_get_width();
-        uint32_t sh = graphics_get_height();
-        uint32_t w = sw - 10;
-        uint32_t h = sh - 6;
-        int32_t x = (sw - w) / 2;
-        int32_t y = (sh - h) / 2;
-        uint32_t fntw = graphics_get_font_width();
-        uint32_t fnth = graphics_get_font_height();
-        uint32_t msi = fnth + 1;
-        uint32_t yb = y + fnth + 5;
-        const uint32_t scrollW = 4;
-        const uint32_t listW = w - 2 - scrollW;
-        const uint32_t scrollX = x + w - 1 - scrollW;
-        int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
-        if (visibleRows < 1) visibleRows = 1;
-        const int lines = (int)(sizeof(platforms) / sizeof(char*));
-
-        graphics_rect(x, y, w, h, RGB888(0, 0, 0));
-        graphics_fill(x + 1, y + 1, w - 2, fnth + 2, RGB888(107, 216, 231));
-        graphics_rect(x, y, w, fnth + 4, RGB888(0, 0, 0));
-        string t = "Select platform";
-        uint32_t xt = x + 1 + (w - 2 - t.length() * fntw) / 2;
-        graphics_type(xt, y + 3, RGB888(0, 0, 0), t.c_str(), t.length());
-
-        auto platformName = [&](int index) -> const char* {
-            const char* p = (const char*)platforms_list_cp866;
-            while (index-- > 0) {
-                while (*p++) {}
-                ++p;
-            }
-            return p;
-        };
-
-        auto drawRow = [&](int itemIndex) {
-            if (itemIndex < shift_j || itemIndex >= shift_j + visibleRows) return;
-            int row = itemIndex - shift_j;
-            uint32_t rowY = yb + row * msi;
-            bool selected = itemIndex == selected_file_n;
-            uint32_t bg = selected ? RGB888(114, 114, 224) : RGB888(255, 255, 255);
-            uint32_t fg = selected ? RGB888(255, 255, 255) : RGB888(0, 0, 0);
-            graphics_fill(x + 1, rowY, listW, fnth, bg);
-            if (itemIndex >= 0 && itemIndex < lines) {
-                const char* name = platformName(itemIndex);
-                size_t len = strlen(name);
-                size_t maxChars = listW > 2 ? (listW - 2) / fntw : 0;
-                if (len > maxChars) len = maxChars;
-                graphics_type(x + 2, rowY, fg, name, len);
-            }
-        };
-
-        auto drawScrollbar = [&]() {
-            uint32_t trackY = yb;
-            uint32_t trackH = y + h - 1 - trackY;
-            graphics_fill(scrollX, trackY, scrollW, trackH, RGB888(224, 224, 224));
-            if (lines <= visibleRows || trackH == 0) return;
-            uint32_t thumbH = (uint32_t)((uint64_t)trackH * visibleRows / lines);
-            if (thumbH < 4) thumbH = 4;
-            if (thumbH > trackH) thumbH = trackH;
-            int maxShift = lines - visibleRows;
-            uint32_t thumbY = trackY + (uint32_t)((uint64_t)(trackH - thumbH) * shift_j / maxShift);
-            graphics_fill(scrollX, thumbY, scrollW, thumbH, RGB888(96, 96, 96));
-        };
-
-        auto drawWindow = [&]() {
-            for (int row = 0; row < visibleRows; ++row)
-                drawRow(shift_j + row);
-            drawScrollbar();
-        };
-
-        drawWindow();
-        while (1) {
-            sleep_ms(100);
-            int oldSelected = selected_file_n;
-            int oldShift = shift_j;
-
-            if (pressed_key[HID_KEY_ARROW_UP] || pressed_key[HID_KEY_KEYPAD_8]) {
-                selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : lines - 1;
-            } else if (pressed_key[HID_KEY_PAGE_UP] || pressed_key[HID_KEY_KEYPAD_9]) {
-                selected_file_n = std::max(0, selected_file_n - visibleRows);
-            } else if (pressed_key[HID_KEY_ARROW_DOWN] || pressed_key[HID_KEY_KEYPAD_2]) {
-                selected_file_n = selected_file_n + 1 < lines ? selected_file_n + 1 : 0;
-            } else if (pressed_key[HID_KEY_PAGE_DOWN] || pressed_key[HID_KEY_KEYPAD_3]) {
-                selected_file_n = std::min(lines - 1, selected_file_n + visibleRows);
-            } else if (pressed_key[HID_KEY_HOME] || pressed_key[HID_KEY_KEYPAD_7]) {
-                selected_file_n = 0;
-            } else if (pressed_key[HID_KEY_END] || pressed_key[HID_KEY_KEYPAD_1]) {
-                selected_file_n = lines - 1;
-            } else if (pressed_key[HID_KEY_ENTER] || pressed_key[HID_KEY_KEYPAD_ENTER]) {
-                break;
-            } else {
-                continue;
-            }
-
-            if (selected_file_n < shift_j) shift_j = selected_file_n;
-            if (selected_file_n >= shift_j + visibleRows) shift_j = selected_file_n - visibleRows + 1;
-            int maxShift = std::max(0, lines - visibleRows);
-            if (shift_j > maxShift) shift_j = maxShift;
-
-            if (shift_j != oldShift) {
-                drawWindow();
-            } else if (selected_file_n != oldSelected) {
-                drawRow(oldSelected);
-                drawRow(selected_file_n);
-            }
-        }
-        graphics_set_buffer(NULL, DISP_WIDTH, DISP_HEIGHT);
-        if (selected_file_n != 11) { // korvet W/A
-            delete[] tmp_screen;
-        }
-        argv[2] = platforms[selected_file_n];
-    }
-    int argc = 3;
+    orionLoadSettings();
+    int argc = 1;
     palInit(argc, (char**)argv);
     CmdLine cmdLine(argc, (char**)argv);
     new Emulation(cmdLine); // g_emulation присваивается в конструкторе

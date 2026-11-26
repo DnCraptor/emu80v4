@@ -1,4 +1,4 @@
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+﻿# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
 if(WIN32)
     set(USERHOME $ENV{USERPROFILE})
 else()
@@ -28,8 +28,8 @@ set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
 #set(SOFTTV ON)
 #set(TFT ON)
 #set(ILI9341 ON)
-set(VGA_DRV ON)
-#set(HDMI ON)
+#set(VGA_DRV ON)
+set(HDMI ON)
 
 #set(CPU_MHZ 366)
 #set(CPU_MHZ 372)
@@ -39,7 +39,7 @@ set(CPU_MHZ 440)
 #set(CPU_MHZ 456)
 #set(CPU_MHZ 460)
 #set(CPU_MHZ 512)
-set (PORT_VERSION "0.4.7")
+set (PORT_VERSION "0.5.0")
 
 
 set(KBDUSB ON)
@@ -51,7 +51,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME emu80)
+SET(PROJECT_NAME orion128)
 set(FLASH_SIZE 4096)
 set(BUILD_NAME "${PROJECT_NAME}")
 
@@ -60,7 +60,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-project(emu80 C CXX ASM)
+project(orion128 C CXX ASM)
 
 message(STATUS ">>> PICO_PLATFORM=${PICO_PLATFORM}")
 message(STATUS ">>> PICO_BOARD=${PICO_BOARD}")
@@ -84,14 +84,62 @@ add_subdirectory(drivers/psram)
 
 #target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
 
-# INCLUDE FILES THAT SHOULD BE COMPILED:
-#GLOB_RECURSE
-file(GLOB SRC
-    "src/**.cpp"
-    "src/**.c"
-    "src/pico/**.cpp"
-    "src/pico/**.c"
+set(SRC
+    src/AddrSpace.cpp
+    src/AtaDrive.cpp
+    src/CloseFileHook.cpp
+    src/CmdLine.cpp
+    src/Cpu.cpp
+    src/Cpu8080.cpp
+    src/Cpu8080dasm.cpp
+    src/CpuHook.cpp
+    src/CpuZ80.cpp
+    src/CpuZ80dasm.cpp
+    src/CrtRenderer.cpp
+    src/DiskImage.cpp
+    src/Dma8257.cpp
+    src/EmuCalls.cpp
+    src/EmuConfig.cpp
+    src/EmuObjects.cpp
+    src/EmuWindow.cpp
+    src/Emulation.cpp
+    src/Fdc1793.cpp
+    src/FileLoader.cpp
+    src/KbdLayout.cpp
+    src/KbdTapper.cpp
+    src/Main.cpp
+    src/Memory.cpp
+    src/Orion.cpp
+    src/OrionMenu.cpp
+    src/OrionMachine.cpp
+    src/Pal.cpp
+    src/Parameters.cpp
+    src/Platform.cpp
+    src/PlatformCore.cpp
+    src/Ppi8255.cpp
+    src/PpiAtaAdapter.cpp
+    src/PrnWriter.cpp
+    src/RamDisk.cpp
+    src/RkKeyboard.cpp
+    src/RkPpi8255Circuit.cpp
+    src/RkRomDisk.cpp
+    src/RkTapeHooks.cpp
+    src/Shortcuts.cpp
+    src/SoundMixer.cpp
+    src/TapeRedirector.cpp
+    src/WavReader.cpp
+    src/WavWriter.cpp
+    src/hid_app.cpp
+    src/joy_hid.cpp
+    src/xinput_host.c
+    src/pico/ffPalFile.cpp
+    src/pico/picoPal.cpp
+    src/pico/picoPalWindow.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/OrionRomDisks.S
 )
+
+# ROM disks already tracked in dist/orion; embed without generated C arrays.
+configure_file(src/OrionRomDisks.S.in OrionRomDisks.S @ONLY)
 
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -100,6 +148,14 @@ endforeach ()
 message(STATUS "")
 
 add_executable(${PROJECT_NAME} ${SRC})
+set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/OrionRomDisks.S PROPERTY OBJECT_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/dist/orion/Orion128_RomDisk4.rom;${CMAKE_CURRENT_SOURCE_DIR}/dist/orion/romdisk2.bin;${CMAKE_CURRENT_SOURCE_DIR}/dist/orion/dsdos/dsdos-128_s1024.bin")
+target_compile_options(${PROJECT_NAME} PRIVATE -O3 -ffunction-sections -fdata-sections)
+target_link_options(${PROJECT_NAME} PRIVATE -Wl,--gc-sections)
+# The dedicated VGA renderer and OSD share a packed 4bpp framebuffer.
+if(NOT VGA_DRV OR HDMI OR SOFTTV OR TV OR TFT)
+    message(FATAL_ERROR "Orion-128: this port requires VGA_DRV (4bpp VGA backend)")
+endif()
 
 # pull in common dependencies
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -247,13 +303,13 @@ ELSE()
 ENDIF()
 
 if(${PICO_BOARD} MATCHES "waveshare_rp2350_pizero")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for RP2350-PiZero")
+    pico_set_program_name(${PROJECT_NAME} "Orion-128 for RP2350-PiZero")
 elseif(${PICO_BOARD} MATCHES "olimex-pico-pc")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for Olimex RP2040-PICO-PC")
+    pico_set_program_name(${PROJECT_NAME} "Orion-128 for Olimex RP2040-PICO-PC")
 elseif(${PICO_BOARD} MATCHES "murmulator2")
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 2.0")
+    pico_set_program_name(${PROJECT_NAME} "Orion-128 for MURMULATOR 2.0")
 else()
-    pico_set_program_name(${PROJECT_NAME} "Emu80 for MURMULATOR 1.x")
+    pico_set_program_name(${PROJECT_NAME} "Orion-128 for MURMULATOR 1.x")
 endif()
 pico_set_program_version(${PROJECT_NAME} "${PORT_VERSION}")
 

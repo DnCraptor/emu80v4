@@ -1,4 +1,5 @@
 #include "picoPal.h"
+#include "../OrionMenu.h"
 #include "ffPalFile.h"
 
 #include <sstream>
@@ -394,7 +395,7 @@ extern i2s_config_t i2s_config;
 void palPlaySample(int16_t left, int16_t right) {
 #ifdef I2S_SOUND
     uint16_t s32[2] = { 0 };
-    s32[0] = left; s32[0] = right;
+    s32[0] = left; s32[1] = right;
     i2s_dma_write(&i2s_config, s32);
 #else
     pwm_set_gpio_level(PWM_PIN0, left >> 7); // Лево
@@ -437,6 +438,8 @@ void palSetRunFileName(std::string) {
 void palAddTabToConfigWindow(int tabId, string tabName)
 {
 }
+
+void palShowConfigWindow(int) { orionMenu(); }
 
 void palUpdateConfig() {
 }

@@ -29,6 +29,7 @@ class SRam : public AddressableDevice
         virtual SRam* asSRam() override { return this; }
         SRam(unsigned memSize);
         virtual ~SRam();
+        void shutdown() override;
         void writeByte(int addr, uint8_t value) override;
         uint8_t readByte(int addr) override;
         int getSize() { return m_size; }

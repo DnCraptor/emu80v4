@@ -59,22 +59,9 @@ class OrionRenderer : public CrtRenderer, public IActive
         OCM_16COLOR = 3
     };
 
-    const uint8_t orion16ColorPalette[16] = {
-        RGB(0x000000), RGB(0x0000C0), RGB(0x00C000), RGB(0x00C0C0),
-        RGB(0xC00000), RGB(0xC000C0), RGB(0xC0C000), RGB(0xC0C0C0),
-        RGB(0x000000), RGB(0x0000FF), RGB(0x00FF00), RGB(0x00FFFF),
-        RGB(0xFF0000), RGB(0xFF00FF), RGB(0xFFFF00), RGB(0xFFFFFF)
-    };
-
-    const uint8_t orion4ColorPalettes[2][5] = {
-        {RGB(0x000000), RGB(0xC00000), RGB(0x00C000), RGB(0x0000C0),
-         RGB(0xC0C0C0)}, // белый для ч/б режима
-        {RGB(0x00C0C0), RGB(0xC0C0C0), RGB(0xC0C000), RGB(0xC000C0),
-        RGB(0xC0C0C0)} // белый для ч/б режима
-    };
-
     public:
         OrionRenderer();
+        void reset() override { m_screenBase = 0xC000; m_colorMode = OCM_MONO; m_palette = 0; }
         void renderFrame() override;
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
@@ -186,6 +173,7 @@ class OrionCore : public PlatformCore
         void inte(bool isActive) override;
 
         void attachCrtRenderer(OrionRenderer* crtRenderer);
+        void attachBeepSoundSource(GeneralSoundSource* source) { m_beepSoundSource = source; }
 
         static EmuObject* create(const EmuValuesList&) {return new OrionCore();}
 
@@ -202,6 +190,7 @@ class OrionFileLoader : public FileLoader
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         bool loadFile(const std::string& fileName, bool run = false) override;
 
+        void attachRamDisk(AddressableDevice* disk) { m_ramDisk = disk; }
         static EmuObject* create(const EmuValuesList&) {return new OrionFileLoader();}
 
     private:

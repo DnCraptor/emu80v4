@@ -26,34 +26,52 @@
 using namespace std;
 
 
-RkRomDisk::RkRomDisk(string romDiskName)
-{
-    m_romDisk = new FIL();
-    romDiskName = palMakeFullFileName(romDiskName);
-    f_open(m_romDisk, romDiskName.c_str(), FA_READ);
-    m_fileSize = f_size(m_romDisk);
+extern "C" {
+    extern const uint8_t orion_romdisk2_start[], orion_romdisk2_end[];
+    extern const uint8_t orion_romdisk31_start[], orion_romdisk31_end[];
+    extern const uint8_t orion_dsdos_start[], orion_dsdos_end[];
 }
 
+RkRomDisk::RkRomDisk(string romDiskName)
+{
+    if (romDiskName.empty()) return;
+    m_romDisk = new FIL();
+    if (f_open(m_romDisk, palMakeFullFileName(romDiskName).c_str(), FA_READ) == FR_OK) {
+        m_fileSize = f_size(m_romDisk);
+        return;
+    }
+    delete m_romDisk;
+    m_romDisk = nullptr;
+    if (romDiskName == "orion/Orion128_RomDisk4.rom") {
+        m_embedded = orion_romdisk2_start;
+        m_fileSize = orion_romdisk2_end - orion_romdisk2_start;
+    } else if (romDiskName == "orion/romdisk2.bin") {
+        m_embedded = orion_romdisk31_start;
+        m_fileSize = orion_romdisk31_end - orion_romdisk31_start;
+    } else if (romDiskName == "orion/dsdos/dsdos-128_s1024.bin") {
+        m_embedded = orion_dsdos_start;
+        m_fileSize = orion_dsdos_end - orion_dsdos_start;
+    }
+}
 
 RkRomDisk::~RkRomDisk()
 {
-    f_close(m_romDisk);
-    delete m_romDisk;
+    if (m_romDisk) {
+        f_close(m_romDisk);
+        delete m_romDisk;
+    }
 }
-
 
 uint8_t RkRomDisk::getPortA()
 {
-    if (m_curAddr < unsigned(m_fileSize)) {
-        f_lseek(m_romDisk, m_curAddr);
-        uint8_t res;
-        UINT br;
-        f_read(m_romDisk, &res, 1, &br);
-        return res;
-    }
+    if (m_curAddr >= unsigned(m_fileSize)) return 0xFF;
+    if (m_embedded) return m_embedded[m_curAddr];
+    uint8_t res;
+    UINT br;
+    if (m_romDisk && (f_tell(m_romDisk) == m_curAddr || f_lseek(m_romDisk, m_curAddr) == FR_OK) &&
+        f_read(m_romDisk, &res, 1, &br) == FR_OK && br == 1) return res;
     return 0xFF;
 }
-
 
 void RkRomDisk::setPortB(uint8_t value)
 {

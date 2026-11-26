@@ -28,53 +28,73 @@ using namespace std;
 // Ram implementation
 
 static size_t sram_used = 0;
-
+static unsigned sram_count = 0;
 static FIL f;
-static const char PAGEFILE[] = "/emu80/m1p2-emu80.pagefile";
+static bool pagefileOpen = false;
+static const char PAGEFILE[] = "/emu80/.orion.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {
     m_supportsTags = true;
-/// TODO:    memset(m_buf, 0, memSize);
     sram_used += m_size;
-    f_open(&f, PAGEFILE, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+    ++sram_count;
+    if (butter_psram_size() >= sram_used) {
+        for (size_t i = m_offset; i < sram_used; ++i)
+            PSRAM_DATA[i] = 0;
+    } else if (psram_size() >= sram_used) {
+        for (size_t i = m_offset; i < sram_used; ++i)
+            write8psram(i, 0);
+    } else {
+        if (!pagefileOpen)
+            pagefileOpen = f_open(&f, PAGEFILE, FA_READ | FA_WRITE | FA_CREATE_ALWAYS) == FR_OK;
+        if (pagefileOpen) {
+            static const uint8_t zero[512] = {};
+            UINT bw;
+            if (f_lseek(&f, m_offset) == FR_OK) {
+                for (unsigned i = 0; i < memSize; i += sizeof(zero)) {
+                    unsigned n = memSize - i < sizeof(zero) ? memSize - i : sizeof(zero);
+                    if (f_write(&f, zero, n, &bw) != FR_OK || bw != n) break;
+                }
+                f_sync(&f);
+            }
+        }
+    }
+}
+
+void SRam::shutdown() {
+    if (pagefileOpen) f_sync(&f);
 }
 
 SRam::~SRam() {
-    sram_used -= m_size; /// TODO: ensure order
-    f_close(&f);
+    if (--sram_count == 0) {
+        if (pagefileOpen) f_close(&f);
+        pagefileOpen = false;
+        sram_used = 0;
+    }
 }
 
-void SRam::writeByte(int addr, uint8_t value) {
+void __not_in_flash_func(SRam::writeByte)(int addr, uint8_t value) {
+    if (addr < 0 || addr >= m_size) return;
     size_t off = m_offset + addr;
-    if (butter_psram_size() > off) {
-        PSRAM_DATA[off] = value;
-        return;
-    }
-    if (psram_size() > off) {
-        write8psram(off, value);
-        return;
-    }
-    UINT br;
-    FSIZE_t lba = m_offset;
-    f_lseek(&f, lba + addr);
-    f_write(&f, &value, 1, &br);
+    m_lastTag = m_tag;
+    if (butter_psram_size() > off) { PSRAM_DATA[off] = value; return; }
+    if (psram_size() > off) { write8psram(off, value); return; }
+    UINT bw;
+    if (pagefileOpen && (f_tell(&f) == off || f_lseek(&f, off) == FR_OK))
+        f_write(&f, &value, 1, &bw);
 }
 
-uint8_t SRam::readByte(int addr) {
+uint8_t __not_in_flash_func(SRam::readByte)(int addr) {
+    if (addr < 0 || addr >= m_size) return 0xFF;
     size_t off = m_offset + addr;
-    if (butter_psram_size() > off) {
-        return PSRAM_DATA[off];
-    }
-    if (psram_size() > off) {
-        return read8psram(off);
-    }
-    UINT br;
-    FSIZE_t lba = m_offset;
-    f_lseek(&f, lba + addr);
+    m_lastTag = m_tag;
+    if (butter_psram_size() > off) return PSRAM_DATA[off];
+    if (psram_size() > off) return read8psram(off);
     uint8_t value;
-    f_read(&f, &value, 1, &br);
-    return value;
+    UINT br;
+    if (pagefileOpen && (f_tell(&f) == off || f_lseek(&f, off) == FR_OK) &&
+        f_read(&f, &value, 1, &br) == FR_OK && br == 1) return value;
+    return 0xFF;
 }
 
 Ram::Ram(unsigned memSize)
@@ -102,7 +122,7 @@ Ram::~Ram()
 
 
 
-void Ram::writeByte(int addr, uint8_t value)
+void __not_in_flash_func(Ram::writeByte)(int addr, uint8_t value)
 {
     m_lastTag = m_tag;
     if (m_addrMask)
@@ -113,7 +133,7 @@ void Ram::writeByte(int addr, uint8_t value)
 
 
 
-uint8_t Ram::readByte(int addr)
+uint8_t __not_in_flash_func(Ram::readByte)(int addr)
 {
     m_lastTag = m_tag;
     if (m_addrMask)
@@ -124,119 +144,14 @@ uint8_t Ram::readByte(int addr)
         return 0xFF;
 }
 
-// Rom implementation
-#include "pico/vector_loader.rom.h"
-#include "pico/apogey.rom.h"
-#include "pico/bashkiria_bios1_rom.h"
-#include "pico/korvet_rom1_bin.h"
-#include "pico/korvet_rom2_bin.h"
-#include "pico/korvet_rom3_bin.h"
+// Orion monitor ROMs
 #include "pico/orion_m1rk_bin.h"
 #include "pico/orion_m2rk_bin.h"
 #include "pico/orion_m31rk_bin.h"
 #include "pico/orion_m32zrk_bin.h"
-#if PK8000
-#include "pico/pk8000_fdc.rom.h"
-#include "pico/pk8000_hdd.rom.h"
-#include "pico/pk8000_v12.rom.h"
-#endif
-#include "pico/ut88.rom.h"
-#include "pico/rk86_dos29_bin.h"
-#include "pico/rk86_rom.h"
-#include "pico/partner_romp1_bin.h"
-#include "pico/partner_romp2_bin.h"
-#include "pico/partner_mcpgrom_bin.h"
-#include "pico/partner_fddrom_bin.h"
-#include "pico/partner_sdrom_bin.h"
-
-#include "pico/kr04_rom0.bin.h"
-#include "pico/kr04_rom1.bin.h"
-#include "pico/kr04_rom2.bin.h"
-
-#include "pico/palmbios.bin.h"
 
 Rom::Rom(unsigned memSize, string fileName)
 {
-    if (fileName == "palmira/palmbios.bin") {
-        m_buf = palmbios_bin;
-        m_size = sizeof(palmbios_bin);
-        return;
-    }
-    if (fileName == "kr04/rom0.bin") {
-        m_buf = kr04_rom0_bin;
-        m_size = sizeof(kr04_rom0_bin);
-        return;
-    }
-    if (fileName == "kr04/rom1.bin") {
-        m_buf = kr04_rom1_bin;
-        m_size = sizeof(kr04_rom1_bin);
-        return;
-    }
-    if (fileName == "kr04/rom2.bin") {
-        m_buf = kr04_rom2_bin;
-        m_size = sizeof(kr04_rom2_bin);
-        return;
-    }
-    if (fileName == "partner/romp1.bin") {
-        m_buf = partner_romp1_bin;
-        m_size = sizeof(partner_romp1_bin);
-        return;
-    }
-    if (fileName == "partner/romp2.bin") {
-        m_buf = partner_romp2_bin;
-        m_size = sizeof(partner_romp2_bin);
-        return;
-    }
-    if (fileName == "partner/mcpgrom.bin") {
-        m_buf = partner_mcpgrom_bin;
-        m_size = sizeof(partner_mcpgrom_bin);
-        return;
-    }
-    if (fileName == "partner/fddrom.bin") {
-        m_buf = partner_fddrom_bin;
-        m_size = sizeof(partner_fddrom_bin);
-        return;
-    }
-    if (fileName == "partner/fddrom.bin") {
-        m_buf = partner_fddrom_bin;
-        m_size = sizeof(partner_fddrom_bin);
-        return;
-    }
-    if (fileName == "partner/sdrom.bin") {
-        m_buf = partner_sdrom_bin;
-        m_size = sizeof(partner_sdrom_bin);
-        return;
-    }
-    if (fileName == "apogey/apogey.rom") {
-        m_buf = apogey_rom;
-        m_size = sizeof(apogey_rom);
-        return;
-    }
-    if (fileName == "bashkiria/bios1.rom") {
-        m_buf = bashkiria_bios1_rom;
-        m_size = sizeof(bashkiria_bios1_rom);
-        return;
-    }
-    if (fileName == "korvet/rom1.bin") {
-        m_buf = korvet_rom1_bin;
-        m_size = sizeof(korvet_rom1_bin);
-        return;
-    }
-    if (fileName == "korvet/rom2.bin") {
-        m_buf = korvet_rom2_bin;
-        m_size = sizeof(korvet_rom2_bin);
-        return;
-    }
-    if (fileName == "korvet/rom3.bin") {
-        m_buf = korvet_rom3_bin;
-        m_size = sizeof(korvet_rom3_bin);
-        return;
-    }
-    if (fileName == "ut88/ut88.rom") {
-        m_buf = ut88_rom;
-        m_size = sizeof(ut88_rom);
-        return;
-    }
     if (fileName == "orion/rom/m1rk.bin") {
         m_buf = orion_m1rk_bin;
         m_size = sizeof(orion_m1rk_bin);
@@ -255,33 +170,6 @@ Rom::Rom(unsigned memSize, string fileName)
     if (fileName == "orion/rom/m32zrk.bin") {
         m_buf = orion_m32zrk_bin;
         m_size = sizeof(orion_m32zrk_bin);
-        return;
-    }
-    #if PK8000
-    if (fileName == "pk8000/pk8000_v12.rom") {
-        m_buf = pk8000_v12_rom;
-        m_size = sizeof(pk8000_v12_rom);
-        return;
-    }
-    if (fileName == "pk8000/pk8000_fdc.rom") {
-        m_buf = pk8000_fdc_rom;
-        m_size = sizeof(pk8000_fdc_rom);
-        return;
-    }
-    if (fileName == "pk8000/pk8000_hdd.rom") {
-        m_buf = pk8000_hdd_rom;
-        m_size = sizeof(pk8000_hdd_rom);
-        return;
-    }
-    #endif
-    if (fileName == "rk86/rk86.rom") {
-        m_buf = rk86_rom;
-        m_size = sizeof(rk86_rom);
-        return;
-    }
-    if (fileName == "rk86/dos29.bin") {
-        m_buf = dos29_bin;
-        m_size = sizeof(dos29_bin);
         return;
     }
     m_buf = new uint8_t [memSize];

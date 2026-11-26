@@ -28,7 +28,6 @@
 #include "EmuObjects.h"
 #include "Emulation.h"
 #include "CmdLine.h"
-#include "ConfigReader.h"
 #include "Platform.h"
 #include "EmuWindow.h"
 #include "EmuConfig.h"
@@ -38,6 +37,9 @@
 #include "FileLoader.h"
 #include "EmuCalls.h"
 #include "Shortcuts.h"
+#include "OrionMenu.h"
+#include "Cpu.h"
+#include "CrtRenderer.h"
 
 using namespace std;
 
@@ -64,50 +66,11 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
     m_prnWriter = new PrnWriter;
     m_prnWriter->setName("prnWriter");
 
-    ConfigReader cr("emu80.conf");
-
-    if (!cr.processConfigFile(this)) {
-        palMsgBox("Error: emu80.conf not found!", true);
-        palRequestForQuit();
-        return;
-    }
-
+    setFrequency(1680000000);
+    m_mixer->setVolume(6);
+    m_activePlatform = new Platform("orion/orion-2.conf", "orion");
+    addChild(m_activePlatform);
     getConfig()->updateConfig();
-
-    if (!m_platformList.empty()) {
-        emuLog << "!m_platformList.empty()\n";
-        checkPlatforms();
-        return;
-    }
-
-    // Platforms was not created via command line or run file (SDL version)
-    string defPlatformName = palGetDefaultPlatform();
-    emuLog << "defPlatformName: " << defPlatformName << "\n";
-    if (!defPlatformName.empty()) {
-        // default platform was stored in Qt options file
-        emuLog << "runPlatform: " << defPlatformName << "\n";
-        if (runPlatform(defPlatformName)) {
-            emuLog << "runPlatform: " << defPlatformName << " DONE\n";
-            return;
-        }
-    }
-
-    // first run (SDL or Qt), no default platform
-    PlatformInfo pi;
-    bool newWnd;
-    if (!m_config->getPlatformInfos()->empty() && m_config->choosePlatform(pi, "", newWnd, true)) {
-        emuLog << "PlatformName: '" << pi.configFileName << "' " << pi.objName << "\n";
-        Platform* platform = new Platform(pi.configFileName, pi.objName);
-        m_platformList.push_back(platform);
-        emuLog << "getConfig()->updateConfig()\n";
-        getConfig()->updateConfig();
-        m_activePlatform = platform;
-    } else {
-        emuLog << "palRequestForQuit() for " << defPlatformName << "\n";
-        palRequestForQuit();
-        return;
-    }
-    emuLog << "Emulation::Emulation DONE\n";
 }
 
 Emulation::~Emulation()
@@ -147,130 +110,19 @@ void Emulation::checkPlatforms()
 
 void Emulation::processCmdLine()
 {
-    m_cmdLine.processPlatforms(*m_config->getPlatformInfos());
-
-    string cmdLineFileName = m_cmdLine["run"];
-    bool loadOnly = m_cmdLine.checkParam("load");
-    if (loadOnly)
-        cmdLineFileName = m_cmdLine["load"];
-
-    // Configuration file
-    string cfgFile = m_cmdLine["conf-file"];
-
-    // Command line platform options
-    string platformName = m_cmdLine["platform"];
-
-    if (!cfgFile.empty()) {
-        if (platformName.empty())
-            platformName = "userconfig";
-        Platform* newPlatform = new Platform(cfgFile, platformName);
-        addChild(newPlatform);
-        m_platformCreatedFromCmdLine = true;
-    } else {
-        // Extention based platform
-        string cmdLineFileExt = "";
-        if (platformName == "") {
-            string::size_type dotPos = cmdLineFileName.find_last_of(".");
-            if (dotPos != string::npos) {
-                cmdLineFileExt = cmdLineFileName.substr(dotPos + 1);
-                for (unsigned i = 0; i < cmdLineFileExt.size(); i++)
-                    cmdLineFileExt[i] = tolower(cmdLineFileExt[i]);
-            }
-        }
-        if (cmdLineFileExt != "") {
-            std::map<std::string, std::string>* extentionMap = m_config->getExtentionMap();
-            auto it = extentionMap->find(cmdLineFileExt);
-            if (it != extentionMap->end())
-                platformName = it->second;
-        }
-
-        if (platformName != "") {
-            m_platformCreatedFromCmdLine = runPlatform(platformName);
-        }
-    }
-
-    if (m_platformList.empty())
-        return; // Platform was not created
-
-    // Post-config file
-    string postCfgFile = m_cmdLine["post-conf"];
-    if (!postCfgFile.empty()) {
-        ConfigReader cr(postCfgFile, platformName);
-        cr.processConfigFile(this);
-        getConfig()->updateConfig();
-    }
-
-    // Load file
-    if (!cmdLineFileName.empty()) {
-        Platform* platform = *m_platformList.begin();
-        FileLoader* loader = platform->getLoader();
-        if (loader)
-            loader->loadFile(cmdLineFileName, !loadOnly);
-    }
-
-    // Disk A
-    string diskA = m_cmdLine["disk-a"];
-    if (!diskA.empty())
-        emuSetPropertyValue(platformName + ".diskA", "fileName", diskA);
-
-    // Disk B
-    string diskB = m_cmdLine["disk-b"];
-    if (!diskB.empty())
-        emuSetPropertyValue(platformName + ".diskB", "fileName", diskB);
-
-    // Disk C
-    string diskC = m_cmdLine["disk-c"];
-    if (!diskC.empty())
-        emuSetPropertyValue(platformName + ".diskC", "fileName", diskC);
-
-    // Disk D
-    string diskD = m_cmdLine["disk-d"];
-    if (!diskD.empty())
-        emuSetPropertyValue(platformName + ".diskD", "fileName", diskD);
-
-    // HDD
-    string hdd = m_cmdLine["hdd"];
-    if (!hdd.empty())
-        emuSetPropertyValue(platformName + ".hdd", "fileName", hdd);
-
-    // EDD
-    string edd = m_cmdLine["edd"];
-    if (!edd.empty())
-        emuSetPropertyValue(platformName + ".edd", "fileName", edd);
-
-    // EDD2
-    string edd2 = m_cmdLine["edd2"];
-    if (!edd2.empty())
-        emuSetPropertyValue(platformName + ".edd2", "fileName", edd2);
+    // The firmware has no command-line platform or configuration loader.
 }
-
 
 bool Emulation::runPlatform(const string& platformName)
 {
-    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-    for (unsigned i = 0; i < platformVector->size(); i++)
-        if ((*platformVector)[i].objName == platformName) {
-            m_activePlatform = new Platform((*platformVector)[i].configFileName, platformName);
-            if (!m_activePlatform->getWindow()) {
-                delete m_activePlatform;
-                m_activePlatform = nullptr;
-                return false;
-            }
-            addChild(m_activePlatform);
-            return true;
-        }
-    return false;
+    return platformName == "orion" && m_activePlatform != nullptr;
 }
-
 
 void Emulation::newPlatform(const string& platformName)
 {
-    // Удаляем все платформы
-    for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-        delete (*it);
-    m_platformList.clear();
-    runPlatform(platformName);
-    checkPlatforms();
+    // Only one machine graph is created per boot. Model changes use the OSD.
+    if (platformName == "orion")
+        orionMenu();
 }
 
 void Emulation::registerActiveDevice(IActive* device)
@@ -328,10 +180,16 @@ void Emulation::exec(uint64_t ticks, bool forced)
     if (m_isPaused)
         return;
 
+    if (ticks <= m_clockOffset) {
+        m_clockOffset -= ticks;
+        return;
+    }
     uint64_t toTime = m_curClock + ticks - m_clockOffset;
+    IActive* cpuDevice = m_activePlatform ? m_activePlatform->getCpu() : nullptr;
 
     while ((m_curClock < toTime) && (!m_debugReqCpu || forced)) {
         uint64_t time = -1;
+        uint64_t nextOther = -1;
         IActive* curDev = nullptr;
 
         inCycle = true;
@@ -341,6 +199,7 @@ void Emulation::exec(uint64_t ticks, bool forced)
             device = m_activeDevices[i];
             if (!device->isPaused()) {
                 tm = device->getClock();
+                if (device != cpuDevice && tm < nextOther) nextOther = tm;
                 if (tm < time) {
                     time = tm;
                     curDev = device;
@@ -348,11 +207,22 @@ void Emulation::exec(uint64_t ticks, bool forced)
             }
         }
 
+        if (!inCycle) continue;
+        if (!curDev) { m_curClock = toTime; break; }
         m_curClock = time;
         curDev->operate();
+        if (curDev == cpuDevice) {
+            // Keep the original event order: yield on ties, on registration
+            // changes, and at the same emulation time-slice boundary.
+            while (inCycle && !cpuDevice->isPaused() && (!m_debugReqCpu || forced) &&
+                   m_curClock < toTime && cpuDevice->getClock() < nextOther) {
+                m_curClock = cpuDevice->getClock();
+                cpuDevice->operate();
+            }
+        }
     }
 
-    m_clockOffset = m_curClock - toTime;
+    m_clockOffset = m_curClock > toTime ? m_curClock - toTime : 0;
 
     if (!forced && m_debugReqCpu) {
         m_clockOffset = 0;
@@ -411,9 +281,30 @@ void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned u
             while(true) sleep_ms(20);
         }
         SysReq sr = TranslateKeyToSysReq(keyCode, isPressed, isAltPressed, isShiftPressed);
-        if (sr) m_activePlatform->sysReq(sr);
+        if (sr) sysReq(m_activePlatform->getWindow(), sr);
         else m_activePlatform->processKey(keyCode, isPressed, unicodeKey);
     }
+}
+
+void Emulation::prepareOrionRestart()
+{
+    if (m_activePlatform) m_activePlatform->shutdown();
+}
+
+void Emulation::orionAction(SysReq sr)
+{
+    if (m_activePlatform) sysReq(m_activePlatform->getWindow(), sr);
+}
+
+void Emulation::restoreOrionScreen()
+{
+    if (m_activePlatform && m_activePlatform->getRenderer())
+        m_activePlatform->getRenderer()->renderFrame();
+}
+
+void Emulation::resetOrionKeys()
+{
+    if (m_activePlatform) resetKeys(m_activePlatform->getWindow());
 }
 
 void Emulation::resetKeys(EmuWindow* wnd)
@@ -431,82 +322,23 @@ void Emulation::sysReq(EmuWindow* wnd, SysReq sr)
 {
     Platform* platform = platformByWindow(wnd);
 
-    // enable debug if in paused state
-    if (sr == SR_DEBUG)
-        m_isPaused = false;
+    // The Pico firmware has no interactive debugger.
+    if (sr == SR_DEBUG) return;
 
     switch(sr) {
         case SR_EXIT:
-            //for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-                //delete (*it);
-            //m_platformList.clear(); // лишнее
-            palRequestForQuit();
-            break;
         case SR_CLOSE:
-            if (platform) {
-                m_platformList.remove(platform);
-                delete platform;
-                m_lastActivePlatform = nullptr;
-                if (m_platformList.empty())
-                    palRequestForQuit();
-            } else
-                wnd->closeRequest();
+            orionMenu();
             break;
-        case SR_CONFIG: {
-                int tab = TABID_NONE;
-                if (platform)
-                    tab = platform->getDefConfigTabId();
-                m_config->showConfigWindow(tab);
-                break;
-            }
+        case SR_CONFIG:
+            orionMenu();
+            break;
         case SR_HELP:
-            m_config->showConfigWindow(TABID_HELP);
+            orionMenu();
             break;
         case SR_CHPLATFORM:
-            {
-                PlatformInfo pi;
-                string curPlatformName = "";
-                if (!platform)
-                    platform = m_lastActivePlatform;
-                if (platform)
-                    curPlatformName = platform->getBaseName();
-                bool newWnd;
-                if (m_config->choosePlatform(pi, curPlatformName, newWnd, false, wnd)) {
-                    // Удяляем активную платформу (как опция можно все - закомментировано)
-                    if (!newWnd) {
-                        m_platformList.remove(platform);
-                        delete platform;
-                        //for (auto it = m_platformList.begin(); it != m_platformList.end(); it++)
-                            //delete (*it);
-                        //m_platformList.clear();
-                    }
-                    Platform* newPlatform = new Platform(pi.configFileName, pi.objName);
-                    m_platformList.push_back(newPlatform);
-                    //m_activePlatform = platform;
-                    checkPlatforms();
-                }
-            }
-            break;
         case SR_CHCONFIG:
-            {
-                if (!platform)
-                break;
-
-                string curPlatformName = platform->getBaseName();
-                if (palChooseConfiguration(curPlatformName, wnd)) {
-                    m_platformList.remove(platform);
-                    delete platform;
-
-                    const std::vector<PlatformInfo>* platformVector = m_config->getPlatformInfos();
-                    for (unsigned i = 0; i < platformVector->size(); i++)
-                        if ((*platformVector)[i].objName == curPlatformName) {
-                            Platform* newPlatform = new Platform((*platformVector)[i].configFileName, curPlatformName);
-                            m_platformList.push_back(newPlatform);
-                            checkPlatforms();
-                            break;
-                        }
-                }
-            }
+            orionMenu();
             break;
         case SR_PAUSEON:
             m_isPaused = true;

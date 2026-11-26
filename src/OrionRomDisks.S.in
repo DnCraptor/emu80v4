@@ -1,0 +1,16 @@
+.section .rodata.orion_romdisks,"a",%progbits
+.balign 4
+.global orion_romdisk2_start, orion_romdisk2_end
+orion_romdisk2_start:
+.incbin "@CMAKE_CURRENT_SOURCE_DIR@/dist/orion/Orion128_RomDisk4.rom"
+orion_romdisk2_end:
+.balign 4
+.global orion_romdisk31_start, orion_romdisk31_end
+orion_romdisk31_start:
+.incbin "@CMAKE_CURRENT_SOURCE_DIR@/dist/orion/romdisk2.bin"
+orion_romdisk31_end:
+.balign 4
+.global orion_dsdos_start, orion_dsdos_end
+orion_dsdos_start:
+.incbin "@CMAKE_CURRENT_SOURCE_DIR@/dist/orion/dsdos/dsdos-128_s1024.bin"
+orion_dsdos_end:

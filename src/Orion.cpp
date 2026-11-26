@@ -17,6 +17,7 @@
  */
 
 #include <string.h>
+#include <pico.h>
 
 #include "Orion.h"
 #include "Emulation.h"
@@ -72,10 +73,8 @@ OrionRenderer::OrionRenderer()
 {
     m_sizeX = m_prevSizeX = 384;
     m_sizeY = m_prevSizeY = 256;
-    m_bufSize = m_sizeX * m_sizeY;
-    int maxBufSize = 521 * 288;
-    m_pixelData = new uint8_t[maxBufSize];
-    memset(m_pixelData, 0, m_bufSize);
+    m_bufSize = m_sizeX * m_sizeY / 2;
+    m_pixelData = new uint8_t[m_bufSize]();
 }
 
 
@@ -103,68 +102,50 @@ void OrionRenderer::setColorModeByte(uint8_t modeByte)
     m_palette = modeByte & 1;
 }
 
-void OrionRenderer::renderFrame()
+void __not_in_flash_func(OrionRenderer::renderFrame)()
 {
     swapBuffers();
-
-    int offsetX = 0;
-    int offsetY = 0;
-
-    if (m_showBorder) {
-        m_sizeX = 521;
-        m_sizeY = 288;
-        memset(m_pixelData, 0, m_sizeX * m_sizeY);
-        offsetX = 76;
-        offsetY = 5;
+    // One byte in each plane describes eight horizontal pixels. Store two
+    // 4-bit palette indices per output byte, low nibble first (VGA backend).
+    static const uint8_t four[2][5] = {{0, 4, 2, 1, 7}, {3, 7, 6, 5, 7}};
+    if (m_colorMode == OCM_BLANK) {
+        for (int i = 0; i < m_bufSize; ++i) m_pixelData[i] = 0;
     } else {
-        m_sizeX = 384;
-        m_sizeY = 256;
-        offsetX = offsetY = 0;
-    }
-
-    int offset = offsetY * m_sizeX + offsetX;
-
-    for (int row = 0; row < 256; row++)
-        for (int col = 0; col < 48; col++) {
-            int addr = m_screenBase + col * 256 + row;
-            if (m_colorMode != OCM_4COLOR) {
-                uint8_t bt = m_screenMemory[addr];
-                int fgColor, bgColor;
-                if (m_colorMode == OCM_MONO) {
-                    if (!m_palette) {
-                        fgColor = 2;
-                        bgColor = 0;
-                    } else {
-                        fgColor = 6;
-                        bgColor = 3;
+        for (int row = 0; row < 256; ++row) {
+            uint8_t* out = m_pixelData + row * 192;
+            for (int col = 0; col < 48; ++col) {
+                const unsigned addr = m_screenBase + col * 256 + row;
+                uint8_t bits = m_screenMemory[addr];
+                if (m_colorMode == OCM_4COLOR) {
+                    uint8_t attr = m_colorMemory[addr];
+                    for (int pair = 0; pair < 4; ++pair) {
+                        unsigned a = ((bits >> 6) & 2) | (attr >> 7);
+                        unsigned b = ((bits >> 5) & 2) | ((attr >> 6) & 1);
+                        if (!m_isColorMode) { a = a & 2 ? 4 : 0; b = b & 2 ? 4 : 0; }
+                        *out++ = four[m_palette][a] | (four[m_palette][b] << 4);
+                        bits <<= 2; attr <<= 2;
                     }
-                } else if (m_colorMode == OCM_BLANK) {
-                    fgColor = bgColor = 0;
-                } else { //if (m_colorMode == OCM_16COLOR) {
-                    fgColor = m_colorMemory[addr] & 0xF;
-                    bgColor = (m_colorMemory[addr] & 0xF0) >> 4;
-                }
-                if (!m_isColorMode) {
-                    fgColor = fgColor & 0x2 ? 7 : 0;
-                    bgColor = bgColor & 0x2 ? 7 : 0;
-                }
-                for (int pt = 0; pt < 8; pt++, bt<<=1)
-                    m_pixelData[offset + row * m_sizeX + col * 8 + pt] = (bt & 0x80) ? orion16ColorPalette[fgColor] : orion16ColorPalette[bgColor];
                 } else {
-                // 4 color mode
-                    uint8_t bt1 = m_screenMemory[addr];
-                    uint8_t bt2 = m_colorMemory[addr];
-                    for (int pt = 0; pt < 8; pt++, bt1<<=1, bt2<<=1) {
-                        int color = ((bt1 & 0x80) >> 6) | ((bt2 & 0x80) >> 7);
-                        if (!m_isColorMode)
-                            color = color & 0x2 ? 4 : 0;
-                        m_pixelData[offset + row * m_sizeX + col * 8 + pt] = orion4ColorPalettes[m_palette][color];
+                    unsigned fg = m_palette ? 6 : 2;
+                    unsigned bg = m_palette ? 3 : 0;
+                    if (m_colorMode == OCM_16COLOR) {
+                        const uint8_t attr = m_colorMemory[addr];
+                        fg = attr & 15; bg = attr >> 4;
                     }
+                    if (!m_isColorMode) { fg = fg & 2 ? 7 : 0; bg = bg & 2 ? 7 : 0; }
+                    const uint8_t pairs[4] = {uint8_t(bg | (bg << 4)), uint8_t(bg | (fg << 4)),
+                                              uint8_t(fg | (bg << 4)), uint8_t(fg | (fg << 4))};
+                    *out++ = pairs[bits >> 6];
+                    *out++ = pairs[(bits >> 4) & 3];
+                    *out++ = pairs[(bits >> 2) & 3];
+                    *out++ = pairs[bits & 3];
                 }
+            }
         }
-    graphics_set_buffer(m_pixelData, m_sizeX, m_sizeY);
+    }
+    if (graphics_get_frame() != m_pixelData)
+        graphics_set_4bit_buffer(m_pixelData, 384, 256);
 }
-
 
 void OrionRenderer::operate()
 {
@@ -176,7 +157,7 @@ void OrionRenderer::operate()
 
 void OrionRenderer::toggleCropping()
 {
-    m_showBorder = !m_showBorder;
+    // VGA supplies the border; keep the compact framebuffer dimensions fixed.
 }
 
 
@@ -201,7 +182,7 @@ bool OrionRenderer::setProperty(const string& propertyName, const EmuValuesList&
         return true;
     } else if (propertyName == "visibleArea") {
         if (values[0].asString() == "yes" || values[0].asString() == "no") {
-            m_showBorder = values[0].asString() == "yes";
+            m_showBorder = false;
             return true;
         }
     }

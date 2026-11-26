@@ -77,6 +77,10 @@ class Emulation : public ParentObject
         void processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey = 0);
         void resetKeys(EmuWindow* wnd);
+        void resetOrionKeys();
+        void restoreOrionScreen();
+        void orionAction(SysReq sr);
+        void prepareOrionRestart();
         void draw();
         void sysReq(EmuWindow* wnd, SysReq sr);
         void setWndFocus(EmuWindow* wnd);
