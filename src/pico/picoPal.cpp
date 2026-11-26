@@ -60,7 +60,7 @@ void palLog(std::string s) {
 #if LOG
     static FIL pl;
     gpio_put(PICO_DEFAULT_LED_PIN, true);
-    f_open(&pl, "/emu80.log", FA_WRITE | FA_OPEN_APPEND);
+    f_open(&pl, "/orion.log", FA_WRITE | FA_OPEN_APPEND);
     UINT bw;
     f_write(&pl, s.c_str(), s.length(), &bw);
     f_close(&pl);
@@ -104,7 +104,7 @@ string palMakeFullFileName(string fileName)
 {
     if (fileName[0] == '\0' || fileName[0] == '/' || fileName[0] == '\\')
         return fileName;
-    string fullFileName("/emu80/");
+    string fullFileName("/orion/");
     fullFileName += fileName;
     return fullFileName;
 }
@@ -144,7 +144,7 @@ void palGetDirContent(const string& d, vector<PalFileInfo*>& fileList)
 /// TODO: .h
 extern PalKeyCodeAction getKey();
 #include <algorithm>
-static std::string fdir = "/emu80";
+static std::string fdir = "/orion";
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
     struct RestoreVideoMode {
         graphics_video_content_mode_t mode = graphics_get_video_content_mode();

@@ -31,7 +31,7 @@ static size_t sram_used = 0;
 static unsigned sram_count = 0;
 static FIL f;
 static bool pagefileOpen = false;
-static const char PAGEFILE[] = "/emu80/.orion.pagefile";
+static const char PAGEFILE[] = "/tmp/.orion.pagefile";
 
 SRam::SRam(unsigned memSize) : m_size(memSize), m_offset(sram_used)
 {

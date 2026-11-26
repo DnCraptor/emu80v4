@@ -1,4 +1,4 @@
-#include <cstdio>
+﻿#include <cstdio>
 #include <cstring>
 #include <cstdarg>
 #include <algorithm>
@@ -681,29 +681,36 @@ uint32_t __not_in_flash_func(butter_psram_size)() {
     BUTTER_PSRAM_SIZE = res << 20;
     return BUTTER_PSRAM_SIZE;
 }
+// QMI direct mode blocks new XIP transfers to both flash and PSRAM.
+// Keep this entire transaction in SRAM and do not call flash-resident code.
+// Called before launching core 1, with interrupts masked during direct mode.
+static void __no_inline_not_in_flash_func(psram_enable_qpi)() {
+    const uint32_t irq_state = save_and_disable_interrupts();
+    qmi_hw->direct_csr = (10u << QMI_DIRECT_CSR_CLKDIV_LSB) |
+                         QMI_DIRECT_CSR_EN_BITS |
+                         QMI_DIRECT_CSR_AUTO_CS1N_BITS;
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
+        ;
+
+    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | 0x35u;
+    while (!(qmi_hw->direct_csr & QMI_DIRECT_CSR_TXEMPTY_BITS) ||
+           (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS))
+        ;
+    qmi_hw->direct_csr = 0;
+    restore_interrupts(irq_state);
+}
+
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
+    psram_enable_qpi();
 
-    // Enable direct mode, PSRAM CS, clkdiv of 10.
-    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB | \
-                               QMI_DIRECT_CSR_EN_BITS | \
-                               QMI_DIRECT_CSR_AUTO_CS1N_BITS;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
-        ;
-
-    // Enable QPI mode on the PSRAM
-    const uint CMD_QPI_EN = 0x35;
-    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
-
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
-        ;
-
+    // XIP is available again. Clock queries and divisions may call flash code.
     // Set PSRAM timing for APS6404
     //
     // Using an rxdelay equal to the divisor isn't enough when running the APS6404 close to 133MHz.
     // So: don't allow running at divisor 1 above 100MHz (because delay of 2 would be too late),
     // and add an extra 1 to the rxdelay if the divided clock is > 100MHz (i.e. sys clock > 200MHz).
-    const int max_psram_freq = 166000000;
+    const int max_psram_freq = 133000000;
     const int clock_hz = clock_get_hz(clk_sys);
     int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
     if (divisor == 1 && clock_hz > 100000000) {
@@ -748,9 +755,6 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
         QMI_M0_WFMT_PREFIX_LEN_VALUE_8   << QMI_M0_WFMT_PREFIX_LEN_LSB;
 
     qmi_hw->m[1].wcmd = 0x38;
-
-    // Disable direct mode
-    qmi_hw->direct_csr = 0;
 
     // Enable writes to PSRAM
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
@@ -844,9 +848,10 @@ int main() {
     keyboard_send(0xFF);
 #endif
     f_mount(&fs, "SD", 1);
-    f_mkdir("/emu80");
+    f_mkdir("/orion");
+    f_mkdir("/tmp");
 #if LOG
-    f_unlink("/emu80.log");
+    f_unlink("/orion.log");
 #endif
     orionLoadSettings();
     int argc = 1;

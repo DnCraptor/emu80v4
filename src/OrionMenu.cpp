@@ -14,7 +14,7 @@
 OrionSettings orionSettings{OrionModel::Monitor2, OrionCpu::I8080};
 static const char* const names[] = {"Monitor 1", "Monitor 2", "Monitor 3.1", "Moscow / Monitor 3.2", "DSDOS / 512K"};
 static constexpr uint32_t magic = 0x4F523138;
-static constexpr const char* configPath = "/emu80/orion.cfg";
+static constexpr const char* configPath = "/orion/orion.cfg";
 extern PalKeyCodeAction getKey();
 
 const char* orionModelName(OrionModel model) { return names[static_cast<unsigned>(model)]; }
