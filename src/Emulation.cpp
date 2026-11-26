@@ -47,7 +47,7 @@ Emulation::Emulation(CmdLine& cmdLine) : m_cmdLine(cmdLine)
 {
     m_fpsLimit = 0;
     m_vsync = true;
-    m_sampleRate = 48000;
+    m_sampleRate = 50000;
 
     g_emulation = this;
     setName("emulation");

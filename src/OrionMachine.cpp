@@ -219,5 +219,6 @@ Platform::Platform(std::string, std::string name)
     Platform::init();
     Platform::reset();
     m_window->show();
+    renderer->publishScanlines();
     renderer->renderFrame();
 }

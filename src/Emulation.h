@@ -140,7 +140,7 @@ class Emulation : public ParentObject
         uint64_t m_curFrequency;
         unsigned m_fpsLimit = 0;
         bool m_vsync = true;
-        unsigned m_sampleRate = 48000;
+        unsigned m_sampleRate = 50000;
 
         std::list<EmuObject*> m_objectList;
         std::list<Platform*> m_platformList;

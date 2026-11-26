@@ -57,6 +57,7 @@ input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, 
 static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
 
 void repeat_handler(void);
+void repeat_me_for_input();
 
 #define JPAD (Config::secondJoy == 3 ? back2joy2: joyPushData)
 
@@ -369,12 +370,18 @@ inline static void addKey(PalKeyCode vk, bool pressed) {
 }
 
 PalKeyCodeAction getKey() {
+#ifdef HDMI_DVI
+    repeat_me_for_input();
+#endif
     PalKeyCodeAction action;
     queue_try_remove(&actions, &action);
     return action;
 }
 
 void processKeys() {
+#ifdef HDMI_DVI
+    repeat_me_for_input();
+#endif
     PalKeyCodeAction action;
     while (queue_try_remove(&actions, &action)) {
         if (!g_emulation) continue;
@@ -606,57 +613,28 @@ void /// __scratch_x("render")
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
-    graphics_set_4bit_buffer(nullptr, 384, 256);
+    graphics_set_buffer(nullptr, 384, 256);
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(false, false);
     sem_release(&vga_start_semaphore);
+#ifdef HDMI_DVI
+    hdmi_dvi_core_loop();
+#else
     while (true) {
         repeat_me_for_input();
         tight_loop_contents();
     }
+#endif
     __unreachable();
 }
 
-#if SOFTTV
-typedef struct tv_out_mode_t {
-    // double color_freq;
-    float color_index;
-    COLOR_FREQ_t c_freq;
-    enum graphics_mode_t mode_bpp;
-    g_out_TV_t tv_system;
-    NUM_TV_LINES_t N_lines;
-    bool cb_sync_PI_shift_lines;
-    bool cb_sync_PI_shift_half_frame;
-} tv_out_mode_t;
-extern tv_out_mode_t tv_out_mode;
-
-bool color_mode=true;
-bool toggle_color() {
-    color_mode=!color_mode;
-    if(color_mode) {
-        tv_out_mode.color_index= 1.0f;
-    } else {
-        tv_out_mode.color_index= 0.0f;
-    }
-
-    return true;
-}
-#endif
-
-#ifdef I2S_SOUND
 i2s_config_t i2s_config = {
-		.sample_freq = I2S_FREQUENCY, 
-		.channel_count = 2,
-		.data_pin = PWM_PIN0,
-		.clock_pin_base = PWM_PIN1,
-		.pio = pio1,
-		.sm = 0,
-        .dma_channel = 0,
-        .dma_trans_count = 0,
-        .dma_buf = NULL,
-        .volume = 0
-	};
-#endif
+    .sample_freq = 50000,
+    .channel_count = 2,
+    .data_pin = AUDIO_DATA_PIN,
+    .clock_pin_base = AUDIO_CLOCK_PIN,
+    .pio = pio1,
+};
 
 #ifdef LOAD_WAV_PIO
 inline static void inInit(uint gpio) {
@@ -666,34 +644,13 @@ inline static void inInit(uint gpio) {
 }
 #endif
 
-#ifdef AUDIO_PWM_PIN
-#include "hardware/pwm.h"
-#endif
+extern bool palProbeAudioOutput();
 
 void init_sound() {
-#ifndef I2S_SOUND
-    pwm_config config = pwm_get_default_config();
-    gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
-    gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
-    pwm_config_set_clkdiv(&config, 1.0f);
-    pwm_config_set_wrap(&config, (1 << 8) - 1); // MAX PWM value
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN0), &config, true);
-    pwm_init(pwm_gpio_to_slice_num(PWM_PIN1), &config, true);
-    #if BEEPER_PIN
-        gpio_set_function(BEEPER_PIN, GPIO_FUNC_PWM);
-        pwm_config_set_clkdiv(&config, 127);
-        pwm_init(pwm_gpio_to_slice_num(BEEPER_PIN), &config, true);
-    #endif
-#else
-    i2s_config.sample_freq = I2S_FREQUENCY;
-    i2s_config.channel_count = 2;
-    i2s_config.dma_trans_count = 1;
-    i2s_init(&i2s_config);
-#endif
+    palProbeAudioOutput();
+    palSetSampleRate(50000);
 #ifdef LOAD_WAV_PIO
-    //пин ввода звука
     inInit(LOAD_WAV_PIO);
-///	add_repeating_timer_us(-1000000ll / hz, timer_callback, NULL, &m_timer);
 #endif
 }
 

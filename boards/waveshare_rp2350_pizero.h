@@ -89,12 +89,15 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define SDCARD_PIN_SPI0_CS 43
 
 // PS2KBD
-#define PS2KBD_GPIO_FIRST 0
+#define PS2KBD_GPIO_FIRST 2      // GP2 = CLOCK, GP3 = DATA
+#define PS2KBD_REVERSED_PINS 1   // select PIO program that waits for clock on GP2
 
 // NES Gamepad
-#define NES_GPIO_CLK 7
-#define NES_GPIO_LAT 8
-#define NES_GPIO_DATA 9
+#define NES_GPIO_CLK 4           // GP4
+#define NES_GPIO_LAT 5           // GP5
+#define NES_GPIO_DATA 7          // GP7 = joy1; joy2 = DATA+1 = GP8
+
+#define LOAD_WAV_PIO 17          // GP17
 
 // HDMI 8 pins starts from pin:
 #define HDMI_BASE_PIN 32
@@ -116,8 +119,14 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define PWM_PIN0 AUDIO_DATA_PIN
 #define PWM_PIN1 AUDIO_CLOCK_PIN
 #define BEEPER_PIN 0
-#define SOUND_FREQUENCY 50000
-#define I2S_FREQUENCY 96000
+#define SOUND_FREQUENCY 48000
+#define I2S_FREQUENCY 48000
+
+// HWAY: сдвиговый регистр 74595 (на ногах I2S) + такт AY. Под свою разводку.
+#define HWAY_LATCH_PIN  AUDIO_DATA_PIN         // 595 RCLK  (защёлка)
+#define HWAY_CLK_PIN    AUDIO_CLOCK_PIN        // 595 SRCLK (сдвиг)
+#define HWAY_DATA_PIN   (AUDIO_CLOCK_PIN + 1)  // 595 SER   (данные)
+#define HWAY_AYCLK_PIN  (AUDIO_CLOCK_PIN + 2)  // тактовый вход AY (~1.75 МГц)
 #define BUTTER_PSRAM_GPIO_RP2350A 8
 #define BUTTER_PSRAM_GPIO_RP2350B 47
 #define DEFAULT_THROTTLING 0

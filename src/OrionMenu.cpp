@@ -9,6 +9,7 @@
 #include <hardware/structs/watchdog.h>
 #include <cstring>
 #include <cstdio>
+#include <algorithm>
 
 OrionSettings orionSettings{OrionModel::Monitor2, OrionCpu::I8080};
 static const char* const names[] = {"Monitor 1", "Monitor 2", "Monitor 3.1", "Moscow / Monitor 3.2", "DSDOS / 512K"};
@@ -71,28 +72,32 @@ static void text(int x, int y, const char* str, uint8_t fg = RGB(0xffffff))
 void orionMenu()
 {
     static bool open = false;
-    if (open || !g_emulation || !graphics_get_frame()) return;
+    if (open || !g_emulation) return;
     open = true;
+    graphics_set_menu_text_mode(true);
     OrionSettings selected = orionSettings;
     unsigned row = 0;
     static const char* const labels[] = {"Model", "CPU", "Load and run", "Drive A", "Drive B", "HDD", "RAM disk", "Reset", "Apply and restart", "Resume"};
     constexpr unsigned rows = sizeof(labels) / sizeof(labels[0]);
-    constexpr int x = 16, y = 12, w = 352, h = 232;
+    const int fw = graphics_get_font_width(), fh = graphics_get_font_height();
+    const int cols = std::min(44, int(graphics_get_width()) / fw);
+    const int x = ((int(graphics_get_width()) / fw - cols) / 2) * fw;
+    const int y = std::max(0, (int(graphics_get_height()) / fh - 15) / 2) * fh;
+    const int w = cols * fw;
     SysReq action = SR_NONE;
     auto draw = [&]() {
-        graphics_fill(x, y, w, h, RGB(0x000080));
-        graphics_rect(x, y, w, h, RGB(0xffffff));
-        graphics_fill(x+1, y+1, w-2, 20, RGB(0x008080));
-        text(x+12, y+6, "Orion-128 / System settings");
+        graphics_fill(x, y, w, 15*fh, RGB(0x000080));
+        graphics_fill(x, y, w, fh, RGB(0x008080));
+        text(x+fw, y, "Orion-128 / System settings");
         for (unsigned i = 0; i < rows; ++i) {
-            int yy = y+28+16*i;
-            if (i == row) graphics_fill(x+4, yy-3, w-8, 13, RGB(0x808080));
-            text(x+10, yy, labels[i]);
-            if (i == 0) text(x+84, yy, orionModelName(selected.model));
-            if (i == 1) text(x+84, yy, selected.cpu == OrionCpu::Z80 ? "Z80 / 5 MHz" : "8080 / 2.5 MHz");
+            int yy = y+(2+i)*fh;
+            if (i == row) graphics_fill(x, yy, w, fh, RGB(0x808080));
+            text(x+fw, yy, labels[i]);
+            if (i == 0) text(x+19*fw, yy, orionModelName(selected.model));
+            if (i == 1) text(x+19*fw, yy, selected.cpu == OrionCpu::Z80 ? "Z80 / 5 MHz" : "8080 / 2.5 MHz");
         }
-        text(x+10, y+h-28, "Arrows: change   Enter: select");
-        text(x+10, y+h-15, "Esc / F12: resume");
+        text(x+fw, y+13*fh, "Arrows: change   Enter: select");
+        text(x+fw, y+14*fh, "Esc / F12: resume");
     };
     draw();
     while (true) {
@@ -122,6 +127,7 @@ void orionMenu()
     // Releases eaten by the menu must not leave keys held on the emulated machine.
     g_emulation->resetOrionKeys();
     if (action != SR_NONE) g_emulation->orionAction(action);
+    graphics_set_menu_text_mode(false);
     g_emulation->restoreOrionScreen();
     open = false;
 }

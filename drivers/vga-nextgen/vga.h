@@ -1,5 +1,6 @@
 #pragma once
 #include "stdbool.h"
+#include "stdint.h"
 
 #define PIO_VGA (pio0)
 #ifndef VGA_BASE_PIN
@@ -10,3 +11,4 @@
 #define TEXTMODE_COLS 80
 #define TEXTMODE_ROWS 30
 
+void vga_system_clock_changed();

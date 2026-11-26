@@ -44,17 +44,23 @@
 
 // Sound
 #if defined(AUDIO_PWM)
-#define AUDIO_PWM_PIN 11
+#define AUDIO_PWM_PIN 14
 /// TODO: remove it
-#define AUDIO_DATA_PIN 11
-#define AUDIO_CLOCK_PIN 12
-#define AUDIO_LCK_PIN 13
+#define AUDIO_DATA_PIN 14
+#define AUDIO_CLOCK_PIN 15
+#define AUDIO_LCK_PIN 16
 #else
 // I2S Sound
-#define AUDIO_DATA_PIN 11
-#define AUDIO_CLOCK_PIN 12
-#define AUDIO_LCK_PIN 13
+#define AUDIO_DATA_PIN 14
+#define AUDIO_CLOCK_PIN 15
+#define AUDIO_LCK_PIN 16
 #endif
+
+#define HWAY_LATCH_PIN  14
+#define HWAY_CLK_PIN    15
+#define HWAY_DATA_PIN   16
+#define HWAY_AYCLK_PIN  17
+#define HWAY_AYCLK_PIN_ALT  17
 
 // Emu80-specific peripherals
 #define KBD_CLOCK_PIN PS2KBD_GPIO_FIRST
@@ -62,7 +68,7 @@
 #define PWM_PIN0 AUDIO_DATA_PIN
 #define PWM_PIN1 AUDIO_CLOCK_PIN
 #define BEEPER_PIN 0
-#define SOUND_FREQUENCY 50000
-#define I2S_FREQUENCY 96000
+#define SOUND_FREQUENCY 48000
+#define I2S_FREQUENCY 48000
 #define DEFAULT_THROTTLING 0
 

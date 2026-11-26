@@ -38,7 +38,7 @@
 
 // Sound
 #if defined(AUDIO_PWM)
-#define AUDIO_PWM_PIN 9
+#define AUDIO_PWM_PIN 10
 #endif
 
 #define AUDIO_DATA_PIN 9
@@ -50,11 +50,11 @@
 #define KBD_DATA_PIN (PS2KBD_GPIO_FIRST + 1)
 #define PS2KBD_REVERSED_PINS 1
 #define LOAD_WAV_PIO 22
-#define PWM_PIN0 9
-#define PWM_PIN1 10
-#define BEEPER_PIN 0
-#define SOUND_FREQUENCY 44100
-#define I2S_FREQUENCY 96000
+#define PWM_PIN0 10
+#define PWM_PIN1 11
+#define BEEPER_PIN 9
+#define SOUND_FREQUENCY 48000
+#define I2S_FREQUENCY 48000
 #define PSRAM_SPINLOCK 1
 #define PSRAM_ASYNC 1
 #define PSRAM_PIN_CS 18

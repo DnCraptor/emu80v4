@@ -12,6 +12,7 @@
 #include "pico/stdlib.h"
 #include "stdlib.h"
 #include "font8x8.h"
+#include "font8x16.h"
 
 uint16_t pio_program_VGA_instructions[] = {
     //     .wrap_target
@@ -42,30 +43,160 @@ static int dma_chan_ctrl;
 static int dma_chan;
 
 volatile static uint8_t* graphics_buffer = 0;
-volatile static uint8_t* graphics_buffer2 = 0;
-volatile static uint8_t* graphics_buffer3 = 0;
-volatile static uint8_t bitness = 8;
 static int client_buffer_width = 320;
+static int client_buffer_stride = 320;   // физ. шаг строки; по умолчанию = width
 static int client_buffer_height = 240;
 static int graphics_buffer_width = 640;
 static int graphics_buffer_height = 480;
-static int graphics_buffer_shift_x = 0;
-static int graphics_buffer_shift_y = 0;
+static int centered_x = 0;
+static int centered_y = 0;
+static int picture_x = 0;
+static int picture_y = 0;
 static bool duplicateLines = true;
 
 static bool is_flash_line = false;
 static bool is_flash_frame = false;
 
 static uint32_t bg_color[2];
+
 static uint16_t palette16_mask = 0;
 
-static uint16_t txt_palette[16];
+#ifdef ORION_SCANLINES
+#define MENU_TEXT_COLS 100
+#define MENU_TEXT_ROWS 37
+#define MENU_TEXT_CELL_W 8
+#define MENU_TEXT_CELL_H 16
+#define MENU_TEXT_TRANSPARENT_ATTR 0xeeu
+#define MENU_TEXT_TRANSPARENT_CELL \
+    ((uint16_t)' ' | ((uint16_t)MENU_TEXT_TRANSPARENT_ATTR << 8))
 
-//буфер 2К текстовой палитры для быстрой работы
-static uint16_t* txt_palette_fast = NULL;
-//static uint16_t txt_palette_fast[256*4];
+/*
+ * One 16-bit cell: low byte is the character, high byte is the VGA-style
+ * text attribute (background in the high nibble, foreground in the low).
+ * Core0 writes complete aligned cells; core1 reads complete aligned cells.
+ */
+static uint16_t menu_text_cells[MENU_TEXT_COLS * MENU_TEXT_ROWS];
+static uint16_t menu_text_palette_fast[256 * 4];
 
-enum graphics_mode_t graphics_mode;
+static inline uint8_t menu_color_index(uint8_t color)
+{
+    /*
+     * RGB888() has already reduced each component to two bits.  Pick the
+     * nearest standard 16-colour text entry instead of treating every
+     * non-zero component as fully enabled.  The old conversion turned
+     * colours such as light blue (1,1,3) into white.
+     */
+    static const uint8_t rgb16[16][3] = {
+        {0, 0, 0}, {0, 0, 2}, {0, 2, 0}, {0, 2, 2},
+        {2, 0, 0}, {2, 0, 2}, {2, 1, 0}, {2, 2, 2},
+        {1, 1, 1}, {1, 1, 3}, {1, 3, 1}, {1, 3, 3},
+        {3, 1, 1}, {3, 1, 3}, {3, 3, 1}, {3, 3, 3}
+    };
+
+    const int r = (color >> 4) & 3u;
+    const int g = (color >> 2) & 3u;
+    const int b = color & 3u;
+    unsigned best = 0;
+    unsigned best_distance = ~0u;
+
+    for (unsigned i = 0; i < 16; ++i) {
+        const int dr = r - rgb16[i][0];
+        const int dg = g - rgb16[i][1];
+        const int db = b - rgb16[i][2];
+        const unsigned distance =
+            (unsigned)(dr * dr + dg * dg + db * db);
+        if (distance < best_distance) {
+            best_distance = distance;
+            best = i;
+        }
+    }
+    return (uint8_t)best;
+}
+
+static inline uint8_t menu_vga_color(uint8_t index)
+{
+    const uint8_t bright = (index & 8u) ? 3u : 2u;
+    const uint8_t r = (index & 4u) ? bright : 0u;
+    const uint8_t g = (index & 2u) ? bright : 0u;
+    const uint8_t b = (index & 1u) ? bright : 0u;
+    return (uint8_t)(0xc0u | (r << 4) | (g << 2) | b);
+}
+
+static void menu_text_init_palette(void)
+{
+    uint8_t colors[16];
+    for (unsigned i = 0; i < 16; ++i)
+        colors[i] = menu_vga_color((uint8_t)i);
+
+    for (unsigned attr = 0; attr < 256; ++attr) {
+        const uint8_t fg = colors[attr & 0x0f];
+        const uint8_t bg = colors[attr >> 4];
+        menu_text_palette_fast[attr * 4 + 0] =
+            (uint16_t)bg | ((uint16_t)bg << 8);
+        menu_text_palette_fast[attr * 4 + 1] =
+            (uint16_t)fg | ((uint16_t)bg << 8);
+        menu_text_palette_fast[attr * 4 + 2] =
+            (uint16_t)bg | ((uint16_t)fg << 8);
+        menu_text_palette_fast[attr * 4 + 3] =
+            (uint16_t)fg | ((uint16_t)fg << 8);
+    }
+}
+
+static inline void menu_text_put_cell(int x, int y, uint8_t ch, uint8_t attr)
+{
+    if ((unsigned)x >= MENU_TEXT_COLS || (unsigned)y >= MENU_TEXT_ROWS)
+        return;
+    menu_text_cells[y * MENU_TEXT_COLS + x] =
+        (uint16_t)ch | ((uint16_t)attr << 8);
+}
+
+static void menu_text_clear(uint8_t attr)
+{
+    const uint16_t cell = (uint16_t)' ' | ((uint16_t)attr << 8);
+    for (unsigned i = 0; i < MENU_TEXT_COLS * MENU_TEXT_ROWS; ++i)
+        menu_text_cells[i] = cell;
+}
+
+void menu_text_clear_for_mode(void)
+{
+    menu_text_clear(menu_video_mode == GRAPHICS_VIDEO_COMBINED
+                  ? MENU_TEXT_TRANSPARENT_ATTR
+                  : 0x17u);
+}
+
+static void __time_critical_func(render_menu_text_line)(
+        uint32_t** output_buffer, uint32_t screen_line)
+{
+    uint16_t* output = (uint16_t*)*output_buffer;
+    output += shift_picture >> 1;
+
+    const unsigned row = screen_line >> 4;
+    const unsigned glyph_line = screen_line & 15u;
+    if (row >= MENU_TEXT_ROWS) {
+        for (int x = 0; x < graphics_buffer_width / 2; ++x)
+            output[x] = 0xc0c0u;
+        return;
+    }
+
+    const uint16_t* cells = &menu_text_cells[row * MENU_TEXT_COLS];
+    for (unsigned x = 0; x < MENU_TEXT_COLS; ++x) {
+        const uint16_t cell = cells[x];
+        uint8_t glyph = font_8x16[((uint8_t)cell << 4) + glyph_line];
+        const uint16_t* color =
+            &menu_text_palette_fast[((uint8_t)(cell >> 8)) * 4];
+
+        *output++ = color[glyph & 3u];
+        glyph >>= 2;
+        *output++ = color[glyph & 3u];
+        glyph >>= 2;
+        *output++ = color[glyph & 3u];
+        glyph >>= 2;
+        *output++ = color[glyph & 3u];
+    }
+}
+
+
+#endif
 
 void graphics_set_duplicateLines(bool v) {
     duplicateLines = v;
@@ -73,11 +204,11 @@ void graphics_set_duplicateLines(bool v) {
 
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
 
-void __time_critical_func() dma_handler_VGA() {
+void __time_critical_func(dma_handler_VGA)() {
     dma_hw->ints0 = 1u << dma_chan_ctrl;
     static uint32_t frame_number = 0;
     static uint32_t screen_line = 0;
-    uint8_t* input_buffer = graphics_buffer;
+
     screen_line++;
 
     if (screen_line == N_lines_total) {
@@ -87,7 +218,7 @@ void __time_critical_func() dma_handler_VGA() {
 
     if (screen_line >= N_lines_visible) {
         //заполнение цветом фона
-        if (screen_line == N_lines_visible | screen_line == N_lines_visible + 3) {
+        if (screen_line == N_lines_visible || screen_line == N_lines_visible + 3) {
             uint32_t* output_buffer_32bit = lines_pattern[2 + (screen_line & 1)];
             output_buffer_32bit += shift_picture / 4;
             uint32_t p_i = (screen_line & is_flash_line) + (frame_number & is_flash_frame) & 1;
@@ -105,186 +236,110 @@ void __time_critical_func() dma_handler_VGA() {
         return;
     }
 
-    if (!input_buffer) {
-        dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
+#ifdef ORION_SCANLINES
+    if (menu_video_mode == GRAPHICS_VIDEO_TEXT) {
+        uint32_t** output_buffer = &lines_pattern[2 + (screen_line & 1u)];
+        render_menu_text_line(output_buffer, screen_line);
+        dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
         return;
-    } //если нет видеобуфера - рисуем пустую строку
+    }
+#endif
 
     int y, line_number;
 
-    uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
     if (duplicateLines) {
-        if (screen_line % 2 && bitness != 4)
+        if (screen_line & 1)
             return;
-        line_number = screen_line / 2;
-        y = line_number + graphics_buffer_shift_y;
+        line_number = screen_line >> 1;
+        y = line_number + centered_y - picture_y;
     }
     else {
         line_number = screen_line;
-        y = line_number + graphics_buffer_shift_y;
+        y = line_number + centered_y - picture_y;
     }
+
+    uint32_t** output_buffer = &lines_pattern[2 + (line_number & 1)];
 
     if (y < 0 || y >= client_buffer_height) {
         // заполнение линии цветом фона
         dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
         return;
-    };
+    }
+
+#ifdef ORION_SCANLINES
+    const uint8_t* input_buffer_8bit = graphics_read_scanline((unsigned)y);
+#else
+    const uint8_t* input_buffer_8bit = graphics_buffer
+        ? graphics_buffer + y * client_buffer_stride : NULL;
+#endif
+    if (!input_buffer_8bit) {
+        dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
+        return;
+    }
+
     //зона прорисовки изображения
     //начальные точки буферов
-    uint8_t* input_buffer_8bit = input_buffer +
-     ( bitness == 1 ?
-      ((y * client_buffer_width) >> 3) :
-        (bitness == 4 ? (y * client_buffer_width >> 1) : y * client_buffer_width)
-     );
 
     uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
     output_buffer_16bit += shift_picture >> 1; //смещение началы вывода на размер синхросигнала
 
     uint8_t* output_buffer_8bit = (uint8_t*)output_buffer_16bit;
-    if (bitness == 4) {
-        static uint8_t c[16] = {
-            0xC0, 0xC2, 0xC8, 0xCA, 0xE0, 0xE2, 0xE8, 0xEA,
-            0xC0, 0xC3, 0xCC, 0xCF, 0xF0, 0xF3, 0xFC, 0xFF
-        };
-        const int scale = client_buffer_width * 2 <= graphics_buffer_width ? 2 : 1;
-        const int start = graphics_buffer_shift_x;
-        const int end = start + client_buffer_width * scale;
-        const int x0 = start < 0 ? 0 : (start > graphics_buffer_width ? graphics_buffer_width : start);
-        const int x1 = end < x0 ? x0 : (end > graphics_buffer_width ? graphics_buffer_width : end);
-        for (int x = 0; x < x0; ++x) output_buffer_8bit[x] = 0xC0;
-        if (scale == 2) {
-            for (int x = x0; x < x1; ++x) {
-                unsigned sx = (x - start) >> 1;
-                uint8_t p = input_buffer_8bit[sx >> 1];
-                output_buffer_8bit[x] = c[(p >> ((sx & 1) * 4)) & 15];
-            }
-        } else {
-            for (int x = x0; x < x1; ++x) {
-                unsigned sx = x - start;
-                uint8_t p = input_buffer_8bit[sx >> 1];
-                output_buffer_8bit[x] = c[(p >> ((sx & 1) * 4)) & 15];
-            }
-        }
-        for (int x = x1; x < graphics_buffer_width; ++x) output_buffer_8bit[x] = 0xC0;
-        dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
-        return;
-    }
     int width = client_buffer_width;
     bool duplicatePixels = false;
     if (width <= (graphics_buffer_width >> 1)) {
         width *= 2;
         duplicatePixels = true;
     }
-    int xoff1 = graphics_buffer_shift_x;
-    int xoff2 = graphics_buffer_width - width - xoff1;
-    if (xoff2 > graphics_buffer_width) xoff2 = graphics_buffer_width;
-            for  (register int x = 0; x < xoff1; ++x) {
-                *output_buffer_8bit++ = 0xC0;
-            }
-            if (bitness == 1) {
-                if (graphics_buffer3) {
-                    size_t shift = input_buffer_8bit - graphics_buffer;
-                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
-                    register char* input_buffer_8bit3 = graphics_buffer3 + shift;
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            register uint8_t c = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
-                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            *output_buffer_8bit++ = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b110000 : 0) | // R
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b001100 : 0) | // G
-                             (bitRead(input_buffer_8bit3[x8], x7) ? 0b000011 : 0) ; // B
-                        }
-                    }
-                } else if (graphics_buffer2) { // 2 slices graisale mode
-                    size_t shift = input_buffer_8bit - graphics_buffer;
-                    register char* input_buffer_8bit2 = graphics_buffer2 + shift;
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            register uint8_t c = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            register size_t x8 = x >> 3;
-                            register uint8_t x7 = x & 7;
-                            *output_buffer_8bit++ = 0xC0 |
-                             (bitRead(input_buffer_8bit [x8], x7) ? 0b101010 : 0) |
-                             (bitRead(input_buffer_8bit2[x8], x7) ? 0b010101 : 0) ;
-                        }
-                    }
-                } else {
-                    if (duplicatePixels) {
-                        for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < (width >> 1); ++x) {
-                            register uint8_t c = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
-                            *output_buffer_8bit++ = c;
-                            *output_buffer_8bit++ = c;
-                        }
-                    } else {
-                        for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                            *output_buffer_8bit++ = (bitRead(input_buffer_8bit[x >> 3], (x & 7)) ? 0xFF : 0xC0);
-                        }
-                    }
-                }
-            } else {
-                if (duplicatePixels) {
-                    for  (register int x = xoff1 < 0 ? -xoff1 / 2 : 0; x < width / 2; ++x) {
-                        register uint8_t c = input_buffer_8bit[x] | 0xC0;
-                        *output_buffer_8bit++ = c;
-                        *output_buffer_8bit++ = c;
-                    }
-                } else {
-                    for  (register int x = xoff1 < 0 ? -xoff1 : 0; x < width; ++x) {
-                        *output_buffer_8bit++ = input_buffer_8bit[x] | 0xC0;
-                    }
-                }
-            }
-            for  (register int x = 0; x < xoff2; ++x) {
-                *output_buffer_8bit++ = 0xC0;
-            }
+    const int offset = centered_x + picture_x;
+    const int left = offset < 0 ? 0 : offset > graphics_buffer_width
+        ? graphics_buffer_width : offset;
+    const int start = offset < 0 ? -offset : 0;
+    int count = width - start;
+    if (count > graphics_buffer_width - left)
+        count = graphics_buffer_width - left;
+    if (count < 0)
+        count = 0;
+
+    for (int x = 0; x < left; ++x)
+        *output_buffer_8bit++ = 0xc0;
+    if (duplicatePixels) {
+        for (int x = 0; x < count; ++x)
+            *output_buffer_8bit++ = input_buffer_8bit[(start + x) / 2] | 0xc0;
+    } else {
+        for (int x = 0; x < count; ++x)
+            *output_buffer_8bit++ = input_buffer_8bit[start + x] | 0xc0;
+    }
+    for (int x = left + count; x < graphics_buffer_width; ++x)
+        *output_buffer_8bit++ = 0xc0;
     dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
 }
 
 static void adjust_shift_x() {
     if (client_buffer_width * 2 <= graphics_buffer_width)
-        graphics_buffer_shift_x = (graphics_buffer_width - (client_buffer_width << 1)) >> 1;
+        centered_x = (graphics_buffer_width - (client_buffer_width << 1)) >> 1;
     else
-        graphics_buffer_shift_x = (graphics_buffer_width - client_buffer_width) >> 1;
+        centered_x = (graphics_buffer_width - client_buffer_width) >> 1;
 }
 static void adjust_shift_y() {
     if (duplicateLines)
-        graphics_buffer_shift_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
+        centered_y = (client_buffer_height - (graphics_buffer_height >> 1)) >> 1;
     else
-        graphics_buffer_shift_y = (client_buffer_height - graphics_buffer_height) >> 1;
+        centered_y = (client_buffer_height - graphics_buffer_height) >> 1;
 }
 
-enum graphics_mode_t graphics_get_mode() {
-    return graphics_mode;
+void __not_in_flash_func(vga_system_clock_changed)() {
+    if (_SM_VGA < 0)
+        return;
+    const double divider = clock_get_hz(clk_sys) / 40000000.0;
+    const uint32_t div32 = (uint32_t)(divider * (1u << 16));
+    PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000;
 }
 
-void graphics_set_mode(enum graphics_mode_t mode) {
+void graphics_set_mode() {
     if (_SM_VGA < 0) return; // если  VGA не инициализирована -
 
-    graphics_mode = mode;
-
     // Если мы уже проиницилизированы - выходим
-    if (txt_palette_fast && lines_pattern_data) {
+    if (lines_pattern_data) {
         return;
     };
     uint8_t TMPL_VHS8 = 0;
@@ -297,58 +352,20 @@ void graphics_set_mode(enum graphics_mode_t mode) {
     int HS_SIZE = 4;
     int HS_SHIFT = 100;
 
-    switch (graphics_mode) {
-        case GRAPHICSMODE_DEFAULT:
-            graphics_buffer_width = 640;
-            graphics_buffer_height = 480;
-            TMPL_LINE8 = 0b11000000;
-            HS_SHIFT = 328 * 2;
-            HS_SIZE = 48 * 2;
-            line_size = 400 * 2;
-            shift_picture = line_size - HS_SHIFT;
-            palette16_mask = 0xc0c0;
-            visible_line_size = 320;
-            N_lines_total = 525;
-            N_lines_visible = 480;
-            line_VS_begin = 490;
-            line_VS_end = 491;
-            fdiv = clock_get_hz(clk_sys) / 25175000.0; //частота пиксельклока
-            break;
-        case GMODE_800_600:
-            graphics_buffer_width = 800;
-            graphics_buffer_height = 600;
-            TMPL_LINE8 = 0b11000000;
-            // SVGA Signal 800 x 600 @ 60 Hz timing
-            HS_SHIFT = 800 + 40; // Front porch + Visible area
-            HS_SIZE = 88; // Back porch
-            line_size = 1056;
-            shift_picture = line_size - HS_SHIFT;
-            visible_line_size = 800 / 2;
-            N_lines_visible = 16 * 37; // 592 < 600
-            line_VS_begin = 600 + 1; // + Front porch
-            line_VS_end = 600 + 3 + 4; // ++ Sync pulse 2?
-            N_lines_total = 628; // Whole frame
-            fdiv = clock_get_hz(clk_sys) / 40000000;  // частота пиксельклока 40.0 MHz
-            break;
-        case GMODE_1024_768:
-            graphics_buffer_width = 1024;
-            graphics_buffer_height = 768;
-            TMPL_LINE8 = 0b11000000;
-            // XGA Signal 1024 x 768 @ 60 Hz timing
-            HS_SHIFT = 1024 + 24; // Front porch + Visible area
-            HS_SIZE = 160; // Back porch
-            line_size = 1344;
-            shift_picture = line_size - HS_SHIFT;
-            visible_line_size = 1024 / 2;
-            N_lines_visible = 768;
-            line_VS_begin = 768 + 3; // + Front porch
-            line_VS_end = 768 + 3 + 6; // ++ Sync pulse 2?
-            N_lines_total = 806; // Whole frame
-            fdiv = clock_get_hz(clk_sys) / 65000000;  // частота пиксельклока 65.0 MHz
-            break;
-        default:
-            return;
-    }
+    graphics_buffer_width = 800;
+    graphics_buffer_height = 600;
+    TMPL_LINE8 = 0b11000000;
+    // SVGA Signal 800 x 600 @ 60 Hz timing
+    HS_SHIFT = 800 + 40; // Front porch + Visible area
+    HS_SIZE = 88; // Back porch
+    line_size = 1056;
+    shift_picture = line_size - HS_SHIFT;
+    visible_line_size = 800 / 2;
+    N_lines_visible = 16 * 37; // 592 < 600
+    line_VS_begin = 600 + 1; // + Front porch
+    line_VS_end = 600 + 3 + 4; // ++ Sync pulse 2?
+    N_lines_total = 628; // Whole frame
+    fdiv = clock_get_hz(clk_sys) / 40000000;  // частота пиксельклока 40.0 MHz
     adjust_shift_x();
     adjust_shift_y();
 
@@ -400,78 +417,9 @@ void graphics_set_mode(enum graphics_mode_t mode) {
     }
 }
 
-void graphics_set_1bit_buffer3(
-    uint8_t* buffer1,
-    uint8_t* buffer2,
-    uint8_t* buffer3,
-    const uint16_t width,
-    const uint16_t height
-) {
-    graphics_buffer = buffer1;
-    graphics_buffer2 = buffer2;
-    graphics_buffer3 = buffer3;
-    if (client_buffer_width != width) {
-        client_buffer_width = width;
-        adjust_shift_x();
-    }
-    if (client_buffer_height != height) {
-        client_buffer_height = height;
-        adjust_shift_y();
-    }
-    bitness = 1;
-}
-
-void graphics_set_1bit_buffer2(
-    uint8_t* buffer1,
-    uint8_t* buffer2,
-    const uint16_t width,
-    const uint16_t height
-) {
-    graphics_buffer = buffer1;
-    graphics_buffer2 = buffer2;
-    graphics_buffer3 = 0;
-    if (client_buffer_width != width) {
-        client_buffer_width = width;
-        adjust_shift_x();
-    }
-    if (client_buffer_height != height) {
-        client_buffer_height = height;
-        adjust_shift_y();
-    }
-    bitness = 1;
-}
-
-void graphics_set_1bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
-    graphics_buffer = buffer;
-    if (client_buffer_width != width) {
-        client_buffer_width = width;
-        adjust_shift_x();
-    }
-    if (client_buffer_height != height) {
-        client_buffer_height = height;
-        adjust_shift_y();
-    }
-    bitness = 1;
-    graphics_buffer2 = graphics_buffer3 = 0;
-}
-
-void graphics_set_4bit_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
-    if (client_buffer_width != width) {
-        client_buffer_width = width;
-        adjust_shift_x();
-    }
-    if (client_buffer_height != height) {
-        client_buffer_height = height;
-        adjust_shift_y();
-    }
-    bitness = 4;
-    graphics_buffer2 = graphics_buffer3 = 0;
-    __dmb();
-    graphics_buffer = buffer;
-}
-
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
+    client_buffer_stride = width;   // по умолчанию шаг строки равен ширине
     if (client_buffer_width != width) {
         client_buffer_width = width;
         adjust_shift_x();
@@ -480,29 +428,24 @@ void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t h
         client_buffer_height = height;
         adjust_shift_y();
     }
-    bitness = 8;
-    graphics_buffer2 = graphics_buffer3 = 0;
 }
 
-void graphics_inc_x(void) {
-    graphics_buffer_shift_x++;
+void graphics_set_line_stride(uint16_t stride) {
+    client_buffer_stride = stride;
 }
 
-void graphics_dec_x(void) {
-    graphics_buffer_shift_x--;
+uint16_t graphics_get_line_stride(void) {
+    return (uint16_t)client_buffer_stride;
 }
 
-void graphics_inc_y(void) {
-    graphics_buffer_shift_y++;
-}
+void graphics_inc_x(void) { graphics_set_offset(picture_x + 1, picture_y); }
+void graphics_dec_x(void) { graphics_set_offset(picture_x - 1, picture_y); }
+void graphics_inc_y(void) { graphics_set_offset(picture_x, picture_y + 1); }
+void graphics_dec_y(void) { graphics_set_offset(picture_x, picture_y - 1); }
 
-void graphics_dec_y(void) {
-    graphics_buffer_shift_y--;
-}
-
-void graphics_set_offset(const int x, const int y) {
-    graphics_buffer_shift_x = x;
-    graphics_buffer_shift_y = y;
+void graphics_set_offset(int x, int y) {
+    picture_x = x < -128 ? -128 : x > 128 ? 128 : x;
+    picture_y = y < -128 ? -128 : y > 128 ? 128 : y;
 }
 
 void graphics_set_flashmode(const bool flash_line, const bool flash_frame) {
@@ -546,17 +489,10 @@ void graphics_set_palette(const uint8_t i, const uint32_t color888) {
 }
 
 void graphics_init() {
-    //инициализация палитры по умолчанию
-    //текстовая палитра
-    for (int i = 0; i < 16; i++) {
-        const uint8_t b = i & 1 ? (i >> 3 ? 3 : 2) : 0;
-        const uint8_t r = i & 4 ? (i >> 3 ? 3 : 2) : 0;
-        const uint8_t g = i & 2 ? (i >> 3 ? 3 : 2) : 0;
-
-        const uint8_t c = r << 4 | g << 2 | b;
-
-        txt_palette[i] = c & 0x3f | 0xc0;
-    }
+#ifdef ORION_SCANLINES
+    menu_text_init_palette();
+    menu_text_clear_for_mode();
+#endif
     //инициализация PIO
     //загрузка программы в один из PIO
     const uint offset = pio_add_program(PIO_VGA, &pio_program_VGA);
@@ -623,16 +559,65 @@ void graphics_init() {
     );
 
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-    graphics_set_mode(GMODE_800_600);
+    graphics_set_mode();
+
+    /*
+     * dma_channel_configure() above captured lines_pattern[0] while the
+     * scan-line buffers were still unallocated (NULL).  graphics_set_mode()
+     * allocates and initializes them, so update the main DMA read address
+     * before starting the channel.  Otherwise DMA starts reading address 0
+     * and the PIO never receives a valid VGA line.
+     */
+    dma_channel_set_read_addr(dma_chan, lines_pattern[0], false);
+
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask(1u << dma_chan);
 }
 
+
+void graphics_set_video_content_mode(graphics_video_content_mode_t mode)
+{
+#ifdef ORION_SCANLINES
+    if (mode < GRAPHICS_VIDEO_FRAMEBUFFER || mode > GRAPHICS_VIDEO_COMBINED)
+        mode = GRAPHICS_VIDEO_FRAMEBUFFER;
+
+    __asm volatile ("" ::: "memory");
+    menu_video_mode = mode;
+    menu_text_clear_for_mode();
+    __asm volatile ("" ::: "memory");
+#else
+    (void)mode;
+#endif
+}
+
+void graphics_set_menu_text_mode(bool enabled)
+{
+    graphics_set_video_content_mode(enabled
+                                  ? GRAPHICS_VIDEO_TEXT
+                                  : GRAPHICS_VIDEO_FRAMEBUFFER);
+}
+
 uint32_t graphics_get_width() {
+#ifdef ORION_SCANLINES
+    if (menu_text_active())
+        return MENU_TEXT_COLS * MENU_TEXT_CELL_W;
+#endif
     return client_buffer_width;
 }
+int graphics_get_picture_shift_x(void) { return picture_x; }
+int graphics_get_picture_shift_y(void) { return picture_y; }
+
+// У VGA виден весь буфер
+uint32_t graphics_get_visible_height() {
+    return graphics_get_height();
+}
+
 uint32_t graphics_get_height() {
+#ifdef ORION_SCANLINES
+    if (menu_text_active())
+        return MENU_TEXT_ROWS * MENU_TEXT_CELL_H;
+#endif
     return client_buffer_height;
 }
 uint8_t* graphics_get_frame() {
@@ -642,6 +627,10 @@ uint32_t graphics_get_font_width() {
     return 8;
 }
 uint32_t graphics_get_font_height() {
+#ifdef ORION_SCANLINES
+    if (menu_text_active())
+        return 16;
+#endif
     return 8;
 }
 
@@ -653,43 +642,53 @@ inline static void _plot(int32_t x, int32_t y, uint32_t w, uint32_t h, uint8_t c
     if (!graphics_buffer) return;
     if (x < 0 || x >= w) return;
     if (y < 0 || y >= h) return;
-    register uint32_t idx = w * y + x;
-    if (bitness == 1) {
-        if (graphics_buffer3) {
-            register uint8_t b = idx & 7;
-            idx >>= 3;
-            bitWrite(graphics_buffer [idx], b, ((color >> 4) & 3) > 1);
-            bitWrite(graphics_buffer2[idx], b, ((color >> 2) & 3) > 1);
-            bitWrite(graphics_buffer3[idx], b, (color & 3) > 1);
-        } else if (graphics_buffer2) {
-            register uint8_t b = idx & 7;
-            idx >>= 3;
-            bitWrite(graphics_buffer [idx], b, (((color >> 4) & 3) > 2) || (((color >> 2) & 3) > 2) || ((color & 3) > 2));
-            bitWrite(graphics_buffer2[idx], b, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
-        } else {
-            bitWrite(graphics_buffer[idx >> 3], idx & 7, (((color >> 4) & 3) > 1) && (((color >> 2) & 3) > 1) && ((color & 3) > 1));
-        }
-    } else if (bitness == 4) {
-        color = (((color & 3) > 1) ? 1 : 0) |
-                ((((color >> 2) & 3) > 1) ? 2 : 0) |
-                ((((color >> 4) & 3) > 1) ? 4 : 0) |
-                (((color & 3) == 3 || ((color >> 2) & 3) == 3 || ((color >> 4) & 3) == 3) ? 8 : 0);
-        uint8_t* b = graphics_buffer + (idx >> 1);
-        if (idx & 1) {
-            *b = (*b & 0b00001111) | (color << 4);
-        } else {
-            *b = (*b & 0b11110000) | (color & 0b1111);
-        }
-    } else {
-        graphics_buffer[idx] = color;
-    }
+    graphics_buffer[client_buffer_stride * y + x] = color;
 }
 
 void plot(int x, int y, uint8_t color) {
+#ifdef ORION_SCANLINES
+    if (menu_text_active()) {
+        const int cx = x / MENU_TEXT_CELL_W;
+        const int cy = y / MENU_TEXT_CELL_H;
+        if ((unsigned)cx < MENU_TEXT_COLS && (unsigned)cy < MENU_TEXT_ROWS) {
+            uint16_t cell = menu_text_cells[cy * MENU_TEXT_COLS + cx];
+            const uint8_t attr = (uint8_t)(cell >> 8);
+            const uint8_t fg = menu_color_index(color);
+            menu_text_put_cell(cx, cy, (uint8_t)cell,
+                               (uint8_t)((attr & 0xf0u) | fg));
+        }
+        return;
+    }
+#endif
     _plot(x, y, client_buffer_width, client_buffer_height, color);
 }
 
 void line(int x0, int y0, int x1, int y1, uint8_t color) {
+#ifdef ORION_SCANLINES
+    if (menu_text_active()) {
+        int cx0 = x0 / MENU_TEXT_CELL_W, cx1 = x1 / MENU_TEXT_CELL_W;
+        int cy0 = y0 / MENU_TEXT_CELL_H, cy1 = y1 / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+        if (cx0 > cx1) { int t = cx0; cx0 = cx1; cx1 = t; }
+        if (cy0 > cy1) { int t = cy0; cy0 = cy1; cy1 = t; }
+        if (cy0 == cy1) {
+            for (int x = cx0; x <= cx1; ++x) {
+                uint16_t old = ((unsigned)x < MENU_TEXT_COLS &&
+                                (unsigned)cy0 < MENU_TEXT_ROWS)
+                             ? menu_text_cells[cy0 * MENU_TEXT_COLS + x] : 0x0720;
+                menu_text_put_cell(x, cy0, '-', (uint8_t)(((old >> 8) & 0xf0) | fg));
+            }
+        } else if (cx0 == cx1) {
+            for (int y = cy0; y <= cy1; ++y) {
+                uint16_t old = ((unsigned)cx0 < MENU_TEXT_COLS &&
+                                (unsigned)y < MENU_TEXT_ROWS)
+                             ? menu_text_cells[y * MENU_TEXT_COLS + cx0] : 0x0720;
+                menu_text_put_cell(cx0, y, '|', (uint8_t)(((old >> 8) & 0xf0) | fg));
+            }
+        }
+        return;
+    }
+#endif
     uint32_t w = graphics_get_width();
     uint32_t h = graphics_get_height();
     if (x0 > x1) {
@@ -732,6 +731,28 @@ void line(int x0, int y0, int x1, int y1, uint8_t color) {
 }
 
 void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t color) {
+#ifdef ORION_SCANLINES
+    if (menu_text_active()) {
+        const int x1 = (x0 + (int32_t)width) / MENU_TEXT_CELL_W;
+        const int y1 = (y0 + (int32_t)height) / MENU_TEXT_CELL_H;
+        const int x = x0 / MENU_TEXT_CELL_W;
+        const int y = y0 / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+        for (int cx = x; cx <= x1; ++cx) {
+            menu_text_put_cell(cx, y, '-', fg);
+            menu_text_put_cell(cx, y1, '-', fg);
+        }
+        for (int cy = y; cy <= y1; ++cy) {
+            menu_text_put_cell(x, cy, '|', fg);
+            menu_text_put_cell(x1, cy, '|', fg);
+        }
+        menu_text_put_cell(x, y, '+', fg);
+        menu_text_put_cell(x1, y, '+', fg);
+        menu_text_put_cell(x, y1, '+', fg);
+        menu_text_put_cell(x1, y1, '+', fg);
+        return;
+    }
+#endif
     int32_t x1 = x0 + width;
     int32_t y1 = y0 + height;
     line(x0, y0, x1, y0, color);
@@ -741,6 +762,28 @@ void graphics_rect(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
 }
 
 void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint8_t bgcolor) {
+#ifdef ORION_SCANLINES
+    if (menu_text_active()) {
+        if (width == 0 || height == 0)
+            return;
+
+        const int cx0 = x0 / MENU_TEXT_CELL_W;
+        const int cy0 = y0 / MENU_TEXT_CELL_H;
+        const int cx1 =
+            (x0 + (int32_t)width - 1) / MENU_TEXT_CELL_W;
+        const int cy1 =
+            (y0 + (int32_t)height - 1) / MENU_TEXT_CELL_H;
+        const uint8_t bg = menu_color_index(bgcolor);
+        for (int cy = cy0; cy <= cy1; ++cy)
+            for (int cx = cx0; cx <= cx1; ++cx) {
+                const uint8_t fg =
+                    (bg == 0 || bg == 1 || bg == 4 || bg == 5 || bg == 8)
+                    ? 7u : 0u;
+                menu_text_put_cell(cx, cy, ' ', (uint8_t)((bg << 4) | fg));
+            }
+        return;
+    }
+#endif
     int32_t x1 = x0 + width;
     int32_t y1 = y0 + height;
     for(int xi = x0; xi <= x1; ++xi) {
@@ -749,6 +792,21 @@ void graphics_fill(int32_t x0, int32_t y0, uint32_t width, uint32_t height, uint
 }
 
 void graphics_type(int x, int y, uint8_t color, const char* msg, size_t msg_len) {
+#ifdef ORION_SCANLINES
+    if (menu_text_active()) {
+        int cx = x / MENU_TEXT_CELL_W;
+        const int cy = y / MENU_TEXT_CELL_H;
+        const uint8_t fg = menu_color_index(color);
+        for (size_t i = 0; i < msg_len && cx < MENU_TEXT_COLS; ++i, ++cx) {
+            if (cx < 0 || (unsigned)cy >= MENU_TEXT_ROWS)
+                continue;
+            const uint16_t old = menu_text_cells[cy * MENU_TEXT_COLS + cx];
+            const uint8_t attr = (uint8_t)(((old >> 8) & 0xf0u) | fg);
+            menu_text_put_cell(cx, cy, (uint8_t)msg[i], attr);
+        }
+        return;
+    }
+#endif
     for (size_t i = 0; i < msg_len; ++i) {
         char ch = msg[i];
         const uint8_t* pf_line0 = font_8x8 + ch*8;

@@ -61,12 +61,13 @@ class OrionRenderer : public CrtRenderer, public IActive
 
     public:
         OrionRenderer();
-        void reset() override { m_screenBase = 0xC000; m_colorMode = OCM_MONO; m_palette = 0; }
+        void reset() override;
         void renderFrame() override;
+        void publishScanlines();
 
         bool setProperty(const std::string& propertyName, const EmuValuesList& values) override;
         std::string getPropertyStringValue(const std::string& propertyName) override;
-        void toggleColorMode()  override {m_isColorMode = !m_isColorMode;}
+        void toggleColorMode() override;
         void toggleCropping() override;
 
         // derived from ActiveDevice
@@ -82,10 +83,12 @@ class OrionRenderer : public CrtRenderer, public IActive
     private:
         const uint8_t* m_screenMemory = nullptr;
         const uint8_t* m_colorMemory = nullptr;
-        uint16_t m_screenBase = 0xC000;
-        OrionColorMode m_colorMode = (OrionColorMode)0;
-        int m_palette = 0;
-        bool m_isColorMode = true;
+        // Single writer (CPU core), one aligned atomic snapshot per video row.
+        uint32_t m_videoControl = 0x0100C000u;
+        uint32_t videoControl() const { return __atomic_load_n(&m_videoControl, __ATOMIC_RELAXED); }
+        void setVideoControl(uint32_t value) { __atomic_store_n(&m_videoControl, value, __ATOMIC_RELAXED); }
+        static const uint8_t* readScanline(void* context, unsigned row);
+        alignas(4) uint16_t m_line[192];
         bool m_showBorder = false;
 };
 
