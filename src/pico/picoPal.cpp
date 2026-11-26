@@ -1,5 +1,7 @@
 #include "picoPal.h"
 #include "../OrionMenu.h"
+#include "../Emulation.h"
+#include "../Globals.h"
 #include "ffPalFile.h"
 
 #include <sstream>
@@ -144,189 +146,234 @@ void palGetDirContent(const string& d, vector<PalFileInfo*>& fileList)
 /// TODO: .h
 extern PalKeyCodeAction getKey();
 #include <algorithm>
+// File browser: the text-mode layout, scrollbar and incremental row redraw
+// follow the Specialist/Vector PAL file dialog. Keep Orion's PalWindow API.
+namespace {
+struct BrowserEntry { std::string name; bool dir; };
+
+char foldAscii(char ch) { return ch >= 'A' && ch <= 'Z' ? char(ch + ('a'-'A')) : ch; }
+bool matchGlob(const char* pattern, const char* value)
+{
+    const char* star = nullptr;
+    const char* retry = nullptr;
+    while (*value) {
+        if (*pattern == '?' || (*pattern && foldAscii(*pattern) == foldAscii(*value))) {
+            ++pattern; ++value;
+        } else if (*pattern == '*') {
+            star = pattern++; retry = value;
+        } else if (star) {
+            pattern = star + 1; value = ++retry;
+        } else return false;
+    }
+    while (*pattern == '*') ++pattern;
+    return !*pattern;
+}
+
+std::vector<std::string> filePatterns(const std::string& filter)
+{
+    // Emu80 filters are "label|*.ext;*.ext|All files|*". The caller may also
+    // supply a plain mask or a suffix (e.g. ".rk" for a tape output file).
+    const size_t bar = filter.find('|');
+    const size_t end = bar == std::string::npos ? std::string::npos : filter.find('|',bar+1);
+    std::string masks = bar == std::string::npos ? filter : filter.substr(bar+1,end == std::string::npos ? end : end-bar-1);
+    std::vector<std::string> result;
+    size_t start = 0;
+    while (start < masks.size()) {
+        const size_t split = masks.find(';',start);
+        auto mask = masks.substr(start,split == std::string::npos ? split : split-start);
+        if (!mask.empty() && mask[0] == '.') mask = '*' + mask;
+        if (!mask.empty()) result.push_back(mask);
+        if (split == std::string::npos) break;
+        start = split+1;
+    }
+    return result;
+}
+
+bool browserCloseKey(PalKeyCode k) {
+    return k == PK_ESC || k == PK_F12 || k == PK_LALT || k == PK_RALT;
+}
+}
+
 static std::string fdir = "/orion";
 std::string palOpenFileDialog(std::string title, std::string filter, bool write, PalWindow* window) {
+    (void)window;
     struct RestoreVideoMode {
         graphics_video_content_mode_t mode = graphics_get_video_content_mode();
-        ~RestoreVideoMode() { graphics_set_video_content_mode(mode); }
+        ~RestoreVideoMode() {
+            graphics_set_video_content_mode(mode);
+            if (g_emulation) g_emulation->resetOrionKeys();
+        }
     } restore;
     graphics_set_menu_text_mode(true);
-    const uint32_t fntw = graphics_get_font_width(), fnth = graphics_get_font_height();
-    const uint32_t sw = graphics_get_width(), sh = graphics_get_height();
-    const uint32_t w = sw - 2*fntw, h = sh - 2*fnth;
-    const int32_t x = fntw, y = fnth;
-    const uint32_t msi = fnth, xb = x + fntw;
-    const uint32_t yb = y + (write ? 2 : 1)*fnth;
-    const uint32_t scrollW = fntw, listW = w - scrollW;
-    const uint32_t scrollX = x + listW;
-    const char back[] = "..";
-    string t2;
-    graphics_fill(x, y, w, h, RGB(0x000080));
+    const int fw = graphics_get_font_width(), fh = graphics_get_font_height();
+    const int cols = graphics_get_width()/fw, rows = graphics_get_visible_height()/fh;
+    if (cols < 12 || rows < 8) return "";
+    const int w = cols-2, h = rows-2, x = 1, y = 1;
+    const int top = y+1, bottom = y+h-1;
+    const int listTop = top+(write ? 1 : 0), visibleRows = bottom-listTop;
+    const int listW = w-1, scrollX = x+listW;
+    const uint8_t white = RGB(0xffffff), black = RGB(0), titleBg = RGB(0x003080);
+    const uint8_t selectedBg = RGB(0x40c0ff), gray = RGB(0x808080);
+    const auto masks = filePatterns(filter);
+    bool allFiles = masks.empty(), truncated = false;
+    bool inputFocused = write;
+    std::string filename;
+    // Bounded memory usage on RP2040, as in the reference dialog. Do not
+    // allocate one full PalFileInfo object for every entry of a large SD card.
+    constexpr size_t maxEntries = 256, maxNameBytes = 16*1024;
+    std::vector<BrowserEntry> entries;
+    entries.reserve(32);
+    int selected = 0, scroll = 0;
 
-    DIR f_dir;
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
-        fdir = "/";
-    else
-        f_closedir(&f_dir);
-    if (f_opendir(&f_dir, fdir.c_str()) != FR_OK)
-        return "";
-    f_closedir(&f_dir);
-
-    vector<PalFileInfo*> fileList;
-    int selected_file_n = 0;
-    int shift_j = 0;
-    int visibleRows = (int)((y + h - fnth - yb) / msi) + 1;
-    if (visibleRows < 1) visibleRows = 1;
-    PalFileInfo* selected_fi = nullptr;
-
-    auto freeFileList = [&]() {
-        for (auto* fi : fileList) delete fi;
-        fileList.clear();
+    auto fill = [&](int cx,int cy,int cw,int ch,uint8_t color) {
+        graphics_fill(cx*fw,cy*fh,cw*fw,ch*fh,color);
     };
-
-    auto loadDirectory = [&]() {
-        freeFileList();
-        if (fdir.length() > 1) {
-            PalFileInfo* newFile = new PalFileInfo;
-            newFile->fileName = back;
-            newFile->isDir = 1;
-            fileList.push_back(newFile);
+    auto text = [&](int cx,int cy,const std::string& value,int width,uint8_t color) {
+        graphics_type(cx*fw,cy*fh,color,value.c_str(),std::min(value.size(),size_t(std::max(0,width))));
+    };
+    auto pathFor = [&](const std::string& name) { return fdir == "/" ? "/"+name : fdir+"/"+name; };
+    auto loadDirectory = [&]() -> bool {
+        DIR dir;
+        if (f_opendir(&dir,fdir.c_str()) != FR_OK) return false;
+        entries.clear(); truncated = false;
+        size_t nameBytes = 0;
+        if (fdir != "/") entries.push_back({"..",true});
+        const size_t first = entries.size();
+        FILINFO entry;
+        FRESULT result;
+        while ((result=f_readdir(&dir,&entry)) == FR_OK && entry.fname[0]) {
+            if (!strcmp(entry.fname,".") || !strcmp(entry.fname,"..")) continue;
+            const bool isDir = (entry.fattrib & AM_DIR) != 0;
+            bool matches = isDir || allFiles;
+            for (const auto& pattern : masks)
+                if (matchGlob(pattern.c_str(),entry.fname)) { matches = true; break; }
+            if (!matches) continue;
+            const size_t bytes = strlen(entry.fname)+1;
+            if (entries.size() == maxEntries || nameBytes+bytes > maxNameBytes) { truncated = true; break; }
+            nameBytes += bytes;
+            entries.push_back({entry.fname,isDir});
         }
-        palGetDirContent(fdir, fileList);
-        sort(fileList.begin(), fileList.end(), [](const PPalFileInfo& a, const PPalFileInfo& b) {
-            if (a->isDir == b->isDir) return a->fileName < b->fileName;
-            return a->isDir > b->isDir;
+        f_closedir(&dir);
+        std::sort(entries.begin()+first,entries.end(),[](const BrowserEntry& a,const BrowserEntry& b) {
+            if (a.dir != b.dir) return a.dir > b.dir;
+            return std::lexicographical_compare(a.name.begin(),a.name.end(),b.name.begin(),b.name.end(),[](char a,char b){return foldAscii(a)<foldAscii(b);});
         });
+        selected = scroll = 0;
+        return result == FR_OK;
     };
-
+    if (!loadDirectory()) {
+        fdir = "/";
+        if (!loadDirectory()) { orionConfirm("File manager","Cannot read SD card"); return ""; }
+    }
     auto drawTitle = [&]() {
-        graphics_fill(x, y, w, fnth, RGB(0x008080));
-        string t = title + ": " + fdir;
-        t.resize(std::min(t.size(), size_t(w / fntw - 1)));
-        graphics_type(x + fntw, y, RGB(0xffffff), t.c_str(), t.length());
+        fill(x,y,w,1,titleBg);
+        std::string prefix = title+": ";
+        std::string path = fdir;
+        const int room = w-2-int(prefix.size());
+        if (room >= 4 && int(path.size()) > room) path = "..."+path.substr(path.size()-room+3);
+        text(x+1,y,prefix+path,w-2,white);
     };
     auto drawInput = [&]() {
         if (!write) return;
-        graphics_fill(x, y + fnth, w, fnth, RGB(0xffffff));
-        string t = "Name: " + t2;
-        t.resize(std::min(t.size(), size_t(w / fntw - 1)));
-        graphics_type(x + fntw, y + fnth, RGB(0), t.c_str(), t.length());
+        fill(x,top,w,1,inputFocused ? RGB(0xcfffff) : RGB(0xd0d0d0));
+        const size_t space = size_t(std::max(1,w-8));
+        const auto shown = filename.size() >= space ? filename.substr(filename.size()-space+1) : filename;
+        text(x+1,top,"Name: "+shown+(inputFocused ? "_" : ""),w-2,black);
     };
-    auto drawRow = [&](int itemIndex) {
-        if (itemIndex < shift_j || itemIndex >= shift_j + visibleRows) return;
-        const uint32_t rowY = yb + (itemIndex - shift_j)*msi;
-        const bool selected = itemIndex == selected_file_n;
-        graphics_fill(x, rowY, listW, fnth, selected ? RGB(0x808080) : RGB(0x000080));
-        if (itemIndex >= 0 && itemIndex < int(fileList.size())) {
-            string name = fileList[itemIndex]->fileName;
-            if (fileList[itemIndex]->isDir) name = "[" + name + "]";
-            name.resize(std::min(name.size(), size_t(listW / fntw - 1)));
-            graphics_type(xb, rowY, RGB(0xffffff), name.c_str(), name.length());
+    auto drawRow = [&](int index) {
+        if (index < scroll || index >= scroll+visibleRows) return;
+        const int yy = listTop+index-scroll;
+        fill(x,yy,listW,1,index == selected && !entries.empty() ? (inputFocused ? RGB(0xd0d0d0) : selectedBg) : white);
+        if (index < int(entries.size())) {
+            const auto& item = entries[index];
+            text(x+1,yy,item.dir ? "<"+item.name+">" : item.name,listW-2,black);
         }
     };
     auto drawScrollbar = [&]() {
-        graphics_fill(scrollX, yb, scrollW, visibleRows*fnth, RGB(0x808080));
-        const int total = int(fileList.size());
-        if (total <= visibleRows) return;
-        const int thumb = std::max(1, visibleRows*visibleRows/total);
-        const int top = (visibleRows-thumb)*shift_j/(total-visibleRows);
-        graphics_fill(scrollX, yb+top*fnth, scrollW, thumb*fnth, RGB(0xffffff));
+        fill(scrollX,listTop,1,visibleRows,gray);
+        if (entries.size() <= size_t(visibleRows)) return;
+        const int thumb = std::max(1,visibleRows*visibleRows/int(entries.size()));
+        const int offset = (visibleRows-thumb)*scroll/(int(entries.size())-visibleRows);
+        fill(scrollX,listTop+offset,1,thumb,white);
     };
-
-    auto drawWindow = [&]() {
-        for (int row = 0; row < visibleRows; ++row)
-            drawRow(shift_j + row);
+    auto drawList = [&]() {
+        for (int i=0;i<visibleRows;++i) drawRow(scroll+i);
+        if (entries.empty()) text(x+1,listTop,"(No matching files)",listW-2,gray);
         drawScrollbar();
     };
-
-    loadDirectory();
-    drawTitle();
-    drawInput();
-    drawWindow();
-
-    string res;
-    while (1) {
-        sleep_ms(2);
-        PalKeyCodeAction pk = getKey();
-        if (!pk.pressed) continue;
-        if (pk.vk == PK_ESC || pk.vk == PK_F12) break;
-
-        if (write && pk.pressed) {
-            bool changed = true;
-            if (pk.vk >= PK_1 && pk.vk <= PK_0) t2 += pk.vk == PK_0 ? '0' : '1' + pk.vk - PK_1;
-            else if (pk.vk >= PK_A && pk.vk <= PK_Z) t2 += 'a' + pk.vk - PK_A;
-            else if (pk.vk == PK_SPACE) t2 += ' ';
-            else if (pk.vk == PK_PERIOD) t2 += '.';
-            else if (pk.vk == PK_BSP && !t2.empty()) t2.pop_back();
-            else changed = false;
-            if (changed) drawInput();
+    auto drawFooter = [&]() {
+        fill(x,bottom,w,1,black);
+        std::string footer = write ? "Tab: name/list  Enter: save" : (allFiles ? "F4: filter" : "F4: all files");
+        footer += "  Esc: cancel";
+        if (truncated) footer = "List truncated; narrow filter";
+        text(x+1,bottom,footer,w-2,white);
+    };
+    auto redraw = [&]() { fill(x,y,w,h,white); drawTitle(); drawInput(); drawList(); drawFooter(); };
+    redraw();
+    while (true) {
+        const auto key = getKey();
+        if (!key.pressed) { sleep_ms(2); continue; }
+        if (browserCloseKey(key.vk)) return "";
+        if (key.vk == PK_F4 && !write) {
+            allFiles = !allFiles;
+            if (!loadDirectory()) { orionConfirm("File manager","Cannot read directory"); return ""; }
+            redraw(); continue;
         }
-
-        int oldSelected = selected_file_n;
-        int oldShift = shift_j;
-        int count = (int)fileList.size();
-        if (write && (pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && !t2.empty()) {
-            res = fdir + (fdir == "/" ? "" : "/") + t2;
-            break;
+        if (write && key.vk == PK_TAB) {
+            inputFocused = !inputFocused; drawInput(); drawRow(selected); continue;
         }
-        if (count == 0) {
-            if (pk.vk == PK_ESC && pk.pressed) break;
-            continue;
-        }
-
-        if (pk.vk == PK_UP || pk.vk == PK_KP_8) {
-            selected_file_n = selected_file_n > 0 ? selected_file_n - 1 : count - 1;
-        } else if (pk.vk == PK_PGUP || pk.vk == PK_KP_9) {
-            selected_file_n = std::max(0, selected_file_n - visibleRows);
-        } else if (pk.vk == PK_DOWN || pk.vk == PK_KP_2) {
-            selected_file_n = selected_file_n + 1 < count ? selected_file_n + 1 : 0;
-        } else if (pk.vk == PK_PGDN || pk.vk == PK_KP_3) {
-            selected_file_n = std::min(count - 1, selected_file_n + visibleRows);
-        } else if ((pk.vk == PK_HOME || pk.vk == PK_KP_7) && pk.pressed) {
-            selected_file_n = 0;
-        } else if (pk.vk == PK_END || pk.vk == PK_KP_1) {
-            selected_file_n = count - 1;
-        } else if ((pk.vk == PK_ENTER || pk.vk == PK_KP_ENTER) && pk.pressed) {
-            selected_fi = fileList[selected_file_n];
-            if (write) continue;
-            if (selected_fi->isDir) {
-                if (selected_fi->fileName == back) {
-                    fdir = fdir.substr(0, fdir.find_last_of('/'));
-                    if (fdir.empty()) fdir = "/";
-                } else {
-                    if (fdir.length() > 1) fdir += "/";
-                    fdir += selected_fi->fileName;
+        const bool enter = key.vk == PK_ENTER || key.vk == PK_KP_ENTER;
+        if (inputFocused) {
+            if (enter && !filename.empty()) {
+                const auto path = pathFor(filename);
+                FILINFO existing;
+                if (f_stat(path.c_str(),&existing) == FR_OK) {
+                    if (existing.fattrib & AM_DIR) { orionConfirm("Cannot save","A directory has this name"); redraw(); continue; }
+                    if (!orionConfirm("Overwrite file","Replace existing file?",true)) { redraw(); continue; }
                 }
-                selected_file_n = 0;
-                shift_j = 0;
-                loadDirectory();
-                drawTitle();
-                drawWindow();
-                continue;
+                return path;
             }
-            res = fdir + (fdir == "/" ? "" : "/") + selected_fi->fileName;
-            break;
-        } else if (pk.vk == PK_ESC && pk.pressed) {
-            break;
-        } else {
-            continue;
+            char ch = 0;
+            if (key.vk >= PK_1 && key.vk <= PK_0) ch = key.vk == PK_0 ? '0' : '1'+key.vk-PK_1;
+            else if (key.vk >= PK_A && key.vk <= PK_Z) ch = 'a'+key.vk-PK_A;
+            else if (key.vk == PK_SPACE) ch = ' ';
+            else if (key.vk == PK_PERIOD) ch = '.';
+            else if (key.vk == PK_MINUS) ch = '-';
+            else if (key.vk == PK_BSP && !filename.empty()) filename.pop_back();
+            if (ch && filename.size() < 127) filename += ch;
+            drawInput(); continue;
         }
-
-        if (selected_file_n < shift_j) shift_j = selected_file_n;
-        if (selected_file_n >= shift_j + visibleRows) shift_j = selected_file_n - visibleRows + 1;
-        int maxShift = std::max(0, count - visibleRows);
-        if (shift_j > maxShift) shift_j = maxShift;
-
-        if (shift_j != oldShift) {
-            drawWindow();
-        } else if (selected_file_n != oldSelected) {
-            drawRow(oldSelected);
-            drawRow(selected_file_n);
-        }
+        if (entries.empty()) continue;
+        const int previous = selected, previousScroll = scroll, count = int(entries.size());
+        if (key.vk == PK_UP || key.vk == PK_KP_8) selected = (selected+count-1)%count;
+        else if (key.vk == PK_DOWN || key.vk == PK_KP_2) selected = (selected+1)%count;
+        else if (key.vk == PK_PGUP || key.vk == PK_KP_9) selected = std::max(0,selected-visibleRows);
+        else if (key.vk == PK_PGDN || key.vk == PK_KP_3) selected = std::min(count-1,selected+visibleRows);
+        else if (key.vk == PK_HOME || key.vk == PK_KP_7) selected = 0;
+        else if (key.vk == PK_END || key.vk == PK_KP_1) selected = count-1;
+        else if (enter) {
+            const auto item = entries[selected];
+            if (item.dir) {
+                const auto oldDir = fdir;
+                if (item.name == "..") {
+                    fdir = fdir.substr(0,fdir.find_last_of('/'));
+                    if (fdir.empty()) fdir = "/";
+                } else fdir = pathFor(item.name);
+                if (!loadDirectory()) {
+                    orionConfirm("File manager","Cannot read directory");
+                    fdir = oldDir;
+                    if (!loadDirectory()) return "";
+                }
+                redraw(); continue;
+            }
+            if (!write) return pathFor(item.name);
+            filename = item.name; inputFocused = true; drawInput(); drawRow(selected); continue;
+        } else continue;
+        if (selected < scroll) scroll = selected;
+        if (selected >= scroll+visibleRows) scroll = selected-visibleRows+1;
+        if (scroll != previousScroll) drawList();
+        else if (selected != previous) { drawRow(previous); drawRow(selected); }
     }
-
-    freeFileList();
-    return res;
 }
 
 void palGetDirContent(const string& d, list<PalFileInfo*>& fileList)

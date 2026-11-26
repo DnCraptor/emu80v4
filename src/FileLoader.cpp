@@ -24,6 +24,7 @@
 #include "EmuWindow.h"
 #include "TapeRedirector.h"
 #include "FileLoader.h"
+#include "OrionMenu.h"
 
 
 using namespace std;
@@ -129,6 +130,7 @@ string FileLoader::getPropertyStringValue(const string& propertyName)
 
 bool RkFileLoader::loadFile(const std::string& fileName, bool run)
 {
+    if (orionIsMonitorFile(fileName)) return orionLoadMonitorFile(fileName);
     int fileSize;
     uint8_t* buf = palReadFile(fileName, fileSize, false);
     if (!buf)

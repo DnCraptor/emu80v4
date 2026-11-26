@@ -266,6 +266,10 @@ void Emulation::processKey(EmuWindow* wnd, PalKeyCode keyCode, bool isPressed, u
 }
 
 static bool isAltPressed = false;
+static unsigned altKeys = 0;
+static bool altStandalone = false;
+static bool heldKeys[PK_JOY_RIGHT + 1]{};
+static unsigned heldKeyCount = 0;
 static bool isShiftPressed = false;
 static bool isCtrlPressed = false;
 void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned unicodeKey) {
@@ -273,9 +277,33 @@ void Emulation::activePlatformKey(PalKeyCode keyCode, bool isPressed, unsigned u
     emuLog << to_string(keyCode) << " / " << isPressed << "\n";
 #endif
     if (m_activePlatform) {
-        if (keyCode == PK_LSHIFT || keyCode == PK_RSHIFT) isShiftPressed = isPressed;
-        else if (keyCode == PK_LALT || keyCode == PK_RALT) isAltPressed = isPressed;
-        else if (keyCode == PK_LCTRL || keyCode == PK_RCTRL) isCtrlPressed = isPressed;
+        // Orion has no Alt in the RK keyboard matrix. Open the OSD only on
+        // a standalone Alt release, not when Alt was used in a shortcut.
+        if (keyCode == PK_LALT || keyCode == PK_RALT) {
+            const unsigned bit = keyCode == PK_LALT ? 1u : 2u;
+            if (isPressed) {
+                if (!(altKeys & bit)) {
+                    altStandalone = !altKeys && heldKeyCount == 0;
+                    altKeys |= bit;
+                }
+            } else if (altKeys & bit) {
+                altKeys &= ~bit;
+                const bool openMenu = !altKeys && altStandalone;
+                isAltPressed = altKeys != 0;
+                if (!altKeys) altStandalone = false;
+                if (openMenu) orionMenu();
+            }
+            isAltPressed = altKeys != 0;
+            return;
+        }
+        if (isPressed && altKeys && keyCode != PK_NONE) altStandalone = false;
+        if (keyCode > PK_NONE && keyCode <= PK_JOY_RIGHT && heldKeys[keyCode] != isPressed) {
+            heldKeys[keyCode] = isPressed;
+            if (isPressed) ++heldKeyCount;
+            else --heldKeyCount;
+        }
+        isShiftPressed = heldKeys[PK_LSHIFT] || heldKeys[PK_RSHIFT];
+        isCtrlPressed = heldKeys[PK_LCTRL] || heldKeys[PK_RCTRL];
         if (isAltPressed && isCtrlPressed && keyCode == PK_DEL) {
             watchdog_enable(100, true);
             while(true) sleep_ms(20);
@@ -310,6 +338,10 @@ void Emulation::resetOrionKeys()
 void Emulation::resetKeys(EmuWindow* wnd)
 {
     isAltPressed = false;
+    altKeys = 0;
+    altStandalone = false;
+    std::fill(heldKeys, heldKeys + PK_JOY_RIGHT + 1, false);
+    heldKeyCount = 0;
     isShiftPressed = false;
     isCtrlPressed = false;
     Platform* platform = platformByWindow(wnd);

@@ -363,9 +363,11 @@ bool OrionFddQueryRegister::setProperty(const string& propertyName, const EmuVal
 }
 
 #include "ff.h"
+#include "OrionMenu.h"
 
 bool OrionFileLoader::loadFile(const std::string& fileName, bool run)
 {
+    if (orionIsMonitorFile(fileName)) return orionLoadMonitorFile(fileName);
     FIL f;
     if (FR_OK != f_open(&f, fileName.c_str(), FA_READ))
         return false;

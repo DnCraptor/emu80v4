@@ -103,7 +103,9 @@ Platform::Platform(std::string, std::string name)
     const bool monitor1 = model == OrionModel::Monitor1;
     const bool dsdos = model == OrionModel::Dsdos;
     const bool z80 = orionSettings.cpu == OrionCpu::Z80;
-    const bool tape = monitor1 || model == OrionModel::Monitor2 || model == OrionModel::Monitor31;
+    const uint8_t* customMonitor = orionMonitorData();
+    // Tape hooks are addresses in the built-in monitor, not a firmware ABI.
+    const bool tape = !customMonitor && (monitor1 || model == OrionModel::Monitor2 || model == OrionModel::Monitor31);
     const char* const monitors[] = {"orion/rom/m1rk.bin", "orion/rom/m2rk.bin", "orion/rom/m31rk.bin", "orion/rom/m32zrk.bin", "orion/rom/m2rk.bin"};
     const char* const romDisks[] = {"", "orion/Orion128_RomDisk4.rom", "orion/romdisk2.bin", "orion/27C512-Orion-512.3-ROM-DISK.2025-01-18.rom.bin", "orion/dsdos/dsdos-128_s1024.bin"};
     unsigned modelIndex = static_cast<unsigned>(model);
@@ -131,7 +133,7 @@ Platform::Platform(std::string, std::string name)
         } else bus->banks[i] = own(new SRam(0xF000), bankName);
     }
     bus->common = own(new Ram(0x400), "sysRam")->getDataPtr();
-    bus->rom = own(new Rom(0x800, monitors[modelIndex]), "rom")->getDataPtr();
+    bus->rom = customMonitor ? customMonitor : own(new Rom(0x800, monitors[modelIndex]), "rom")->getDataPtr();
     auto* renderer = own(new OrionRenderer(), "crtRenderer");
     m_renderer = bus->renderer = renderer;
     renderer->attachScreenMemory(bus->banks[0]->asRam());
@@ -180,8 +182,8 @@ Platform::Platform(std::string, std::string name)
         m_loader = loader;
         loader->attachAddrSpace(bus->banks[0]);
         loader->attachRamDisk(bus->banks[1]);
-        loader->setFilter("Orion programs|*.rko;*.bru;*.ord;*.ori;*.RKO;*.BRU;*.ORD;*.ORI|All files|*");
-        m_fastReset = true;
+        loader->setFilter("Orion programs|*.rko;*.bru;*.ord;*.ori;*.RKO;*.BRU;*.ORD;*.ORI;*.rom|All files|*");
+        m_fastReset = !customMonitor;
         m_fastResetCpuTicks = 3000000;
         if (dsdos) {
             m_hdd = own(new DiskImage(), "hdd");
@@ -198,7 +200,7 @@ Platform::Platform(std::string, std::string name)
     } else {
         m_loader = own(new RkFileLoader(), "loader");
         m_loader->attachAddrSpace(bus);
-        m_loader->setFilter("RK programs|*.rk;*.rk?;*.gam;*.RK;*.RK?;*.GAM|All files|*");
+        m_loader->setFilter("RK programs|*.rk;*.rk?;*.gam;*.RK;*.RK?;*.GAM;*.rom|All files|*");
     }
     if (tape) {
         auto* input = own(new TapeRedirector(), "tapeInFile");
